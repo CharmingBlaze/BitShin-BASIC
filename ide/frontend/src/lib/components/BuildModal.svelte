@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { X, Hammer, CheckCircle2, AlertCircle, Loader2, FolderCheck } from 'lucide-svelte';
+  import { X, Hammer, CheckCircle2, AlertCircle, Loader2 } from 'lucide-svelte';
   import { editorStore } from '../stores/editorState.svelte';
   import { AppAPI } from '../wailsBridge';
 
@@ -14,7 +14,6 @@
     buildResult = null;
 
     try {
-      // If temporary file, save first
       if (editorStore.activeTab.isTemporary) {
         await editorStore.saveCurrentFile();
       }
@@ -34,36 +33,36 @@
   }
 </script>
 
-<div class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 select-none animate-in fade-in duration-150">
-  <div class="bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col">
+<div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 select-none">
+  <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-800 bg-slate-950/60">
-      <div class="flex items-center gap-2">
-        <div class="p-1.5 rounded-lg bg-indigo-500/20 text-indigo-400">
-          <Hammer size={18} />
+    <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-800 bg-slate-950/60">
+      <div class="flex items-center gap-2.5">
+        <div class="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+          <Hammer size={16} />
         </div>
         <div>
-          <h2 class="text-sm font-bold text-slate-100">Package Standalone Game (F7)</h2>
-          <p class="text-xs text-slate-400">Create a zip-ready distribution folder with binary and assets</p>
+          <h2 class="text-sm font-semibold text-slate-100">Package Standalone Game</h2>
+          <p class="text-[11px] text-slate-400">Create a distribution folder with executable, native DLLs and assets</p>
         </div>
       </div>
       <button
         onclick={() => editorStore.showBuildModal = false}
-        class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
+        class="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
       >
-        <X size={16} />
+        <X size={15} />
       </button>
     </div>
 
     <!-- Body -->
     <div class="p-5 space-y-4 text-xs">
       <div>
-        <label class="block font-medium text-slate-300 mb-1">Target Platform</label>
+        <label class="block font-medium text-slate-300 mb-1.5">Target Platform</label>
         <div class="grid grid-cols-3 gap-2">
           {#each ['windows', 'linux', 'darwin'] as os}
             <button
               onclick={() => targetOS = os}
-              class="py-2 px-3 rounded-lg border text-center font-medium capitalize transition {targetOS === os ? 'bg-sky-600 text-white border-sky-500 shadow-sm' : 'bg-slate-950 text-slate-300 border-slate-800 hover:border-slate-700'}"
+              class="py-2 px-3 rounded-lg border text-center font-medium capitalize transition cursor-pointer {targetOS === os ? 'bg-sky-500/15 text-sky-300 border-sky-500/50 shadow-sm' : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-slate-200'}"
             >
               {os === 'darwin' ? 'macOS (Darwin)' : os}
             </button>
@@ -72,18 +71,18 @@
       </div>
 
       <div>
-        <label class="block font-medium text-slate-300 mb-1">Output Folder</label>
+        <label class="block font-medium text-slate-300 mb-1.5">Output Folder</label>
         <input
           type="text"
           bind:value={outputDir}
-          class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 font-mono focus:outline-none focus:border-sky-500"
+          class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 font-mono focus:outline-none focus:border-sky-500 text-xs"
           placeholder="dist"
         />
         <p class="text-[11px] text-slate-500 mt-1">Natives, shaders, and referenced assets will be auto-collected next to the executable.</p>
       </div>
 
       {#if buildResult}
-        <div class="p-3 rounded-lg border {buildResult.success ? 'bg-emerald-950/40 border-emerald-800/80 text-emerald-300' : 'bg-rose-950/40 border-rose-800/80 text-rose-300'} flex items-start gap-2">
+        <div class="p-3 rounded-lg border {buildResult.success ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-rose-500/10 border-rose-500/30 text-rose-300'} flex items-start gap-2">
           {#if buildResult.success}
             <CheckCircle2 size={16} class="shrink-0 mt-0.5" />
           {:else}

@@ -46,37 +46,37 @@
   }
 </script>
 
-<div class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 select-none animate-in fade-in duration-150">
-  <div class="bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]">
+<div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 select-none">
+  <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[85vh]">
     <!-- Modal Header -->
-    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-800 bg-slate-950/60">
-      <div class="flex items-center gap-2">
-        <div class="p-1.5 rounded-lg bg-sky-500/20 text-sky-400">
-          <Sparkles size={18} />
+    <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-800 bg-slate-950/60">
+      <div class="flex items-center gap-2.5">
+        <div class="p-1.5 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
+          <Sparkles size={16} />
         </div>
         <div>
-          <h2 class="text-sm font-bold text-slate-100">Create New BitShin Script</h2>
-          <p class="text-xs text-slate-400">Select a game template or start with a blank file</p>
+          <h2 class="text-sm font-semibold text-slate-100">Create New Script</h2>
+          <p class="text-[11px] text-slate-400">Choose a game starter template or blank file</p>
         </div>
       </div>
       <button
         onclick={() => editorStore.showNewModal = false}
-        class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
+        class="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
       >
-        <X size={16} />
+        <X size={15} />
       </button>
     </div>
 
-    <!-- Templates Grid -->
+    <!-- Templates List -->
     <div class="p-5 overflow-y-auto space-y-2.5">
       {#each templates as t}
         {@const Icon = t.icon}
         <button
           onclick={() => chooseTemplate(t)}
-          class="w-full text-left p-3.5 rounded-xl bg-slate-950/60 hover:bg-slate-800/80 border border-slate-800 hover:border-sky-500/50 transition-all flex items-start gap-3.5 group"
+          class="w-full text-left p-3.5 rounded-xl bg-slate-950/60 hover:bg-slate-800/80 border border-slate-800/80 hover:border-sky-500/40 transition flex items-start gap-3.5 group cursor-pointer"
         >
-          <div class="p-2.5 rounded-lg bg-slate-900 text-sky-400 group-hover:bg-sky-500 group-hover:text-white transition shadow-sm">
-            <Icon size={20} />
+          <div class="p-2.5 rounded-lg bg-slate-900 text-sky-400 group-hover:bg-sky-500 group-hover:text-white transition shadow-sm shrink-0 border border-slate-800">
+            <Icon size={18} />
           </div>
           <div class="flex-1">
             <div class="text-xs font-bold text-slate-200 group-hover:text-sky-300 transition">{t.title}</div>

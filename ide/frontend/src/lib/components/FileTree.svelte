@@ -1,5 +1,8 @@
 <script lang="ts">
-  import { FolderTree, Folder, FolderOpen, FileCode, FileText, Image, RefreshCw, FilePlus, ChevronDown, ChevronRight } from 'lucide-svelte';
+  import {
+    Folder, FolderOpen, FileCode, FileText, Image, RefreshCw,
+    FilePlus, ChevronDown, ChevronRight, Binary, FileSpreadsheet
+  } from 'lucide-svelte';
   import type { FileNode } from '../types';
   import { editorStore } from '../stores/editorState.svelte';
   import { AppAPI } from '../wailsBridge';
@@ -31,20 +34,29 @@
 
   function getFileIcon(name: string) {
     const lower = name.toLowerCase();
-    if (lower.endsWith('.bb') || lower.endsWith('.basic')) return FileCode;
-    if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.bmp')) return Image;
-    return FileText;
+    if (lower.endsWith('.bb') || lower.endsWith('.basic') || lower.endsWith('.b3d')) {
+      return { icon: FileCode, color: 'text-sky-400' };
+    }
+    if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.bmp')) {
+      return { icon: Image, color: 'text-emerald-400' };
+    }
+    if (lower.endsWith('.exe') || lower.endsWith('.dll') || lower.endsWith('.so') || lower.endsWith('.dylib')) {
+      return { icon: Binary, color: 'text-indigo-400' };
+    }
+    if (lower.endsWith('.json') || lower.endsWith('.yml') || lower.endsWith('.yaml') || lower.endsWith('.toml')) {
+      return { icon: FileSpreadsheet, color: 'text-amber-400' };
+    }
+    return { icon: FileText, color: 'text-slate-400' };
   }
 </script>
 
-<div class="file-tree flex flex-col h-full bg-slate-900 border-r border-slate-800 select-none">
+<div class="file-tree flex flex-col h-full bg-slate-900/90 border-r border-slate-800 select-none">
   <!-- Header -->
-  <div class="p-3 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
-    <div class="flex items-center gap-1.5 text-xs font-bold text-sky-400">
-      <FolderTree size={14} />
-      <span>Project Explorer</span>
-    </div>
-    <div class="flex items-center gap-1">
+  <div class="px-3 py-2 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
+    <span class="text-[10px] font-bold tracking-wider uppercase text-slate-400">
+      Project Explorer
+    </span>
+    <div class="flex items-center gap-0.5">
       <button
         onclick={() => editorStore.showNewModal = true}
         class="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
@@ -55,7 +67,7 @@
       <button
         onclick={() => editorStore.refreshProjectTree()}
         class="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
-        title="Refresh Tree"
+        title="Refresh Explorer"
       >
         <RefreshCw size={13} />
       </button>
@@ -63,38 +75,41 @@
   </div>
 
   <!-- Tree View -->
-  <div class="flex-1 overflow-y-auto p-2 scrollbar-thin">
+  <div class="flex-1 overflow-y-auto py-1 scrollbar-thin">
     {#if !editorStore.projectTree}
       <div class="p-6 text-center text-slate-500 text-xs">
         Loading directory tree...
       </div>
     {:else}
       {#snippet renderNode(node: FileNode, depth: number)}
-        {@const FileIcon = getFileIcon(node.name)}
+        {@const fileMeta = getFileIcon(node.name)}
+        {@const Icon = fileMeta.icon}
+        {@const isCurrentTab = editorStore.activeTab?.path === node.path}
+        
         <div class="flex flex-col">
           <button
             onclick={() => openFileNode(node)}
-            style="padding-left: {depth * 12 + 6}px;"
-            class="w-full text-left py-1 pr-2 rounded hover:bg-slate-800/80 flex items-center gap-1.5 text-xs transition group {editorStore.activeTab?.path === node.path ? 'bg-sky-950 text-sky-300 font-medium' : 'text-slate-300'}"
+            style="padding-left: {depth * 14 + 8}px;"
+            class="w-full text-left py-1 pr-2 hover:bg-slate-800/60 flex items-center gap-1.5 text-xs transition group cursor-pointer border-l-2 {isCurrentTab ? 'bg-sky-500/10 text-sky-300 font-medium border-sky-400' : 'border-transparent text-slate-300 hover:text-slate-100'}"
           >
             {#if node.isDir}
-              <span class="text-slate-500">
+              <span class="text-slate-500 flex items-center justify-center w-3 h-3">
                 {#if expandedPaths[node.path]}
-                  <ChevronDown size={12} />
+                  <ChevronDown size={11} />
                 {:else}
-                  <ChevronRight size={12} />
+                  <ChevronRight size={11} />
                 {/if}
               </span>
               {#if expandedPaths[node.path]}
-                <FolderOpen size={14} class="text-sky-400 shrink-0" />
+                <FolderOpen size={13} class="text-amber-400 shrink-0" />
               {:else}
-                <Folder size={14} class="text-sky-500 shrink-0" />
+                <Folder size={13} class="text-amber-400/90 shrink-0" />
               {/if}
-              <span class="truncate font-medium">{node.name}</span>
+              <span class="truncate text-[12px]">{node.name}</span>
             {:else}
               <span class="w-3"></span>
-              <FileIcon size={13} class="text-slate-400 shrink-0 group-hover:text-sky-400" />
-              <span class="truncate">{node.name}</span>
+              <Icon size={13} class="{fileMeta.color} shrink-0" />
+              <span class="truncate text-[12px]">{node.name}</span>
             {/if}
           </button>
 

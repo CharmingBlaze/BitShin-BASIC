@@ -1,10 +1,28 @@
 import * as monaco from 'monaco-editor';
 import commandsData from '../data/commands.json';
 import { LANGUAGE_ID } from './bitshin-lang';
+import { lspReady, lspRequest } from './lspClient';
 
 export function registerHover() {
   monaco.languages.registerHoverProvider(LANGUAGE_ID, {
-    provideHover: (model, position) => {
+    provideHover: async (model, position) => {
+      if (lspReady) {
+        const result = await lspRequest('textDocument/hover', {
+          textDocument: { uri: model.uri.toString() },
+          position: { line: position.lineNumber - 1, character: position.column - 1 }
+        });
+        if (result?.contents) {
+          const value = result.contents.value || result.contents;
+          const word = model.getWordAtPosition(position);
+          return {
+            range: word
+              ? new monaco.Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn)
+              : undefined,
+            contents: [{ value: String(value) }]
+          };
+        }
+      }
+
       const word = model.getWordAtPosition(position);
       if (!word) return null;
 

@@ -1,11 +1,12 @@
 import * as monaco from 'monaco-editor';
 import commandsData from '../data/commands.json';
 import { LANGUAGE_ID } from './bitshin-lang';
+import { lspReady, lspRequest } from './lspClient';
 
 export function registerCompletions() {
   monaco.languages.registerCompletionItemProvider(LANGUAGE_ID, {
     triggerCharacters: [' ', '.', '(', ','],
-    provideCompletionItems: (model, position) => {
+    provideCompletionItems: async (model, position) => {
       const word = model.getWordUntilPosition(position);
       const range = {
         startLineNumber: position.lineNumber,
@@ -15,6 +16,27 @@ export function registerCompletions() {
       };
 
       const suggestions: monaco.languages.CompletionItem[] = [];
+
+      if (lspReady) {
+        const result = await lspRequest('textDocument/completion', {
+          textDocument: { uri: model.uri.toString() },
+          position: { line: position.lineNumber - 1, character: position.column - 1 }
+        });
+        const items = (result && result.items) || result || [];
+        if (Array.isArray(items) && items.length > 0) {
+          for (const it of items) {
+            suggestions.push({
+              label: it.label,
+              kind: it.kind || monaco.languages.CompletionItemKind.Function,
+              detail: it.detail,
+              documentation: it.documentation,
+              insertText: it.label,
+              range
+            });
+          }
+          return { suggestions };
+        }
+      }
 
       // 1. Builtin Commands from documentation
       for (const cmd of commandsData.commands) {

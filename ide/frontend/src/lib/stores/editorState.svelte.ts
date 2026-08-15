@@ -58,6 +58,8 @@ class EditorStore {
   activeSidebarTab = $state<'files' | 'commands' | 'outline' | 'examples'>('files');
   cursorPos = $state<{ line: number; col: number }>({ line: 1, col: 1 });
   
+  isOutputCollapsed = $state<boolean>(false);
+  
   settings = $state<UserSettings>({
     theme: 'bitshin-dark',
     fontSize: 14,
@@ -66,8 +68,8 @@ class EditorStore {
     wordWrap: 'off',
     autoSave: true,
     targetOS: 'windows',
-    outputHeight: 220,
-    sidebarWidth: 320
+    outputHeight: 200,
+    sidebarWidth: 300
   });
 
   showNewModal = $state<boolean>(false);
@@ -75,6 +77,14 @@ class EditorStore {
   showSettingsModal = $state<boolean>(false);
   showHelpModal = $state<boolean>(false);
   filterSearch = $state<string>('');
+
+  toggleOutputPanel(show?: boolean) {
+    if (show !== undefined) {
+      this.isOutputCollapsed = !show;
+    } else {
+      this.isOutputCollapsed = !this.isOutputCollapsed;
+    }
+  }
 
   // Svelte 5 derived state
   activeTab = $derived.by(() => {
@@ -144,12 +154,20 @@ class EditorStore {
     try {
       const s = await AppAPI.getSettings();
       if (s) {
+        if (s.outputHeight) {
+          s.outputHeight = Math.max(80, Math.min(260, s.outputHeight));
+        }
+        if (s.sidebarWidth) {
+          s.sidebarWidth = Math.max(180, Math.min(380, s.sidebarWidth));
+        }
         this.settings = { ...this.settings, ...s };
       }
     } catch {}
   }
 
   async saveSettings() {
+    this.settings.outputHeight = Math.max(80, Math.min(260, this.settings.outputHeight));
+    this.settings.sidebarWidth = Math.max(180, Math.min(380, this.settings.sidebarWidth));
     await AppAPI.saveSettings(this.settings);
   }
 
@@ -333,6 +351,7 @@ class EditorStore {
 
   async runActiveProgram() {
     if (!this.activeTab) return;
+    this.isOutputCollapsed = false;
     this.addLog({
       id: Math.random().toString(36).substring(7),
       type: 'system',

@@ -10,6 +10,8 @@ export function GetRepoRoot():Promise<string>;
 
 export function GetSettings():Promise<main.UserSettings>;
 
+export function IsLspRunning():Promise<boolean>;
+
 export function OpenFile(arg1:string):Promise<main.FileResult>;
 
 export function RunProgram(arg1:string,arg2:string,arg3:boolean):Promise<void>;
@@ -23,5 +25,7 @@ export function SelectOpenFile():Promise<main.FileResult>;
 export function SelectProjectDirectory():Promise<string>;
 
 export function SelectSaveFile(arg1:string,arg2:string):Promise<string>;
+
+export function SendLSP(arg1:string):Promise<void>;
 
 export function StopProgram():Promise<void>;

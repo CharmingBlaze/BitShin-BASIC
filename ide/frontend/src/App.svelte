@@ -26,7 +26,7 @@
 
   function onSidebarDrag(e: MouseEvent) {
     if (!isDraggingSidebar) return;
-    const newWidth = Math.max(200, Math.min(600, e.clientX));
+    const newWidth = Math.max(180, Math.min(380, e.clientX));
     editorStore.settings.sidebarWidth = newWidth;
   }
 
@@ -40,13 +40,16 @@
   function startOutputDrag(e: MouseEvent) {
     e.preventDefault();
     isDraggingOutput = true;
+    editorStore.isOutputCollapsed = false;
     window.addEventListener('mousemove', onOutputDrag);
     window.addEventListener('mouseup', stopOutputDrag);
   }
 
   function onOutputDrag(e: MouseEvent) {
     if (!isDraggingOutput) return;
-    const newHeight = Math.max(100, Math.min(600, window.innerHeight - e.clientY - 24));
+    const maxOutputHeight = Math.min(280, Math.floor(window.innerHeight * 0.35));
+    const minOutputHeight = 80;
+    const newHeight = Math.max(minOutputHeight, Math.min(maxOutputHeight, window.innerHeight - e.clientY - 24));
     editorStore.settings.outputHeight = newHeight;
   }
 
@@ -76,6 +79,9 @@
     } else if ((e.ctrlKey || e.metaKey) && e.key === 'n') {
       e.preventDefault();
       editorStore.showNewModal = true;
+    } else if ((e.ctrlKey || e.metaKey) && e.key === '`') {
+      e.preventDefault();
+      editorStore.toggleOutputPanel();
     }
   }
 
@@ -114,6 +120,7 @@
     <div
       onmousedown={startSidebarDrag}
       class="split-handle-horizontal {isDraggingSidebar ? 'active' : ''}"
+      title="Drag to resize sidebar"
     ></div>
 
     <!-- Center Workspace (Editor + Output Console) -->
@@ -126,13 +133,15 @@
       <!-- Vertical Resize Handle -->
       <div
         onmousedown={startOutputDrag}
+        ondblclick={() => editorStore.toggleOutputPanel()}
         class="split-handle-vertical {isDraggingOutput ? 'active' : ''}"
+        title="Drag to resize, double-click to toggle console"
       ></div>
 
       <!-- Output Console Panel -->
       <div
-        style="height: {editorStore.settings.outputHeight}px;"
-        class="shrink-0 min-h-0"
+        style="height: {editorStore.isOutputCollapsed ? '32px' : `${editorStore.settings.outputHeight}px`};"
+        class="shrink-0 min-h-0 transition-[height] duration-75"
       >
         <OutputPanel />
       </div>

@@ -111,5 +111,26 @@ export const AppAPI = {
       return await window.go.main.App.SaveSettings(settings);
     }
     localStorage.setItem('bitshin_settings', JSON.stringify(settings));
+  },
+
+  async getRepoRoot() {
+    if (window.go?.main?.App?.GetRepoRoot) {
+      return await window.go.main.App.GetRepoRoot();
+    }
+    return '';
+  },
+
+  async sendLsp(body: string) {
+    if (window.go?.main?.App?.SendLSP) {
+      return await window.go.main.App.SendLSP(body);
+    }
+    throw new Error('Language server requires BitShin IDE desktop backend');
+  },
+
+  async isLspRunning() {
+    if (window.go?.main?.App?.IsLspRunning) {
+      return await window.go.main.App.IsLspRunning();
+    }
+    return false;
   }
 };

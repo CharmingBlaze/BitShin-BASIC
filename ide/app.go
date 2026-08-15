@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,6 +23,9 @@ type App struct {
 	cmdMutex   sync.Mutex
 	runningCmd *exec.Cmd
 	repoRoot   string
+	lspMu      sync.Mutex
+	lspCmd     *exec.Cmd
+	lspStdin   io.WriteCloser
 }
 
 // NewApp creates a new App application struct
@@ -36,11 +40,13 @@ func NewApp() *App {
 // so we can call the runtime methods
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
+	a.startLanguageServer()
 }
 
 // shutdown is called when the app terminates
 func (a *App) shutdown(ctx context.Context) {
 	a.StopProgram()
+	a.stopLanguageServer()
 }
 
 func findRepoRoot() string {

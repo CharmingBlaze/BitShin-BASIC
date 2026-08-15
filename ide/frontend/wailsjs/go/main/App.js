@@ -18,6 +18,10 @@ export function GetSettings() {
   return window['go']['main']['App']['GetSettings']();
 }
 
+export function IsLspRunning() {
+  return window['go']['main']['App']['IsLspRunning']();
+}
+
 export function OpenFile(arg1) {
   return window['go']['main']['App']['OpenFile'](arg1);
 }
@@ -44,6 +48,10 @@ export function SelectProjectDirectory() {
 
 export function SelectSaveFile(arg1, arg2) {
   return window['go']['main']['App']['SelectSaveFile'](arg1, arg2);
+}
+
+export function SendLSP(arg1) {
+  return window['go']['main']['App']['SendLSP'](arg1);
 }
 
 export function StopProgram() {

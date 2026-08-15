@@ -1,6 +1,6 @@
 import * as monaco from 'monaco-editor';
 
-export const LANGUAGE_ID = 'bitshin-basic';
+export const LANGUAGE_ID = 'bitshinbasic';
 
 export const monarchLanguage: monaco.languages.IMonarchLanguage = {
   defaultToken: '',

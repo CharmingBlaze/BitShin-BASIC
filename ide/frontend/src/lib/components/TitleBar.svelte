@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Play, Square, Hammer, Minus, SquareCheck, X, Sparkles, FolderOpen, Save, Settings } from 'lucide-svelte';
+  import { Play, Square, Hammer, Minus, SquareCheck, X, Sparkles, Settings } from 'lucide-svelte';
   import { editorStore } from '../stores/editorState.svelte';
 
   function minimize() {
@@ -15,19 +15,19 @@
   }
 </script>
 
-<header class="titlebar select-none flex items-center justify-between px-3 h-10 bg-slate-950/90 border-b border-slate-800/80 text-slate-300 text-xs backdrop-blur-md z-50">
-  <!-- Left: Logo & Project Info -->
-  <div class="flex items-center gap-3 w-72">
-    <div class="flex items-center gap-2 font-bold tracking-wide text-sky-400">
-      <div class="w-5 h-5 rounded bg-gradient-to-tr from-sky-500 to-indigo-500 flex items-center justify-center text-white shadow-sm shadow-sky-500/30">
-        <Sparkles size={12} />
+<header class="titlebar flex items-center justify-between pl-3 pr-0 h-9 bg-slate-950 border-b border-slate-800/80 text-slate-300 text-xs select-none z-50" style="--wails-draggable: drag; -webkit-app-region: drag;">
+  <!-- Left: Brand Logo & Title -->
+  <div class="flex items-center gap-2.5 w-64 shrink-0" style="-webkit-app-region: no-drag;">
+    <div class="flex items-center gap-2">
+      <div class="w-5 h-5 rounded-md bg-gradient-to-tr from-sky-500 to-indigo-500 flex items-center justify-center text-white shadow-sm shadow-sky-500/20">
+        <Sparkles size={11} />
       </div>
-      <span>BitShin BASIC</span>
-      <span class="text-[10px] px-1.5 py-0.5 rounded bg-sky-950 border border-sky-800/60 text-sky-400 font-mono">IDE</span>
+      <span class="font-semibold tracking-wide text-xs text-slate-100">BitShin BASIC</span>
+      <span class="text-[9px] px-1.5 py-0.5 rounded bg-sky-500/10 border border-sky-500/30 text-sky-400 font-mono font-medium">IDE</span>
     </div>
   </div>
 
-  <!-- Center: Active Document Title & Status -->
+  <!-- Center: Active Document Breadcrumb -->
   <div class="flex-1 flex items-center justify-center gap-2 text-center text-slate-400 font-mono text-[11px] truncate px-4">
     {#if editorStore.activeTab}
       <span class="text-slate-200 font-medium">{editorStore.activeTab.name}</span>
@@ -36,70 +36,71 @@
       {/if}
       <span class="text-slate-600 text-[10px] truncate max-w-sm">({editorStore.activeTab.path})</span>
     {:else}
-      <span>No file open</span>
+      <span class="text-slate-500">BitShin BASIC Workspace</span>
     {/if}
   </div>
 
-  <!-- Right: Run / Stop quick triggers & Window buttons -->
-  <div class="flex items-center gap-2">
-    <div class="flex items-center gap-1.5 mr-2">
+  <!-- Right: Quick Actions & Frameless Window Controls -->
+  <div class="flex items-center gap-2 h-full" style="-webkit-app-region: no-drag;">
+    <div class="flex items-center gap-1.5 mr-1">
       {#if editorStore.isRunning}
         <button
           onclick={() => editorStore.stopProgram()}
-          class="flex items-center gap-1 px-2.5 py-1 rounded bg-rose-600/90 hover:bg-rose-500 text-white font-medium shadow-sm shadow-rose-950 transition-all text-[11px]"
+          class="flex items-center gap-1 px-2.5 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white font-medium text-[11px] transition shadow-sm"
           title="Stop Running Program (Shift+F5)"
         >
-          <Square size={12} fill="currentColor" />
+          <Square size={11} fill="currentColor" />
           <span>Stop</span>
         </button>
       {:else}
         <button
           onclick={() => editorStore.runActiveProgram()}
-          class="flex items-center gap-1 px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium shadow-sm shadow-emerald-950 transition-all text-[11px] hover:scale-105 active:scale-95"
+          class="flex items-center gap-1.5 px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-[11px] transition shadow-sm"
           title="Run Current Program (F5)"
         >
-          <Play size={12} fill="currentColor" />
-          <span>Run (F5)</span>
+          <Play size={11} fill="currentColor" />
+          <span>Run</span>
+          <span class="text-[9px] px-1 py-0.2 rounded bg-emerald-700/60 font-mono text-emerald-100">F5</span>
         </button>
       {/if}
 
       <button
         onclick={() => editorStore.showBuildModal = true}
-        class="flex items-center gap-1 px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition-all text-[11px]"
-        title="Build Standalone Package (F7)"
+        class="flex items-center gap-1 px-2.5 py-1 rounded bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-slate-800 text-[11px] font-medium transition"
+        title="Package Standalone (F7)"
       >
-        <Hammer size={12} />
+        <Hammer size={12} class="text-indigo-400" />
         <span>Build</span>
       </button>
 
       <button
         onclick={() => editorStore.showSettingsModal = true}
-        class="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
-        title="IDE Settings"
+        class="p-1.5 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
+        title="Settings"
       >
-        <Settings size={14} />
+        <Settings size={13} />
       </button>
     </div>
 
-    <!-- Window controls -->
-    <div class="flex items-center border-l border-slate-800 pl-2">
+    <!-- Windows native-styled controls -->
+    <div class="window-controls flex items-center h-full border-l border-slate-800/80">
       <button
         onclick={minimize}
-        class="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded transition"
+        class="h-full px-3.5 hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
         title="Minimize"
       >
-        <Minus size={13} />
+        <Minus size={12} />
       </button>
       <button
         onclick={toggleMaximize}
-        class="p-1.5 hover:bg-slate-800 text-slate-400 hover:text-slate-200 rounded transition"
+        class="h-full px-3.5 hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
         title="Maximize"
       >
-        <SquareCheck size={13} />
+        <SquareCheck size={12} />
       </button>
       <button
         onclick={closeWindow}
-        class="p-1.5 hover:bg-rose-600 text-slate-400 hover:text-white rounded transition"
+        class="h-full px-3.5 hover:bg-rose-600 text-slate-400 hover:text-white transition"
         title="Close"
       >
         <X size={13} />

@@ -1,9 +1,9 @@
 <script lang="ts">
-  import { X, Settings, Sliders, Type, Check } from 'lucide-svelte';
+  import { X, Settings, Check } from 'lucide-svelte';
   import { editorStore } from '../stores/editorState.svelte';
 
   const themes = [
-    { id: 'bitshin-dark', name: 'BitShin Dark (Default OLED)' },
+    { id: 'bitshin-dark', name: 'BitShin Dark (Default)' },
     { id: 'blitz-classic', name: 'Blitz3D Classic Blue' },
     { id: 'cyberpunk', name: 'Cyberpunk Neon' },
     { id: 'vs-dark', name: 'VS Dark' }
@@ -15,24 +15,24 @@
   }
 </script>
 
-<div class="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 z-50 select-none animate-in fade-in duration-150">
-  <div class="bg-slate-900 border border-slate-700/80 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
+<div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 select-none">
+  <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
     <!-- Header -->
-    <div class="flex items-center justify-between px-5 py-4 border-b border-slate-800 bg-slate-950/60">
-      <div class="flex items-center gap-2">
-        <div class="p-1.5 rounded-lg bg-sky-500/20 text-sky-400">
-          <Settings size={18} />
+    <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-800 bg-slate-950/60">
+      <div class="flex items-center gap-2.5">
+        <div class="p-1.5 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
+          <Settings size={16} />
         </div>
         <div>
-          <h2 class="text-sm font-bold text-slate-100">IDE Preferences</h2>
-          <p class="text-xs text-slate-400">Configure editor theme, typography, and behavior</p>
+          <h2 class="text-sm font-semibold text-slate-100">IDE Preferences</h2>
+          <p class="text-[11px] text-slate-400">Configure theme, editor typography, and layout</p>
         </div>
       </div>
       <button
         onclick={() => editorStore.showSettingsModal = false}
-        class="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
+        class="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
       >
-        <X size={16} />
+        <X size={15} />
       </button>
     </div>
 
@@ -40,22 +40,26 @@
     <div class="p-5 space-y-4 text-xs">
       <!-- Theme -->
       <div>
-        <label class="block font-medium text-slate-300 mb-1">Editor Theme</label>
-        <select
-          bind:value={editorStore.settings.theme}
-          class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-sky-500 cursor-pointer"
-        >
-          {#each themes as t}
-            <option value={t.id}>{t.name}</option>
-          {/each}
-        </select>
+        <label for="theme-select" class="block font-medium text-slate-300 mb-1.5">Editor Theme</label>
+        <div class="px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg">
+          <select
+            id="theme-select"
+            bind:value={editorStore.settings.theme}
+            class="w-full bg-transparent text-slate-200 focus:outline-none cursor-pointer"
+          >
+            {#each themes as t}
+              <option value={t.id}>{t.name}</option>
+            {/each}
+          </select>
+        </div>
       </div>
 
       <!-- Font Size & Tab Size -->
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label class="block font-medium text-slate-300 mb-1">Font Size (px)</label>
+          <label for="font-size-input" class="block font-medium text-slate-300 mb-1.5">Font Size (px)</label>
           <input
+            id="font-size-input"
             type="number"
             min="10"
             max="32"
@@ -65,21 +69,24 @@
         </div>
 
         <div>
-          <label class="block font-medium text-slate-300 mb-1">Tab Size</label>
-          <select
-            bind:value={editorStore.settings.tabSize}
-            class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-sky-500 cursor-pointer"
-          >
-            <option value={2}>2 Spaces</option>
-            <option value={4}>4 Spaces</option>
-            <option value={8}>8 Spaces</option>
-          </select>
+          <label for="tab-size-select" class="block font-medium text-slate-300 mb-1.5">Tab Size</label>
+          <div class="px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg">
+            <select
+              id="tab-size-select"
+              bind:value={editorStore.settings.tabSize}
+              class="w-full bg-transparent text-slate-200 focus:outline-none cursor-pointer"
+            >
+              <option value={2}>2 Spaces</option>
+              <option value={4}>4 Spaces</option>
+              <option value={8}>8 Spaces</option>
+            </select>
+          </div>
         </div>
       </div>
 
       <!-- Toggles -->
       <div class="space-y-2 pt-2 border-t border-slate-800">
-        <label class="flex items-center justify-between p-2 rounded-lg bg-slate-950/60 border border-slate-800 cursor-pointer hover:border-slate-700">
+        <label class="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 cursor-pointer hover:border-slate-700">
           <span class="text-slate-300 font-medium">Show Minimap</span>
           <input
             type="checkbox"
@@ -88,16 +95,18 @@
           />
         </label>
 
-        <label class="flex items-center justify-between p-2 rounded-lg bg-slate-950/60 border border-slate-800 cursor-pointer hover:border-slate-700">
+        <label class="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 cursor-pointer hover:border-slate-700">
           <span class="text-slate-300 font-medium">Word Wrap</span>
-          <select
-            bind:value={editorStore.settings.wordWrap}
-            class="bg-slate-900 border border-slate-700 rounded px-2 py-1 text-slate-200 text-xs cursor-pointer"
-          >
-            <option value="off">Off</option>
-            <option value="on">On</option>
-            <option value="wordWrapColumn">Column Wrap</option>
-          </select>
+          <div class="px-2 py-1 bg-slate-900 border border-slate-700 rounded">
+            <select
+              bind:value={editorStore.settings.wordWrap}
+              class="bg-transparent text-slate-200 text-xs cursor-pointer focus:outline-none"
+            >
+              <option value="off">Off</option>
+              <option value="on">On</option>
+              <option value="wordWrapColumn">Column Wrap</option>
+            </select>
+          </div>
         </label>
       </div>
     </div>

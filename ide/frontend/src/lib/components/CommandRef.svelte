@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Search, Copy, Plus, BookOpen, Check, ExternalLink } from 'lucide-svelte';
+  import { Search, Copy, Plus, BookOpen, Check } from 'lucide-svelte';
   import commandsData from '../data/commands.json';
   import type { CommandItem } from '../types';
   import { editorStore } from '../stores/editorState.svelte';
@@ -29,7 +29,6 @@
 
   function insertCommand(cmd: CommandItem) {
     if (!editorStore.activeTab) return;
-    // Append or insert into editor content
     editorStore.updateActiveContent(editorStore.activeTab.content + '\n' + cmd.syntax);
   }
 
@@ -40,14 +39,13 @@
   }
 </script>
 
-<div class="command-ref flex flex-col h-full bg-slate-900 border-r border-slate-800 select-none">
+<div class="command-ref flex flex-col h-full bg-slate-900/90 border-r border-slate-800 select-none">
   <!-- Header & Search -->
   <div class="p-3 border-b border-slate-800 space-y-2 bg-slate-950/40">
     <div class="flex items-center justify-between">
-      <div class="flex items-center gap-1.5 text-xs font-bold text-sky-400">
-        <BookOpen size={14} />
-        <span>Command Reference</span>
-      </div>
+      <span class="text-[10px] font-bold tracking-wider uppercase text-slate-400">
+        Command Reference
+      </span>
       <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
         {filteredCommands.length} / {commandsData.commands.length}
       </span>
@@ -59,26 +57,28 @@
       <input
         type="text"
         bind:value={searchQuery}
-        placeholder="Search 790+ commands (e.g. Camera, Turn, Physics)..."
-        class="w-full bg-slate-900 border border-slate-700/80 rounded-md pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500 transition"
+        placeholder="Search commands (Camera, Physics)..."
+        class="w-full bg-slate-950 border border-slate-800 rounded-md pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500 transition"
       />
     </div>
 
     <!-- Category filter selector -->
-    <select
-      bind:value={selectedCategory}
-      class="w-full bg-slate-900 border border-slate-800 rounded px-2 py-1 text-[11px] text-slate-300 focus:outline-none focus:border-sky-500 cursor-pointer"
-    >
-      {#each categories as cat}
-        <option value={cat}>{cat}</option>
-      {/each}
-    </select>
+    <div class="px-2 py-1 rounded bg-slate-950 border border-slate-800">
+      <select
+        bind:value={selectedCategory}
+        class="w-full bg-transparent text-[11px] text-slate-300 focus:outline-none cursor-pointer"
+      >
+        {#each categories as cat}
+          <option value={cat}>{cat}</option>
+        {/each}
+      </select>
+    </div>
   </div>
 
   <!-- Main Content: Split List + Detail Preview -->
   <div class="flex-1 flex flex-col min-h-0">
     <!-- Command List -->
-    <div class="flex-1 overflow-y-auto divide-y divide-slate-800/50 scrollbar-thin">
+    <div class="flex-1 overflow-y-auto divide-y divide-slate-800/40 scrollbar-thin">
       {#if filteredCommands.length === 0}
         <div class="p-6 text-center text-slate-500 text-xs">
           No commands matching "{searchQuery}"
@@ -87,11 +87,11 @@
         {#each filteredCommands as cmd}
           <button
             onclick={() => selectedCommand = cmd}
-            class="w-full text-left px-3 py-2 text-xs flex flex-col gap-0.5 hover:bg-slate-800/80 transition {selectedCommand?.name === cmd.name ? 'bg-sky-950/60 border-l-2 border-sky-400' : ''}"
+            class="w-full text-left px-3 py-1.5 text-xs flex flex-col gap-0.5 hover:bg-slate-800/60 transition cursor-pointer border-l-2 {selectedCommand?.name === cmd.name ? 'bg-sky-500/10 border-sky-400' : 'border-transparent'}"
           >
             <div class="flex items-center justify-between">
-              <span class="font-mono font-medium text-slate-200">{cmd.name}</span>
-              <span class="text-[9px] px-1.5 py-0.2 rounded bg-slate-800/80 text-slate-400 truncate max-w-[120px]">
+              <span class="font-mono font-medium text-slate-200 text-[12px]">{cmd.name}</span>
+              <span class="text-[9px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 truncate max-w-[120px]">
                 {cmd.category}
               </span>
             </div>

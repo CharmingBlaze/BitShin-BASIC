@@ -2,13 +2,13 @@
   import {
     FilePlus, FolderOpen, Save, Play, Square, Hammer,
     FolderTree, BookOpen, Code2, Sparkles, Terminal,
-    Palette, RefreshCw
+    Palette, Trash2, ChevronDown
   } from 'lucide-svelte';
   import { editorStore } from '../stores/editorState.svelte';
 
   const themes = [
     { id: 'bitshin-dark', name: 'BitShin Dark' },
-    { id: 'blitz-classic', name: 'Blitz3D Classic Blue' },
+    { id: 'blitz-classic', name: 'Blitz3D Classic' },
     { id: 'cyberpunk', name: 'Cyberpunk Neon' },
     { id: 'vs-dark', name: 'VS Dark' }
   ];
@@ -20,113 +20,115 @@
   }
 </script>
 
-<div class="toolbar flex items-center justify-between px-3 h-10 bg-slate-900/95 border-b border-slate-800 text-slate-300 text-xs select-none">
-  <!-- Left: File Operations & Run/Build -->
-  <div class="flex items-center gap-1.5">
+<div class="toolbar flex items-center justify-between px-3 h-9 bg-slate-900 border-b border-slate-800 text-slate-300 text-xs select-none">
+  <!-- Left: File Operations & Actions -->
+  <div class="flex items-center gap-1">
     <button
       onclick={() => editorStore.showNewModal = true}
-      class="flex items-center gap-1 px-2.5 py-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-white transition"
+      class="flex items-center gap-1.5 px-2.5 py-1 rounded-md hover:bg-slate-800 text-slate-300 hover:text-white transition text-xs font-medium"
       title="New File / Template (Ctrl+N)"
     >
-      <FilePlus size={14} class="text-sky-400" />
+      <FilePlus size={13} class="text-sky-400" />
       <span>New</span>
     </button>
 
     <button
       onclick={() => editorStore.openFileFromDisk()}
-      class="flex items-center gap-1 px-2.5 py-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-white transition"
+      class="flex items-center gap-1.5 px-2.5 py-1 rounded-md hover:bg-slate-800 text-slate-300 hover:text-white transition text-xs font-medium"
       title="Open File (Ctrl+O)"
     >
-      <FolderOpen size={14} class="text-amber-400" />
+      <FolderOpen size={13} class="text-amber-400" />
       <span>Open</span>
     </button>
 
     <button
       onclick={() => editorStore.saveCurrentFile()}
-      class="flex items-center gap-1 px-2.5 py-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-white transition"
+      class="flex items-center gap-1.5 px-2.5 py-1 rounded-md hover:bg-slate-800 text-slate-300 hover:text-white transition text-xs font-medium"
       title="Save File (Ctrl+S)"
     >
-      <Save size={14} class="text-emerald-400" />
+      <Save size={13} class="text-emerald-400" />
       <span>Save</span>
     </button>
 
-    <div class="w-px h-5 bg-slate-800 mx-1"></div>
+    <div class="w-px h-4 bg-slate-800 mx-1"></div>
 
     {#if editorStore.isRunning}
       <button
         onclick={() => editorStore.stopProgram()}
-        class="flex items-center gap-1.5 px-3 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white font-semibold transition shadow-sm"
+        class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-rose-600 hover:bg-rose-500 text-white font-medium text-xs transition shadow-sm"
+        title="Stop Execution (Shift+F5)"
       >
-        <Square size={13} fill="currentColor" />
+        <Square size={11} fill="currentColor" />
         <span>Stop</span>
       </button>
     {:else}
       <button
         onclick={() => editorStore.runActiveProgram()}
-        class="flex items-center gap-1.5 px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition shadow-sm hover:scale-105 active:scale-95"
+        class="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs transition shadow-sm"
+        title="Run Current Program (F5)"
       >
-        <Play size={13} fill="currentColor" />
-        <span>Run (F5)</span>
+        <Play size={11} fill="currentColor" />
+        <span>Run</span>
       </button>
     {/if}
 
     <button
       onclick={() => editorStore.showBuildModal = true}
-      class="flex items-center gap-1 px-2.5 py-1.5 rounded hover:bg-slate-800 text-slate-300 hover:text-white transition border border-transparent hover:border-slate-700"
-      title="Build & Package (F7)"
+      class="flex items-center gap-1.5 px-2.5 py-1 rounded-md hover:bg-slate-800 text-slate-300 hover:text-white transition text-xs font-medium"
+      title="Build & Package Standalone (F7)"
     >
-      <Hammer size={14} class="text-indigo-400" />
+      <Hammer size={13} class="text-indigo-400" />
       <span>Package</span>
     </button>
   </div>
 
-  <!-- Center: Sidebar Navigator Tabs -->
-  <div class="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800">
+  <!-- Center: Sidebar Segmented Mode Switcher -->
+  <div class="flex items-center bg-slate-950 p-0.5 rounded-lg border border-slate-800/90 gap-0.5">
     <button
       onclick={() => editorStore.activeSidebarTab = 'files'}
-      class="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition {editorStore.activeSidebarTab === 'files' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}"
-      title="Project Files"
+      class="flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium transition {editorStore.activeSidebarTab === 'files' ? 'bg-slate-800 text-sky-400 shadow-sm border border-slate-700/80 font-semibold' : 'text-slate-400 hover:text-slate-200'}"
+      title="Project Explorer"
     >
-      <FolderTree size={13} />
+      <FolderTree size={12} />
       <span>Explorer</span>
     </button>
 
     <button
       onclick={() => editorStore.activeSidebarTab = 'commands'}
-      class="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition {editorStore.activeSidebarTab === 'commands' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}"
-      title="Command Reference & Documentation Browser"
+      class="flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium transition {editorStore.activeSidebarTab === 'commands' ? 'bg-slate-800 text-sky-400 shadow-sm border border-slate-700/80 font-semibold' : 'text-slate-400 hover:text-slate-200'}"
+      title="Command Reference & API"
     >
-      <BookOpen size={13} />
+      <BookOpen size={12} />
       <span>Commands</span>
     </button>
 
     <button
       onclick={() => editorStore.activeSidebarTab = 'outline'}
-      class="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition {editorStore.activeSidebarTab === 'outline' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}"
-      title="Functions & Symbols Outline"
+      class="flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium transition {editorStore.activeSidebarTab === 'outline' ? 'bg-slate-800 text-sky-400 shadow-sm border border-slate-700/80 font-semibold' : 'text-slate-400 hover:text-slate-200'}"
+      title="Symbol & Functions Outline"
     >
-      <Code2 size={13} />
+      <Code2 size={12} />
       <span>Outline</span>
     </button>
 
     <button
       onclick={() => editorStore.activeSidebarTab = 'examples'}
-      class="flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-medium transition {editorStore.activeSidebarTab === 'examples' ? 'bg-sky-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-200'}"
-      title="Sample Games & Demos Gallery"
+      class="flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-medium transition {editorStore.activeSidebarTab === 'examples' ? 'bg-slate-800 text-sky-400 shadow-sm border border-slate-700/80 font-semibold' : 'text-slate-400 hover:text-slate-200'}"
+      title="69 Built-in Demos and Game Templates"
     >
-      <Sparkles size={13} />
+      <Sparkles size={12} />
       <span>Demos (69)</span>
     </button>
   </div>
 
-  <!-- Right: Theme Selector & Utilities -->
+  <!-- Right: Theme & Utilities -->
   <div class="flex items-center gap-2">
-    <div class="flex items-center gap-1.5 text-slate-400">
-      <Palette size={13} />
+    <div class="flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-950 border border-slate-800 text-slate-300 text-[11px]">
+      <Palette size={12} class="text-slate-400" />
       <select
         value={editorStore.settings.theme}
         onchange={handleThemeChange}
-        class="bg-slate-950 border border-slate-800 text-slate-300 text-[11px] rounded px-2 py-1 focus:outline-none focus:border-sky-500 cursor-pointer"
+        class="bg-transparent text-slate-300 text-[11px] focus:outline-none cursor-pointer pr-1"
       >
         {#each themes as t}
           <option value={t.id}>{t.name}</option>
@@ -134,15 +136,15 @@
       </select>
     </div>
 
-    <div class="w-px h-5 bg-slate-800 mx-1"></div>
+    <div class="w-px h-4 bg-slate-800 mx-0.5"></div>
 
     <button
       onclick={() => editorStore.clearLogs()}
-      class="flex items-center gap-1 px-2 py-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
+      class="flex items-center gap-1 px-2 py-1 rounded-md hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition text-[11px]"
       title="Clear Console Output"
     >
-      <RefreshCw size={12} />
-      <span>Clear Console</span>
+      <Trash2 size={12} />
+      <span>Clear</span>
     </button>
   </div>
 </div>
