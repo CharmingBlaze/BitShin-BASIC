@@ -1,0 +1,4 @@
+glmodern: OpenGL 3.3 (AMD Radeon 780M Graphics) instance=1 geom=1 ubo=1 compute=1 ssbo=1 tess=1
+EnableShadows: true
+
+GLAPI Error: The specified operation is not allowed in the current state (1282) calling: glUniform1f

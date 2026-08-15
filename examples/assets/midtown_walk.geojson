@@ -1,0 +1,24 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": { "name": "Empire State" },
+      "geometry": { "type": "Point", "coordinates": [-73.9857, 40.7484] }
+    },
+    {
+      "type": "Feature",
+      "properties": { "name": "block walk" },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [-73.9862, 40.7479],
+          [-73.9852, 40.7479],
+          [-73.9852, 40.7489],
+          [-73.9862, 40.7489],
+          [-73.9862, 40.7479]
+        ]
+      }
+    }
+  ]
+}

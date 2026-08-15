@@ -1,0 +1,29 @@
+; Tilemap + DrawImageRect — Esc quits
+
+Graphics2D(640, 400)
+SetClsColor(18, 22, 34)
+SetWindowTitle("BitShin BASIC — tiles")
+
+SetColor(70, 120, 70)
+atlas = CreateImage(64, 16)
+; four 16px tiles painted as strips via Rect on the atlas is not supported;
+; DrawTileMap without an atlas uses solid colors. SetTile ids 1..4.
+
+map = CreateTileMap(16, 16, 20, 12)
+For y = 0 To 11
+    For x = 0 To 19
+        t = 1
+        If y = 11 Then t = 3
+        If y = 10 And (x Mod 5) = 0 Then t = 2
+        SetTile(map, x, y, t)
+    Next
+Next
+
+While Not KeyDown(KEY_ESCAPE)
+    Cls
+    DrawTileMap(map, 0, 80)
+    SetColor(230, 230, 240)
+    Text(12, 12, "CreateTileMap / SetTile / DrawTileMap  |  Esc")
+    Flip
+Wend
+End

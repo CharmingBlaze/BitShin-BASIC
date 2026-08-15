@@ -1,0 +1,10 @@
+/bs.exe
+/bsls.exe
+/mb
+*.exe
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.dll
+!third_party/windows/*.dll

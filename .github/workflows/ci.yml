@@ -1,0 +1,21 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+      - name: Vet language packages
+        run: go vet ./internal/lex ./internal/parse ./internal/interp ./internal/value ./internal/ast ./internal/phys2d ./internal/phys3d ./internal/netenet
+      - name: Test (no window)
+        run: go test ./internal/lex ./internal/parse ./internal/interp ./internal/value ./internal/phys2d
+      - name: Build CLI
+        run: go build -o bs ./cmd/bs

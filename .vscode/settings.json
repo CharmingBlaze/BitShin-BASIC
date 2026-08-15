@@ -1,0 +1,6 @@
+{
+  "files.associations": {
+    "*.bb": "bitshinbasic"
+  },
+  "bitshinbasic.serverPath": "${workspaceFolder}/bsls.exe"
+}
