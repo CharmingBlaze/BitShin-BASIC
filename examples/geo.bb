@@ -1,7 +1,7 @@
 ; Projected GeoJSON path on a geo-bounded heightmap. WASD walk. Esc quits.
 
 Graphics3D(1100, 700)
-SetWindowTitle("Geo")
+SetWindowTitle("BitShin BASIC — Geo")
 SetCameraClsColor(90, 140, 200)
 SetAmbientLight(50, 60, 70)
 

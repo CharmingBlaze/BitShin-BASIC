@@ -3,7 +3,7 @@
 ; Runtime ignores Escape / WindowShouldClose until the first Flip. While 1 is extra.
 
 Graphics3D(1100, 700)
-SetWindowTitle("Weather")
+SetWindowTitle("BitShin BASIC — Weather")
 SetCameraClsColor(70, 120, 190)
 SetAmbientLight(70, 82, 100)
 HidePointer()

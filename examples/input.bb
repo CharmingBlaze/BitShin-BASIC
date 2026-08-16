@@ -1,7 +1,7 @@
 ; Keys, KeyHit, mouse, mouse look, gamepad + deadzone.
 
 Graphics3D(800, 600)
-SetWindowTitle("Input")
+SetWindowTitle("BitShin BASIC — Input")
 cam = CreateCamera()
 SetPosition(cam, 0, 1.6, 0)
 HidePointer()

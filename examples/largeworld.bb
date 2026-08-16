@@ -1,7 +1,7 @@
 ; Streaming terrain + instanced trees + water + crowd-ish walkers + ImGui stats.
 
 Graphics3D(1200, 720)
-SetWindowTitle("Large world")
+SetWindowTitle("BitShin BASIC — Large world")
 SetCameraClsColor(80, 130, 190)
 SetAmbientLight(45, 55, 68)
 CreateSkyBox("default")

@@ -2,6 +2,7 @@
 
 Graphics3D(640, 480)
 SetBuffer(BackBuffer())
+SetWindowTitle("BitShin BASIC — Lights")
 SetCameraClsColor(8, 10, 16)
 SetAmbientLight(20, 20, 28)
 SetCameraFogMode(1)

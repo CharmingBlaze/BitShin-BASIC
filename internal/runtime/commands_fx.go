@@ -636,7 +636,7 @@ func (w *World) loadSceneFile(rel string) error {
 	}
 	path, err := w.openPath(rel)
 	if err != nil {
-		path = w.resolve(rel)
+		path = w.findSceneFile(rel)
 	}
 	prog, err := parse.ParseFile(path)
 	if err != nil {
@@ -647,4 +647,29 @@ func (w *World) loadSceneFile(rel string) error {
 		return err
 	}
 	return w.runner.ExecProgram(prog)
+}
+
+func (w *World) findSceneFile(rel string) string {
+	if filepath.IsAbs(rel) {
+		return rel
+	}
+	cwd, _ := os.Getwd()
+	cands := []string{w.resolve(rel)}
+	for _, root := range []string{w.base, cwd} {
+		p := root
+		for i := 0; i < 6; i++ {
+			cands = append(cands, filepath.Join(p, rel), filepath.Join(p, "examples", rel))
+			next := filepath.Dir(p)
+			if next == p {
+				break
+			}
+			p = next
+		}
+	}
+	for _, p := range cands {
+		if st, err := os.Stat(p); err == nil && !st.IsDir() {
+			return p
+		}
+	}
+	return w.resolve(rel)
 }

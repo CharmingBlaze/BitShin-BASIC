@@ -1,7 +1,7 @@
 ; Detour navmesh from real mesh triangles (AABB only if a mesh has no tris) plus grid A*.
 
 Graphics3D(800, 600)
-SetWindowTitle("Nav")
+SetWindowTitle("BitShin BASIC — Nav")
 
 camera = CreateCamera()
 light = CreateLight()

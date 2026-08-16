@@ -6,6 +6,21 @@ import (
 	"github.com/g3n/engine/window"
 )
 
+func TestMouseDeltaZeroUntilFlip(t *testing.T) {
+	w := New(".")
+	w.mx, w.my = 400, 300
+	w.noteMouse()
+	if w.mxs != 0 || w.mys != 0 {
+		t.Fatal("MouseDelta must be 0 before Flip")
+	}
+	w.markFlip()
+	w.mx = 410
+	w.noteMouse()
+	if w.mxs != 10 {
+		t.Fatalf("MouseDeltaX after Flip want 10 got %v", w.mxs)
+	}
+}
+
 func TestKeyDownEscapeIgnoredUntilFlip(t *testing.T) {
 	w := New(".")
 	if w.keyDown(KeyEscape) {
@@ -155,6 +170,27 @@ func TestLatchHeldEscapeBlocksKeyHit(t *testing.T) {
 	w.setKey(window.KeyEscape, true)
 	if !w.keyDown(KeyEscape) || !w.keyHit(KeyEscape) {
 		t.Fatal("a new Escape after release must quit")
+	}
+}
+
+func TestKeyDownWASDAfterFlip(t *testing.T) {
+	w := New(".")
+	w.markFlip()
+	w.setKey(window.KeyW, true)
+	w.setKey(window.KeyA, true)
+	if !w.keyDown(KeyW) || !w.keyDown(KeyA) {
+		t.Fatal("WASD KeyDown must work after Flip (car/tank/claw)")
+	}
+	if w.keyDown(KeyEscape) {
+		t.Fatal("WASD must not latch Escape")
+	}
+}
+
+func TestPollHeldKeyFalseWithoutWindow(t *testing.T) {
+	w := New(".")
+	w.markFlip()
+	if w.pollHeldKey(KeyW) || w.pollHeldKey(KeyUp) {
+		t.Fatal("GLFW poll must be false when there is no window")
 	}
 }
 

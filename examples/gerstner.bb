@@ -1,7 +1,7 @@
 ; GPU Gems-style Gerstner ocean (swell + chop + wind). Esc quits.
 
 Graphics3D(1100, 700)
-SetWindowTitle("OCEAN — Gerstner")
+SetWindowTitle("BitShin BASIC — Gerstner ocean")
 SetCameraClsColor(46, 88, 132)
 SetAmbientLight(30, 40, 54)
 

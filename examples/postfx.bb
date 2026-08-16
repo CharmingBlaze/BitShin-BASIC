@@ -2,7 +2,7 @@
 ; Close the window to quit — no Escape.
 
 Graphics3D(960, 600)
-SetWindowTitle("PostFX")
+SetWindowTitle("BitShin BASIC — PostFX")
 cam = CreateCamera()
 SetPosition(cam, 0, 2.2, -7)
 sun = CreateLight()

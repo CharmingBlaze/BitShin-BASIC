@@ -2,7 +2,7 @@
 ; Leave running (no Escape). WASD walk.
 
 Graphics3D(1100, 700)
-SetWindowTitle("Heightmap")
+SetWindowTitle("BitShin BASIC — Heightmap")
 SetCameraClsColor(88, 138, 198)
 SetAmbientLight(48, 58, 68)
 

@@ -1,6 +1,6 @@
 ; Original 64-style 3D platformer — no trademarked names or assets.
 
-SetWindowTitle("Platform 64")
+SetWindowTitle("BitShin BASIC — Platform 64")
 Graphics3D(1280, 720, 0, 2)
 SetBuffer(BackBuffer())
 SetCameraClsColor(70, 140, 210)

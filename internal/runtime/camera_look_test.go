@@ -54,6 +54,70 @@ func TestAimDefaultCameraSeesOrigin(t *testing.T) {
 	}
 }
 
+func projectBlitz(cam *camera.Camera, x, y, z float32) math32.Vector3 {
+	gx, gy, gz := toG3N(x, y, z)
+	p := math32.Vector3{gx, gy, gz}
+	cam.Project(&p)
+	return p
+}
+
+func inView(p math32.Vector3) bool {
+	return p.X >= -0.95 && p.X <= 0.95 && p.Y >= -0.95 && p.Y <= 0.95 && p.Z > 0 && p.Z < 1
+}
+
+func TestCarSetRotationSeesVehicle(t *testing.T) {
+	cam := camera.New(16.0 / 9.0)
+	cam.SetFar(4000)
+	gx, gy, gz := toG3N(0, 8, -16)
+	cam.SetPosition(gx, gy, gz)
+	e := &Entity{node: cam, cam: cam, pitch: 22}
+	New(".").applyRot(e)
+	car := projectBlitz(cam, 0, 1.2, 10)
+	if !inView(car) {
+		t.Fatalf("SetRotation(22,0,0) at (0,8,-16) must see car (0,1.2,10), NDC=%v", car)
+	}
+}
+
+func TestBoatSetRotationSeesHull(t *testing.T) {
+	cam := camera.New(16.0 / 9.0)
+	cam.SetFar(4000)
+	gx, gy, gz := toG3N(0, 10, -18)
+	cam.SetPosition(gx, gy, gz)
+	e := &Entity{node: cam, cam: cam, pitch: 18}
+	New(".").applyRot(e)
+	hull := projectBlitz(cam, 0, 1.2, 8)
+	if !inView(hull) {
+		t.Fatalf("SetRotation(18,0,0) at (0,10,-18) must see boat (0,1.2,8), NDC=%v", hull)
+	}
+}
+
+func TestBounceSetRotationSeesBall(t *testing.T) {
+	cam := camera.New(16.0 / 9.0)
+	cam.SetFar(4000)
+	gx, gy, gz := toG3N(0, 8, -12)
+	cam.SetPosition(gx, gy, gz)
+	e := &Entity{node: cam, cam: cam, pitch: 28}
+	New(".").applyRot(e)
+	ball := projectBlitz(cam, -4, 1, 10)
+	wall := projectBlitz(cam, 3, 1, 10)
+	if !inView(ball) || !inView(wall) {
+		t.Fatalf("Bounce camera must see ball and wall, ball=%v wall=%v", ball, wall)
+	}
+}
+
+func TestHighChaseCameraLooksForward(t *testing.T) {
+	cam := camera.New(16.0 / 9.0)
+	cam.SetFar(4000)
+	gx, gy, gz := toG3N(0, 8, -16)
+	cam.SetPosition(gx, gy, gz)
+	e := &Entity{node: cam, cam: cam}
+	New(".").aimDefaultCamera(e)
+	car := projectBlitz(cam, 0, 1.2, 10)
+	if !inView(car) {
+		t.Fatalf("unrotated chase cam (0,8,-16) must look forward at the vehicle, NDC=%v", car)
+	}
+}
+
 func TestClawPointEntityStillSeesTarget(t *testing.T) {
 	cam := camera.New(16.0 / 9.0)
 	cam.SetFar(4000)

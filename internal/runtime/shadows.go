@@ -163,7 +163,7 @@ func (w *World) bindShadowUniforms(gs *gls.GLS) {
 			fmt.Println("EnableShadows: uniform panic", r)
 		}
 	}()
-	if !w.shadow.on || !w.shadow.ready || w.shadow.tex == 0 {
+	if !w.shadow.on || !w.shadow.ready || w.shadow.tex == 0 || !w.hasShadowLight() {
 		dummy := w.ensureDummyShadowTex()
 		w.bindShadowSampler(gs, dummy, 8, "ShadowMap")
 		w.bindShadowSampler(gs, dummy, 9, "ShadowMapDyn")
@@ -315,7 +315,7 @@ func setUniMat4(gs *gls.GLS, name string, m *math32.Matrix4) {
 }
 
 func (w *World) renderShadows(rend *renderer.Renderer, cam *camera.Camera) {
-	if !w.shadow.on || w.app == nil || cam == nil {
+	if !w.shadow.on || w.app == nil || cam == nil || !w.hasShadowLight() {
 		return
 	}
 	defer func() {
@@ -703,6 +703,27 @@ func (w *World) buildCascadeViews(cam *camera.Camera, n int) {
 		lc.ProjMatrix(&s.tmpProj)
 		s.lightVP[i].MultiplyMatrices(&s.tmpProj, &s.tmpView)
 	}
+}
+
+func (w *World) hasShadowLight() bool {
+	if w == nil {
+		return false
+	}
+	if e := w.ents[w.shadow.lightID]; e != nil && e.lgtKind >= 1 && e.lgtKind <= 3 {
+		return true
+	}
+	for _, e := range w.ents {
+		if e == nil {
+			continue
+		}
+		if e.lgtKind == 1 {
+			return true
+		}
+		if e.castShadow && (e.lgtKind == 2 || e.lgtKind == 3) {
+			return true
+		}
+	}
+	return false
 }
 
 func (w *World) shadowLightDir() math32.Vector3 {

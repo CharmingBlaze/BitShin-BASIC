@@ -2,6 +2,7 @@
 
 Graphics3D(640, 480)
 SetBuffer(BackBuffer())
+SetWindowTitle("BitShin BASIC — Parent")
 
 camera = CreateCamera()
 SetPosition(camera, 0, 3, -8)

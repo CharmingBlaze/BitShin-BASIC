@@ -1,7 +1,7 @@
 ; Real XZ heightfield: alpine FBM hills, splat, walk. Esc after a few frames.
 
 Graphics3D(1280, 720)
-SetWindowTitle("TERRAIN")
+SetWindowTitle("BitShin BASIC — Terrain")
 SetCameraClsColor(110, 160, 210)
 SetAmbientLight(88, 92, 100)
 EnableFog(True)

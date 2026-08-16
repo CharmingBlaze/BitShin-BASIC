@@ -8,7 +8,6 @@ import (
 	"github.com/g3n/engine/core"
 	"github.com/g3n/engine/graphic"
 	"github.com/g3n/engine/gui"
-	"github.com/g3n/engine/light"
 	"github.com/g3n/engine/math32"
 	"github.com/g3n/engine/texture"
 	"github.com/g3n/engine/window"
@@ -58,29 +57,10 @@ func (w *World) commandTable() map[string]cmd {
 		}),
 		"createlight": need(func(a []value.Value) (value.Value, error) {
 			kind := argI(a, 0, 1)
-			col := &math32.Color{1, 1, 1}
-			var node core.INode
-			switch kind {
-			case 2:
-				node = light.NewPoint(col, 8)
-			case 3:
-				node = light.NewSpot(col, 8)
-			default:
-				d := light.NewDirectional(col, 1.1)
-				d.SetPosition(2, 4, 3)
-				node = d
-			}
 			if kind < 1 || kind > 3 {
 				kind = 1
 			}
-			id := w.addEntity(&Entity{node: node, lgtKind: kind}, argI(a, 1, 0))
-			if c, ok := node.(interface{ SetColor(color *math32.Color) }); ok {
-				w.ents[id].lgt = c
-			}
-			if i, ok := node.(interface{ SetIntensity(float32) }); ok {
-				w.ents[id].lgtI = i
-			}
-			return value.Num(float64(id)), nil
+			return value.Num(float64(w.makeLight(kind, argI(a, 1, 0)))), nil
 		}),
 		"createcube":     need(func(a []value.Value) (value.Value, error) { return value.Num(float64(w.createCubeMesh(a))), nil }),
 		"createbox":      need(func(a []value.Value) (value.Value, error) { return value.Num(float64(w.createBoxMesh(a))), nil }),
@@ -230,11 +210,10 @@ func (w *World) commandTable() map[string]cmd {
 			e.tint.R, e.tint.G, e.tint.B = c.R, c.G, c.B
 			if e.mat != nil {
 				e.mat.SetColor(c)
-				e.mat.SetEmissiveColor(&math32.Color{c.R * 0.2, c.G * 0.2, c.B * 0.2})
+				e.mat.SetEmissiveColor(&math32.Color{0, 0, 0})
 			}
 			if e.pbr != nil {
 				e.pbr.SetBaseColorFactor(&e.tint)
-				e.pbr.SetEmissiveFactor(&math32.Color{c.R * 0.2, c.G * 0.2, c.B * 0.2})
 			}
 			return z()
 		}),
@@ -325,6 +304,7 @@ func (w *World) commandTable() map[string]cmd {
 			c := rgb(argN(a, 0, 255), argN(a, 1, 255), argN(a, 2, 255))
 			if w.ambient != nil {
 				w.ambient.SetColor(c)
+				w.ambient.SetIntensity(1)
 			}
 			w.wx.ambSaved = false
 			return z()
@@ -333,6 +313,7 @@ func (w *World) commandTable() map[string]cmd {
 			c := rgb(argN(a, 0, 0.24), argN(a, 1, 0.28), argN(a, 2, 0.36))
 			if w.ambient != nil {
 				w.ambient.SetColor(c)
+				w.ambient.SetIntensity(1)
 			}
 			w.wx.ambSaved = false
 			return z()
@@ -691,9 +672,12 @@ func (w *World) spawnCamera(parent int) int {
 	return id
 }
 
-// aimDefaultCamera points an unrotated Blitz camera along +Z so
-// PositionEntity(cam, 0, 2, -6) sees the origin. PointEntity / SetRotation
-// still win afterwards (claw.bb).
+// aimDefaultCamera points an unrotated Blitz camera along +Z.
+// Only the showcase pose (about 0,2,-6) looks at the origin so a cube
+// there is centered. High chase cameras (car/boat/tank) look forward
+// at ground height — looking at the origin from (0,8,-16) puts the
+// vehicle above the ray and the playfield out of frame.
+// PointEntity / SetRotation still win afterwards (claw.bb).
 func (w *World) aimDefaultCamera(e *Entity) {
 	if e == nil || e.cam == nil {
 		return
@@ -705,11 +689,12 @@ func (w *World) aimDefaultCamera(e *Entity) {
 	p := n.Position()
 	bx, by, bz := fromG3N(p.X, p.Y, p.Z)
 	lookY, lookZ := by, bz+8
-	// Raised camera behind the origin (classic 0,2,-6): look at the play
-	// plane so the cube is framed, not sitting in the bottom third.
-	if by >= 0.25 && bz < -1 {
+	if by >= 1.2 && by <= 3.6 && bz <= -4 && bz >= -9 {
 		lookY = 0
 		lookZ = 0
+	} else if by >= 3 {
+		lookY = 1
+		lookZ = bz + 24
 	}
 	tx, ty, tz := toG3N(bx, lookY, lookZ)
 	up := math32.Vector3{0, 1, 0}
@@ -851,7 +836,34 @@ func (w *World) pointOrLook(a []value.Value) (value.Value, error) {
 
 func (w *World) applyRot(e *Entity) {
 	n := e.node.GetNode()
+	if e.cam != nil {
+		w.aimCameraEuler(e)
+		return
+	}
 	n.SetRotationX(e.pitch * math32.Pi / 180)
 	n.SetRotationY(-e.yaw * math32.Pi / 180)
 	n.SetRotationZ(-e.roll * math32.Pi / 180)
+	if e.lgtKind == 1 {
+		gx, gy, gz := dirLightOffset(float64(e.pitch), float64(e.yaw))
+		n.SetPosition(gx, gy, gz)
+	}
+}
+
+// aimCameraEuler aims a camera with Blitz pitch/yaw: 0,0 looks +Z,
+// positive pitch looks down. G3N Euler SetRotationX looks the wrong
+// way (sky + a ground sliver) because G3N cameras face -Z.
+func (w *World) aimCameraEuler(e *Entity) {
+	n := e.node.GetNode()
+	p := n.Position()
+	bx, by, bz := fromG3N(p.X, p.Y, p.Z)
+	pr := float64(e.pitch) * math.Pi / 180
+	yr := float64(e.yaw) * math.Pi / 180
+	cp := math.Cos(pr)
+	dist := 24.0
+	lx := float64(bx) + math.Sin(yr)*cp*dist
+	ly := float64(by) - math.Sin(pr)*dist
+	lz := float64(bz) + math.Cos(yr)*cp*dist
+	gx, gy, gz := toG3N(float32(lx), float32(ly), float32(lz))
+	up := math32.Vector3{0, 1, 0}
+	n.LookAt(&math32.Vector3{gx, gy, gz}, &up)
 }

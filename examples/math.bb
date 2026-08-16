@@ -1,5 +1,6 @@
 ; Console math demo (degrees, one return each)
 
+Print("BitShin BASIC math")
 Print("trig", Int(Sin(90)), Int(Cos(0)), Int(ATan2(1, 0)))
 Print("dist", Dist(0, 0, 3, 4), Distance3D(0, 0, 0, 0, 0, 5))
 Print("clamp/lerp", Clamp(15, 0, 10), Lerp(0, 10, 0.5), InvLerp(0, 10, 5))

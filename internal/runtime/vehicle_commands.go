@@ -92,7 +92,18 @@ func (w *World) bindCtrl(kind string, a []value.Value, hx, hy, hz, mass float32)
 		hy = float32(argN(a, 2, float64(hy)))
 		hz = float32(argN(a, 3, float64(hz)))
 	}
-	w.ensureCtrlBody(id, hx, hy, hz, mass)
+	boxHy := hy
+	if kind == "car" || kind == "moto" || kind == "tank" {
+		// Keep the collider above the tires so the hull does not rest on
+		// the ground and unload the Jolt wheels.
+		if boxHy > 0.18 {
+			boxHy = 0.18
+		}
+	}
+	w.ensureCtrlBody(id, hx, boxHy, hz, mass)
+	if kind == "car" || kind == "moto" || kind == "tank" {
+		w.phys3.SetFriction(id, 0.35)
+	}
 	c := &vehCtrl{kind: kind, id: id, hx: hx, hy: hy, hz: hz, mass: mass, rho: 1.2, area: hx * hz * 2}
 	w.putCtrl(c)
 	return c
@@ -260,7 +271,7 @@ func (w *World) vehicleCommands(n func(func([]value.Value) (value.Value, error))
 			throttle := float32(argN(a, 2, 0))
 			brake := float32(argN(a, 3, 0))
 			w.phys3.SetVehicleInput(id, steer, throttle, brake)
-			if c := w.vehCtrls[id]; c != nil && c.native == 0 && (c.kind == "car" || c.kind == "moto" || c.kind == "tank") {
+			if c := w.vehCtrls[id]; c != nil && (c.kind == "car" || c.kind == "moto" || c.kind == "tank") {
 				w.updateWheeled(c, steer, throttle, brake)
 			}
 			return z()
@@ -502,7 +513,6 @@ func (w *World) updateNamed(kind string, a []value.Value) (value.Value, error) {
 	brake := float32(argN(a, 3, 0))
 	if c.native != 0 {
 		w.phys3.SetVehicleInput(id, steer, throttle, brake)
-		return value.Num(0), nil
 	}
 	w.updateWheeled(c, steer, throttle, brake)
 	_ = kind
@@ -511,10 +521,14 @@ func (w *World) updateNamed(kind string, a []value.Value) (value.Value, error) {
 
 func (w *World) updateWheeled(c *vehCtrl, steer, throttle, brake float32) {
 	fx, _, fz, _, _, _, _, _, _ := w.physAxes(c.id)
-	force := throttle * 9000
+	force := throttle * 11000
 	if c.kind == "tank" {
-		force = throttle * 12000
-		w.phys3.SetLinearDamping(c.id, 2.2)
+		force = throttle * 16000
+		if throttle != 0 || steer != 0 {
+			w.phys3.SetLinearDamping(c.id, 0.85)
+		} else {
+			w.phys3.SetLinearDamping(c.id, 2.2)
+		}
 	}
 	w.phys3.ApplyForce(c.id, fx*force, 0, fz*force)
 	w.phys3.ApplyTorque(c.id, 0, steer*5000, 0)

@@ -1,7 +1,7 @@
 ; Dear ImGui on the same G3N GLFW window. Drawn after the 3D scene on Flip.
 
 Graphics3D(800, 600)
-SetWindowTitle("GUI demo")
+SetWindowTitle("BitShin BASIC — GUI demo")
 
 camera = CreateCamera()
 light = CreateLight()

@@ -1,7 +1,7 @@
 ; Combined ocean: Gerstner swell + chop + Fresnel / planar reflect. Esc quits.
 
 Graphics3D(1100, 700)
-SetWindowTitle("OCEAN")
+SetWindowTitle("BitShin BASIC — Ocean")
 SetCameraClsColor(48, 92, 138)
 SetAmbientLight(32, 42, 55)
 

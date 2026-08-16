@@ -1,7 +1,7 @@
 ; Modern GL demo. Runs on OpenGL 3.3. Compute/SSBO/tess return 0 on old GPUs.
 
 Graphics3D(960, 600)
-SetWindowTitle("Modern GL")
+SetWindowTitle("BitShin BASIC — Modern GL")
 SetCameraClsColor(40, 48, 62)
 SetAmbientLight(50, 55, 70)
 

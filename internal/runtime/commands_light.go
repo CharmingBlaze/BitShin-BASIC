@@ -13,20 +13,21 @@ import (
 
 func (w *World) makeLight(kind, parent int) int {
 	col := &math32.Color{1, 1, 1}
-	var node core.INode
 	switch kind {
 	case 0:
-		node = light.NewAmbient(col, 0.8)
+		return w.finishLight(light.NewAmbient(col, 0.8), 0, parent)
 	case 2:
-		node = light.NewPoint(col, 8)
+		return w.finishLight(light.NewPoint(col, 8), 2, parent)
 	case 3:
-		node = light.NewSpot(col, 8)
+		return w.finishLight(light.NewSpot(col, 8), 3, parent)
 	default:
-		kind = 1
-		d := light.NewDirectional(col, 1.2)
-		d.SetPosition(2, 4, 3)
-		node = d
+		id := w.finishLight(light.NewDirectional(col, 1.15), 1, parent)
+		w.setLightDir(w.ents[id], 40, 30, 0)
+		return id
 	}
+}
+
+func (w *World) finishLight(node core.INode, kind, parent int) int {
 	id := w.addEntity(&Entity{node: node, lgtKind: kind}, parent)
 	if c, ok := node.(interface{ SetColor(color *math32.Color) }); ok {
 		w.ents[id].lgt = c
@@ -37,16 +38,20 @@ func (w *World) makeLight(kind, parent int) int {
 	return id
 }
 
-func (w *World) setLightDir(e *Entity, pitch, yaw, roll float64) {
-	e.pitch, e.yaw, e.roll = float32(pitch), float32(yaw), float32(roll)
-	w.applyRot(e)
+// dirLightOffset is the G3N world position of a directional light.
+// G3N treats that position as the vector from a fragment toward the sun.
+func dirLightOffset(pitch, yaw float64) (float32, float32, float32) {
 	pr := pitch * math32.Pi / 180
 	yr := yaw * math32.Pi / 180
 	x := math32.Sin(float32(yr)) * math32.Cos(float32(pr))
 	y := math32.Sin(float32(pr))
 	z := math32.Cos(float32(yr)) * math32.Cos(float32(pr))
-	gx, gy, gz := toG3N(x, y, z)
-	e.node.GetNode().SetPosition(gx, gy, gz)
+	return toG3N(x, y, z)
+}
+
+func (w *World) setLightDir(e *Entity, pitch, yaw, roll float64) {
+	e.pitch, e.yaw, e.roll = float32(pitch), float32(yaw), float32(roll)
+	w.applyRot(e)
 }
 
 func (w *World) lightCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error), need func(func([]value.Value) (value.Value, error)) cmd) map[string]cmd {

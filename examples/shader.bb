@@ -1,7 +1,7 @@
 ; Shader programs (not an Unreal graph): CreateShader + SetShader + SetShaderUniform.
 
 Graphics3D(800, 600)
-SetWindowTitle("Shaders")
+SetWindowTitle("BitShin BASIC — Shaders")
 cam = CreateCamera()
 SetPosition(cam, 0, 1.4, -5)
 light = CreateLight()

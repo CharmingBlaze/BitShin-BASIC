@@ -73,6 +73,74 @@ func TestNavBakeUsesMeshTriangles(t *testing.T) {
 	}
 }
 
+func TestCrowdExampleBakeAndAgentsMove(t *testing.T) {
+	w := New(".")
+	w.scene = core.NewNode()
+	w.delta = 1.0 / 60.0
+	mat := material.NewStandard(&math32.Color{0.5, 0.5, 0.5})
+	floorGeom := geometry.NewCube(2)
+	floorMesh := graphic.NewMesh(floorGeom, mat)
+	floorMesh.SetScale(14, 0.2, 14)
+	floor := &Entity{node: floorMesh, mesh: floorMesh, mat: mat}
+	fid := w.addEntity(floor, 0)
+
+	nm := &navMesh{meshID: fid}
+	if err := w.bakeNav(nm); err != nil {
+		t.Fatalf("crowd.bb BakeNavMesh: %v", err)
+	}
+	nid := 1
+	w.navs[nid] = nm
+	w.curNav = nid
+
+	cr := &crowd{sep: 1.3}
+	w.crowds[1] = cr
+	w.curCrowd = 1
+
+	startZ := make([]float32, 8)
+	for i := 0; i < 8; i++ {
+		g := geometry.NewCube(2)
+		m := graphic.NewMesh(g, mat)
+		m.SetScale(0.35, 0.7, 0.35)
+		bx, by, bz := toG3N(-6+float32(i)*1.5, 1, -5)
+		m.SetPosition(bx, by, bz)
+		e := &Entity{node: m, mesh: m, mat: mat}
+		id := w.addEntity(e, 0)
+		w.agents[id] = &navAgent{ent: id, nav: nid, speed: 4, radius: 0.45}
+		cr.agents = append(cr.agents, id)
+		startZ[i] = -5
+	}
+
+	c := w.crowds[1]
+	for _, id := range c.agents {
+		ag := w.agents[id]
+		pts, err := w.navFindPath(ag, 6, 1, 6)
+		if err != nil || len(pts) == 0 {
+			pts = [][3]float32{{6, 1, 6}}
+		}
+		ag.path = pts
+		ag.i = 0
+		ag.moving = true
+	}
+
+	moved := 0
+	for step := 0; step < 90; step++ {
+		w.navStepped = false
+		w.updateNav()
+		w.tickCrowds()
+	}
+	for i, id := range cr.agents {
+		e := w.ents[id]
+		p := worldPos(e.node.GetNode())
+		_, _, z := fromG3N(p.X, p.Y, p.Z)
+		if z > startZ[i]+0.4 {
+			moved++
+		}
+	}
+	if moved < 4 {
+		t.Fatalf("crowd agents did not walk toward destination, moved=%d/8", moved)
+	}
+}
+
 func TestNavBakeAABBFallback(t *testing.T) {
 	w := New(".")
 	w.scene = core.NewNode()

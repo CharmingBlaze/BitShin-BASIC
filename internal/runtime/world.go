@@ -66,7 +66,7 @@ type Entity struct {
 	driveTrack                         bool
 	vpX, vpY, vpW, vpH                 int
 	anim                               *animState
-	lgtKind                            int // 0 none, 1 directional, 2 point, 3 spot
+	lgtKind                            int // 0 ambient/none, 1 directional, 2 point, 3 spot
 	castShadow                         bool
 	shadowRes                          int
 	shadowGeomDirty                    bool // vertex/morph edits: skip shadow cache until redrawn
@@ -479,7 +479,7 @@ func (w *World) graphics3D(width, height, depth, mode int) (value.Value, error) 
 	}
 	w.scene = core.NewNode()
 	gui.Manager().Set(w.scene)
-	w.ambient = light.NewAmbient(&math32.Color{0.55, 0.60, 0.70}, 1.2)
+	w.ambient = light.NewAmbient(&math32.Color{0.28, 0.30, 0.36}, 1)
 	w.scene.Add(w.ambient)
 	w.app.Gls().ClearColor(w.clear.R, w.clear.G, w.clear.B, 1)
 	w.app.Subscribe(window.OnWindowSize, func(evname string, ev interface{}) {
@@ -665,7 +665,10 @@ func (w *World) keyDown(code int) bool {
 	if w.guiCapturesKeyboard() {
 		return false
 	}
-	return w.keys[code]
+	if w.keys[code] {
+		return true
+	}
+	return w.pollHeldKey(code)
 }
 
 // windowWantsClose is WindowShouldClose(). Phantom GLFW close from
@@ -799,7 +802,7 @@ func (w *World) newMat() *material.Standard {
 	m := material.NewStandard(&math32.Color{0.82, 0.84, 0.88})
 	m.SetShininess(8)
 	m.SetSpecularColor(&math32.Color{0.11, 0.11, 0.11})
-	m.SetEmissiveColor(&math32.Color{0.12, 0.12, 0.14})
+	m.SetEmissiveColor(&math32.Color{0, 0, 0})
 	if w.shadow.on || w.fogMode != 0 {
 		m.SetShader("bsshadow")
 	}
@@ -1368,6 +1371,20 @@ func (w *World) glfwWin() *window.GlfwWindow {
 	return gw
 }
 
+// pollHeldKey reads the live GLFW key so WASD still drives if a frame
+// missed OnKeyDown. heldAtFlip / gui capture already returned above.
+func (w *World) pollHeldKey(code int) bool {
+	gw := w.glfwWin()
+	if gw == nil {
+		return false
+	}
+	gk, ok := dikToKey[code]
+	if !ok {
+		return false
+	}
+	return gw.GetKey(glfw.Key(gk)) == glfw.Press
+}
+
 func (w *World) loadMeshFile(path string, parent int) (int, error) {
 	realPath, err := w.openPath(path)
 	if err != nil {
@@ -1476,9 +1493,12 @@ func (w *World) loadObjAt(path string, parent int) (int, error) {
 }
 
 func (w *World) noteMouse() {
-	if !w.mouseInited {
+	if !w.presented || !w.mouseInited {
 		w.prevMX, w.prevMY = w.mx, w.my
 		w.mouseInited = true
+		w.mxs, w.mys, w.mzs = 0, 0, 0
+		w.prevMZ = w.mz
+		return
 	}
 	w.mxs = w.mx - w.prevMX
 	w.mys = w.my - w.prevMY

@@ -72,6 +72,7 @@ func (w *joltWorld) SetFriction(id int, f float32) {
 }
 
 func (w *joltWorld) createNativeVehicle(id int, halfW, halfH, halfL float32, kind int) int {
+	id = w.resolvePhysID(id)
 	b, ok := w.bodyOf(id)
 	if !ok || b == nil {
 		return 0

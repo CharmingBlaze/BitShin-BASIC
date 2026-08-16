@@ -1,7 +1,7 @@
 ; Walk a streamed prop grid. Chunks load/unload around the player.
 
 Graphics3D(960, 600)
-SetWindowTitle("Stream")
+SetWindowTitle("BitShin BASIC — Stream")
 SetAmbientLight(50, 55, 65)
 cam = CreateCamera()
 sun = CreateLight()

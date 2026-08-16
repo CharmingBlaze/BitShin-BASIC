@@ -2,7 +2,7 @@
 ; Leave running (no Escape).
 
 Graphics3D(960, 600)
-SetWindowTitle("PBR")
+SetWindowTitle("BitShin BASIC — PBR")
 SetCameraClsColor(12, 14, 22)
 SetAmbientLight(22, 26, 34)
 

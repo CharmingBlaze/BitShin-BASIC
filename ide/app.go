@@ -227,7 +227,15 @@ func (a *App) RunProgram(code string, filePath string, debug bool) error {
 	var runPath string
 	var workDir string
 
-	if filePath != "" && !strings.HasPrefix(filePath, "temp://") {
+	if strings.HasPrefix(filePath, "example://") || strings.HasPrefix(filePath, "temp://") {
+		tempDir := filepath.Join(a.repoRoot, "scratch")
+		_ = os.MkdirAll(tempDir, 0o755)
+		runPath = filepath.Join(tempDir, "_temp_run.bb")
+		if err := os.WriteFile(runPath, []byte(code), 0o644); err != nil {
+			return fmt.Errorf("failed to write temp file: %w", err)
+		}
+		workDir = a.repoRoot
+	} else if filePath != "" && !strings.HasPrefix(filePath, "temp://") {
 		// Existing file on disk: save current code first
 		_ = os.WriteFile(filePath, []byte(code), 0o644)
 		runPath = filePath

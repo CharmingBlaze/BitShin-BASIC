@@ -1,14 +1,21 @@
 ; Collisions / SetEntityType — sphere vs cube
 
-Graphics3D(640, 480)
+Graphics3D(800, 600, 0, 2)
 SetBuffer(BackBuffer())
+SetWindowTitle("BitShin BASIC — Bounce")
+SetCameraClsColor(18, 22, 32)
+SetAmbientLight(80, 90, 110)
 
 cam = CreateCamera()
 SetPosition(cam, 0, 8, -12)
 SetRotation(cam, 28, 0, 0)
 
 light = CreateLight()
-SetRotation(light, 90, 0, 0)
+SetLightDirection(light, 50, 30, 0)
+
+floor = CreatePlane(24, 24)
+SetPosition(floor, 0, 0, 10)
+SetEntityColor(floor, 40, 48, 58)
 
 ball = CreateSphere(12)
 SetPosition(ball, -4, 1, 10)
@@ -34,6 +41,7 @@ While Not KeyDown(1)
         SetEntityColor(ball, Rand(80, 255), Rand(80, 255), Rand(80, 255))
     EndIf
     RenderWorld
+    Text(16, 16, "BitShin BASIC — Bounce  |  Esc quit")
     Flip
 Wend
 End

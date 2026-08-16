@@ -2,7 +2,7 @@
 ; Esc quits. Headless CI covers the command logic; this is the visual check.
 
 Graphics3D(960, 600)
-SetWindowTitle("Shadows")
+SetWindowTitle("BitShin BASIC — Shadows")
 SetCameraClsColor(12, 14, 22)
 SetAmbientLight(28, 32, 42)
 

@@ -1,7 +1,7 @@
 ; Flecs 4.1.6 — entities, components, query. Progress also runs on Flip.
 
 EcsWorld()
-Print("Flecs", EcsVersion$())
+Print("BitShin BASIC Flecs", EcsVersion$())
 
 pos = EcsComponent("Position")
 vel = EcsComponent("Velocity")

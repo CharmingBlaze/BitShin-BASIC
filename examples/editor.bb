@@ -1,7 +1,7 @@
 ; In-engine ImGui: scene list, transform, material, profiler.
 
 Graphics3D(1100, 700)
-SetWindowTitle("Editor")
+SetWindowTitle("BitShin BASIC — Editor")
 cam = CreateCamera()
 SetPosition(cam, 0, 3, -8)
 sun = CreateLight()

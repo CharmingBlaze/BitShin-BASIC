@@ -12,7 +12,7 @@ For i = 1 To n
 Next
 
 q = EcsQuery("Position, Velocity")
-Print("ecs crowd", EcsQueryCount(q), "Flecs", EcsVersion$())
+Print("BitShin BASIC ecs crowd", EcsQueryCount(q), "Flecs", EcsVersion$())
 
 For f = 1 To 30
     EcsProgress(0.016)

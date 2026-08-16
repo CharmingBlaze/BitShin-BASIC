@@ -1,7 +1,7 @@
 ; Scenic water (DuDv + Fresnel + planar reflect/refract + specular). Esc quits.
 
 Graphics3D(1100, 700)
-SetWindowTitle("Pretty Water")
+SetWindowTitle("BitShin BASIC — Pretty Water")
 SetCameraClsColor(72, 128, 178)
 SetAmbientLight(38, 48, 62)
 

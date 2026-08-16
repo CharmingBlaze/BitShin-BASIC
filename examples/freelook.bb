@@ -2,7 +2,7 @@
 ; Close the window to quit — no Escape.
 
 Graphics3D(960, 600)
-AppTitle "Free look"
+AppTitle "BitShin BASIC — Free look"
 CameraClsColor 70, 110, 160
 AmbientLight 60, 70, 85
 
