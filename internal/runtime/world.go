@@ -111,6 +111,8 @@ type World struct {
 	fogFar                 float32
 	fogDensity             float32
 	texts                  []*gui.Label
+	hudLines               []string
+	hudLabs                []*gui.Label
 	textRGB                math32.Color
 	texs                   map[int]*texSlot
 	nextTex                int
@@ -477,7 +479,7 @@ func (w *World) graphics3D(width, height, depth, mode int) (value.Value, error) 
 	}
 	w.scene = core.NewNode()
 	gui.Manager().Set(w.scene)
-	w.ambient = light.NewAmbient(&math32.Color{0.42, 0.48, 0.58}, 1.05)
+	w.ambient = light.NewAmbient(&math32.Color{0.55, 0.60, 0.70}, 1.2)
 	w.scene.Add(w.ambient)
 	w.app.Gls().ClearColor(w.clear.R, w.clear.G, w.clear.B, 1)
 	w.app.Subscribe(window.OnWindowSize, func(evname string, ev interface{}) {
@@ -797,6 +799,7 @@ func (w *World) newMat() *material.Standard {
 	m := material.NewStandard(&math32.Color{0.82, 0.84, 0.88})
 	m.SetShininess(8)
 	m.SetSpecularColor(&math32.Color{0.11, 0.11, 0.11})
+	m.SetEmissiveColor(&math32.Color{0.12, 0.12, 0.14})
 	if w.shadow.on || w.fogMode != 0 {
 		m.SetShader("bsshadow")
 	}
@@ -809,6 +812,7 @@ func (w *World) newMat() *material.Standard {
 func (w *World) meshEnt(geom *geometry.Geometry, parent int) int {
 	mat := w.newMat()
 	mesh := graphic.NewMesh(geom, &litMat{Standard: mat, w: w})
+	mesh.SetCullable(false)
 	return w.addEntity(&Entity{node: mesh, mesh: mesh, mat: mat}, parent)
 }
 
@@ -994,6 +998,7 @@ func (w *World) render(rend *renderer.Renderer) {
 	if hh <= 0 {
 		hh = 600
 	}
+	w.flushHudPrint()
 	usedPost := w.beginPostTarget(ww, hh)
 	drainGL("render")
 	gl.Viewport(0, 0, int32(ww), int32(hh))

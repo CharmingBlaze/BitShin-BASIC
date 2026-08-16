@@ -499,3 +499,40 @@ Wend
 		t.Fatal("While Not WindowShouldClose must enter until Flip")
 	}
 }
+
+type recHudHost struct {
+	nopHost
+	lines []string
+}
+
+func (h *recHudHost) Call(name string, args []value.Value) (value.Value, error) {
+	if name == "hudprint" {
+		line := ""
+		if len(args) > 0 {
+			line = args[0].String()
+		}
+		h.lines = append(h.lines, line)
+		return value.Num(0), nil
+	}
+	return h.nopHost.Call(name, args)
+}
+
+func TestPrintAlsoCallsHud(t *testing.T) {
+	prog, err := parse.Parse(`Print("Game loop started. Use ESC to quit.")`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	host := &recHudHost{}
+	buf := bytes.Buffer{}
+	in := New(prog, host)
+	in.Out = &buf
+	if err := in.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(buf.String(), "Game loop started. Use ESC to quit.") {
+		t.Fatalf("console Print missing: %q", buf.String())
+	}
+	if len(host.lines) != 1 || host.lines[0] != "Game loop started. Use ESC to quit." {
+		t.Fatalf("on-screen Print missing: %#v", host.lines)
+	}
+}

@@ -366,11 +366,14 @@ func (a *App) findBsExecutable() string {
 	candidates := []string{
 		filepath.Join(a.repoRoot, "bs.exe"),
 		filepath.Join(a.repoRoot, "bs"),
+		filepath.Join(a.repoRoot, "cmd", "bs", "bs.exe"),
+		filepath.Join(a.repoRoot, "cmd", "bs", "bs"),
 		filepath.Join(".", "bs.exe"),
+		filepath.Join(".", "bs"),
 		filepath.Join("..", "bs.exe"),
 	}
 	for _, c := range candidates {
-		if st, err := os.Stat(c); err == nil && !st.IsDir() {
+		if st, err := os.Stat(c); err == nil && !st.IsDir() && st.Size() > 0 {
 			abs, _ := filepath.Abs(c)
 			return abs
 		}

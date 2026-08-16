@@ -9,8 +9,11 @@ Graphics3D(1280, 720, 0, 2)
 SetWindowTitle("BitShin BASIC — 3D Showcase")
 
 camera = CreateCamera()
-PositionEntity(camera, 0, 2, -6)
-CameraClsColor(15, 18, 26)
+PositionEntity(camera, 0, 3.2, -8)
+RotateEntity(camera, 18, 0, 0)
+CameraRange(camera, 0.1, 4000)
+CameraClsColor(22, 28, 42)
+AmbientLight(72, 82, 102)
 
 light = CreateLight(1)
 SetLightDirection(light, -45, 30, 0)
@@ -19,6 +22,7 @@ SetLightColor(light, 255, 240, 220)
 ; Create central rotating mesh
 cube = CreateCube()
 EntityColor(cube, 56, 189, 248)
+PointEntity(camera, cube)
 
 ; Ground plane
 plane = CreatePlane(40, 40)
@@ -30,8 +34,11 @@ Print("Game loop started. Use ESC to quit.")
 While Not KeyDown(1)
     dt# = DeltaTime() * 60
     TurnEntity(cube, 0.4 * dt, 0.7 * dt, 0)
-    
+
     RenderWorld
+    Color(230, 236, 245)
+    Text(16, 16, "BitShin BASIC — 3D Showcase")
+    Text(16, 40, "ESC to quit")
     Flip
 Wend
 End
@@ -56,7 +63,10 @@ class EditorStore {
   executionTime = $state<number>(0);
   exitCode = $state<number | null>(null);
   activeSidebarTab = $state<'files' | 'commands' | 'outline' | 'examples'>('files');
+  sidebarCollapsed = $state<boolean>(false);
   cursorPos = $state<{ line: number; col: number }>({ line: 1, col: 1 });
+  lspConnected = $state<boolean>(false);
+  panelTab = $state<'output' | 'problems'>('output');
   
   isOutputCollapsed = $state<boolean>(false);
   
@@ -88,7 +98,7 @@ class EditorStore {
 
   // Svelte 5 derived state
   activeTab = $derived.by(() => {
-    return this.tabs.find(t => t.id === this.activeTabId) || this.tabs[0];
+    return this.tabs.find(t => t.id === this.activeTabId) || null;
   });
 
   symbols = $derived.by<SymbolItem[]>(() => {
@@ -280,7 +290,7 @@ class EditorStore {
     
     this.tabs.splice(idx, 1);
     if (this.tabs.length === 0) {
-      this.newTab();
+      this.activeTabId = '';
     } else if (this.activeTabId === id) {
       const nextIdx = Math.max(0, idx - 1);
       this.activeTabId = this.tabs[nextIdx].id;

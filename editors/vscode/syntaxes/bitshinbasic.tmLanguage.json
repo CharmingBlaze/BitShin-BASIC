@@ -5,12 +5,24 @@
     { "name": "string.quoted.double.bitshinbasic", "begin": "\"", "end": "\"", "patterns": [{ "match": "\"\"", "name": "constant.character.escape.bitshinbasic" }] },
     { "name": "constant.numeric.hex.bitshinbasic", "match": "\\$[0-9A-Fa-f]+" },
     { "name": "constant.numeric.bitshinbasic", "match": "\\b[0-9]+(\\.[0-9]+)?\\b" },
+    { "name": "constant.language.bitshinbasic", "match": "(?i)\\bKEY_[A-Za-z0-9_]+\\b" },
+    { "name": "constant.language.bitshinbasic", "match": "(?i)\\b(True|False|Yes|No|Null|Pi)\\b" },
     {
       "name": "keyword.control.bitshinbasic",
       "match": "(?i)\\b(If|Then|ElseIf|Else|EndIf|While|Wend|EndWhile|For|To|Step|Next|Repeat|Until|Function|EndFunction|Select|Case|Default|EndSelect|Return|Include|Import|Type|EndType|Struct|EndStruct|Method|EndMethod|Namespace|EndNamespace|Dim|ReDim|Global|Local|Const|Enum|EndEnum|Data|Read|Restore|Exit|End|New|As)\\b"
     },
     { "name": "keyword.operator.logical.bitshinbasic", "match": "(?i)\\b(And|Or|Not|Xor|Mod)\\b" },
-    { "name": "constant.language.bitshinbasic", "match": "(?i)\\b(True|False|Yes|No|Null|Pi)\\b" },
+    { "name": "keyword.operator.bitshinbasic", "match": "<>|<=|>=|=<|=>|><|[:=<>+\\-*/^]" },
+    { "name": "punctuation.separator.bitshinbasic", "match": "[,.]" },
+    { "name": "punctuation.section.parens.bitshinbasic", "match": "[()\\[\\]{}]" },
+    {
+      "match": "\\b([A-Za-z_][A-Za-z0-9_]*)([#$%])",
+      "captures": {
+        "1": { "name": "variable.other.bitshinbasic" },
+        "2": { "name": "storage.type.suffix.bitshinbasic" }
+      }
+    },
+    { "name": "support.function.create.bitshinbasic", "match": "(?i)\\b(Create|Load|Copy|Make)[A-Za-z0-9_]*\\b" },
     { "name": "entity.name.function.bitshinbasic", "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\s*(?=\\()" }
   ],
   "repository": {}

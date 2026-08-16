@@ -219,6 +219,7 @@ func (w *World) draw2D(screen *ebiten.Image) {
 			}
 		}
 	}
+	w.drawHudPrint2D(screen)
 	w.drawParticles2D(screen)
 	w.drawFog2D(screen)
 	for _, s := range w.sprites {
@@ -237,6 +238,22 @@ func (w *World) draw2D(screen *ebiten.Image) {
 
 func rectXYWH(x, y, w, h int) image.Rectangle {
 	return image.Rect(x, y, x+w, y+h)
+}
+
+func (w *World) drawHudPrint2D(screen *ebiten.Image) {
+	if len(w.hudLines) == 0 {
+		return
+	}
+	lineH := float32(16)
+	if f := w.fonts[w.curFont]; f != nil && f.size > 0 {
+		lineH = float32(f.size) + 4
+	}
+	for i := 0; i < len(w.hudLines); i++ {
+		op := drawOp{kind: 4, x: 0, y: float32(i) * lineH, text: w.hudLines[i]}
+		if !w.drawFont(screen, op) {
+			ebitenutil.DebugPrintAt(screen, w.hudLines[i], 0, int(op.y))
+		}
+	}
 }
 
 func (w *World) drawFont(screen *ebiten.Image, op drawOp) bool {

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { X, Hammer, CheckCircle2, AlertCircle, Loader2 } from 'lucide-svelte';
+  import { X, Hammer, Loader2 } from 'lucide-svelte';
   import { editorStore } from '../stores/editorState.svelte';
   import { AppAPI } from '../wailsBridge';
 
@@ -20,7 +20,7 @@
       const output = await AppAPI.buildExecutable(editorStore.activeTab.path, outputDir, targetOS);
       buildResult = {
         success: true,
-        message: output || `Successfully built standalone bundle to '${outputDir}'. DLLs and assets packaged!`
+        message: output || `Built standalone bundle to '${outputDir}'.`
       };
     } catch (err: any) {
       buildResult = {
@@ -33,87 +33,47 @@
   }
 </script>
 
-<div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 select-none">
-  <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl w-full max-w-xl overflow-hidden flex flex-col">
-    <!-- Header -->
-    <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-800 bg-slate-950/60">
-      <div class="flex items-center gap-2.5">
-        <div class="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-          <Hammer size={16} />
-        </div>
-        <div>
-          <h2 class="text-sm font-semibold text-slate-100">Package Standalone Game</h2>
-          <p class="text-[11px] text-slate-400">Create a distribution folder with executable, native DLLs and assets</p>
-        </div>
-      </div>
-      <button
-        onclick={() => editorStore.showBuildModal = false}
-        class="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
-      >
-        <X size={15} />
-      </button>
-    </div>
-
-    <!-- Body -->
-    <div class="p-5 space-y-4 text-xs">
+<div class="ide-backdrop">
+  <div class="ide-modal md">
+    <div class="ide-modal-head">
       <div>
-        <label class="block font-medium text-slate-300 mb-1.5">Target Platform</label>
+        <h2>Build package</h2>
+        <p>Create a distribution folder with the executable and natives</p>
+      </div>
+      <button class="ide-iconbtn" onclick={() => editorStore.showBuildModal = false}><X size={15} /></button>
+    </div>
+    <div class="ide-modal-body space-y-4 text-xs">
+      <div>
+        <div style="margin-bottom:6px;color:var(--text-secondary);">Target platform</div>
         <div class="grid grid-cols-3 gap-2">
           {#each ['windows', 'linux', 'darwin'] as os}
             <button
+              class="ide-btn"
+              style={targetOS === os ? 'border-color:#6d5818;color:var(--accent-bright);background:var(--accent-dim);' : ''}
               onclick={() => targetOS = os}
-              class="py-2 px-3 rounded-lg border text-center font-medium capitalize transition cursor-pointer {targetOS === os ? 'bg-sky-500/15 text-sky-300 border-sky-500/50 shadow-sm' : 'bg-slate-950 text-slate-400 border-slate-800 hover:border-slate-700 hover:text-slate-200'}"
             >
-              {os === 'darwin' ? 'macOS (Darwin)' : os}
+              {os === 'darwin' ? 'macOS' : os}
             </button>
           {/each}
         </div>
       </div>
-
       <div>
-        <label class="block font-medium text-slate-300 mb-1.5">Output Folder</label>
-        <input
-          type="text"
-          bind:value={outputDir}
-          class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 font-mono focus:outline-none focus:border-sky-500 text-xs"
-          placeholder="dist"
-        />
-        <p class="text-[11px] text-slate-500 mt-1">Natives, shaders, and referenced assets will be auto-collected next to the executable.</p>
+        <label for="out-dir" style="display:block;margin-bottom:6px;color:var(--text-secondary);">Output folder</label>
+        <input id="out-dir" class="ide-field font-mono" bind:value={outputDir} placeholder="dist" />
       </div>
-
       {#if buildResult}
-        <div class="p-3 rounded-lg border {buildResult.success ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-300' : 'bg-rose-500/10 border-rose-500/30 text-rose-300'} flex items-start gap-2">
-          {#if buildResult.success}
-            <CheckCircle2 size={16} class="shrink-0 mt-0.5" />
-          {:else}
-            <AlertCircle size={16} class="shrink-0 mt-0.5" />
-          {/if}
-          <div class="text-[11px] font-mono whitespace-pre-wrap leading-relaxed">
-            {buildResult.message}
-          </div>
+        <div class="ide-badge {buildResult.success ? 'ok' : 'err'}" style="height:auto;padding:8px;white-space:pre-wrap;font-size:11px;">
+          {buildResult.message}
         </div>
       {/if}
     </div>
-
-    <!-- Footer Actions -->
-    <div class="px-5 py-3 border-t border-slate-800 bg-slate-950/60 flex items-center justify-end gap-2">
-      <button
-        onclick={() => editorStore.showBuildModal = false}
-        class="px-3.5 py-1.5 rounded-lg hover:bg-slate-800 text-slate-300 text-xs transition"
-      >
-        Close
-      </button>
-      <button
-        onclick={startBuild}
-        disabled={isBuilding}
-        class="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 disabled:bg-slate-800 text-white font-medium text-xs transition shadow-sm"
-      >
+    <div class="ide-modal-foot">
+      <button class="ide-btn" onclick={() => editorStore.showBuildModal = false}>Close</button>
+      <button class="ide-btn primary" onclick={startBuild} disabled={isBuilding}>
         {#if isBuilding}
-          <Loader2 size={13} class="animate-spin" />
-          <span>Building...</span>
+          <Loader2 size={13} class="animate-spin" /> Building…
         {:else}
-          <Hammer size={13} />
-          <span>Build Package</span>
+          <Hammer size={13} /> Build
         {/if}
       </button>
     </div>

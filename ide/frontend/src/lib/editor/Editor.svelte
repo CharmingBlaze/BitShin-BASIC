@@ -15,7 +15,7 @@
     onLspDiagnostics,
     lspRequest
   } from './lspClient';
-  import { X, Plus, FileCode } from 'lucide-svelte';
+  import { X, Plus, FileCode, FilePlus, FolderOpen, Library } from 'lucide-svelte';
 
   let editorContainer: HTMLDivElement | null = $state(null);
   let editor: monaco.editor.IStandaloneCodeEditor | null = null;
@@ -35,7 +35,7 @@
     } catch {
       repoRoot = '';
     }
-    await startLspClient();
+    editorStore.lspConnected = await startLspClient();
     unsubDiagnostics = onLspDiagnostics(applyDiagnostics);
 
     if (!editorContainer) return;
@@ -50,8 +50,13 @@
       scrollBeyondLastLine: false,
       cursorBlinking: 'smooth',
       renderLineHighlight: 'all',
-      fontFamily: "'JetBrains Mono', 'Fira Code', Consolas, 'Courier New', monospace",
+      lineNumbers: 'on',
+      glyphMargin: false,
+      folding: true,
+      padding: { top: 8 },
+      fontFamily: "'Cascadia Code', 'JetBrains Mono', 'Cascadia Mono', ui-monospace, Consolas, monospace",
       fontLigatures: true,
+      smoothScrolling: true,
       bracketPairColorization: { enabled: true }
     });
 
@@ -183,7 +188,11 @@
   }
 
   function updateEditorModel() {
-    if (!editor || !editorStore.activeTab) return;
+    if (!editor) return;
+    if (!editorStore.activeTab) {
+      editor.setModel(null);
+      return;
+    }
     const model = getOrCreateModel(editorStore.activeTab);
     if (model && editor.getModel() !== model) {
       editor.setModel(model);
@@ -191,10 +200,9 @@
     }
   }
 
-  // Effect to switch model when activeTabId changes
   $effect(() => {
     const _ = editorStore.activeTabId;
-    if (editor && editorStore.activeTab) {
+    if (editor) {
       updateEditorModel();
     }
   });
@@ -213,46 +221,50 @@
   });
 </script>
 
-<div class="editor-view flex flex-col h-full bg-slate-950 select-none">
-  <!-- Document Tabs Bar -->
-  <div class="tabs-bar flex items-center bg-slate-950 border-b border-slate-800 px-1 overflow-x-auto scrollbar-none h-8 shrink-0">
+<div class="ide-editor">
+  <div class="ide-tabs">
     {#each editorStore.tabs as tab}
       <div
         onclick={() => editorStore.selectTab(tab.id)}
-        class="flex items-center gap-1.5 px-3 py-1 text-xs cursor-pointer border-t-2 border-r border-slate-800/60 transition group {tab.id === editorStore.activeTabId ? 'bg-slate-900 text-sky-400 border-t-sky-400 font-medium' : 'bg-slate-950 text-slate-400 border-t-transparent hover:bg-slate-900/50 hover:text-slate-200'}"
+        class="ide-tab {tab.id === editorStore.activeTabId ? 'active' : ''}"
       >
-        <FileCode size={12} class="{tab.id === editorStore.activeTabId ? 'text-sky-400' : 'text-slate-500'}" />
-        <span class="truncate max-w-[130px] font-mono text-[11px]">{tab.name}</span>
-
-        {#if tab.isDirty}
-          <span class="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" title="Unsaved changes"></span>
-        {/if}
-
+        <FileCode size={12} style="color: {tab.id === editorStore.activeTabId ? 'var(--accent)' : 'var(--text-dim)'}" />
+        <span class="truncate font-mono" style="font-size:11px;">{tab.name}</span>
+        {#if tab.isDirty}<span class="ide-dirty" title="Unsaved"></span>{/if}
         <button
-          onclick={(e) => {
-            e.stopPropagation();
-            editorStore.closeTab(tab.id);
-          }}
-          class="p-0.5 rounded hover:bg-slate-800 text-slate-500 hover:text-slate-200 transition opacity-0 group-hover:opacity-100 ml-1"
-          title="Close Tab (Ctrl+W)"
+          class="ide-tab-close"
+          onclick={(e) => { e.stopPropagation(); editorStore.closeTab(tab.id); }}
+          title="Close (Ctrl+W)"
         >
           <X size={11} />
         </button>
       </div>
     {/each}
-
-    <!-- New Tab Button -->
-    <button
-      onclick={() => editorStore.newTab()}
-      class="p-1 rounded hover:bg-slate-800 text-slate-500 hover:text-slate-300 transition ml-1"
-      title="New File Tab"
-    >
+    <button class="ide-iconbtn" style="margin-left:4px;" onclick={() => editorStore.newTab()} title="New file">
       <Plus size={13} />
     </button>
   </div>
 
-  <!-- Monaco Editor Mount Container -->
   <div class="flex-1 min-h-0 relative">
-    <div bind:this={editorContainer} class="w-full h-full"></div>
+    {#if !editorStore.activeTab}
+      <div class="ide-empty">
+        <div class="ide-mark" style="width:36px;height:36px;font-size:18px;">B</div>
+        <h1>BitShin BASIC</h1>
+        <p>Open a .bb file, start from a template, or browse the built-in examples.</p>
+        <div class="ide-empty-actions">
+          <button class="ide-btn primary" onclick={() => editorStore.showNewModal = true}>
+            <FilePlus size={13} /> New file
+          </button>
+          <button class="ide-btn" onclick={() => editorStore.openFileFromDisk()}>
+            <FolderOpen size={13} /> Open…
+          </button>
+          <button class="ide-btn" onclick={() => { editorStore.activeSidebarTab = 'examples'; editorStore.sidebarCollapsed = false; }}>
+            <Library size={13} /> Examples
+          </button>
+        </div>
+        <div class="ide-kbd" style="margin-top:8px;">Ctrl+N · Ctrl+O · F5 to run</div>
+      </div>
+    {/if}
+    <div bind:this={editorContainer} class="w-full h-full" style={editorStore.activeTab ? '' : 'visibility:hidden;position:absolute;inset:0;'}></div>
   </div>
 </div>

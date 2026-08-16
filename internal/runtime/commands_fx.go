@@ -595,6 +595,7 @@ func (w *World) clearWorld() {
 	w.images = map[int]*ebiImage{}
 	w.draws = w.draws[:0]
 	w.texts = w.texts[:0]
+	w.clearHudPrint()
 	for _, em := range w.emitters {
 		w.releaseEmitterParts(em)
 	}

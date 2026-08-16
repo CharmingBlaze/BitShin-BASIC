@@ -1,31 +1,74 @@
 import * as monaco from 'monaco-editor';
+import commandsData from '../data/commands.json';
 
 export const LANGUAGE_ID = 'bitshinbasic';
+
+const KEYWORDS = [
+  'if', 'then', 'else', 'elseif', 'endif',
+  'while', 'wend',
+  'for', 'to', 'step', 'next',
+  'repeat', 'until', 'forever',
+  'select', 'case', 'default', 'end select',
+  'function', 'end function', 'return',
+  'type', 'field', 'end type',
+  'const', 'dim', 'data', 'read', 'restore',
+  'include', 'import', 'as',
+  'and', 'or', 'not', 'xor', 'mod', 'shl', 'shr', 'sar',
+  'end', 'exit', 'goto', 'gosub',
+  'new', 'delete', 'first', 'last', 'after', 'before', 'insert', 'each'
+];
+
+const CONSTANTS = [
+  'true', 'false', 'yes', 'no', 'null', 'pi'
+];
+
+const TYPE_KEYWORDS = [
+  'int', 'float', 'string', 'vec3', 'handle', 'list', 'map', 'entity'
+];
+
+const reserved = new Set([...KEYWORDS, ...CONSTANTS, ...TYPE_KEYWORDS]);
+
+function commandBaseName(name: string): string {
+  return name.replace(/[$#%]+$/, '').toLowerCase();
+}
+
+function isCreateCommand(name: string): boolean {
+  return /^(create|load|copy|make)/.test(name);
+}
+
+const catalogNames = [...new Set(
+  (commandsData.commands as { name: string }[])
+    .map((c) => commandBaseName(c.name))
+    .filter((n) => n.length > 0 && !reserved.has(n))
+)];
+
+const createCommands = catalogNames.filter(isCreateCommand);
+const actionCommands = catalogNames.filter((n) => !isCreateCommand(n));
+
+const identifierCases = {
+  '@keywords': 'keyword',
+  '@constants': 'constant',
+  '@typeKeywords': 'type',
+  '@createCommands': 'predefined.create',
+  '@actionCommands': 'predefined',
+  '@default': 'identifier'
+};
+
+const callCases = {
+  ...identifierCases,
+  '@default': 'predefined'
+};
 
 export const monarchLanguage: monaco.languages.IMonarchLanguage = {
   defaultToken: '',
   tokenPostfix: '.bb',
   ignoreCase: true,
 
-  keywords: [
-    'if', 'then', 'else', 'elseif', 'endif',
-    'while', 'wend',
-    'for', 'to', 'step', 'next',
-    'repeat', 'until', 'forever',
-    'select', 'case', 'default', 'end select',
-    'function', 'end function', 'return',
-    'type', 'field', 'end type',
-    'const', 'dim', 'data', 'read', 'restore',
-    'include', 'import', 'as',
-    'and', 'or', 'not', 'xor', 'mod', 'shl', 'shr', 'sar',
-    'true', 'false', 'yes', 'no', 'null',
-    'end', 'exit', 'goto', 'gosub',
-    'new', 'delete', 'first', 'last', 'after', 'before', 'insert', 'each'
-  ],
-
-  typeKeywords: [
-    'int', 'float', 'string', 'vec3', 'handle', 'list', 'map', 'entity'
-  ],
+  keywords: KEYWORDS,
+  constants: CONSTANTS,
+  typeKeywords: TYPE_KEYWORDS,
+  createCommands,
+  actionCommands,
 
   operators: [
     '=', '<>', '<', '<=', '>', '>=', '=<', '=>', '><',
@@ -37,40 +80,36 @@ export const monarchLanguage: monaco.languages.IMonarchLanguage = {
 
   tokenizer: {
     root: [
-      // Comments
       [/;.*$/, 'comment'],
       [/\/\/.*$/, 'comment'],
       [/'.*$/, 'comment'],
 
-      // Hex literals $FF0000
       [/\$[0-9a-fA-F]+/, 'number.hex'],
 
-      // Numbers
       [/\d*\.\d+([eE][\-+]?\d+)?/, 'number.float'],
       [/\d+/, 'number'],
 
-      // Strings
       [/"([^"\\]|\\.)*"/, 'string'],
 
-      // Identifiers and keywords
-      [/[a-zA-Z_]\w*[\$#%]?/, {
-        cases: {
-          '@keywords': 'keyword',
-          '@typeKeywords': 'type',
-          '@default': 'identifier'
-        }
-      }],
+      [/KEY_[A-Za-z0-9_]+/, 'constant'],
 
-      // Delimiters and operators
-      [/[{}()\[\]]/, '@brackets'],
+      // name$ / name# / name% — suffix tinted separately
+      [/([a-zA-Z_]\w*)([$#%])(?=\s*\()/, [{ cases: callCases }, 'type.identifier']],
+      [/([a-zA-Z_]\w*)([$#%])/, [{ cases: identifierCases }, 'type.identifier']],
+
+      // Commands and calls (with or without parens)
+      [/[a-zA-Z_]\w*(?=\s*\()/, { cases: callCases }],
+      [/[a-zA-Z_]\w*/, { cases: identifierCases }],
+
+      [/[{}()\[\]]/, 'delimiter.bracket'],
+      [/[,.]/, 'delimiter'],
       [/@symbols/, {
         cases: {
           '@operators': 'operator',
-          '@default': ''
+          '@default': 'operator'
         }
       }],
 
-      // Whitespace
       [/\s+/, 'white'],
     ]
   }
@@ -119,30 +158,39 @@ export function registerBitShinLanguage() {
   monaco.languages.setMonarchTokensProvider(LANGUAGE_ID, monarchLanguage);
   monaco.languages.setLanguageConfiguration(LANGUAGE_ID, languageConfiguration);
 
-  // Define Custom Themes
   monaco.editor.defineTheme('bitshin-dark', {
     base: 'vs-dark',
     inherit: true,
     rules: [
-      { token: 'keyword', foreground: '569cd6', fontStyle: 'bold' },
-      { token: 'type', foreground: '4ec9b0' },
-      { token: 'comment', foreground: '6a9955', fontStyle: 'italic' },
-      { token: 'string', foreground: 'ce9178' },
-      { token: 'number', foreground: 'b5cea8' },
-      { token: 'number.hex', foreground: 'dcdcaa' },
-      { token: 'number.float', foreground: 'b5cea8' },
-      { token: 'operator', foreground: 'd4d4d4' },
-      { token: 'identifier', foreground: '9cdcfe' }
+      { token: 'keyword', foreground: 'e8c547', fontStyle: 'bold' },
+      { token: 'type', foreground: '7eb8a8' },
+      { token: 'type.identifier', foreground: '8eb4c4' },
+      { token: 'comment', foreground: '6d6d76', fontStyle: 'italic' },
+      { token: 'string', foreground: 'e0a070' },
+      { token: 'number', foreground: '8fca6e' },
+      { token: 'number.hex', foreground: 'b8c85a' },
+      { token: 'number.float', foreground: '8fca6e' },
+      { token: 'operator', foreground: 'c08090' },
+      { token: 'delimiter', foreground: 'c08090' },
+      { token: 'delimiter.bracket', foreground: 'c08090' },
+      { token: 'identifier', foreground: 'e2dfd8' },
+      { token: 'predefined', foreground: '5eb8c8' },
+      { token: 'predefined.create', foreground: '5cceae' },
+      { token: 'constant', foreground: 'c4a0d0' }
     ],
     colors: {
-      'editor.background': '#0f131a',
-      'editor.foreground': '#e2e8f0',
-      'editor.lineHighlightBackground': '#18202f',
-      'editorCursor.foreground': '#38bdf8',
-      'editorLineNumber.foreground': '#475569',
-      'editorLineNumber.activeForeground': '#94a3b8',
-      'editor.selectionBackground': '#1e3a8a88',
-      'editor.inactiveSelectionBackground': '#1e293b66'
+      'editor.background': '#1a1b1f',
+      'editor.foreground': '#e6e4df',
+      'editor.lineHighlightBackground': '#222328',
+      'editorCursor.foreground': '#e8c547',
+      'editorLineNumber.foreground': '#4a4a52',
+      'editorLineNumber.activeForeground': '#9b9ba3',
+      'editor.selectionBackground': '#3d341888',
+      'editor.inactiveSelectionBackground': '#2a2b3166',
+      'editorIndentGuide.background': '#2a2b31',
+      'editorIndentGuide.activeBackground': '#4a4a52',
+      'editorGutter.background': '#1a1b1f',
+      'minimap.background': '#141518'
     }
   });
 
@@ -152,11 +200,17 @@ export function registerBitShinLanguage() {
     rules: [
       { token: 'keyword', foreground: 'ffff00', fontStyle: 'bold' },
       { token: 'type', foreground: '00ffff' },
+      { token: 'type.identifier', foreground: '88ddff' },
       { token: 'comment', foreground: '00ff00', fontStyle: 'italic' },
       { token: 'string', foreground: '00ffff' },
       { token: 'number', foreground: 'ff8800' },
       { token: 'number.hex', foreground: 'ffaa00' },
-      { token: 'identifier', foreground: 'ffffff' }
+      { token: 'operator', foreground: 'ff6688' },
+      { token: 'delimiter', foreground: 'ff6688' },
+      { token: 'identifier', foreground: 'ffffff' },
+      { token: 'predefined', foreground: '00ddff' },
+      { token: 'predefined.create', foreground: '00ffcc' },
+      { token: 'constant', foreground: 'ff99ff' }
     ],
     colors: {
       'editor.background': '#000044',
@@ -175,11 +229,17 @@ export function registerBitShinLanguage() {
     rules: [
       { token: 'keyword', foreground: 'ff007f', fontStyle: 'bold' },
       { token: 'type', foreground: '00f0ff' },
+      { token: 'type.identifier', foreground: '7ad4ff' },
       { token: 'comment', foreground: '71717a', fontStyle: 'italic' },
       { token: 'string', foreground: 'ffe600' },
       { token: 'number', foreground: '00ff9f' },
       { token: 'number.hex', foreground: '00ff9f' },
-      { token: 'identifier', foreground: 'e4e4e7' }
+      { token: 'operator', foreground: 'ff6b9d' },
+      { token: 'delimiter', foreground: 'ff6b9d' },
+      { token: 'identifier', foreground: 'e4e4e7' },
+      { token: 'predefined', foreground: '00d4ff' },
+      { token: 'predefined.create', foreground: '00ffc8' },
+      { token: 'constant', foreground: 'd4a0ff' }
     ],
     colors: {
       'editor.background': '#080811',

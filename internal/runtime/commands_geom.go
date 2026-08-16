@@ -5,6 +5,7 @@ import (
 
 	"github.com/g3n/engine/geometry"
 	"github.com/g3n/engine/gls"
+	"github.com/g3n/engine/material"
 	"github.com/g3n/engine/math32"
 
 	"bitshinbasic/internal/value"
@@ -165,6 +166,9 @@ func (w *World) createPlaneMesh(a []value.Value) int {
 	if e := w.ents[id]; e != nil {
 		e.node.GetNode().SetRotation(-math32.Pi/2, 0, 0)
 		e.pitch = -90
+		if e.mat != nil {
+			e.mat.SetSide(material.SideDouble)
+		}
 	}
 	return id
 }

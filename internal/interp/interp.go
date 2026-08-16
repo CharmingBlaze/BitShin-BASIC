@@ -1280,7 +1280,11 @@ func (in *Interp) installBuiltins() {
 		for i, a := range args {
 			parts[i] = a.String()
 		}
-		fmt.Fprintln(in.Out, strings.Join(parts, " "))
+		line := strings.Join(parts, " ")
+		fmt.Fprintln(in.Out, line)
+		if in.host != nil {
+			_, _ = in.host.Call("hudprint", []value.Value{value.Str(line)})
+		}
 		return value.Num(0)
 	})
 	n("sin", func(a []value.Value) value.Value { return value.Num(math.Sin(deg(a, 0))) })

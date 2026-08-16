@@ -1,6 +1,6 @@
 {
   "$schema": "https://wails.io/schemas/config.v2.json",
-  "name": "BitShin BASIC IDE",
+  "name": "BitShin BASIC",
   "outputfilename": "BitShinIDE",
   "frontend:install": "npm install",
   "frontend:build": "npm run build",
@@ -11,7 +11,7 @@
   },
   "info": {
     "companyName": "BitShin",
-    "productName": "BitShin BASIC IDE",
+    "productName": "BitShin BASIC",
     "productVersion": "1.0.0",
     "copyright": "Copyright 2026",
     "comments": "Modern IDE for BitShin BASIC"

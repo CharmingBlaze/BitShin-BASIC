@@ -1,11 +1,11 @@
 <script lang="ts">
-  import { X, Settings, Check } from 'lucide-svelte';
+  import { X } from 'lucide-svelte';
   import { editorStore } from '../stores/editorState.svelte';
 
   const themes = [
-    { id: 'bitshin-dark', name: 'BitShin Dark (Default)' },
-    { id: 'blitz-classic', name: 'Blitz3D Classic Blue' },
-    { id: 'cyberpunk', name: 'Cyberpunk Neon' },
+    { id: 'bitshin-dark', name: 'BitShin Dark' },
+    { id: 'blitz-classic', name: 'Blitz3D Classic' },
+    { id: 'cyberpunk', name: 'Cyberpunk' },
     { id: 'vs-dark', name: 'VS Dark' }
   ];
 
@@ -15,111 +15,53 @@
   }
 </script>
 
-<div class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 select-none">
-  <div class="bg-slate-900 border border-slate-800 rounded-xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col">
-    <!-- Header -->
-    <div class="flex items-center justify-between px-5 py-3.5 border-b border-slate-800 bg-slate-950/60">
-      <div class="flex items-center gap-2.5">
-        <div class="p-1.5 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
-          <Settings size={16} />
+<div class="ide-backdrop">
+  <div class="ide-modal sm">
+    <div class="ide-modal-head">
+      <div>
+        <h2>Settings</h2>
+        <p>Theme, font, and editor layout</p>
+      </div>
+      <button class="ide-iconbtn" onclick={() => editorStore.showSettingsModal = false}><X size={15} /></button>
+    </div>
+    <div class="ide-modal-body space-y-4 text-xs">
+      <div>
+        <label for="theme-select" style="display:block;margin-bottom:6px;color:var(--text-secondary);">Editor theme</label>
+        <select id="theme-select" class="ide-field" bind:value={editorStore.settings.theme}>
+          {#each themes as t}
+            <option value={t.id}>{t.name}</option>
+          {/each}
+        </select>
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label for="font-size-input" style="display:block;margin-bottom:6px;color:var(--text-secondary);">Font size</label>
+          <input id="font-size-input" class="ide-field" type="number" min="10" max="32" bind:value={editorStore.settings.fontSize} />
         </div>
         <div>
-          <h2 class="text-sm font-semibold text-slate-100">IDE Preferences</h2>
-          <p class="text-[11px] text-slate-400">Configure theme, editor typography, and layout</p>
-        </div>
-      </div>
-      <button
-        onclick={() => editorStore.showSettingsModal = false}
-        class="p-1.5 rounded-md hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
-      >
-        <X size={15} />
-      </button>
-    </div>
-
-    <!-- Body -->
-    <div class="p-5 space-y-4 text-xs">
-      <!-- Theme -->
-      <div>
-        <label for="theme-select" class="block font-medium text-slate-300 mb-1.5">Editor Theme</label>
-        <div class="px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg">
-          <select
-            id="theme-select"
-            bind:value={editorStore.settings.theme}
-            class="w-full bg-transparent text-slate-200 focus:outline-none cursor-pointer"
-          >
-            {#each themes as t}
-              <option value={t.id}>{t.name}</option>
-            {/each}
+          <label for="tab-size-select" style="display:block;margin-bottom:6px;color:var(--text-secondary);">Tab size</label>
+          <select id="tab-size-select" class="ide-field" bind:value={editorStore.settings.tabSize}>
+            <option value={2}>2</option>
+            <option value={4}>4</option>
+            <option value={8}>8</option>
           </select>
         </div>
       </div>
-
-      <!-- Font Size & Tab Size -->
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <label for="font-size-input" class="block font-medium text-slate-300 mb-1.5">Font Size (px)</label>
-          <input
-            id="font-size-input"
-            type="number"
-            min="10"
-            max="32"
-            bind:value={editorStore.settings.fontSize}
-            class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:outline-none focus:border-sky-500"
-          />
-        </div>
-
-        <div>
-          <label for="tab-size-select" class="block font-medium text-slate-300 mb-1.5">Tab Size</label>
-          <div class="px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg">
-            <select
-              id="tab-size-select"
-              bind:value={editorStore.settings.tabSize}
-              class="w-full bg-transparent text-slate-200 focus:outline-none cursor-pointer"
-            >
-              <option value={2}>2 Spaces</option>
-              <option value={4}>4 Spaces</option>
-              <option value={8}>8 Spaces</option>
-            </select>
-          </div>
-        </div>
-      </div>
-
-      <!-- Toggles -->
-      <div class="space-y-2 pt-2 border-t border-slate-800">
-        <label class="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 cursor-pointer hover:border-slate-700">
-          <span class="text-slate-300 font-medium">Show Minimap</span>
-          <input
-            type="checkbox"
-            bind:checked={editorStore.settings.minimap}
-            class="w-4 h-4 rounded text-sky-600 focus:ring-sky-500 border-slate-700 bg-slate-900 cursor-pointer"
-          />
-        </label>
-
-        <label class="flex items-center justify-between p-2.5 rounded-lg bg-slate-950/60 border border-slate-800 cursor-pointer hover:border-slate-700">
-          <span class="text-slate-300 font-medium">Word Wrap</span>
-          <div class="px-2 py-1 bg-slate-900 border border-slate-700 rounded">
-            <select
-              bind:value={editorStore.settings.wordWrap}
-              class="bg-transparent text-slate-200 text-xs cursor-pointer focus:outline-none"
-            >
-              <option value="off">Off</option>
-              <option value="on">On</option>
-              <option value="wordWrapColumn">Column Wrap</option>
-            </select>
-          </div>
-        </label>
+      <label class="flex items-center justify-between" style="padding:8px;border:1px solid var(--border);">
+        <span>Show minimap</span>
+        <input type="checkbox" bind:checked={editorStore.settings.minimap} />
+      </label>
+      <div>
+        <label for="wrap-select" style="display:block;margin-bottom:6px;color:var(--text-secondary);">Word wrap</label>
+        <select id="wrap-select" class="ide-field" bind:value={editorStore.settings.wordWrap}>
+          <option value="off">Off</option>
+          <option value="on">On</option>
+          <option value="wordWrapColumn">Column</option>
+        </select>
       </div>
     </div>
-
-    <!-- Footer -->
-    <div class="px-5 py-3 border-t border-slate-800 bg-slate-950/60 flex items-center justify-end gap-2">
-      <button
-        onclick={save}
-        class="flex items-center gap-1.5 px-4 py-1.5 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-medium text-xs transition shadow-sm"
-      >
-        <Check size={13} />
-        <span>Save Settings</span>
-      </button>
+    <div class="ide-modal-foot">
+      <button class="ide-btn primary" onclick={save}>Save</button>
     </div>
   </div>
 </div>

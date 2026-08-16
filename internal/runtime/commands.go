@@ -156,12 +156,13 @@ func (w *World) commandTable() map[string]cmd {
 			return z()
 		}),
 		"positionentity": need(func(a []value.Value) (value.Value, error) {
-			n, err := w.nodeOf(argI(a, 0, 0))
+			e, err := w.ent(argI(a, 0, 0))
 			if err != nil {
 				return value.Value{}, err
 			}
 			gx, gy, gz := toG3N(float32(argN(a, 1, 0)), float32(argN(a, 2, 0)), float32(argN(a, 3, 0)))
-			n.SetPosition(gx, gy, gz)
+			e.node.GetNode().SetPosition(gx, gy, gz)
+			w.aimDefaultCamera(e)
 			return z()
 		}),
 		"moveentity": need(func(a []value.Value) (value.Value, error) {
@@ -229,9 +230,11 @@ func (w *World) commandTable() map[string]cmd {
 			e.tint.R, e.tint.G, e.tint.B = c.R, c.G, c.B
 			if e.mat != nil {
 				e.mat.SetColor(c)
+				e.mat.SetEmissiveColor(&math32.Color{c.R * 0.2, c.G * 0.2, c.B * 0.2})
 			}
 			if e.pbr != nil {
 				e.pbr.SetBaseColorFactor(&e.tint)
+				e.pbr.SetEmissiveFactor(&math32.Color{c.R * 0.2, c.G * 0.2, c.B * 0.2})
 			}
 			return z()
 		}),
@@ -310,7 +313,11 @@ func (w *World) commandTable() map[string]cmd {
 			return value.Num(math.Sqrt(float64(dx*dx + dy*dy + dz*dz))), nil
 		}),
 		"cameraclscolor": need(func(a []value.Value) (value.Value, error) {
-			c := rgb(argN(a, 0, 0), argN(a, 1, 0), argN(a, 2, 0))
+			off := 0
+			if len(a) >= 4 {
+				off = 1
+			}
+			c := rgb(argN(a, off, 0), argN(a, off+1, 0), argN(a, off+2, 0))
 			w.clear = *c
 			return z()
 		}),
@@ -514,9 +521,14 @@ func (w *World) commandTable() map[string]cmd {
 			w.texts = append(w.texts, lab)
 			return z()
 		}),
+		"hudprint": n(func(a []value.Value) (value.Value, error) {
+			w.hudPrint(argS(a, 0))
+			return z()
+		}),
 		"cls": n(func(a []value.Value) (value.Value, error) {
 			w.draws = w.draws[:0]
 			w.clearFrameText()
+			w.clearHudPrint()
 			return z()
 		}),
 	}
@@ -675,7 +687,78 @@ func (w *World) spawnCamera(parent int) int {
 	if w.listenEnt == 0 {
 		w.listenEnt = id
 	}
+	w.aimDefaultCamera(w.ents[id])
 	return id
+}
+
+// aimDefaultCamera points an unrotated Blitz camera along +Z so
+// PositionEntity(cam, 0, 2, -6) sees the origin. PointEntity / SetRotation
+// still win afterwards (claw.bb).
+func (w *World) aimDefaultCamera(e *Entity) {
+	if e == nil || e.cam == nil {
+		return
+	}
+	if e.pitch != 0 || e.yaw != 0 || e.roll != 0 {
+		return
+	}
+	n := e.node.GetNode()
+	p := n.Position()
+	bx, by, bz := fromG3N(p.X, p.Y, p.Z)
+	lookY, lookZ := by, bz+8
+	// Raised camera behind the origin (classic 0,2,-6): look at the play
+	// plane so the cube is framed, not sitting in the bottom third.
+	if by >= 0.25 && bz < -1 {
+		lookY = 0
+		lookZ = 0
+	}
+	tx, ty, tz := toG3N(bx, lookY, lookZ)
+	up := math32.Vector3{0, 1, 0}
+	n.LookAt(&math32.Vector3{tx, ty, tz}, &up)
+}
+
+func (w *World) hudPrint(line string) {
+	w.hudLines = append(w.hudLines, line)
+}
+
+func (w *World) clearHudPrint() {
+	w.dropHudLabs()
+	w.hudLines = w.hudLines[:0]
+}
+
+func (w *World) dropHudLabs() {
+	for _, t := range w.hudLabs {
+		if t == nil {
+			continue
+		}
+		if p := t.Parent(); p != nil {
+			p.GetNode().Remove(t)
+		}
+		t.SetVisible(false)
+	}
+	w.hudLabs = w.hudLabs[:0]
+}
+
+// flushHudPrint rebuilds Print() labels when the GL context is current
+// (inside Flip/render). Creating them at Graphics3D/Print time is silent.
+func (w *World) flushHudPrint() {
+	if w.mode2D || w.scene == nil {
+		return
+	}
+	w.dropHudLabs()
+	for i := 0; i < len(w.hudLines); i++ {
+		w.placeHudLabel(w.hudLines[i], i)
+	}
+}
+
+func (w *World) placeHudLabel(line string, row int) {
+	if w.scene == nil {
+		return
+	}
+	lab := gui.NewLabel(line)
+	lab.SetPosition(0, float32(row)*16)
+	lab.SetColor(&w.textRGB)
+	w.scene.Add(lab)
+	w.hudLabs = append(w.hudLabs, lab)
 }
 
 // CameraFollow cam, target, dist, height [, damp, yaw, pitch]

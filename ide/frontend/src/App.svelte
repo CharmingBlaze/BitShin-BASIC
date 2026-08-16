@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import TitleBar from './lib/components/TitleBar.svelte';
-  import ToolBar from './lib/components/ToolBar.svelte';
+  import ActivityBar from './lib/components/ActivityBar.svelte';
   import StatusBar from './lib/components/StatusBar.svelte';
   import FileTree from './lib/components/FileTree.svelte';
   import CommandRef from './lib/components/CommandRef.svelte';
@@ -26,8 +26,9 @@
 
   function onSidebarDrag(e: MouseEvent) {
     if (!isDraggingSidebar) return;
-    const newWidth = Math.max(180, Math.min(380, e.clientX));
+    const newWidth = Math.max(180, Math.min(420, e.clientX - 44));
     editorStore.settings.sidebarWidth = newWidth;
+    if (newWidth > 180) editorStore.sidebarCollapsed = false;
   }
 
   function stopSidebarDrag() {
@@ -47,9 +48,8 @@
 
   function onOutputDrag(e: MouseEvent) {
     if (!isDraggingOutput) return;
-    const maxOutputHeight = Math.min(280, Math.floor(window.innerHeight * 0.35));
-    const minOutputHeight = 80;
-    const newHeight = Math.max(minOutputHeight, Math.min(maxOutputHeight, window.innerHeight - e.clientY - 24));
+    const maxOutputHeight = Math.min(320, Math.floor(window.innerHeight * 0.4));
+    const newHeight = Math.max(80, Math.min(maxOutputHeight, window.innerHeight - e.clientY - 22));
     editorStore.settings.outputHeight = newHeight;
   }
 
@@ -93,73 +93,68 @@
   });
 </script>
 
-<div class="app-layout flex flex-col h-screen w-screen bg-slate-950 overflow-hidden select-none">
-  <!-- Top Navigation & Controls -->
+<div class="ide-app">
   <TitleBar />
-  <ToolBar />
 
-  <!-- Main IDE Workspace -->
-  <div class="flex-1 flex min-h-0 relative">
-    <!-- Collapsible Sidebar -->
-    <div
-      style="width: {editorStore.settings.sidebarWidth}px;"
-      class="h-full flex flex-col shrink-0 min-w-0"
-    >
-      {#if editorStore.activeSidebarTab === 'files'}
-        <FileTree />
-      {:else if editorStore.activeSidebarTab === 'commands'}
-        <CommandRef />
-      {:else if editorStore.activeSidebarTab === 'outline'}
-        <SymbolOutline />
-      {:else if editorStore.activeSidebarTab === 'examples'}
-        <ExamplesGallery />
-      {/if}
-    </div>
+  <div class="ide-body">
+    <ActivityBar />
 
-    <!-- Horizontal Resize Handle -->
+    {#if !editorStore.sidebarCollapsed}
+      <div
+        style="width: {editorStore.settings.sidebarWidth}px;"
+        class="h-full shrink-0 min-w-0"
+      >
+        {#if editorStore.activeSidebarTab === 'files'}
+          <FileTree />
+        {:else if editorStore.activeSidebarTab === 'commands'}
+          <CommandRef />
+        {:else if editorStore.activeSidebarTab === 'outline'}
+          <SymbolOutline />
+        {:else if editorStore.activeSidebarTab === 'examples'}
+          <ExamplesGallery />
+        {/if}
+      </div>
+    {/if}
+
     <div
+      role="separator"
+      aria-orientation="vertical"
       onmousedown={startSidebarDrag}
-      class="split-handle-horizontal {isDraggingSidebar ? 'active' : ''}"
-      title="Drag to resize sidebar"
+      class="split-h {isDraggingSidebar ? 'active' : ''}"
+      title="Resize sidebar"
     ></div>
 
-    <!-- Center Workspace (Editor + Output Console) -->
     <div class="flex-1 flex flex-col min-w-0 h-full">
-      <!-- Editor View -->
       <div class="flex-1 min-h-0">
         <Editor />
       </div>
 
-      <!-- Vertical Resize Handle -->
       <div
+        role="separator"
+        aria-orientation="horizontal"
         onmousedown={startOutputDrag}
         ondblclick={() => editorStore.toggleOutputPanel()}
-        class="split-handle-vertical {isDraggingOutput ? 'active' : ''}"
-        title="Drag to resize, double-click to toggle console"
+        class="split-v {isDraggingOutput ? 'active' : ''}"
+        title="Resize output · double-click to toggle"
       ></div>
 
-      <!-- Output Console Panel -->
       <div
-        style="height: {editorStore.isOutputCollapsed ? '32px' : `${editorStore.settings.outputHeight}px`};"
-        class="shrink-0 min-h-0 transition-[height] duration-75"
+        style="height: {editorStore.isOutputCollapsed ? '28px' : `${editorStore.settings.outputHeight}px`};"
+        class="shrink-0 min-h-0"
       >
         <OutputPanel />
       </div>
     </div>
   </div>
 
-  <!-- Bottom Status Bar -->
   <StatusBar />
 
-  <!-- Modals -->
   {#if editorStore.showNewModal}
     <NewFileModal />
   {/if}
-
   {#if editorStore.showBuildModal}
     <BuildModal />
   {/if}
-
   {#if editorStore.showSettingsModal}
     <SettingsModal />
   {/if}

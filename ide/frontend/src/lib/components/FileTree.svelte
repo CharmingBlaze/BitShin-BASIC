@@ -35,65 +35,51 @@
   function getFileIcon(name: string) {
     const lower = name.toLowerCase();
     if (lower.endsWith('.bb') || lower.endsWith('.basic') || lower.endsWith('.b3d')) {
-      return { icon: FileCode, color: 'text-sky-400' };
+      return { icon: FileCode, color: 'var(--accent)' };
     }
     if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.bmp')) {
-      return { icon: Image, color: 'text-emerald-400' };
+      return { icon: Image, color: 'var(--ok-text)' };
     }
     if (lower.endsWith('.exe') || lower.endsWith('.dll') || lower.endsWith('.so') || lower.endsWith('.dylib')) {
-      return { icon: Binary, color: 'text-indigo-400' };
+      return { icon: Binary, color: 'var(--info)' };
     }
     if (lower.endsWith('.json') || lower.endsWith('.yml') || lower.endsWith('.yaml') || lower.endsWith('.toml')) {
-      return { icon: FileSpreadsheet, color: 'text-amber-400' };
+      return { icon: FileSpreadsheet, color: 'var(--warn)' };
     }
-    return { icon: FileText, color: 'text-slate-400' };
+    return { icon: FileText, color: 'var(--text-muted)' };
   }
 </script>
 
-<div class="file-tree flex flex-col h-full bg-slate-900/90 border-r border-slate-800 select-none">
-  <!-- Header -->
-  <div class="px-3 py-2 border-b border-slate-800 flex items-center justify-between bg-slate-950/40">
-    <span class="text-[10px] font-bold tracking-wider uppercase text-slate-400">
-      Project Explorer
-    </span>
-    <div class="flex items-center gap-0.5">
-      <button
-        onclick={() => editorStore.showNewModal = true}
-        class="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
-        title="New File"
-      >
+<div class="ide-sidebar">
+  <div class="ide-side-head">
+    <span>Explorer</span>
+    <div class="flex items-center">
+      <button class="ide-iconbtn" onclick={() => editorStore.showNewModal = true} title="New file">
         <FilePlus size={13} />
       </button>
-      <button
-        onclick={() => editorStore.refreshProjectTree()}
-        class="p-1 rounded hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition"
-        title="Refresh Explorer"
-      >
+      <button class="ide-iconbtn" onclick={() => editorStore.refreshProjectTree()} title="Refresh">
         <RefreshCw size={13} />
       </button>
     </div>
   </div>
 
-  <!-- Tree View -->
-  <div class="flex-1 overflow-y-auto py-1 scrollbar-thin">
+  <div class="flex-1 overflow-y-auto py-1">
     {#if !editorStore.projectTree}
-      <div class="p-6 text-center text-slate-500 text-xs">
-        Loading directory tree...
-      </div>
+      <div class="p-6 text-center text-xs" style="color: var(--text-muted);">Loading workspace…</div>
     {:else}
       {#snippet renderNode(node: FileNode, depth: number)}
         {@const fileMeta = getFileIcon(node.name)}
         {@const Icon = fileMeta.icon}
         {@const isCurrentTab = editorStore.activeTab?.path === node.path}
-        
+
         <div class="flex flex-col">
           <button
             onclick={() => openFileNode(node)}
-            style="padding-left: {depth * 14 + 8}px;"
-            class="w-full text-left py-1 pr-2 hover:bg-slate-800/60 flex items-center gap-1.5 text-xs transition group cursor-pointer border-l-2 {isCurrentTab ? 'bg-sky-500/10 text-sky-300 font-medium border-sky-400' : 'border-transparent text-slate-300 hover:text-slate-100'}"
+            style="padding-left: {depth * 12 + 8}px;"
+            class="ide-tree-row {isCurrentTab ? 'active' : ''}"
           >
             {#if node.isDir}
-              <span class="text-slate-500 flex items-center justify-center w-3 h-3">
+              <span style="width:12px;color:var(--text-dim);display:inline-flex;">
                 {#if expandedPaths[node.path]}
                   <ChevronDown size={11} />
                 {:else}
@@ -101,24 +87,22 @@
                 {/if}
               </span>
               {#if expandedPaths[node.path]}
-                <FolderOpen size={13} class="text-amber-400 shrink-0" />
+                <FolderOpen size={13} style="color: var(--accent); flex-shrink: 0;" />
               {:else}
-                <Folder size={13} class="text-amber-400/90 shrink-0" />
+                <Folder size={13} style="color: var(--accent); flex-shrink: 0;" />
               {/if}
-              <span class="truncate text-[12px]">{node.name}</span>
+              <span class="truncate">{node.name}</span>
             {:else}
-              <span class="w-3"></span>
-              <Icon size={13} class="{fileMeta.color} shrink-0" />
-              <span class="truncate text-[12px]">{node.name}</span>
+              <span style="width:12px;"></span>
+              <Icon size={13} style="color: {fileMeta.color}; flex-shrink: 0;" />
+              <span class="truncate">{node.name}</span>
             {/if}
           </button>
 
           {#if node.isDir && expandedPaths[node.path] && node.children}
-            <div class="flex flex-col">
-              {#each node.children as child}
-                {@render renderNode(child, depth + 1)}
-              {/each}
-            </div>
+            {#each node.children as child}
+              {@render renderNode(child, depth + 1)}
+            {/each}
           {/if}
         </div>
       {/snippet}

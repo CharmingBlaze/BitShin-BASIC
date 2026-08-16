@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Search, Copy, Plus, BookOpen, Check } from 'lucide-svelte';
+  import { Search, Copy, Plus, Check } from 'lucide-svelte';
   import commandsData from '../data/commands.json';
   import type { CommandItem } from '../types';
   import { editorStore } from '../stores/editorState.svelte';
@@ -39,109 +39,63 @@
   }
 </script>
 
-<div class="command-ref flex flex-col h-full bg-slate-900/90 border-r border-slate-800 select-none">
-  <!-- Header & Search -->
-  <div class="p-3 border-b border-slate-800 space-y-2 bg-slate-950/40">
-    <div class="flex items-center justify-between">
-      <span class="text-[10px] font-bold tracking-wider uppercase text-slate-400">
-        Command Reference
-      </span>
-      <span class="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono">
-        {filteredCommands.length} / {commandsData.commands.length}
-      </span>
-    </div>
-
-    <!-- Search box -->
-    <div class="relative">
-      <Search size={13} class="absolute left-2.5 top-2.5 text-slate-500" />
-      <input
-        type="text"
-        bind:value={searchQuery}
-        placeholder="Search commands (Camera, Physics)..."
-        class="w-full bg-slate-950 border border-slate-800 rounded-md pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-sky-500 transition"
-      />
-    </div>
-
-    <!-- Category filter selector -->
-    <div class="px-2 py-1 rounded bg-slate-950 border border-slate-800">
-      <select
-        bind:value={selectedCategory}
-        class="w-full bg-transparent text-[11px] text-slate-300 focus:outline-none cursor-pointer"
-      >
-        {#each categories as cat}
-          <option value={cat}>{cat}</option>
-        {/each}
-      </select>
-    </div>
+<div class="ide-sidebar">
+  <div class="ide-side-head">
+    <span>Commands</span>
+    <span class="font-mono" style="font-size:10px;letter-spacing:0;text-transform:none;">{filteredCommands.length}</span>
   </div>
 
-  <!-- Main Content: Split List + Detail Preview -->
-  <div class="flex-1 flex flex-col min-h-0">
-    <!-- Command List -->
-    <div class="flex-1 overflow-y-auto divide-y divide-slate-800/40 scrollbar-thin">
-      {#if filteredCommands.length === 0}
-        <div class="p-6 text-center text-slate-500 text-xs">
-          No commands matching "{searchQuery}"
-        </div>
-      {:else}
-        {#each filteredCommands as cmd}
-          <button
-            onclick={() => selectedCommand = cmd}
-            class="w-full text-left px-3 py-1.5 text-xs flex flex-col gap-0.5 hover:bg-slate-800/60 transition cursor-pointer border-l-2 {selectedCommand?.name === cmd.name ? 'bg-sky-500/10 border-sky-400' : 'border-transparent'}"
-          >
-            <div class="flex items-center justify-between">
-              <span class="font-mono font-medium text-slate-200 text-[12px]">{cmd.name}</span>
-              <span class="text-[9px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 truncate max-w-[120px]">
-                {cmd.category}
-              </span>
-            </div>
-            <div class="text-[10px] text-slate-400 font-mono truncate">{cmd.syntax}</div>
-          </button>
-        {/each}
-      {/if}
-    </div>
+  <div class="ide-search">
+    <Search size={12} />
+    <input type="text" bind:value={searchQuery} placeholder="Search commands…" />
+  </div>
+  <div style="padding:0 10px 8px;">
+    <select bind:value={selectedCategory} class="ide-field">
+      {#each categories as cat}
+        <option value={cat}>{cat}</option>
+      {/each}
+    </select>
+  </div>
 
-    <!-- Selected Command Detail Card -->
-    {#if selectedCommand}
-      <div class="p-3 bg-slate-950 border-t border-slate-800 flex flex-col gap-2 max-h-56 overflow-y-auto">
-        <div class="flex items-start justify-between gap-2">
-          <div>
-            <div class="text-xs font-bold text-sky-300 font-mono">{selectedCommand.name}</div>
-            <div class="text-[10px] text-slate-400">{selectedCommand.category}</div>
-          </div>
-          <div class="flex items-center gap-1">
-            <button
-              onclick={() => copySyntax(selectedCommand?.syntax || '')}
-              class="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 transition"
-              title="Copy Syntax"
-            >
-              {#if copied}
-                <Check size={12} class="text-emerald-400" />
-              {:else}
-                <Copy size={12} />
-              {/if}
-            </button>
-            <button
-              onclick={() => insertCommand(selectedCommand!)}
-              class="flex items-center gap-1 px-2 py-1 rounded bg-sky-600 hover:bg-sky-500 text-white text-[10px] font-medium transition"
-              title="Insert into code"
-            >
-              <Plus size={11} />
-              <span>Insert</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- Syntax Box -->
-        <div class="p-2 rounded bg-slate-900 border border-slate-800 text-[11px] font-mono text-amber-300 break-words select-text">
-          {selectedCommand.syntax}
-        </div>
-
-        <!-- Description -->
-        <div class="text-xs text-slate-300 leading-relaxed select-text">
-          {selectedCommand.description}
-        </div>
-      </div>
+  <div class="flex-1 overflow-y-auto min-h-0">
+    {#if filteredCommands.length === 0}
+      <div class="p-6 text-center text-xs" style="color: var(--text-muted);">No matches</div>
+    {:else}
+      {#each filteredCommands as cmd}
+        <button
+          onclick={() => selectedCommand = cmd}
+          class="ide-list-row flex-col items-start"
+          class:active={selectedCommand?.name === cmd.name}
+        >
+          <span class="font-mono" style="color: var(--text-primary);">{cmd.name}</span>
+          <span class="truncate font-mono" style="font-size:10px;color:var(--text-muted);">{cmd.syntax}</span>
+        </button>
+      {/each}
     {/if}
   </div>
+
+  {#if selectedCommand}
+    <div style="padding:10px;border-top:1px solid var(--border);background:var(--bg-panel);">
+      <div class="flex items-center justify-between gap-2">
+        <div>
+          <div class="font-mono" style="font-size:12px;color:var(--accent-bright);">{selectedCommand.name}</div>
+          <div style="font-size:10px;color:var(--text-muted);">{selectedCommand.category}</div>
+        </div>
+        <div class="flex items-center gap-1">
+          <button class="ide-iconbtn" onclick={() => copySyntax(selectedCommand?.syntax || '')} title="Copy">
+            {#if copied}<Check size={12} />{:else}<Copy size={12} />{/if}
+          </button>
+          <button class="ide-btn primary" style="height:22px;padding:0 8px;font-size:10px;" onclick={() => insertCommand(selectedCommand!)}>
+            <Plus size={11} /> Insert
+          </button>
+        </div>
+      </div>
+      <div class="font-mono select-text" style="margin-top:8px;padding:8px;background:var(--bg-input);border:1px solid var(--border);font-size:11px;color:var(--accent);word-break:break-word;">
+        {selectedCommand.syntax}
+      </div>
+      <div class="select-text" style="margin-top:8px;font-size:12px;color:var(--text-secondary);line-height:1.45;">
+        {selectedCommand.description}
+      </div>
+    </div>
+  {/if}
 </div>
