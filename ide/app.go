@@ -43,6 +43,31 @@ func (a *App) startup(ctx context.Context) {
 	a.startLanguageServer()
 }
 
+func (a *App) onDomReady(ctx context.Context) {
+	a.ctx = ctx
+	a.fixFramelessBounds()
+	wailsruntime.WindowShow(ctx)
+}
+
+// fixFramelessBounds forces Windows to recalculate the frameless client area.
+// Wails frameless windows keep a hidden caption inset on first paint, so the
+// custom title bar starts off-screen until the user resizes.
+func (a *App) fixFramelessBounds() {
+	ctx := a.ctx
+	if ctx == nil {
+		return
+	}
+	w, h := wailsruntime.WindowGetSize(ctx)
+	if w < 800 {
+		w = 980
+	}
+	if h < 500 {
+		h = 620
+	}
+	wailsruntime.WindowSetSize(ctx, w, h)
+	wailsruntime.WindowCenter(ctx)
+}
+
 // shutdown is called when the app terminates
 func (a *App) shutdown(ctx context.Context) {
 	a.StopProgram()
