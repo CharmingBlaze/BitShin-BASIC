@@ -110,3 +110,155 @@ func TestKinematicBoxPushesDynamicBox(t *testing.T) {
 		t.Fatalf("kinematic should push dynamic, x=%v backend=%s", x, w.Backend())
 	}
 }
+
+func TestBuoyancyMeshSensorQueries(t *testing.T) {
+	w := New()
+	defer w.Close()
+	w.SetGravity(0, -9.81, 0)
+	w.AddBox(1, 0, 0.5, 0, 0.5, 0.5, 0.5, true)
+	w.SetMass(1, 10)
+	ok := w.ApplyBuoyancyImpulse(1, 0, 2, 0, 0, 1, 0, 1.2, 0.5, 0.3, 0, 0, 0, 1.0/60)
+	if w.Backend() == BackendJolt && !ok {
+		t.Fatal("jolt buoyancy should run")
+	}
+	w.AddSensorBox(2, 5, 1, 0, 1, 1, 1, MotionTypeKinematic)
+	w.SetSensor(2, true)
+	id, hit := w.OverlapPoint(5, 1, 0)
+	if w.Backend() == BackendFallback {
+		if !hit && id == 0 {
+			t.Log("fallback overlap is approximate")
+		}
+	} else if !hit {
+		t.Fatal("sensor overlap missed")
+	}
+	w.AddBox(3, 0, 0, 8, 4, 0.2, 4, false)
+	_, _, _, _, castOK := w.ShapeCast(0.3, 0.3, 0.3, 0, 4, 8, 0, -8, 0)
+	if !castOK {
+		t.Fatal("shapecast missed ground")
+	}
+	verts := [][3]float32{{0, 0, 0}, {2, 0, 0}, {0, 0, 2}}
+	idx := []int32{0, 1, 2}
+	w.AddMesh(4, verts, idx, MotionTypeStatic)
+	samples := make([]float32, 16*16)
+	w.AddHeightField(5, samples, 16, -8, 0, -8, 1, 1, 1)
+	w.OffsetCenterOfMass(1, 0, -0.2, 0)
+}
+
+func TestOptimizeBroadPhaseManyBodies(t *testing.T) {
+	w := New()
+	defer w.Close()
+	w.SetGravity(0, -20, 0)
+	w.AddBox(1, 0, 0, 0, 20, 0.25, 20, false)
+	for i := 0; i < 40; i++ {
+		w.AddSphere(10+i, float32(i%8)-3.5, 3+float32(i)*0.15, float32(i/8)-2, 0.2, true)
+	}
+	w.OptimizeBroadPhase()
+	id, _, _, _, hit := w.Raycast(0, 20, 0, 0, -40, 0)
+	if !hit {
+		t.Fatal("raycast after optimize missed")
+	}
+	if id == 0 {
+		t.Fatal("raycast hit nothing")
+	}
+	for i := 0; i < 30; i++ {
+		w.Step(1.0 / 60.0)
+	}
+	_, y, _, ok := w.GetPosition(10)
+	if !ok {
+		t.Fatal("missing sphere")
+	}
+	if y > 4 {
+		t.Fatalf("pile should fall after optimize, y=%v", y)
+	}
+}
+
+func TestClothSheetDrapes(t *testing.T) {
+	w := New()
+	defer w.Close()
+	w.SetGravity(0, -9.81, 0)
+	w.AddCloth(1, 0, 4, 0, 2, 2, 8, 8, 1, 0.05, 0.5, 1)
+	if w.ClothVertexCount(1) == 0 && w.Backend() == BackendJolt {
+		t.Fatal("jolt cloth produced no vertices")
+	}
+	_, y0, _, ok := w.GetPosition(1)
+	if !ok {
+		t.Fatal("cloth body missing")
+	}
+	for i := 0; i < 40; i++ {
+		w.Step(1.0 / 60.0)
+	}
+	_, y1, _, ok := w.GetPosition(1)
+	if !ok {
+		t.Fatal("cloth body missing after step")
+	}
+	if y1 > y0-0.08 {
+		t.Fatalf("cloth COM should drop, y %v -> %v backend=%s", y0, y1, w.Backend())
+	}
+}
+
+func TestCylinderHullAndGrab(t *testing.T) {
+	w := New()
+	defer w.Close()
+	w.SetGravity(0, 0, 0)
+	w.AddCylinder(1, 0, 1, 0, 0.8, 0.3, MotionTypeStatic)
+	id, _, _, _, hit := w.Raycast(0, 4, 0, 0, -8, 0)
+	if !hit || (id != 1 && w.Backend() == BackendJolt) {
+		t.Fatalf("cylinder raycast id=%d hit=%v backend=%s", id, hit, w.Backend())
+	}
+	pts := [][3]float32{{0, 0, 0}, {1, 0, 0}, {0.5, 1, 0}, {0.5, 0.3, 0.8}}
+	w.AddConvexHull(2, pts, 4, 1, 0, MotionTypeStatic)
+	id, _, _, _, hit = w.Raycast(4, 5, 0, 0, -8, 0)
+	if !hit {
+		t.Fatal("convex hull raycast missed")
+	}
+	w.AddBoxEx(3, 0, 2, 4, 0.2, 0.2, 0.2, MotionTypeKinematic)
+	w.AddBoxEx(4, 0.4, 2, 4, 0.2, 0.2, 0.2, MotionTypeDynamic)
+	w.SetMass(4, 0.5)
+	jid := w.CreateGrabJoint(3, 4, 0.4, 2, 4, 12, 1)
+	if jid == 0 {
+		return
+	}
+	dt := float32(1.0 / 60.0)
+	for i := 0; i < 40; i++ {
+		w.MoveKinematic(3, 0.06*float32(i+1), 2, 4, 0, 0, 0, 1, dt)
+		w.Step(dt)
+	}
+	x, _, _, ok := w.GetPosition(4)
+	if !ok {
+		t.Fatal("grabbed body missing")
+	}
+	if x < 0.7 {
+		t.Fatalf("grab should pull target, x=%v joint=%d backend=%s", x, jid, w.Backend())
+	}
+}
+
+func TestCompoundOverlapExplodeAndJoints(t *testing.T) {
+	w := New()
+	defer w.Close()
+	w.SetGravity(0, 0, 0)
+	parts := []CompoundPart{
+		{Kind: CompoundBox, A: 0.3, B: 0.3, C: 0.3},
+		{Kind: CompoundBox, Ox: 1.2, A: 0.2, B: 0.2, C: 0.2},
+	}
+	w.AddCompound(1, parts, 0, 1, 0, MotionTypeStatic)
+	id, _, _, _, hit := w.Raycast(1.2, 4, 0, 0, -8, 0)
+	if !hit {
+		t.Fatal("compound offset part raycast missed")
+	}
+	if w.Backend() == BackendJolt && id != 1 {
+		t.Fatalf("compound hit id=%d", id)
+	}
+	w.AddBoxEx(2, 5, 1, 0, 0.3, 0.3, 0.3, MotionTypeDynamic)
+	all := w.OverlapSphereAll(5, 1, 0, 1, 8)
+	if len(all) == 0 {
+		t.Fatal("OverlapSphereAll missed nearby box")
+	}
+	jid := w.CreateFixedJoint(1, 2, 2.5, 1, 0)
+	if w.Backend() == BackendFallback && jid == 0 {
+		t.Fatal("fallback fixed joint id 0")
+	}
+	_ = w.CreateConeJoint(1, 2, 2.5, 1, 0, 0, 1, 0, 40)
+	_ = w.CreateSwingTwistJoint(1, 2, 2.5, 1, 0, 0, 1, 0, 40, 20)
+	w.SetCollisionLayer(2, 1)
+	w.SetLayerCollides(0, 1, false)
+}

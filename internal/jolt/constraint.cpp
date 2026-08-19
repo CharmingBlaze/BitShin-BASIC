@@ -15,6 +15,10 @@
 #include <Jolt/Physics/Constraints/PointConstraint.h>
 #include <Jolt/Physics/Constraints/SliderConstraint.h>
 #include <Jolt/Physics/Constraints/DistanceConstraint.h>
+#include <Jolt/Physics/Constraints/SixDOFConstraint.h>
+#include <Jolt/Physics/Constraints/FixedConstraint.h>
+#include <Jolt/Physics/Constraints/ConeConstraint.h>
+#include <Jolt/Physics/Constraints/SwingTwistConstraint.h>
 #include <Jolt/Physics/Body/BodyInterface.h>
 #include <Jolt/Physics/Collision/CollisionGroup.h>
 #include <Jolt/Physics/Collision/GroupFilterTable.h>
@@ -299,4 +303,144 @@ void JoltDisableBodyPairCollision(JoltPhysicsSystem system, JoltBodyID bodyA, Jo
 	Body *b1 = tryBody(ps, bodyA);
 	Body *b2 = tryBody(ps, bodyB);
 	disableConstrainedCollision(ps, b1, b2, bodyA, bodyB);
+}
+
+JoltConstraint JoltCreateGrabConstraint(JoltPhysicsSystem system,
+									   JoltBodyID bodyA, JoltBodyID bodyB,
+									   float pivotX, float pivotY, float pivotZ,
+									   float frequency, float damping)
+{
+	PhysicsSystem *ps = GetPhysicsSystem(static_cast<PhysicsSystemWrapper *>(system));
+	Body *b1 = tryBody(ps, bodyA);
+	Body *b2 = tryBody(ps, bodyB);
+	if (b1 == nullptr || b2 == nullptr || b1 == b2)
+	{
+		return nullptr;
+	}
+	SixDOFConstraintSettings settings;
+	settings.mSpace = EConstraintSpace::WorldSpace;
+	settings.mPosition1 = RVec3(pivotX, pivotY, pivotZ);
+	settings.mPosition2 = RVec3(pivotX, pivotY, pivotZ);
+	settings.mAxisX1 = Vec3::sAxisX();
+	settings.mAxisY1 = Vec3::sAxisY();
+	settings.mAxisX2 = Vec3::sAxisX();
+	settings.mAxisY2 = Vec3::sAxisY();
+	for (int i = 0; i < SixDOFConstraintSettings::EAxis::NumTranslation; i++)
+	{
+		settings.MakeFixedAxis(SixDOFConstraintSettings::EAxis(i));
+		if (frequency > 0.0f)
+		{
+			settings.mLimitsSpringSettings[i].mFrequency = frequency;
+			settings.mLimitsSpringSettings[i].mDamping = damping;
+		}
+	}
+	for (int i = SixDOFConstraintSettings::EAxis::NumTranslation; i < SixDOFConstraintSettings::EAxis::Num; i++)
+	{
+		settings.MakeFreeAxis(SixDOFConstraintSettings::EAxis(i));
+	}
+	TwoBodyConstraint *c = settings.Create(*b1, *b2);
+	ps->AddConstraint(c);
+	disableConstrainedCollision(ps, b1, b2, bodyA, bodyB);
+	return static_cast<JoltConstraint>(c);
+}
+
+static TwoBodyConstraint *addTwoBody(PhysicsSystem *ps, Body *b1, Body *b2, JoltBodyID bodyA, JoltBodyID bodyB, TwoBodyConstraint *c)
+{
+	if (c == nullptr)
+	{
+		return nullptr;
+	}
+	ps->AddConstraint(c);
+	disableConstrainedCollision(ps, b1, b2, bodyA, bodyB);
+	return c;
+}
+
+JoltConstraint JoltCreateFixedConstraint(JoltPhysicsSystem system,
+										JoltBodyID bodyA, JoltBodyID bodyB,
+										float pivotX, float pivotY, float pivotZ)
+{
+	PhysicsSystem *ps = GetPhysicsSystem(static_cast<PhysicsSystemWrapper *>(system));
+	Body *b1 = tryBody(ps, bodyA);
+	Body *b2 = tryBody(ps, bodyB);
+	if (b1 == nullptr || b2 == nullptr || b1 == b2)
+	{
+		return nullptr;
+	}
+	FixedConstraintSettings settings;
+	settings.mSpace = EConstraintSpace::WorldSpace;
+	settings.mAutoDetectPoint = false;
+	settings.mPoint1 = RVec3(pivotX, pivotY, pivotZ);
+	settings.mPoint2 = RVec3(pivotX, pivotY, pivotZ);
+	return addTwoBody(ps, b1, b2, bodyA, bodyB, settings.Create(*b1, *b2));
+}
+
+JoltConstraint JoltCreateConeConstraint(JoltPhysicsSystem system,
+									   JoltBodyID bodyA, JoltBodyID bodyB,
+									   float pivotX, float pivotY, float pivotZ,
+									   float axisX, float axisY, float axisZ,
+									   float halfConeDeg)
+{
+	PhysicsSystem *ps = GetPhysicsSystem(static_cast<PhysicsSystemWrapper *>(system));
+	Body *b1 = tryBody(ps, bodyA);
+	Body *b2 = tryBody(ps, bodyB);
+	if (b1 == nullptr || b2 == nullptr || b1 == b2)
+	{
+		return nullptr;
+	}
+	if (halfConeDeg < 0.1f)
+	{
+		halfConeDeg = 45.0f;
+	}
+	if (halfConeDeg > 89.0f)
+	{
+		halfConeDeg = 89.0f;
+	}
+	Vec3 axis = unitOrY(axisX, axisY, axisZ);
+	ConeConstraintSettings settings;
+	settings.mSpace = EConstraintSpace::WorldSpace;
+	settings.mPoint1 = RVec3(pivotX, pivotY, pivotZ);
+	settings.mPoint2 = RVec3(pivotX, pivotY, pivotZ);
+	settings.mTwistAxis1 = axis;
+	settings.mTwistAxis2 = axis;
+	settings.mHalfConeAngle = DegreesToRadians(halfConeDeg);
+	return addTwoBody(ps, b1, b2, bodyA, bodyB, settings.Create(*b1, *b2));
+}
+
+JoltConstraint JoltCreateSwingTwistConstraint(JoltPhysicsSystem system,
+											 JoltBodyID bodyA, JoltBodyID bodyB,
+											 float pivotX, float pivotY, float pivotZ,
+											 float axisX, float axisY, float axisZ,
+											 float swingDeg, float twistDeg)
+{
+	PhysicsSystem *ps = GetPhysicsSystem(static_cast<PhysicsSystemWrapper *>(system));
+	Body *b1 = tryBody(ps, bodyA);
+	Body *b2 = tryBody(ps, bodyB);
+	if (b1 == nullptr || b2 == nullptr || b1 == b2)
+	{
+		return nullptr;
+	}
+	if (swingDeg < 0.1f)
+	{
+		swingDeg = 45.0f;
+	}
+	if (twistDeg < 0.1f)
+	{
+		twistDeg = 30.0f;
+	}
+	Vec3 axis = unitOrY(axisX, axisY, axisZ);
+	Vec3 plane = axis.GetNormalizedPerpendicular();
+	SwingTwistConstraintSettings settings;
+	settings.mSpace = EConstraintSpace::WorldSpace;
+	settings.mPosition1 = RVec3(pivotX, pivotY, pivotZ);
+	settings.mPosition2 = RVec3(pivotX, pivotY, pivotZ);
+	settings.mTwistAxis1 = axis;
+	settings.mTwistAxis2 = axis;
+	settings.mPlaneAxis1 = plane;
+	settings.mPlaneAxis2 = plane;
+	settings.mNormalHalfConeAngle = DegreesToRadians(swingDeg);
+	settings.mPlaneHalfConeAngle = DegreesToRadians(swingDeg);
+	float twist = DegreesToRadians(twistDeg);
+	settings.mTwistMinAngle = -twist;
+	settings.mTwistMaxAngle = twist;
+	return addTwoBody(ps, b1, b2, bodyA, bodyB, settings.Create(*b1, *b2));
 }

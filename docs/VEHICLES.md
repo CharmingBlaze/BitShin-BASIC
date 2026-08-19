@@ -88,7 +88,8 @@ These are real commands (vehicles use them internally):
 | `SetRestitution e, n` | Bounce |
 | `SetLinearDamping e, n` | Linear drag |
 | `SetFriction e, n` | Friction |
-| `ApplyBuoyancy e [, waterY, scale]` | Up-force while under `waterY` or `WaterHeight(x, z)` |
+| `ApplyBuoyancy e [, waterY, scale]` | Jolt buoyancy impulse vs `waterY` or `WaterHeight(x, z)` |
+| `SetWaterFlow vx, vy, vz` | Current mixed into buoyancy fluid velocity |
 | `WaterHeight(x, z)` | CPU Gerstner height (matches the water mesh) |
 
 ```basic

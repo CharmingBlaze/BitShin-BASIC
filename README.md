@@ -43,7 +43,7 @@ go build -o bsls.exe ./cmd/bsls
 
 ### BitShin BASIC IDE (Wails + Svelte 5)
 
-Modern desktop IDE with Monaco code editor, full IntelliSense autocomplete, instant F5 run & real-time console, 790+ searchable command reference browser, symbol outline, 69-demo gallery, and standalone game packager:
+Modern desktop IDE with Monaco code editor, full IntelliSense autocomplete, instant F5 run & real-time console, 790+ searchable command reference browser, symbol outline, demo gallery, and standalone game packager:
 
 ```powershell
 .\scripts\build_ide.ps1
@@ -134,6 +134,8 @@ Do not mix `Graphics3D` and `Graphics2D` in one program.
 | `examples/rover.bb` | FPS walk |
 | `examples/bounce.bb` | Collisions |
 | `examples/jolt_drop.bb` | 3D rigid body |
+| `examples/cloth.bb` | Soft-body flag + water flow |
+| `examples/grab_beam.bb` | Convex hull, cylinder, grab/throw, laser |
 | `examples/physics3d.bb` | Raycast, impulse, character |
 | `examples/draw2d.bb` | 2D `Rect` / `Oval` (Ebiten) |
 | `examples/platform64.bb` | 3D platformer (WASD + jump + coins, skybox, weather, shadows) |
@@ -184,7 +186,8 @@ This workspace maps `*.bb` → language id `bitshinbasic` (`.vscode/settings.jso
 ## Docs
 
 - [docs/LANGUAGE.md](docs/LANGUAGE.md) — syntax
-- [docs/COMMANDS.md](docs/COMMANDS.md) — every command
+- [docs/PHYSICS.md](docs/PHYSICS.md) — Jolt bodies, joints, grab, cloth, CharacterVirtual
+- [docs/MODERN_GAME_HELPERS.md](docs/MODERN_GAME_HELPERS.md) — FPS/TPS, tweens, grab / beam / projectile
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — packages and Flip
 - [docs/STATUS.md](docs/STATUS.md) — Real / Partial / not in product
 - [docs/COMPAT.md](docs/COMPAT.md) — OpenGL 3.3 required / 4.x optional

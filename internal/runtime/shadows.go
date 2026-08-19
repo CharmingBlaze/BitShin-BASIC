@@ -31,7 +31,7 @@ const (
 	// Let the user camera, scene transforms, and all CSM tiles settle before
 	// exposing the atlas. This prevents a valid-but-transient startup cascade
 	// from sweeping an oversized shadow across the first visible frames.
-	shadowWarmupFrames = 6
+	shadowWarmupFrames = 2
 )
 
 type shaderUni struct {
@@ -444,7 +444,7 @@ func (w *World) renderShadows(rend *renderer.Renderer, cam *camera.Camera) {
 	}
 	w.computeCascadeSplits(cam, n)
 	w.buildCascadeViews(cam, n)
-	if w.shadow.camTrack && w.shadow.tmpCamPos.DistanceTo(&w.shadow.lastCam) > 6 {
+	if w.shadow.camTrack && w.shadow.tmpCamPos.DistanceTo(&w.shadow.lastCam) > 40 {
 		w.shadow.warm = 0
 		w.shadow.ready = false
 	}

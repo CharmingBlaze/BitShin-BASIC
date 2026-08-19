@@ -9,6 +9,7 @@
 #define JOLT_WRAPPER_CONTACT_LISTENER_H
 
 #include "physics.h"
+#include "body.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -31,6 +32,9 @@ typedef struct JoltContactEvent {
 void JoltSetContactListenerEnabled(JoltPhysicsSystem system, int enabled);
 int JoltPollContactEvents(JoltContactEvent* outEvents, int maxEvents);
 void JoltClearContactEvents(void);
+
+void JoltSetBodyCollisionLayer(JoltBodyID body, int layer);
+void JoltSetLayerPairCollides(int layerA, int layerB, int collides);
 
 #ifdef __cplusplus
 }

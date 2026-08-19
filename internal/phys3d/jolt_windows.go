@@ -31,6 +31,7 @@ type joltWorld struct {
 	planes           map[int]planeAero
 	motion           map[int]int
 	kinPose          map[int]bool
+	pendingAdds      int
 	nextConstraintID int
 	gx, gy, gz       float32
 }
@@ -90,6 +91,9 @@ func (w *joltWorld) Step(dt float32) {
 		if b, ok := w.body[id]; ok {
 			w.bi.ActivateBody(b)
 		}
+	}
+	if w.pendingAdds >= 8 {
+		w.OptimizeBroadPhase()
 	}
 	w.ps.Update(dt, w.tempAllocator)
 	for id := range w.vehicles {
@@ -198,6 +202,7 @@ func (w *joltWorld) add(id int, shape *jolt.Shape, x, y, z, r float32, motion in
 		r = 0.1
 	}
 	w.rad[id] = r
+	w.pendingAdds++
 }
 
 func (w *joltWorld) AddBox(id int, x, y, z, hx, hy, hz float32, dynamic bool) {
@@ -227,6 +232,36 @@ func (w *joltWorld) AddCapsule(id int, x, y, z, halfH, r float32, dynamic bool) 
 	w.add(id, jolt.CreateCapsule(halfH, r), x, y, z, r+halfH, motionFromDynamic(dynamic))
 }
 
+func (w *joltWorld) AddCylinder(id int, x, y, z, halfH, r float32, motion int) {
+	shape := jolt.CreateCylinder(halfH, r)
+	if shape == nil {
+		w.AddCapsule(id, x, y, z, halfH, r, motion == MotionTypeDynamic)
+		return
+	}
+	rad := r
+	if halfH > rad {
+		rad = halfH
+	}
+	w.add(id, shape, x, y, z, rad, motion)
+}
+
+func (w *joltWorld) AddConvexHull(id int, points [][3]float32, x, y, z float32, motion int) {
+	if len(points) < 3 {
+		return
+	}
+	pts := make([]jolt.Vec3, len(points))
+	for i, p := range points {
+		pts[i] = jolt.NewVec3(p[0], p[1], p[2])
+	}
+	shape := jolt.CreateConvexHull(pts)
+	if shape == nil {
+		hx, hy, hz := hullHalfExtents(points)
+		w.AddBoxEx(id, x, y, z, hx, hy, hz, motion)
+		return
+	}
+	w.add(id, shape, x, y, z, hullRadius(points), motion)
+}
+
 func (w *joltWorld) AddCharacter(id int, x, y, z, halfH, r float32) {
 	w.AddCharacterController(id, x, y, z, halfH*2, r, 50, 100)
 }
@@ -248,7 +283,9 @@ func (w *joltWorld) AddCharacterController(id int, x, y, z, height, radius, maxS
 	settings := jolt.NewCharacterVirtualSettings(shape)
 	settings.MaxSlopeAngle = jolt.DegreesToRadians(maxSlopeDeg)
 	settings.MaxStrength = maxStrength
-	cv := w.ps.CreateCharacterVirtual(settings, jolt.Vec3{X: x, Y: y, Z: z})
+	settings.EnhancedInternalEdgeRemoval = true
+	inner := jolt.CreateCapsule(height*0.5, radius*0.85)
+	cv := w.ps.CreateCharacterVirtualWithInner(settings, jolt.Vec3{X: x, Y: y, Z: z}, inner, 1)
 	w.char[id] = &kinChar{
 		x: x, y: y, z: z,
 		radius:  radius + height*0.5,

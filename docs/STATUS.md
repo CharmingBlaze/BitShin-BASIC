@@ -13,7 +13,7 @@ What is wired and what is not. Classic command names still work; 2026 `Set*` / `
 | Weather | Real (sky Partial) | Rain/snow/fog/storm particles, wetness, height fog, wind sway, lightning bolts. Atmosphere = Bruneton-style LUT + single scatter (`docs/WEATHER.md`). Not full 4D precompute / 3D clouds |
 | Terrain | Real | Heightmap PNG/JPEG, FBM proc, **CPU generator** (`GenerateHeightmap` / erosion / PNG), **Terrain-OpenGL** value-noise + `mbterrain` splat (`CreateTerrainGL`), chunk stream + CPU LOD (tess/compute not required), `TerrainHeight` / `TerrainSlope`, 3.3 cloud raymarch. `docs/TERRAIN.md` |
 | Geo | Real | Thin Web Mercator subset (`internal/geo`): `SetGeoOrigin`, `GeoProject` / `GeoUnproject`, XYZ/TMS tiles, `LoadGeoJSON`, DEM bounds → existing `CreateTerrain`. **Not** full flywave/go-geo (PROJ/GEOS/CGO). `docs/GEO.md` |
-| Water | Real | Gerstner (vertex + wind + `WaterHeight`) and scenic dual-FBO / DuDv / Fresnel / depth tint / texture foam / dual normals; combo `ocean`. Camera-centered LOD grid. Caustics, wakes, shoreline wetness. **SSR Partial** (lite planar-FBO march). Not FFT. `docs/WATER.md` |
+| Water | Real | Gerstner (vertex + wind + `WaterHeight`) and scenic dual-FBO / DuDv / Fresnel / depth tint / texture foam / dual normals; combo `ocean`. Camera-centered LOD grid. Caustics, wakes, shoreline wetness. Auto Jolt buoyancy + `SetWaterFlow`. **SSR Partial** (lite planar-FBO march). Not FFT. `docs/WATER.md` |
 | Streaming | Real | `CreateWorldStream` grid load/unload around origin/follow. Jobs plan; GL upload on Flip |
 | Instancing | Real | GPU `glDrawElementsInstanced` on 3.3 (`EnableGPUInstances`); CPU-merged mesh fallback. `SetInstanceData` = `SetInstanceTransform` |
 | Modern GL | Partial | **3.3 Real:** UBO, GPU instancing, geometry billboards, caps query. **4.x optional:** compute / SSBO / tess — Real if the driver has them, else return 0 + one skip line. Never crash. `docs/GRAPHICS.md` |
@@ -27,7 +27,7 @@ What is wired and what is not. Classic command names still work; 2026 `Set*` / `
 | Ebiten 2D | Real | `Graphics` / `Graphics2D`, images, sprites, Rect/Oval/Line, font, tiles, 2D particles |
 | Oto audio | Real | `LoadSound` / `PlaySound` / volume / pitch, `LoadMusic`, `EmitSound`. No OpenAL |
 | Physics 2D | Real | Chipmunk (`jakecoffman/cp`) — pin / spring / slide joints, `ApplyImpulse2D`, `Raycast2D` |
-| Physics 3D | Real | Jolt on Windows / Linux amd64/arm64 / macOS ARM. Windows: native `SetVelocity` / `ApplyImpulse`, joints (`CreateHingeJoint` / point / slider / spring; body `0` = world), `CreateCharacterController` = CharacterVirtual, vehicles, `SetCCD` = LinearCast. Linux/macOS ARM: those extras stub to 0 / kinematic. Script `Raycast` is a sphere query on body positions. Older `CreateCharacter` is the kinematic helper. `BodySleep` / `BodyWake`. `PhysicsAsync` steps on a job then waits. `PhysicsThreads` stores a number only |
+| Physics 3D | Real | Jolt on Windows / Linux amd64/arm64 / macOS ARM. Windows: native `SetVelocity` / `ApplyImpulse`, joints (hinge/point/slider/spring/fixed/cone/swing-twist), CharacterVirtual, vehicles, `SetCCD`, mesh/heightfield, sensors, buoyancy, `CreateCloth` soft-body sheet, convex hull / cylinder / **compound** colliders, 6DOF `Grab` at hit point, `Explode`, collision layers, physics debug overlay. Linux/macOS ARM: extras stub to 0 / kinematic (cloth is Verlet fallback via software world only if Jolt extras missing; hull/cylinder/compound approximate). Script `Raycast` is a sphere query on body positions. `BodySleep` / `BodyWake`. `PhysicsAsync` steps on a job then waits. `PhysicsThreads` stores a number only |
 | Net | Real | UDP default. `CreateHost` / `PollNetwork` / `NET_CONNECT`. `go build -tags enet` for ENet |
 | JSON | Real | JSON + YAML + MessagePack. **No FlatBuffers** |
 | Detour + A* | Real | Mesh-triangle bake + grid A* + slope filter + crowd helper |
@@ -47,9 +47,9 @@ What is wired and what is not. Classic command names still work; 2026 `Set*` / `
 | --- | --- | --- |
 | 1 World streaming | Real | — |
 | 2 ECS (Flecs) | Real | G3N entities are a separate world |
-| 3 Animation | Partial | Clip play/stop/time Real. `SetAnimBlend` stores a weight only (no dual-pose) |
+| 3 Animation | Partial | Clip play/stop/time Real. `AttachToBone` parents a prop to a named glTF node. `SetAnimBlend` stores a weight only (no dual-pose) |
 | 4 Input | Real | — |
-| 5 Physics extensions | Real (Windows) | Sleep/wake, 3D joints, CharacterVirtual, vehicles, `SetCCD` LinearCast, Chipmunk 2D joints. Linux/macOS ARM 3D joints / CCD / CharacterVirtual stub |
+| 5 Physics extensions | Real (Windows) | Sleep/wake, 3D joints (incl. fixed/cone/swing-twist), 6DOF `Grab` at hit/anchor, compound collider, CharacterVirtual, vehicles, `SetCCD` LinearCast, Chipmunk 2D joints, collision layers, debug overlay. Linux/macOS ARM 3D joints / CCD / CharacterVirtual / grab constraint stub (hull≈box, cylinder≈capsule, compound≈AABB) |
 | 6 Navigation + AI | Partial | Detour bake + grid A* Real. No DetourCrowd C API |
 | 7 Material / shader graph | Partial | PBR + Phong + `CreateShader` Real. No Unreal node graph |
 | 8 Post-processing | Real | Cheap one-pass bloom/FXAA, not a film stack |

@@ -64,6 +64,15 @@ int JoltCastRay(JoltPhysicsSystem system,
 // outHits: array to store results (allocated by caller)
 // maxHits: maximum number of hits to return
 // Returns: actual number of hits found (may be less than maxHits)
+int JoltCastShape(JoltPhysicsSystem system, JoltShape shape,
+                 float x, float y, float z,
+                 float dx, float dy, float dz,
+                 JoltRaycastHit* outHit);
+
+int JoltCollidePoint(JoltPhysicsSystem system,
+                    float x, float y, float z,
+                    JoltRaycastHit* outHit);
+
 int JoltCastRayGetHits(JoltPhysicsSystem system,
                        float originX, float originY, float originZ,
                        float directionX, float directionY, float directionZ,

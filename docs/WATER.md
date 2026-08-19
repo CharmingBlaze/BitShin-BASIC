@@ -84,6 +84,9 @@ SetWaterSSR(water, True)
 SetWaterAmbientSound(water, "sea.ogg", GetWeatherIntensity())
 y# = WaterHeight(x, z)
 CreateBuoy(boat)
+SetWaterFlow(1.5, 0, 0.2)
+SetBuoyancyFactor(crate, 1.2)
+
 ```
 
 Aliases: `GetWaterHeight`, `SetWaterReflection`, `SetWaterRefraction`, `SetWaterDuDvMap`, `SetWaterWindDir`, `SetWaterMode`, `EnableWaterCaustics`, `GetWaterCaustics`, `EnableWaterSSR`, `GetWaterSSR`, `SetWaterAmbient`, `GetWeatherIntensity`.
@@ -95,7 +98,7 @@ Aliases: `GetWaterHeight`, `SetWaterReflection`, `SetWaterRefraction`, `SetWater
 | Foam on Gerstner peaks | Cheap height foam in the fragment shader |
 | Dual scrolling normal maps | `WaterNormal` sampled twice and mixed with Gerstner / dFdx normals |
 | Underwater fog | `SetUnderwaterFog` when the camera is below `WaterHeight` |
-| Buoyancy / splash / wakes | `CreateBuoy` + CPU impulse buffer (`WaterWake`) |
+| Buoyancy / splash / wakes | `CreateBuoy` + CPU impulse buffer (`WaterWake`). Auto `ApplyBuoyancyImpulse` for submerged dynamics (`SetBuoyancyFactor`, `SetWaterFlow`). Flag demo: `examples/cloth.bb` |
 | Caustics | Animated projected pattern on `mbterrain` / underwater meshes (`SetWaterCaustics`) |
 | Shoreline wetness | Terrain darken + spec near `WaterLevel` using the `Wetness` term |
 | SSR | **Partial** — lite screen march in the planar reflection FBO, fades to planar if off-screen / unstable. Not deferred SSR |

@@ -48,7 +48,8 @@ A normal `While Not KeyDown(1) … Flip Wend` **is** the game loop. Escape and `
 | `internal/mathx` | Gonum numerics + math32 convert (not a G3N replace) |
 | `internal/geo` | Pure-Go Web Mercator / tiles / GeoJSON (not full flywave/go-geo) |
 | `internal/glslang` | GLSL validate; SPIR-V if `glslangValidator` on PATH |
-| `internal/phys3d` | `World` interface; Jolt tagged build, fallback otherwise |
+| `internal/phys3d` | `World` interface; Jolt tagged build, fallback otherwise. **Every new `World` method** is implemented on Windows Jolt, Linux/macOS Jolt, and software fallback. |
+| `internal/jolt` | Windows CGO: prebuilt Jolt + extra `.cpp` (cloth, 6DOF grab, cylinder, buoyancy, mesh/heightfield) |
 | `internal/phys2d` | `jakecoffman/cp/v2` space |
 | `internal/netenet` | `Host` interface; UDP default, `enet` tag |
 | `cmd/bs` | Parse file, expand includes, run; `bs build`; `bs lsp` |

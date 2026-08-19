@@ -60,6 +60,8 @@ type Entity struct {
 	hitY                               float32
 	hitZ                               float32
 	bodyType                           int // 0 none, 1 dynamic, 2 static, 3 kinematic
+	cloth                              bool
+	buoyancy                           float32 // 0 auto 1.1 in water, <0 off
 	boxX, boxY, boxZ                   float32
 	driveVX, driveVY, driveVZ          float32
 	lastDriveX, lastDriveY, lastDriveZ float32
@@ -80,6 +82,8 @@ type Entity struct {
 	onClick                            string
 	onChange                           string
 	ushader                            int
+	hitbox                             bool
+	collKind                           int // 0 none, 1 box, 2 sphere, 3 capsule, 4 cylinder, 5 sensor, 6 compound
 }
 
 type texSlot struct {
@@ -264,6 +268,15 @@ type World struct {
 	curHMap                int
 	geo                    geoFrame
 	waters                 map[int]*waterBody
+	cloths                 map[int]*clothSheet
+	grabs                  map[int]grabHold
+	projectiles            map[int]*projFly
+	pathFollows            map[int]*pathFollow
+	physDebug              bool
+	physDebugMesh          *graphic.Mesh
+	physHitDebugMesh       *graphic.Mesh
+	beams                  map[int]*beamLink
+	boneAttaches           []boneAttach
 	freeWaters             []int
 	nextWater              int
 	curWater               int
@@ -845,7 +858,14 @@ func (w *World) meshEnt(geom *geometry.Geometry, parent int) int {
 	mat := w.newMat()
 	mesh := graphic.NewMesh(geom, newLitMat(w, mat))
 	mesh.SetCullable(false)
-	return w.addEntity(&Entity{node: mesh, mesh: mesh, mat: mat}, parent)
+	id := w.addEntity(&Entity{node: mesh, mesh: mesh, mat: mat}, parent)
+	if geom != nil {
+		if w.shadow.primed == nil {
+			w.shadow.primed = map[*geometry.Geometry]bool{}
+		}
+		w.shadow.primed[geom] = true
+	}
+	return id
 }
 
 func (w *World) Loop(in *interp.Interp) error {
@@ -1321,12 +1341,15 @@ func (w *World) updateWorld() {
 		dt = (1.0 / 60.0) * ts
 	}
 	w.updateTweens(dt)
+	w.updatePathFollows(dt)
 	for _, e := range w.ents {
 		e.collided = e.collided[:0]
 	}
 	if w.phys3 != nil {
 		w.driveParentedBodies(dt)
 		w.applyRopeForces()
+		w.applyClothWind()
+		w.tickProjectiles(dt)
 		if w.physAsync {
 			w.ensureJobs().submit(func() { w.phys3.Step(dt) })
 			w.jobs.waitAll()
@@ -1335,6 +1358,9 @@ func (w *World) updateWorld() {
 		}
 		w.resolveDrivenOverlaps()
 		w.syncPhys3Pose()
+		w.drawPhysicsDebug()
+		w.tickCloth()
+		w.tickBeams()
 		w.simulateRopes(dt)
 		w.tickRopes()
 		w.processPhysicsContacts()

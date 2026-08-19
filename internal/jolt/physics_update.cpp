@@ -65,3 +65,17 @@ extern "C" void JoltPhysicsSystemUpdateWithAllocator(JoltPhysicsSystem system, f
 	}
 	ps->Update(deltaTime, collisionSteps, static_cast<TempAllocator *>(allocator), gJobSystem.get());
 }
+
+extern "C" void JoltOptimizeBroadPhase(JoltPhysicsSystem system)
+{
+	if (system == nullptr)
+	{
+		return;
+	}
+	PhysicsSystem *ps = GetPhysicsSystem(static_cast<PhysicsSystemWrapper *>(system));
+	if (ps == nullptr)
+	{
+		return;
+	}
+	ps->OptimizeBroadPhase();
+}

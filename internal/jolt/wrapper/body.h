@@ -117,6 +117,20 @@ void JoltMoveKinematic(JoltBodyInterface bodyInterface, JoltBodyID bodyID,
                       float qx, float qy, float qz, float qw,
                       float deltaTime);
 
+int JoltApplyBuoyancyImpulse(JoltBodyInterface bodyInterface, JoltBodyID bodyID,
+                            float surfaceX, float surfaceY, float surfaceZ,
+                            float normalX, float normalY, float normalZ,
+                            float buoyancy, float linearDrag, float angularDrag,
+                            float fluidVX, float fluidVY, float fluidVZ,
+                            float gravityX, float gravityY, float gravityZ,
+                            float deltaTime);
+
+void JoltSetBodySensor(JoltPhysicsSystem system, JoltBodyID bodyID, int isSensor);
+JoltShape JoltGetBodyShape(JoltPhysicsSystem system, JoltBodyID bodyID);
+JoltBodyID JoltCreateBodyEx(JoltBodyInterface bodyInterface, JoltShape shape,
+                           float x, float y, float z,
+                           JoltMotionType motionType, int isSensor, int enhancedEdges);
+
 #ifdef __cplusplus
 }
 #endif

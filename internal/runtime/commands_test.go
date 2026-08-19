@@ -14,7 +14,7 @@ func TestCommandTablePillars(t *testing.T) {
 		"loadsound", "playsound", "stopsound", "setsoundvolume", "setsoundpitch",
 		"loadmusic", "playmusic", "emitsound",
 		"createbodysphere", "createcircle2d", "setgravity",
-		"raycast", "applyimpulse", "createcharacter", "createcharactercontroller",
+		"raycast", "shapecast", "overlapsphere", "overlappoint", "applyimpulse", "createcharacter", "createcharactercontroller",
 		"setcharactershape", "getcharactergroundstate", "getcharactergroundnormal",
 		"getcharactercontact", "createpin2d", "createhinge", "createhingejoint", "createpointjoint",
 		"createsliderjoint", "createspringjoint", "createballsocketjoint", "createjoint",
@@ -102,9 +102,17 @@ func TestCommandTablePillars(t *testing.T) {
 		"createtankcontroller", "updatetank", "createtrackedcontroller", "updatetracked",
 		"createdronecontroller", "updatedrone",
 		"createwaterskicontroller", "updatewaterski",
+		"createbodymesh", "createbodyheightfield", "createsensor", "setbodysensor",
+		"offsetcenterofmass", "shapecast", "overlapsphere", "overlappoint", "optimizephysics",
 		"createrope", "createropeanchored", "setropecolor", "setropemass",
 		"setropedamping", "setropestrength", "setropevisible", "resetrope", "freerope",
 		"ropelength", "ropetension", "ropesegments",
+		"createcloth", "setclothwind", "setwaterflow", "setbuoyancyfactor",
+		"createbodycylinder", "createbodyconvex", "grab", "grabpick", "dropgrab",
+		"throw", "grabbedentity", "createprojectile", "createbeam", "placeatray", "attachtobone",
+		"createbodycompound", "createhitbox", "explode", "followpath", "enablephysicsdebug",
+		"createfixedjoint", "createconejoint", "createswingtwistjoint",
+		"setcollisionlayer", "setlayercollides", "joint_fixed", "joint_cone", "joint_swingtwist",
 	}
 	for _, name := range need {
 		if m[name] == nil {

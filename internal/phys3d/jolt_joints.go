@@ -75,3 +75,76 @@ func (w *joltWorld) CreateMotorcycleVehicle(int, float32, float32, float32) int 
 func (w *joltWorld) CreateTrackedVehicle(int, float32, float32, float32) int { return 0 }
 
 func (w *joltWorld) SetVehicleInput(int, float32, float32, float32) {}
+
+func (w *joltWorld) ApplyBuoyancyImpulse(id int, sx, sy, sz, nx, ny, nz, buoyancy, linDrag, angDrag, fvx, fvy, fvz, dt float32) bool {
+	return false
+}
+
+func (w *joltWorld) OffsetCenterOfMass(int, float32, float32, float32) {}
+
+func (w *joltWorld) AddMesh(int, [][3]float32, []int32, int) {}
+
+func (w *joltWorld) AddHeightField(int, []float32, int, float32, float32, float32, float32, float32, float32) {
+}
+
+func (w *joltWorld) AddSensorBox(id int, x, y, z, hx, hy, hz float32, motion int) {
+	w.AddBoxEx(id, x, y, z, hx, hy, hz, motion)
+}
+
+func (w *joltWorld) SetSensor(int, bool) {}
+
+func (w *joltWorld) ShapeCast(hx, hy, hz, x, y, z, dx, dy, dz float32) (int, float32, float32, float32, bool) {
+	return w.Raycast(x, y, z, dx, dy, dz)
+}
+
+func (w *joltWorld) OverlapSphere(x, y, z, r float32) (int, bool) {
+	id, _, _, _, ok := w.Raycast(x, y, z, 0, -r, 0)
+	return id, ok
+}
+
+func (w *joltWorld) OverlapPoint(x, y, z float32) (int, bool) {
+	id, _, _, _, ok := w.Raycast(x, y+0.05, z, 0, -0.1, 0)
+	return id, ok
+}
+
+func (w *joltWorld) OptimizeBroadPhase() {}
+
+func (w *joltWorld) AddCloth(int, float32, float32, float32, float32, float32, int, int, int, float32, float32, float32) {
+}
+
+func (w *joltWorld) ClothVertexCount(int) int { return 0 }
+
+func (w *joltWorld) ClothVertices(int, []float32) int { return 0 }
+
+func (w *joltWorld) ApplyClothWind(int, float32, float32, float32, uint32, uint32) {}
+
+func (w *joltWorld) CreateGrabJoint(int, int, float32, float32, float32, float32, float32) int {
+	return 0
+}
+
+func (w *joltWorld) CreateFixedJoint(int, int, float32, float32, float32) int { return 0 }
+
+func (w *joltWorld) CreateConeJoint(int, int, float32, float32, float32, float32, float32, float32, float32) int {
+	return 0
+}
+
+func (w *joltWorld) CreateSwingTwistJoint(int, int, float32, float32, float32, float32, float32, float32, float32, float32) int {
+	return 0
+}
+
+func (w *joltWorld) AddCompound(id int, parts []CompoundPart, x, y, z float32, motion int) {
+	hx, hy, hz := CompoundAABB(parts)
+	w.AddBoxEx(id, x, y, z, hx, hy, hz, motion)
+}
+
+func (w *joltWorld) OverlapSphereAll(x, y, z, r float32, max int) []int {
+	id, ok := w.OverlapSphere(x, y, z, r)
+	if !ok || id == 0 {
+		return nil
+	}
+	return []int{id}
+}
+
+func (w *joltWorld) SetCollisionLayer(int, int) {}
+
+func (w *joltWorld) SetLayerCollides(int, int, bool) {}

@@ -140,3 +140,49 @@ func (w *joltWorld) RemoveJoint(id int) {
 	w.ps.RemoveConstraint(c)
 	delete(w.constraints, id)
 }
+
+func (w *joltWorld) CreateGrabJoint(entA, entB int, pivotX, pivotY, pivotZ, freq, damp float32) int {
+	b1, ok1 := w.bodyOrWorld(entA)
+	b2, ok2 := w.bodyOrWorld(entB)
+	if !ok1 || !ok2 || (b1 == nil && b2 == nil) {
+		return 0
+	}
+	if freq <= 0 {
+		freq = 8
+	}
+	if damp < 0 {
+		damp = 1
+	}
+	constraint := w.ps.CreateGrabConstraint(b1, b2, jolt.NewVec3(pivotX, pivotY, pivotZ), freq, damp)
+	return w.storeConstraint(entA, entB, constraint)
+}
+
+func (w *joltWorld) CreateFixedJoint(entA, entB int, pivotX, pivotY, pivotZ float32) int {
+	b1, ok1 := w.bodyOrWorld(entA)
+	b2, ok2 := w.bodyOrWorld(entB)
+	if !ok1 || !ok2 || (b1 == nil && b2 == nil) {
+		return 0
+	}
+	constraint := w.ps.CreateFixedConstraint(b1, b2, jolt.NewVec3(pivotX, pivotY, pivotZ))
+	return w.storeConstraint(entA, entB, constraint)
+}
+
+func (w *joltWorld) CreateConeJoint(entA, entB int, pivotX, pivotY, pivotZ, axisX, axisY, axisZ, halfConeDeg float32) int {
+	b1, ok1 := w.bodyOrWorld(entA)
+	b2, ok2 := w.bodyOrWorld(entB)
+	if !ok1 || !ok2 || (b1 == nil && b2 == nil) {
+		return 0
+	}
+	constraint := w.ps.CreateConeConstraint(b1, b2, jolt.NewVec3(pivotX, pivotY, pivotZ), jolt.NewVec3(axisX, axisY, axisZ), halfConeDeg)
+	return w.storeConstraint(entA, entB, constraint)
+}
+
+func (w *joltWorld) CreateSwingTwistJoint(entA, entB int, pivotX, pivotY, pivotZ, axisX, axisY, axisZ, swingDeg, twistDeg float32) int {
+	b1, ok1 := w.bodyOrWorld(entA)
+	b2, ok2 := w.bodyOrWorld(entB)
+	if !ok1 || !ok2 || (b1 == nil && b2 == nil) {
+		return 0
+	}
+	constraint := w.ps.CreateSwingTwistConstraint(b1, b2, jolt.NewVec3(pivotX, pivotY, pivotZ), jolt.NewVec3(axisX, axisY, axisZ), swingDeg, twistDeg)
+	return w.storeConstraint(entA, entB, constraint)
+}

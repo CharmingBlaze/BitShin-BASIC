@@ -17,6 +17,10 @@ sun = CreateDirectionalLight()
 SetLightDirection(sun, 40, 30, 0)
 SetLightColor(sun, 255, 240, 210)
 
+ground = CreatePlane(28, 28)
+SetPosition(ground, 0, 0, 5)
+SetEntityColor(ground, 32, 38, 48)
+
 box = CreateBox(1.4, 0.8, 1.1)
 SetPosition(box, -4, 0.6, 4)
 SetEntityColor(box, 220, 90, 80)

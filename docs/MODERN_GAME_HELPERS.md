@@ -208,3 +208,63 @@ TweenRotation(entity, pitch#, yaw#, roll#, duration#, "inout")
 TweenColor(entity, r, g, b, duration#, "smooth")
 ```
 Supported ease modes: `"linear"`, `"in"`, `"out"`, `"inout"`, `"smooth"`, `"smoother"`.
+
+`FollowPath e, speed [, loop], x1,y1,z1, x2,y2,z2, …` walks an entity along a polyline (rails / cameras). Tweens stay A→B. Alias `FollowPolyline`. Loop is `0`/`1` when you pass it before the first point.
+
+`Explode x, y, z, r, imp` (alias `AreaDamage`) overlaps dynamics in a sphere and applies a falloff impulse.
+
+---
+
+## 7. Grab, projectiles, beams, bones
+
+ezEngine-style helpers. Physics details and platforms: [PHYSICS.md](PHYSICS.md). Demo: `examples/grab_beam.bb`.
+
+### Grab / throw
+
+Holder and target should already have bodies (`CreateBodyBox`, …). `UpdateWorld` each frame.
+
+```basic
+Grab(hand, crate)                 ; or GrabPick(hand, 8)
+Print GrabbedEntity(hand)
+Throw(hand, 14)                   ; DropGrab + shove along hand +Z
+DropGrab(hand)                    ; alias ReleaseGrab
+```
+
+| Command | Defaults | Notes |
+| --- | --- | --- |
+| `Grab(holder, target [, freq, damp [, x,y,z]])` | freq 8, damp 1 | Soft translation, free rotation. Optional world anchor. Alias `GrabEntity`. |
+| `GrabPick(holder, maxDist [, freq, damp])` | maxDist 8 | Ray along local +Z. Grabs at the hit point. Sets `Picked*`. |
+| `DropGrab(holder)` | | Alias `ReleaseGrab`. |
+| `Throw(holder, speed)` | speed 12 | Alias `ThrowEntity`. |
+| `GrabbedEntity(holder)` | | 0 if empty. |
+
+Windows Jolt: `SixDOFConstraint`. Linux/macOS Jolt: parents the target until drop. Fallback: stiff spring.
+
+### Projectile
+
+```basic
+CreateProjectile(bolt, 25, -9.81, 3)
+; speed, gravity, life seconds; optional radius, bounce, impulse, ignoreEntity
+```
+
+Runs inside `UpdateWorld`. Hit sets `PickedEntity` / `PickedX/Y/Z` and applies impulse. Bounce `0` = stop; `>0` reflects velocity. With a rigid body, CCD is on and gravity scale is 0 (use the gravity argument instead).
+
+### Beam + ray placement
+
+```basic
+dot = CreatePivot()
+PlaceAtRay(cam, dot, 40)
+beam = CreateBeam(cam, dot, 0.05)
+```
+
+`CreateBeam` is graphics only (a scaled cube). `PlaceAtRay` moves `dest`; default range 40. Alias `RayPlace`.
+
+### Attach to bone
+
+```basic
+hero = LoadAnimMesh("hero.glb")
+Animate(hero, 1)
+AttachToBone(gun, hero, "mixamorig:RightHand")
+```
+
+Looks up a glTF node name (case-insensitive), then a `NameEntity` child, then the mesh root. Alias `AttachBone`. `SetAnimBlend` is still weight-only (no dual-pose). Not two-bone IK.

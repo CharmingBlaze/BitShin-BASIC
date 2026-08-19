@@ -76,6 +76,8 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 			w.phys3.AddSphereEx(id, px, py, pz, r, motion)
 			if e := w.ents[id]; e != nil {
 				e.bodyType = motionBodyType(motion)
+				e.collKind = 2
+				e.radius = r
 			}
 			if motion == phys3d.MotionTypeDynamic && mass > 0 {
 				w.phys3.SetMass(id, mass)
@@ -91,6 +93,7 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 			w.phys3.AddBoxEx(id, px, py, pz, hx, hy, hz, motion)
 			if e := w.ents[id]; e != nil {
 				e.bodyType = motionBodyType(motion)
+				e.collKind = 1
 				e.boxX, e.boxY, e.boxZ = hx, hy, hz
 				if e.radius < hx {
 					e.radius = hx
@@ -108,6 +111,137 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 				w.phys3.SetMass(id, mass)
 			}
 			return value.Num(float64(id)), nil
+		}),
+		"createbodymesh": need(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			id := argI(a, 0, 0)
+			e, err := w.ent(id)
+			if err != nil {
+				return value.Value{}, err
+			}
+			if !w.addEntityMeshBody(id, e) {
+				return value.Num(0), nil
+			}
+			e.bodyType = 2
+			return value.Num(float64(id)), nil
+		}),
+		"createbodyheightfield": need(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			id := argI(a, 0, 0)
+			n := argI(a, 1, 64)
+			w.addHeightFieldBody(id, n)
+			if e := w.ents[id]; e != nil {
+				e.bodyType = 2
+			}
+			return value.Num(float64(id)), nil
+		}),
+		"createsensor": need(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			id := argI(a, 0, 0)
+			hx, hy, hz := float32(argN(a, 1, 1)), float32(argN(a, 2, 1)), float32(argN(a, 3, 1))
+			motion := argI(a, 4, phys3d.MotionTypeKinematic)
+			px, py, pz := blitzPos(id)
+			w.phys3.AddSensorBox(id, px, py, pz, hx, hy, hz, motion)
+			if e := w.ents[id]; e != nil {
+				e.bodyType = motionBodyType(motion)
+				e.collKind = 5
+				e.boxX, e.boxY, e.boxZ = hx, hy, hz
+			}
+			return value.Num(float64(id)), nil
+		}),
+		"createhitbox": need(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			id := argI(a, 0, 0)
+			hx, hy, hz := float32(argN(a, 1, 1)), float32(argN(a, 2, 1)), float32(argN(a, 3, 1))
+			motion := argI(a, 4, phys3d.MotionTypeKinematic)
+			px, py, pz := blitzPos(id)
+			w.phys3.AddSensorBox(id, px, py, pz, hx, hy, hz, motion)
+			if e := w.ents[id]; e != nil {
+				e.bodyType = motionBodyType(motion)
+				e.collKind = 5
+				e.hitbox = true
+				e.boxX, e.boxY, e.boxZ = hx, hy, hz
+			}
+			return value.Num(float64(id)), nil
+		}),
+		"createbodycompound": need(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			id := argI(a, 0, 0)
+			motion, mass := bodyMotionMass(argN(a, 1, 1), argN(a, 2, 0))
+			parts, drop := w.gatherCompoundParts(id)
+			if len(parts) == 0 {
+				return value.Num(0), nil
+			}
+			for _, cid := range drop {
+				w.phys3.Remove(cid)
+				if ce := w.ents[cid]; ce != nil {
+					ce.bodyType = 0
+				}
+			}
+			px, py, pz := blitzPos(id)
+			w.phys3.AddCompound(id, parts, px, py, pz, motion)
+			if e := w.ents[id]; e != nil {
+				e.bodyType = motionBodyType(motion)
+				e.collKind = 6
+				hx, hy, hz := phys3d.CompoundAABB(parts)
+				e.boxX, e.boxY, e.boxZ = hx, hy, hz
+				if e.radius < hx {
+					e.radius = hx
+				}
+				if e.radius < hy {
+					e.radius = hy
+				}
+				if e.radius < hz {
+					e.radius = hz
+				}
+				wq := worldQuat(e.node.GetNode())
+				w.phys3.SetRotation(id, wq.X, wq.Y, -wq.Z, wq.W)
+			}
+			if motion == phys3d.MotionTypeDynamic && mass > 0 {
+				w.phys3.SetMass(id, mass)
+			}
+			return value.Num(float64(id)), nil
+		}),
+		"enablephysicsdebug": n(func(a []value.Value) (value.Value, error) {
+			w.physDebug = argI(a, 0, 1) != 0
+			if !w.physDebug {
+				w.drawPhysicsDebug()
+			}
+			return z()
+		}),
+		"setcollisionlayer": n(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			w.phys3.SetCollisionLayer(argI(a, 0, 0), argI(a, 1, 0))
+			return z()
+		}),
+		"setlayercollides": n(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			on := true
+			if len(a) >= 3 {
+				on = argI(a, 2, 1) != 0
+			}
+			w.phys3.SetLayerCollides(argI(a, 0, 0), argI(a, 1, 0), on)
+			return z()
+		}),
+		"explode": n(func(a []value.Value) (value.Value, error) {
+			n := w.explodeAt(float32(argN(a, 0, 0)), float32(argN(a, 1, 0)), float32(argN(a, 2, 0)),
+				float32(argN(a, 3, 4)), float32(argN(a, 4, 8)))
+			return value.Num(float64(n)), nil
+		}),
+		"setbodysensor": n(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			w.phys3.SetSensor(argI(a, 0, 0), argI(a, 1, 1) != 0)
+			return z()
+		}),
+		"offsetcenterofmass": n(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			w.phys3.OffsetCenterOfMass(argI(a, 0, 0), float32(argN(a, 1, 0)), float32(argN(a, 2, 0)), float32(argN(a, 3, 0)))
+			return z()
+		}),
+		"optimizephysics": n(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			w.phys3.OptimizeBroadPhase()
+			return z()
 		}),
 		"setmass": need(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys3()
@@ -236,6 +370,45 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 			w.phys3.AddCapsule(id, px, py, pz, float32(argN(a, 1, 1)), float32(argN(a, 2, 0.4)), massOrDyn != 0)
 			if massOrDyn > 0 {
 				w.phys3.SetMass(id, float32(massOrDyn))
+			}
+			return value.Num(float64(id)), nil
+		}),
+		"createbodycylinder": need(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			id := argI(a, 0, 0)
+			halfH := float32(argN(a, 1, 1))
+			r := float32(argN(a, 2, 0.4))
+			motion, mass := bodyMotionMass(argN(a, 3, 1), argN(a, 4, 0))
+			px, py, pz := blitzPos(id)
+			w.phys3.AddCylinder(id, px, py, pz, halfH, r, motion)
+			if e := w.ents[id]; e != nil {
+				e.bodyType = motionBodyType(motion)
+				e.collKind = 4
+				if e.radius < r+halfH {
+					e.radius = r + halfH
+				}
+				wq := worldQuat(e.node.GetNode())
+				w.phys3.SetRotation(id, wq.X, wq.Y, -wq.Z, wq.W)
+			}
+			if motion == phys3d.MotionTypeDynamic && mass > 0 {
+				w.phys3.SetMass(id, mass)
+			}
+			return value.Num(float64(id)), nil
+		}),
+		"createbodyconvex": need(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			id := argI(a, 0, 0)
+			e, err := w.ent(id)
+			if err != nil {
+				return value.Value{}, err
+			}
+			motion, mass := bodyMotionMass(argN(a, 1, 1), argN(a, 2, 0))
+			if !w.addEntityConvexBody(id, e, motion) {
+				return value.Num(0), nil
+			}
+			e.bodyType = motionBodyType(motion)
+			if motion == phys3d.MotionTypeDynamic && mass > 0 {
+				w.phys3.SetMass(id, mass)
 			}
 			return value.Num(float64(id)), nil
 		}),
@@ -454,6 +627,40 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 			w.pickID, w.pickX, w.pickY, w.pickZ = id, x, y, z
 			return value.Num(float64(id)), nil
 		}),
+		"shapecast": need(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			id, x, y, z, ok := w.phys3.ShapeCast(
+				float32(argN(a, 0, 0.4)), float32(argN(a, 1, 0.4)), float32(argN(a, 2, 0.4)),
+				float32(argN(a, 3, 0)), float32(argN(a, 4, 0)), float32(argN(a, 5, 0)),
+				float32(argN(a, 6, 0)), float32(argN(a, 7, -10)), float32(argN(a, 8, 0)),
+			)
+			if !ok {
+				w.pickID = 0
+				return value.Num(0), nil
+			}
+			w.pickID, w.pickX, w.pickY, w.pickZ = id, x, y, z
+			return value.Num(float64(id)), nil
+		}),
+		"overlapsphere": need(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			id, ok := w.phys3.OverlapSphere(
+				float32(argN(a, 0, 0)), float32(argN(a, 1, 0)), float32(argN(a, 2, 0)), float32(argN(a, 3, 1)),
+			)
+			if !ok {
+				return value.Num(0), nil
+			}
+			w.pickID = id
+			return value.Num(float64(id)), nil
+		}),
+		"overlappoint": need(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			id, ok := w.phys3.OverlapPoint(float32(argN(a, 0, 0)), float32(argN(a, 1, 0)), float32(argN(a, 2, 0)))
+			if !ok {
+				return value.Num(0), nil
+			}
+			w.pickID = id
+			return value.Num(float64(id)), nil
+		}),
 		"getgravity": n(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys3()
 			x, y, z := w.phys3.GetGravity()
@@ -578,6 +785,37 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 				float32(argN(a, 5, 1)), float32(argN(a, 6, 8)), float32(argN(a, 7, 1)))
 			return value.Num(float64(id)), nil
 		}),
+		"createfixedjoint": n(func(a []value.Value) (value.Value, error) {
+			if len(a) < 2 {
+				return value.Num(0), nil
+			}
+			w.ensurePhys3()
+			id := w.phys3.CreateFixedJoint(argI(a, 0, 0), argI(a, 1, 0),
+				float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0)))
+			return value.Num(float64(id)), nil
+		}),
+		"createconejoint": n(func(a []value.Value) (value.Value, error) {
+			if len(a) < 2 {
+				return value.Num(0), nil
+			}
+			w.ensurePhys3()
+			id := w.phys3.CreateConeJoint(argI(a, 0, 0), argI(a, 1, 0),
+				float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0)),
+				float32(argN(a, 5, 0)), float32(argN(a, 6, 1)), float32(argN(a, 7, 0)),
+				float32(argN(a, 8, 45)))
+			return value.Num(float64(id)), nil
+		}),
+		"createswingtwistjoint": n(func(a []value.Value) (value.Value, error) {
+			if len(a) < 2 {
+				return value.Num(0), nil
+			}
+			w.ensurePhys3()
+			id := w.phys3.CreateSwingTwistJoint(argI(a, 0, 0), argI(a, 1, 0),
+				float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0)),
+				float32(argN(a, 5, 0)), float32(argN(a, 6, 1)), float32(argN(a, 7, 0)),
+				float32(argN(a, 8, 45)), float32(argN(a, 9, 30)))
+			return value.Num(float64(id)), nil
+		}),
 		"createjoint": n(func(a []value.Value) (value.Value, error) {
 			if len(a) < 3 {
 				return value.Num(0), nil
@@ -594,6 +832,12 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 				id = w.phys3.CreateSliderJoint(aa, bb, px, py, pz, float32(argN(a, 6, 1)), float32(argN(a, 7, 0)), float32(argN(a, 8, 0)))
 			case phys3d.JointSpring:
 				id = w.phys3.CreateSpringJoint(aa, bb, px, py, pz, float32(argN(a, 6, 1)), float32(argN(a, 7, 8)), float32(argN(a, 8, 1)))
+			case phys3d.JointFixed:
+				id = w.phys3.CreateFixedJoint(aa, bb, px, py, pz)
+			case phys3d.JointCone:
+				id = w.phys3.CreateConeJoint(aa, bb, px, py, pz, float32(argN(a, 6, 0)), float32(argN(a, 7, 1)), float32(argN(a, 8, 0)), float32(argN(a, 9, 45)))
+			case phys3d.JointSwingTwist:
+				id = w.phys3.CreateSwingTwistJoint(aa, bb, px, py, pz, float32(argN(a, 6, 0)), float32(argN(a, 7, 1)), float32(argN(a, 8, 0)), float32(argN(a, 9, 45)), float32(argN(a, 10, 30)))
 			default:
 				id = w.phys3.CreateHingeJoint(aa, bb, px, py, pz, float32(argN(a, 6, 0)), float32(argN(a, 7, 1)), float32(argN(a, 8, 0)))
 			}
@@ -675,7 +919,10 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 		"joint_hinge":      n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.JointHinge)), nil }),
 		"joint_point":      n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.JointPoint)), nil }),
 		"joint_slider":     n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.JointSlider)), nil }),
-		"joint_spring":     n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.JointSpring)), nil }),
+		"joint_spring":      n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.JointSpring)), nil }),
+		"joint_fixed":       n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.JointFixed)), nil }),
+		"joint_cone":        n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.JointCone)), nil }),
+		"joint_swingtwist":  n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.JointSwingTwist)), nil }),
 		"motion_static":    n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.MotionTypeStatic)), nil }),
 		"motion_kinematic": n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.MotionTypeKinematic)), nil }),
 		"motion_dynamic":   n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.MotionTypeDynamic)), nil }),
@@ -851,4 +1098,106 @@ func (w *World) linePick(x, y, z, dx, dy, dz, rng float64) (value.Value, error) 
 		}
 	}
 	return value.Num(float64(w.pickID)), nil
+}
+
+func (w *World) addEntityMeshBody(id int, e *Entity) bool {
+	tris := entityWorldTris(e)
+	if len(tris) == 0 {
+		return false
+	}
+	verts := make([][3]float32, 0, len(tris)*3)
+	idx := make([]int32, 0, len(tris)*3)
+	for _, t := range tris {
+		for _, p := range t {
+			x, y, z := fromG3N(p.X, p.Y, p.Z)
+			verts = append(verts, [3]float32{x, y, z})
+		}
+		n := int32(len(verts))
+		idx = append(idx, n-3, n-2, n-1)
+	}
+	w.phys3.Remove(id)
+	w.phys3.AddMesh(id, verts, idx, phys3d.MotionTypeStatic)
+	w.phys3.OptimizeBroadPhase()
+	return true
+}
+
+func (w *World) addEntityConvexBody(id int, e *Entity, motion int) bool {
+	tris := entityWorldTris(e)
+	if len(tris) == 0 {
+		return false
+	}
+	px, py, pz := float32(0), float32(0), float32(0)
+	if e.node != nil {
+		p := worldPos(e.node.GetNode())
+		px, py, pz = fromG3N(p.X, p.Y, p.Z)
+	}
+	seen := map[[3]int32]struct{}{}
+	points := make([][3]float32, 0, 96)
+	for _, t := range tris {
+		for _, p := range t {
+			x, y, z := fromG3N(p.X, p.Y, p.Z)
+			lx, ly, lz := x-px, y-py, z-pz
+			key := [3]int32{int32(lx * 50), int32(ly * 50), int32(lz * 50)}
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			points = append(points, [3]float32{lx, ly, lz})
+			if len(points) >= 96 {
+				break
+			}
+		}
+		if len(points) >= 96 {
+			break
+		}
+	}
+	if len(points) < 3 {
+		return false
+	}
+	w.phys3.Remove(id)
+	w.phys3.AddConvexHull(id, points, px, py, pz, motion)
+	w.phys3.OptimizeBroadPhase()
+	return true
+}
+
+func heightFieldSampleCount(n int) int {
+	if n < 4 {
+		n = 64
+	}
+	if n > 128 {
+		n = 128
+	}
+	p := 4
+	for p < n {
+		p *= 2
+	}
+	return p
+}
+
+func (w *World) addHeightFieldBody(id, n int) {
+	n = heightFieldSampleCount(n)
+	ox, oz, ww, wd := float32(-32), float32(-32), float32(64), float32(64)
+	if t := w.terrains[id]; t != nil {
+		ox, oz, ww, wd = t.hf.ox, t.hf.oz, t.hf.worldW, t.hf.worldD
+	} else if t := w.terrains[w.curTerrain]; t != nil {
+		ox, oz, ww, wd = t.hf.ox, t.hf.oz, t.hf.worldW, t.hf.worldD
+	}
+	if ww < 1 {
+		ww = 64
+	}
+	if wd < 1 {
+		wd = 64
+	}
+	samples := make([]float32, n*n)
+	den := float32(n - 1)
+	for z := 0; z < n; z++ {
+		for x := 0; x < n; x++ {
+			wx := ox + float32(x)/den*ww
+			wz := oz + float32(z)/den*wd
+			samples[z*n+x] = w.terrainHeight(wx, wz)
+		}
+	}
+	w.phys3.Remove(id)
+	w.phys3.AddHeightField(id, samples, n, ox, 0, oz, ww/den, 1, wd/den)
+	w.phys3.OptimizeBroadPhase()
 }

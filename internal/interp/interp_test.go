@@ -458,6 +458,41 @@ End
 	}
 }
 
+func TestCaptureQuitOrFramesDoesNotEndWithoutEsc(t *testing.T) {
+	prog, err := parse.Parse(`
+frames = 0
+While True
+    Flip
+    frames = frames + 1
+    If KeyHit(1) Or frames > 8 Then End
+Wend
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := New(prog, keepOpenHost{})
+	if err := in.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if !in.live || in.Done() {
+		t.Fatal("must yield at first Flip")
+	}
+	for i := 0; i < 20; i++ {
+		if err := in.Run(); err != nil {
+			t.Fatal(err)
+		}
+		if in.Done() {
+			t.Fatalf("KeyHit(1) Or frames > 8 must not End without Escape (iter %d)", i)
+		}
+	}
+}
+
+type keepOpenHost struct{}
+
+func (keepOpenHost) Call(string, []value.Value) (value.Value, error) { return value.Num(0), nil }
+func (keepOpenHost) Yields(name string) bool                         { return name == "flip" }
+func (keepOpenHost) Holds() bool                                     { return false }
+
 func TestWhileTrueLoopsUntilEnd(t *testing.T) {
 	prog, err := parse.Parse(`
 n = 0

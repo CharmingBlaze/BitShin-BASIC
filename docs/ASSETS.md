@@ -4,7 +4,7 @@
 
 | Format | Notes |
 | --- | --- |
-| `.glb` / `.gltf` | Preferred. Clips need `LoadAnimMesh`. Physical materials use `mbphysical` |
+| `.glb` / `.gltf` | Preferred. Clips need `LoadAnimMesh`. Physical materials use `mbphysical`. `AttachToBone child, mesh, "JointName"` parents a prop to a named node in that scene graph (`docs/PHYSICS.md`). |
 | `.obj` | + `.mtl` if present |
 | `.dae` | Collada |
 | `.fbx` | **Not loaded.** Export glTF/OBJ |

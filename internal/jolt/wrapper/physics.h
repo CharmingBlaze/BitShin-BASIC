@@ -31,6 +31,8 @@ void JoltPhysicsSystemUpdateWithAllocator(JoltPhysicsSystem system, float deltaT
 // World gravity (Jolt default is (0, -9.81, 0))
 void JoltSetGravity(JoltPhysicsSystem system, float x, float y, float z);
 
+void JoltOptimizeBroadPhase(JoltPhysicsSystem system);
+
 #ifdef __cplusplus
 }
 

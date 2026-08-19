@@ -255,6 +255,9 @@ class EditorStore {
   openTab(file: { path: string; name: string; content: string }) {
     const existing = this.tabs.find(t => t.path === file.path);
     if (existing) {
+      existing.content = file.content;
+      existing.name = file.name;
+      existing.isDirty = false;
       this.activeTabId = existing.id;
       return;
     }
@@ -348,7 +351,24 @@ class EditorStore {
     }
   }
 
-  loadExample(filename: string) {
+  async loadExample(filename: string) {
+    try {
+      const root = await AppAPI.getRepoRoot();
+      if (root) {
+        const sep = root.includes('\\') ? '\\' : '/';
+        const res = await AppAPI.openFile(`${root}${sep}examples${sep}${filename}`);
+        if (res?.content) {
+          this.openTab({
+            path: res.path,
+            name: res.name || filename,
+            content: res.content
+          });
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('Open example from disk failed:', err);
+    }
     const ex = examplesData.find(e => e.filename === filename);
     if (ex) {
       this.openTab({
@@ -370,6 +390,22 @@ class EditorStore {
     });
 
     try {
+      const path = this.activeTab.path;
+      if (
+        path &&
+        !this.activeTab.isDirty &&
+        !path.startsWith('temp://') &&
+        !path.startsWith('example://')
+      ) {
+        try {
+          const res = await AppAPI.openFile(path);
+          if (res?.content) {
+            this.activeTab.content = res.content;
+          }
+        } catch {
+          // run the buffer we already have
+        }
+      }
       await AppAPI.runProgram(this.activeTab.content, this.activeTab.path, false);
     } catch (err: any) {
       this.addLog({

@@ -64,6 +64,9 @@ type waterBody struct {
 	windX       float32
 	windZ       float32
 	windStr     float32
+	flowX       float32
+	flowY       float32
+	flowZ       float32
 	style       string
 	underFog    math32.Color
 	underDen    float32
@@ -487,6 +490,83 @@ func (w *World) tickWater() {
 		w.tickWaterAmbient(wb)
 		w.tickUnderwater(wb)
 	}
+	w.tickWaterPhysics()
+}
+
+func (w *World) waterSurface(x, z float32) (sy, nx, ny, nz float32) {
+	eps := float32(0.45)
+	sy = w.waterHeight(x, z)
+	hx := w.waterHeight(x+eps, z)
+	hz := w.waterHeight(x, z+eps)
+	nx, ny, nz = sy-hx, eps, sy-hz
+	lenN := float32(math.Sqrt(float64(nx*nx + ny*ny + nz*nz)))
+	if lenN < 1e-5 {
+		return sy, 0, 1, 0
+	}
+	return sy, nx / lenN, ny / lenN, nz / lenN
+}
+
+func (w *World) tickWaterPhysics() {
+	if w.phys3 == nil || w.currentWater() == nil {
+		return
+	}
+	for id, e := range w.ents {
+		if e == nil || e.cloth || e.bodyType != 1 {
+			continue
+		}
+		if e.buoyancy < 0 {
+			continue
+		}
+		if w.vehCtrls[id] != nil {
+			continue
+		}
+		skip := false
+		for _, wb := range w.waters {
+			if wb != nil && wb.buoys[id] {
+				skip = true
+				break
+			}
+		}
+		if skip {
+			continue
+		}
+		x, y, z, ok := w.phys3.GetPosition(id)
+		if !ok {
+			continue
+		}
+		sy := w.waterHeight(x, z)
+		if y > sy+0.85 {
+			continue
+		}
+		scale := e.buoyancy
+		if scale == 0 {
+			scale = 1.1
+		}
+		w.applyWaterBuoyancy(id, scale)
+	}
+}
+
+func (w *World) applyWaterBuoyancy(id int, buoyancy float32) {
+	if w.phys3 == nil {
+		return
+	}
+	x, _, z, ok := w.phys3.GetPosition(id)
+	if !ok {
+		return
+	}
+	if buoyancy <= 0 {
+		buoyancy = 1
+	}
+	sy, nx, ny, nz := w.waterSurface(x, z)
+	dt := float32(w.delta)
+	if dt <= 0 {
+		dt = 1.0 / 60
+	}
+	fx, fy, fz := float32(0), float32(0), float32(0)
+	if wb := w.currentWater(); wb != nil {
+		fx, fy, fz = wb.flowX, wb.flowY, wb.flowZ
+	}
+	w.phys3.ApplyBuoyancyImpulse(id, x, sy, z, nx, ny, nz, buoyancy, 0.5, 0.35, fx, fy, fz, dt)
 }
 
 func (w *World) tickBuoys(wb *waterBody) {
@@ -511,6 +591,12 @@ func (w *World) tickBuoys(wb *waterBody) {
 			w.wakeImpulse(wb, x, z, 0.18*dt)
 		}
 		wb.wasIn[id] = in
+		if w.phys3 != nil {
+			if _, _, _, hasBody := w.phys3.GetPosition(id); hasBody {
+				w.applyWaterBuoyancy(id, 1.2)
+				continue
+			}
+		}
 		gx, gy, gz := toG3N(x, sit, z)
 		e.node.GetNode().SetPosition(gx, gy, gz)
 		if w.phys3 != nil {
@@ -1205,6 +1291,21 @@ func (w *World) waterCommands(n func(func([]value.Value) (value.Value, error)) c
 		"getweatherintensity": n(func(a []value.Value) (value.Value, error) {
 			w.ensureWeather()
 			return value.Num(w.wx.intensity), nil
+		}),
+		"setwaterflow": n(func(a []value.Value) (value.Value, error) {
+			if wb := w.currentWater(); wb != nil {
+				wb.flowX = float32(argN(a, 0, 0))
+				wb.flowY = float32(argN(a, 1, 0))
+				wb.flowZ = float32(argN(a, 2, 0))
+			}
+			return z()
+		}),
+		"setbuoyancyfactor": n(func(a []value.Value) (value.Value, error) {
+			id := argI(a, 0, 0)
+			if e := w.ents[id]; e != nil {
+				e.buoyancy = float32(argN(a, 1, 1.1))
+			}
+			return z()
 		}),
 	}
 }

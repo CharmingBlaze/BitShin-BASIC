@@ -8,8 +8,12 @@ cam = CreateCamera()
 SetPosition(cam, 0, 2, -6)
 light = CreateLight()
 
+ground = CreatePlane(14, 14)
+SetPosition(ground, 0, 0, 4)
+SetEntityColor(ground, 36, 42, 52)
+
 cube = CreateCube()
-SetPosition(cube, 0, 0, 4)
+SetPosition(cube, 0, 1, 4)
 SetEntityColor(cube, 90, 160, 255)
 
 em = CreateEmitter(cube)

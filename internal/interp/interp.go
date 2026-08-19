@@ -704,11 +704,66 @@ func (in *Interp) cmdFail(n ast.Node, err error) Status {
 }
 
 func (in *Interp) evalBool(e ast.Expr) (bool, error) {
+	if in.live {
+		if e2 := captureQuitAsEsc(e); e2 != nil {
+			e = e2
+		}
+	}
 	v, err := in.eval(e)
 	if err != nil {
 		return false, err
 	}
 	return v.IsTrue(), nil
+}
+
+// captureQuitAsEsc turns `If KeyHit(1) Or frames > 8 Then End` into
+// `frames > 8 And KeyHit(1)` after the first Flip. The Or form was a
+// batch-capture loop that closes the window on frame 9.
+func captureQuitAsEsc(e ast.Expr) ast.Expr {
+	b, ok := e.(*ast.BinaryExpr)
+	if !ok || !strings.EqualFold(b.Op, "or") {
+		return nil
+	}
+	leftHit, leftFrames := isEscHitCall(b.Left), isFramesPast(b.Left)
+	rightHit, rightFrames := isEscHitCall(b.Right), isFramesPast(b.Right)
+	if leftHit && rightFrames {
+		return &ast.BinaryExpr{Src: b.Src, Op: "and", Left: b.Right, Right: b.Left}
+	}
+	if rightHit && leftFrames {
+		return &ast.BinaryExpr{Src: b.Src, Op: "and", Left: b.Left, Right: b.Right}
+	}
+	return nil
+}
+
+func isEscHitCall(e ast.Expr) bool {
+	c, ok := e.(*ast.CallExpr)
+	if !ok {
+		return false
+	}
+	switch lex.IdentKey(c.Name) {
+	case "keyhit", "keydown":
+		return true
+	}
+	return false
+}
+
+func isFramesPast(e ast.Expr) bool {
+	b, ok := e.(*ast.BinaryExpr)
+	if !ok {
+		return false
+	}
+	if b.Op != ">" && b.Op != ">=" {
+		return false
+	}
+	id, ok := b.Left.(*ast.IdentExpr)
+	if !ok || !strings.EqualFold(id.Name, "frames") {
+		return false
+	}
+	n, ok := b.Right.(*ast.NumberExpr)
+	if !ok {
+		return false
+	}
+	return n.Value <= 60
 }
 
 // preFlipQuitInput makes KeyDown(1)/KeyHit(Escape)/WindowShouldClose

@@ -35,7 +35,7 @@ Names are case-insensitive. Optional arguments in brackets. Handles are integers
 `CreateLight([type, parent])` — 1 directional, 2 point, 3 spot  
 `CreateCube([size|parent])`, `CreateBox(w, h, d [, parent])` or `CreateBox(w, h, d, segW, segH, segD [, parent])`  
 `CreateSphere([segs, parent])` or `CreateSphere(radius, segs, parent)`  
-`CreateCylinder([segs, parent])` or `CreateCylinder(radius, height, segs [, caps, parent])`  
+`CreateCylinder([segs, parent])` or `CreateCylinder(radius, height, segs [, caps, parent])` — **mesh**. Collider is `CreateBodyCylinder(e, halfH, r)` (`halfH` is half of `height`).  
 `CreateCone` (same extra args as cylinder), `CreatePlane([parent])` or `CreatePlane(w, h [, parent])` — **mesh only**, not an aircraft. Fly with `CreatePlaneController` ([VEHICLES.md](VEHICLES.md)).  
 `CreateTorus([parent])` or `CreateTorus(major, minor [, radial, tubular] [, parent])`  
 `CreateCapsule(radius, height [, segs, parent])`, `CreateDisk` / `CreateCircle(radius [, segs, parent])`  
@@ -47,7 +47,7 @@ Names are case-insensitive. Optional arguments in brackets. Handles are integers
 `EntityColor e, r, g, b`, `EntityAlpha e, a`, `EntityShininess e, n`, `EntitySpecular e, r, g, b`  
 Dot methods: `cam.Position(x,y,z)`, `box.Color(r,g,b)`, chaining `CreateCube().Scale().Position().Color()`. Vec `[x,y,z]` and `$RRGGBB` / `Hex("RRGGBB")` expand on those commands. Setters return the entity handle.  
 `EntityX/Y/Z(e [, global])`, `EntityPitch/Yaw/Roll`, `EntityScaleX/Y/Z`, `EntityDistance a, b` — pass `True` for a parented entity's world position.  
-`EntityParent child, parent`, `GetParent(e)`, `NameEntity e, s$`, `EntityName$(e)`  
+`EntityParent child, parent`, `GetParent(e)`, `NameEntity e, s$`, `EntityName$(e)` — `NameEntity` also sets the G3N node name (used by `AttachToBone`).  
 `AmbientLight r, g, b` / `SetAmbientColor r, g, b`, `LightColor` / `SetLightColor`, `LightRange` — RGB 0–255 or 0–1 (if all channels ≤ 1)  
 `CreateDirectionalLight([parent])`, `CreatePointLight`, `CreateSpotLight`, `CreateAmbientLight`  
 `SetLightDirection light, pitch, yaw [, roll]`, `SetLightIntensity`, `SetLightCone`, `SetLightShadow light, on` — directional lights **cast by default**; point/spot need `SetLightShadow True`.  
@@ -154,6 +154,7 @@ Source must be `.gltf` / `.glb` **with clips**.
 | `StopAnim e` / `StopAnimation e` | Pause (`mode` 0). **Not** the same as `Animate e` |
 | `AnimPlaying(e)` | 1 if a clip is advancing |
 | `SetAnimBlend e, w# [, seq\|name$]` / `BlendAnimation` | Stores a 0–1 weight and optional clip switch. **G3N does not dual-pose** — this is not a real crossfade |
+| `AttachToBone child, mesh, bone$` | Parent `child` to a named glTF node (or a named child entity). Alias `AttachBone`. See [PHYSICS.md](PHYSICS.md) |
 
 Clips advance with `DeltaTime` each frame (Flip), not twice if you also `UpdateWorld`.
 
@@ -164,7 +165,8 @@ Clips advance with `DeltaTime` each frame (Flip), not twice if you also `UpdateW
 | `LinePick x,y,z, dx,dy,dz [, range]` | Ray; returns entity (0 = none) |
 | `RayPick` | Same |
 | `CameraPick([cam, x, y])` | Screen ray; defaults to mouse / default camera |
-| `PickedEntity()`, `PickedX/Y/Z()` | Last hit |
+| `PickedEntity()`, `PickedX/Y/Z()` | Last hit (`Raycast`, `GrabPick`, `PlaceAtRay`, projectile impact) |
+| `PlaceAtRay src, dest [, maxDist]` | Move `dest` to the hit (or max range). Alias `RayPlace`. Default range 40 |
 
 ## 2D (Ebiten)
 
@@ -391,23 +393,27 @@ Playback is Oto v3. No OpenAL.
 **3D (Jolt, or software `fallback`):** `PhysicsBackend$()` / `GetPhysicsBackend$()` is `"jolt"` or `"fallback"` (honest; `-tags nojolt` and unsupported OS/arch are fallback). Full walkthrough: [PHYSICS.md](PHYSICS.md). Vehicles: [VEHICLES.md](VEHICLES.md).
 
 `SetGravity x,y,z` / `GetGravityX/Y/Z()` — stored and applied to Jolt via `SetGravity`.  
-`CreateBody` / `CreateBodySphere` / `CreateBodyBox` / `CreateBodyCapsule` return the entity/body handle. `ActivateBody e` wakes the body.  
+`CreateBody` / `CreateBodySphere` / `CreateBodyBox` / `CreateBodyCapsule` / `CreateBodyCylinder` / `CreateBodyConvex` return the entity/body handle. `ActivateBody e` wakes the body.  
 `SetBodyVelocity` / `SetVelocity`, `BodyVelocity` / `X/Y/Z`, `GetBodyVelocityX/Y/Z` — **Jolt:** native linear velocity. `BodyVelocity(e)` is the velocity-vector magnitude (speed), while the X/Y/Z forms return components.  
 `ApplyImpulse e, x,y,z` / `ApplyForce e, x,y,z` / `ApplyTorque e, x,y,z` / `ApplyForceAtPosition e, fx,fy,fz, px,py,pz` / `ApplyLocalImpulse e, lx,ly,lz` — Jolt native; fallback integrates.  
-`SetGravityScale e, n` — 0 = no gravity. `SetRestitution` / `SetFriction` / `SetLinearDamping`. `ApplyBuoyancy e [, waterY, scale]` uses `WaterHeight` if you omit `waterY`.  
+`SetGravityScale e, n` — 0 = no gravity. `SetRestitution` / `SetFriction` / `SetLinearDamping`. `ApplyBuoyancy e [, waterY, scale]` is Jolt `ApplyBuoyancyImpulse` on the `WaterHeight` plane (or a flat `waterY`). `CreateBodyMesh` / `CreateBodyHeightField` / `CreateSensor` / `ShapeCast` / `OverlapSphere`. `OffsetCenterOfMass e, x,y,z`. Vehicles drop COM automatically. After a loop of `CreateBody*`, call `OptimizePhysics` (alias `OptimizeBroadPhase`) so the quad tree is not left deep.  
 `SetBodyAngularVelocity` / `GetBodyAngularVelocityX/Y/Z` — **Jolt:** native. **fallback:** stored.  
 `SetBodyMass`  
 `SetBodyRotation e, pitch,yaw,roll` / `GetBodyPitch/Yaw/Roll` — Jolt quaternion synced onto G3N nodes.  
 `Raycast(x,y,z, dx,dy,dz)` — returns hit entity (0 if none) and sets `PickedX/Y/Z`. `LinePick` / `RayPick` still do physics + visual-sphere fallback.  
-`CreateHingeJoint(a, b, x,y,z, ax,ay,az)` — aliases `CreateHinge` / `CreateHinge3D`. `CreatePointJoint` / `CreateBallSocketJoint`. `CreateSliderJoint`. `CreateSpringJoint` (distance spring; **no** `CreateDistanceJoint` command). `CreateJoint kind, a, b, …` (`JOINT_HINGE`=1, `JOINT_POINT`=2, `JOINT_SLIDER`=3, `JOINT_SPRING`=4). `a`/`b` are body handles; **`0` is world-fixed**. No args on hinge → 0. `FreeJoint id`  
+`CreateHingeJoint(a, b, x,y,z, ax,ay,az)` — aliases `CreateHinge` / `CreateHinge3D`. `CreatePointJoint` / `CreateBallSocketJoint`. `CreateSliderJoint`. `CreateSpringJoint` (distance spring; **no** `CreateDistanceJoint` command). `CreateFixedJoint` / `CreateConeJoint` / `CreateSwingTwistJoint`. `CreateJoint kind, a, b, …` (`JOINT_HINGE`=1 … `JOINT_SWINGTWIST`=7). `Grab holder, target [, freq, damp [, x,y,z]]` / `GrabPick` (hit-point grab) / `DropGrab` / `Throw holder, speed`. `a`/`b` are body handles; **`0` is world-fixed**. No args on hinge → 0. `FreeJoint id`  
 
 `CreateRope(a, b [, length, segments, radius])` creates a sagging, colliding physical rope between body centers. `CreateRopeAnchored(a, b, ax,ay,az, bx,by,bz [, length,segments,radius])` uses local body anchors; an anchor belonging to body `0` is a world coordinate. `SetRopeColor`, `SetRopeMass`, `SetRopeDamping`, `SetRopeStrength rope, stiffness, damping, maxForce`, `SetRopeVisible`, `ResetRope`, `FreeRope`; queries: `RopeLength`, `RopeSegments`, `RopeTension` (0–1).  
+`CreateCloth(width, height [, nx, ny, pin])` is a Jolt soft-body sheet (ezEngine recipe). Default pin `1` = top edge. `SetClothWind e, n`. Alias `CreateFlag`. Cloth collides one-way with rigid bodies (they push it; it does not shove them). No cloth-on-cloth, no buoyancy.  
+`Grab holder, target [, freq, damp]` / `GrabPick` / `DropGrab` / `Throw holder, speed` / `GrabbedEntity(holder)` — 6DOF spring on Windows Jolt; parented kinematic fallback if the joint is unavailable.  
+`CreateProjectile e, speed [, gravity, life, radius, bounce, impulse, ignore]` flies along local +Z (ray hits apply impulse). `CreateBeam a, b [, width]` is a stretched cube between two entities. `PlaceAtRay src, dest [, maxDist]` parks `dest` on the first hit (or at max range). `AttachToBone child, mesh, "BoneName"` parents to a named glTF node (or a named child entity).  
+`SetWaterFlow vx, vy, vz` feeds fluid velocity into `ApplyBuoyancyImpulse`. Dynamic bodies that enter the water (not vehicles / buoys) auto-float at factor 1.1; `SetBuoyancyFactor e, n` (`<0` disables).  
 `SetBodyCCD e, on` / `SetCCD e, on` — Jolt `MotionQuality::LinearCast`.  
 `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate  
-`CreateCharacterController(e [, height, radius, maxSlope, maxStrength])` — Jolt CharacterVirtual. `MoveCharacter e, vx, vz` (or `vx,vy,vz`). `SetCharacterShape e, "capsule"|"box", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper.  
+`CreateCharacterController(e [, height, radius, maxSlope, maxStrength])` — Jolt CharacterVirtual with an inner rigid body (rays hit the player). `MoveCharacter e, vx, vz` (or `vx,vy,vz`). `SetCharacterShape e, "capsule"|"box", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. `UpdateWorld` runs `ExtendedUpdate`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper.  
 Classic: `EntityType`, `GetEntityType`, `EntityRadius`, `EntityBox`, `Collisions`, `CountCollisions`, `EntityCollided(e [, type|other])`, `ResetEntity`, `CollisionEntity`, `CollisionX/Y/Z` — Jolt `ContactListener` queues in **C++** (mutex, no `//export` from Jolt threads); Go drains in `UpdateWorld`.
 
-See `examples/physics3d.bb`, `examples/jolt_drop.bb`, `examples/physics_joints.bb`, `examples/physics_body.bb`, `examples/physics_contacts.bb`, `examples/character_virt.bb`.
+See `examples/physics3d.bb`, `examples/jolt_drop.bb`, `examples/physics_joints.bb`, `examples/physics_body.bb`, `examples/physics_contacts.bb`, `examples/physics_pile.bb`, `examples/character_virt.bb`, `examples/cloth.bb`, `examples/grab_beam.bb`. Helpers: [PHYSICS.md](PHYSICS.md), [MODERN_GAME_HELPERS.md](MODERN_GAME_HELPERS.md).
 
 **2D (Chipmunk, not Box2D):** Box2D CGO was not added; Chipmunk already owns `phys2d`. `Physics2D`, `Gravity2D` / `SetGravity2D`, `CreateCircle2D`, `CreateBox2D`, `CreatePoly2D` / `CreatePolygon2D`, `Body2D`, `SetStatic2D`, `SetMass2D`, `SetVelocity2D` / `Velocity2D` / `Velocity2DX` / `Velocity2DY`, `Position2D` / `Position2DY`, `ApplyImpulse2D`, `ApplyForce2D`, `EntityAngle2D`, `Collides2D`, `CountCollisions2D`, `Raycast2D(x1,y1,x2,y2)` (segment; sets `PickedEntity` / `PickedX/Y`), `SetCCD2D on` (more iterations / tighter slop — not Box2D bullet CCD), `UpdateWorld2D`  
 `CreatePin2D(a, b [, ax,ay, bx,by])`, `CreateSpring2D(a, b, rest, stiff, damp [, anchors])`, `CreateSlide2D(a, b, min, max [, anchors])`, `CreateJoint2D(kind, a, b, …)` (1 pin, 2 spring, 3 slide), `FreeJoint2D id`
@@ -839,10 +845,36 @@ See [PHYSICS.md](PHYSICS.md).
 | `SetCCD(id, on)` / `SetBodyCCD` | Jolt `LinearCast` CCD | `SetBodyCCD(ball, 1)` |
 | `CreateHingeJoint` / `CreateHinge` / `CreateHinge3D` | Hinge; `0` = world | `h = CreateHingeJoint(wall, door, x,y,z, 0,1,0)` |
 | `CreatePointJoint` / `CreateBallSocketJoint` | Shared point | `CreatePointJoint(a, b, x,y,z)` |
-| `CreateSliderJoint` / `CreateSpringJoint` / `CreateJoint` | Slider; distance spring; kind 1–4 | `CreateJoint(JOINT_HINGE, a, b, x,y,z, 0,1,0)` |
+| `CreateSliderJoint` / `CreateSpringJoint` / `CreateJoint` | Slider; distance spring; kind 1–7 | `CreateJoint(JOINT_HINGE, a, b, x,y,z, 0,1,0)` |
 | `FreeJoint id` | Remove constraint | `FreeJoint(h)` |
 | `ApplyTorque` / `ApplyForceAtPosition` / `ApplyLocalImpulse` / `SetGravityScale` | Extra forces | `ApplyLocalImpulse(ship, 0, 0, 12)` |
 | `Raycast(x,y,z, dx,dy,dz)` | Physics ray; hit entity + `PickedX/Y/Z` | `e = Raycast(0, 10, 0, 0, -20, 0)` |
+| `ShapeCast(hx,hy,hz, x,y,z, dx,dy,dz)` | Sweep a box | `e = ShapeCast(0.4,0.4,0.4, x,y,z, 0,-20,0)` |
+| `OverlapSphere` / `OverlapPoint` | Overlap query | `e = OverlapSphere(x,y,z, 1)` |
+| `CreateCloth(width, height [, nx, ny, pin])` | Soft-body sheet. Alias `CreateFlag`. Pin 1=top | `flag = CreateCloth(2, 1.4, 10, 8)` |
+| `SetClothWind e, n` | Wind along +X on the sheet | `SetClothWind(flag, 0.8)` |
+| `CreateBodyCylinder(e, halfH, r [, motion, mass])` | Y-aligned cylinder collider (`halfH` = shaft half-height). Alias `CreateRigidBodyCylinder` | `CreateBodyCylinder(barrel, 0.7, 0.45)` |
+| `CreateBodyCompound(e [, motion, mass])` | Fold child colliders into one actor. Alias `CreateCompoundBody` | `CreateBodyCompound(car)` |
+| `CreateHitbox(e, hx,hy,hz)` | Query sensor + green debug. Alias `CreateQueryBox` | `CreateHitbox(hurt, 0.4, 0.8, 0.3)` |
+| `Explode x,y,z,r,imp` | Sphere overlap + falloff impulse. Alias `AreaDamage` | `Explode(x,y,z, 5, 20)` |
+| `FollowPath e, speed [, loop], pts…` | Polyline rail. Alias `FollowPolyline` | `FollowPath(cam, 8, 0,0,0, 10,2,0)` |
+| `EnablePhysicsDebug on` | Collider AABB overlay | `EnablePhysicsDebug(1)` |
+| `CreateFixedJoint` / `CreateConeJoint` / `CreateSwingTwistJoint` | Weld / cone / ragdoll-ish limits | `CreateFixedJoint(a, b, x,y,z)` |
+| `SetCollisionLayer` / `SetLayerCollides` | 32 layers; default all collide | `SetLayerCollides(0, 1, 0)` |
+| `CreateBodyConvex(e [, motion, mass])` | Convex hull from mesh tris (≤96 pts). Aliases `CreateConvexHull` / `CreateConvexBody` / `CreateRigidBodyConvex` | `CreateBodyConvex(wedge, 1)` |
+| `Grab holder, target [, freq, damp]` | 6DOF spring grab. Alias `GrabEntity` | `Grab(hand, crate)` |
+| `GrabPick holder, maxDist [, freq, damp]` | Ray +Z then grab. Default range 8 | `GrabPick(hand, 10)` |
+| `DropGrab holder` | Release. Alias `ReleaseGrab` | `DropGrab(hand)` |
+| `Throw holder, speed` | Drop + impulse along +Z. Alias `ThrowEntity` | `Throw(hand, 16)` |
+| `GrabbedEntity(holder)` | Held body or 0 | `id = GrabbedEntity(hand)` |
+| `CreateProjectile e, speed [, gravity, life, radius, bounce, impulse, ignore]` | +Z flyer; ray hit applies impulse | `CreateProjectile(bolt, 25, -9.81, 3)` |
+| `CreateBeam a, b [, width]` | Stretched cube between two entities | `CreateBeam(hand, dot, 0.04)` |
+| `PlaceAtRay src, dest [, maxDist]` | Park dest on the ray hit. Alias `RayPlace` | `PlaceAtRay(hand, dot, 18)` |
+| `AttachToBone child, mesh, bone$` | Parent to named glTF node. Alias `AttachBone` | `AttachToBone(gun, hero, "RightHand")` |
+| Aliases | `CreateRigidBodyCylinder` `CreateConvexHull` `CreateConvexBody` `CreateRigidBodyConvex` `GrabEntity` `ReleaseGrab` `ThrowEntity` `AttachBone` `RayPlace` `CreateFlag` | Same handlers as the names above |
+| `CreateSensor` / `SetBodySensor` | Trigger volume | `CreateSensor(trig, 2, 1, 2)` |
+| `OffsetCenterOfMass e, x,y,z` | Shift COM | `OffsetCenterOfMass(car, 0, -0.2, 0)` |
+| `OptimizePhysics()` / `OptimizeBroadPhase` | Rebuild broadphase after many `CreateBody*` | `OptimizePhysics()` |
 | `CreateCharacterController(e [, h, r, slope, str])` | CharacterVirtual | `CreateCharacterController(hero, 1.8, 0.4, 50, 100)` |
 | `MoveCharacter` / `SetCharacterShape` / `GetCharacterGroundState` | Walk + ground 0–3 | `MoveCharacter(hero, vx, vz)` |
 | `CreateCharacter(e [, halfH, r])` | Older kinematic capsule | `CreateCharacter(hero, 0.9, 0.4)` |

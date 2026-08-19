@@ -13,8 +13,12 @@ PointEntity(camera, 0, 0, 0)
 light = CreateLight()
 SetRotation(light, 50, 30, 0)
 
+ground = CreatePlane(16, 16)
+SetPosition(ground, 0, -1, 0)
+SetEntityColor(ground, 36, 42, 52)
+
 cube = CreateCube()
-SetPosition(cube, 0, 0, 0)
+SetPosition(cube, 0, 0.2, 0)
 SetEntityColor(cube, 70, 160, 255)
 
 frames = 0

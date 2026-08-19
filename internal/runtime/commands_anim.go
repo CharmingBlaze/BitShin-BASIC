@@ -260,6 +260,7 @@ func (w *World) tickAnims(dt float32) {
 		st.applyPose()
 		posed = true
 	}
+	w.tickBoneAttaches()
 	if posed {
 		w.MarkShadowDirty()
 	}

@@ -539,6 +539,12 @@ func (w *World) commandTable() map[string]cmd {
 	for k, v := range w.ropeCommands(n, z, need) {
 		m[k] = v
 	}
+	for k, v := range w.clothCommands(n, z, need) {
+		m[k] = v
+	}
+	for k, v := range w.ezHelperCommands(n, z, need) {
+		m[k] = v
+	}
 	for k, v := range w.characterCommands(n, z, need) {
 		m[k] = v
 	}

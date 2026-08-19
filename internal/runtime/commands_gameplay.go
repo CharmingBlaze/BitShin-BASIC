@@ -388,6 +388,22 @@ func (w *World) gameplayCommands(n func(func([]value.Value) (value.Value, error)
 			return z()
 		}),
 
+		"followpath": n(func(a []value.Value) (value.Value, error) {
+			id := argI(a, 0, 0)
+			if w.ents[id] == nil {
+				return z()
+			}
+			speed, loop, pts := parsePathArgs(a)
+			if len(pts) < 2 {
+				return z()
+			}
+			if w.pathFollows == nil {
+				w.pathFollows = map[int]*pathFollow{}
+			}
+			w.pathFollows[id] = &pathFollow{pts: pts, speed: speed, loop: loop}
+			return z()
+		}),
+
 		"tweenrotation": n(func(a []value.Value) (value.Value, error) {
 			id := argI(a, 0, 0)
 			e := w.ents[id]

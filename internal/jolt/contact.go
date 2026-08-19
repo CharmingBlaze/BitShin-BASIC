@@ -65,3 +65,18 @@ func (ps *PhysicsSystem) PollContactEvents(max int) []ContactEvent {
 func (ps *PhysicsSystem) ClearContactEvents() {
 	C.JoltClearContactEvents()
 }
+
+func SetBodyCollisionLayer(body *BodyID, layer int) {
+	if body == nil {
+		return
+	}
+	C.JoltSetBodyCollisionLayer(body.handle, C.int(layer))
+}
+
+func SetLayerPairCollides(a, b int, on bool) {
+	flag := C.int(0)
+	if on {
+		flag = 1
+	}
+	C.JoltSetLayerPairCollides(C.int(a), C.int(b), flag)
+}

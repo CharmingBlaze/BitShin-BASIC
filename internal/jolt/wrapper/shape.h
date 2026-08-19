@@ -24,6 +24,9 @@ JoltShape JoltCreateBox(float halfExtentX, float halfExtentY, float halfExtentZ)
 // Create a capsule shape
 JoltShape JoltCreateCapsule(float halfHeight, float radius);
 
+// Create a Y-aligned cylinder (half-height of the shaft, radius)
+JoltShape JoltCreateCylinder(float halfHeight, float radius);
+
 // Create a convex hull shape from an array of points
 JoltShape JoltCreateConvexHull(const float* points, int numPoints);
 
@@ -52,6 +55,19 @@ JoltTransformedShape JoltCreateTransformedShape(JoltShape shape,
 
 // Destroy a transformed shape
 void JoltDestroyTransformedShape(JoltTransformedShape transformedShape);
+
+JoltShape JoltOffsetCenterOfMass(JoltShape inner, float ox, float oy, float oz);
+JoltShape JoltCreateHeightField(const float* samples, int sampleCount,
+                               float ox, float oy, float oz,
+                               float sx, float sy, float sz);
+
+typedef struct JoltCompoundPart {
+	int kind; /* 0 box, 1 sphere, 2 capsule, 3 cylinder */
+	float ox, oy, oz;
+	float a, b, c;
+} JoltCompoundPart;
+
+JoltShape JoltCreateCompound(const JoltCompoundPart* parts, int numParts);
 
 // Cast a ray against a transformed shape in world space
 // Returns 1 if hit, 0 if miss

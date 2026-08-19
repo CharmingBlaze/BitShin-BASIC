@@ -43,9 +43,20 @@ func CreateCapsule(halfHeight, radius float32) *Shape {
 	return &Shape{handle: handle}
 }
 
+func CreateCylinder(halfHeight, radius float32) *Shape {
+	handle := C.JoltCreateCylinder(C.float(halfHeight), C.float(radius))
+	if handle == nil {
+		return nil
+	}
+	return &Shape{handle: handle}
+}
+
 // CreateConvexHullShape creates a convex hull collision shape from a set of points
 // points: slice of Vec3 vertices that define the convex hull
 func CreateConvexHull(points []Vec3) *Shape {
+	if len(points) < 3 {
+		return nil
+	}
 	// Flatten Vec3 slice to float array
 	floatPoints := make([]C.float, len(points)*3)
 	for i, p := range points {
@@ -58,6 +69,9 @@ func CreateConvexHull(points []Vec3) *Shape {
 		&floatPoints[0],
 		C.int(len(points)),
 	)
+	if handle == nil {
+		return nil
+	}
 	return &Shape{handle: handle}
 }
 
@@ -215,6 +229,61 @@ func CreateTransformedShape(shape *Shape, position Vec3, rotation Quat, bodyID u
 // Destroy frees the transformed shape
 func (ts *TransformedShape) Destroy() {
 	C.JoltDestroyTransformedShape(ts.handle)
+}
+
+func OffsetCenterOfMass(inner *Shape, offset Vec3) *Shape {
+	if inner == nil {
+		return nil
+	}
+	handle := C.JoltOffsetCenterOfMass(inner.handle, C.float(offset.X), C.float(offset.Y), C.float(offset.Z))
+	if handle == nil {
+		return nil
+	}
+	return &Shape{handle: handle}
+}
+
+func CreateHeightField(samples []float32, sampleCount int, offset, scale Vec3) *Shape {
+	if sampleCount < 4 || len(samples) < sampleCount*sampleCount {
+		return nil
+	}
+	handle := C.JoltCreateHeightField(
+		(*C.float)(&samples[0]),
+		C.int(sampleCount),
+		C.float(offset.X), C.float(offset.Y), C.float(offset.Z),
+		C.float(scale.X), C.float(scale.Y), C.float(scale.Z),
+	)
+	if handle == nil {
+		return nil
+	}
+	return &Shape{handle: handle}
+}
+
+type CompoundPart struct {
+	Kind                int32
+	Ox, Oy, Oz, A, B, C float32
+}
+
+func CreateCompound(parts []CompoundPart) *Shape {
+	if len(parts) == 0 {
+		return nil
+	}
+	cParts := make([]C.JoltCompoundPart, len(parts))
+	for i, p := range parts {
+		cParts[i] = C.JoltCompoundPart{
+			kind: C.int(p.Kind),
+			ox:   C.float(p.Ox),
+			oy:   C.float(p.Oy),
+			oz:   C.float(p.Oz),
+			a:    C.float(p.A),
+			b:    C.float(p.B),
+			c:    C.float(p.C),
+		}
+	}
+	handle := C.JoltCreateCompound(&cParts[0], C.int(len(cParts)))
+	if handle == nil {
+		return nil
+	}
+	return &Shape{handle: handle}
 }
 
 // CastRay casts a ray against this transformed shape in world space and returns the hit result

@@ -13,6 +13,7 @@
 #include <Jolt/Physics/Body/BodyLock.h>
 #include <Jolt/Physics/Body/MotionProperties.h>
 #include <Jolt/Physics/Body/MotionQuality.h>
+#include <Jolt/Physics/Body/BodyCreationSettings.h>
 
 using namespace JPH;
 
@@ -278,4 +279,100 @@ void JoltSetGravity(JoltPhysicsSystem system, float x, float y, float z)
 	}
 	PhysicsSystem *ps = GetPhysicsSystem(static_cast<PhysicsSystemWrapper *>(system));
 	ps->SetGravity(Vec3(x, y, z));
+}
+
+int JoltApplyBuoyancyImpulse(JoltBodyInterface bodyInterface, JoltBodyID bodyID,
+							float surfaceX, float surfaceY, float surfaceZ,
+							float normalX, float normalY, float normalZ,
+							float buoyancy, float linearDrag, float angularDrag,
+							float fluidVX, float fluidVY, float fluidVZ,
+							float gravityX, float gravityY, float gravityZ,
+							float deltaTime)
+{
+	if (bodyInterface == nullptr || bodyID == nullptr)
+	{
+		return 0;
+	}
+	if (deltaTime < 1.0e-6f)
+	{
+		deltaTime = 1.0e-6f;
+	}
+	Vec3 n(normalX, normalY, normalZ);
+	if (n.LengthSq() < 1.0e-8f)
+	{
+		n = Vec3::sAxisY();
+	}
+	else
+	{
+		n = n.Normalized();
+	}
+	BodyInterface *bi = static_cast<BodyInterface *>(bodyInterface);
+	bool ok = bi->ApplyBuoyancyImpulse(
+		*asID(bodyID),
+		RVec3(surfaceX, surfaceY, surfaceZ),
+		n,
+		buoyancy,
+		linearDrag,
+		angularDrag,
+		Vec3(fluidVX, fluidVY, fluidVZ),
+		Vec3(gravityX, gravityY, gravityZ),
+		deltaTime);
+	return ok ? 1 : 0;
+}
+
+void JoltSetBodySensor(JoltPhysicsSystem system, JoltBodyID bodyID, int isSensor)
+{
+	if (system == nullptr || bodyID == nullptr)
+	{
+		return;
+	}
+	PhysicsSystem *ps = GetPhysicsSystem(static_cast<PhysicsSystemWrapper *>(system));
+	ps->GetBodyInterface().SetIsSensor(*asID(bodyID), isSensor != 0);
+}
+
+JoltShape JoltGetBodyShape(JoltPhysicsSystem system, JoltBodyID bodyID)
+{
+	if (system == nullptr || bodyID == nullptr)
+	{
+		return nullptr;
+	}
+	PhysicsSystem *ps = GetPhysicsSystem(static_cast<PhysicsSystemWrapper *>(system));
+	RefConst<Shape> shape = ps->GetBodyInterface().GetShape(*asID(bodyID));
+	if (shape == nullptr)
+	{
+		return nullptr;
+	}
+	return const_cast<Shape *>(shape.GetPtr());
+}
+
+JoltBodyID JoltCreateBodyEx(JoltBodyInterface bodyInterface, JoltShape shape,
+							float x, float y, float z,
+							JoltMotionType motionType, int isSensor, int enhancedEdges)
+{
+	if (bodyInterface == nullptr || shape == nullptr)
+	{
+		return nullptr;
+	}
+	EMotionType mt = EMotionType::Static;
+	ObjectLayer layer = 0;
+	if (motionType == JoltMotionTypeKinematic)
+	{
+		mt = EMotionType::Kinematic;
+		layer = 1;
+	}
+	else if (motionType == JoltMotionTypeDynamic)
+	{
+		mt = EMotionType::Dynamic;
+		layer = 1;
+	}
+	BodyCreationSettings settings(static_cast<Shape *>(shape), RVec3(x, y, z), Quat::sIdentity(), mt, layer);
+	settings.mIsSensor = isSensor != 0;
+	settings.mEnhancedInternalEdgeRemoval = enhancedEdges != 0;
+	BodyInterface *bi = static_cast<BodyInterface *>(bodyInterface);
+	BodyID id = bi->CreateAndAddBody(settings, EActivation::Activate);
+	if (id.IsInvalid())
+	{
+		return nullptr;
+	}
+	return new BodyID(id);
 }

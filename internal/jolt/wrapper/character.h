@@ -79,6 +79,11 @@ JoltCharacterVirtual JoltCreateCharacterVirtual(JoltPhysicsSystem system,
                                               const JoltCharacterVirtualSettings* settings,
                                               float x, float y, float z);
 
+JoltCharacterVirtual JoltCreateCharacterVirtualWithInner(JoltPhysicsSystem system,
+                                              const JoltCharacterVirtualSettings* settings,
+                                              float x, float y, float z,
+                                              JoltShape innerShape, int innerLayer);
+
 // Destroy a virtual character
 void JoltDestroyCharacterVirtual(JoltCharacterVirtual character);
 

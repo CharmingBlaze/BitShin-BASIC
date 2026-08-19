@@ -4,6 +4,9 @@ import (
 	"math"
 	"testing"
 
+	"github.com/g3n/engine/core"
+
+	"bitshinbasic/internal/phys3d"
 	"bitshinbasic/internal/value"
 )
 
@@ -111,5 +114,39 @@ func TestTweens(t *testing.T) {
 	w.updateWorld()
 	if len(w.actTweens) != 0 {
 		t.Fatalf("completed tween should be removed, got len %d", len(w.actTweens))
+	}
+}
+
+func TestFollowPathAndExplode(t *testing.T) {
+	w := New(".")
+	w.scene = core.NewNode()
+	w.ready = true
+	cmds := w.commandTable()
+	id := w.createCubeMesh(nil)
+	cmds["followpath"]([]value.Value{
+		value.Num(float64(id)), value.Num(10),
+		value.Num(0), value.Num(0), value.Num(0),
+		value.Num(10), value.Num(0), value.Num(0),
+	})
+	w.delta = 0.5
+	w.updatePathFollows(0.5)
+	p := w.ents[id].node.GetNode().Position()
+	gx, _, _ := fromG3N(p.X, p.Y, p.Z)
+	if gx < 4 {
+		t.Fatalf("follow path should advance, x=%v", gx)
+	}
+
+	w.ensurePhys3()
+	ball := w.createCubeMesh(nil)
+	w.ents[ball].bodyType = 1
+	w.ents[ball].node.GetNode().SetPosition(2, 1, 0)
+	w.refreshWorldMatrices()
+	w.phys3.AddBoxEx(ball, 2, 1, 0, 0.3, 0.3, 0.3, phys3d.MotionTypeDynamic)
+	n, err := cmds["explode"]([]value.Value{value.Num(2), value.Num(1), value.Num(0), value.Num(4), value.Num(12)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n.Num < 1 {
+		t.Fatalf("explode hit count %v", n.Num)
 	}
 }

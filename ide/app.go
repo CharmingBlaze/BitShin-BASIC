@@ -236,10 +236,11 @@ func (a *App) RunProgram(code string, filePath string, debug bool) error {
 		}
 		workDir = a.repoRoot
 	} else if filePath != "" && !strings.HasPrefix(filePath, "temp://") {
-		// Existing file on disk: save current code first
-		_ = os.WriteFile(filePath, []byte(code), 0o644)
-		runPath = filePath
 		workDir = filepath.Dir(filePath)
+		runPath = filepath.Join(workDir, ".bitshin_run.bb")
+		if err := os.WriteFile(runPath, []byte(code), 0o644); err != nil {
+			return fmt.Errorf("failed to write temp run file: %w", err)
+		}
 	} else {
 		// Temporary scratch file
 		tempDir := filepath.Join(a.repoRoot, "scratch")

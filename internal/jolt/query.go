@@ -229,3 +229,47 @@ func (ps *PhysicsSystem) CastRayGetHits(origin, direction Vec3, maxHits int) []R
 
 	return hits
 }
+
+func raycastHitFromC(cHit C.JoltRaycastHit) RaycastHit {
+	return RaycastHit{
+		BodyID: &BodyID{handle: cHit.bodyID},
+		HitPoint: Vec3{
+			X: float32(cHit.hitPointX),
+			Y: float32(cHit.hitPointY),
+			Z: float32(cHit.hitPointZ),
+		},
+		Normal: Vec3{
+			X: float32(cHit.normalX),
+			Y: float32(cHit.normalY),
+			Z: float32(cHit.normalZ),
+		},
+		Fraction: float32(cHit.fraction),
+	}
+}
+
+func (ps *PhysicsSystem) CastShape(shape *Shape, position, direction Vec3) (RaycastHit, bool) {
+	if shape == nil {
+		return RaycastHit{}, false
+	}
+	cHit := C.JoltRaycastHit{}
+	result := C.JoltCastShape(
+		ps.handle,
+		shape.handle,
+		C.float(position.X), C.float(position.Y), C.float(position.Z),
+		C.float(direction.X), C.float(direction.Y), C.float(direction.Z),
+		&cHit,
+	)
+	if result == 0 {
+		return RaycastHit{}, false
+	}
+	return raycastHitFromC(cHit), true
+}
+
+func (ps *PhysicsSystem) CollidePoint(position Vec3) (RaycastHit, bool) {
+	cHit := C.JoltRaycastHit{}
+	result := C.JoltCollidePoint(ps.handle, C.float(position.X), C.float(position.Y), C.float(position.Z), &cHit)
+	if result == 0 {
+		return RaycastHit{}, false
+	}
+	return raycastHitFromC(cHit), true
+}

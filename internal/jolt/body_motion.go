@@ -170,3 +170,56 @@ func (bi *BodyInterface) MoveKinematic(bodyID *BodyID, pos Vec3, rot Quat, dt fl
 		C.float(rot.X), C.float(rot.Y), C.float(rot.Z), C.float(rot.W),
 		C.float(dt))
 }
+
+func (bi *BodyInterface) ApplyBuoyancyImpulse(bodyID *BodyID, surface, normal Vec3, buoyancy, linearDrag, angularDrag float32, fluidVel, gravity Vec3, dt float32) bool {
+	if bodyID == nil {
+		return false
+	}
+	ok := C.JoltApplyBuoyancyImpulse(bi.handle, bodyID.handle,
+		C.float(surface.X), C.float(surface.Y), C.float(surface.Z),
+		C.float(normal.X), C.float(normal.Y), C.float(normal.Z),
+		C.float(buoyancy), C.float(linearDrag), C.float(angularDrag),
+		C.float(fluidVel.X), C.float(fluidVel.Y), C.float(fluidVel.Z),
+		C.float(gravity.X), C.float(gravity.Y), C.float(gravity.Z),
+		C.float(dt))
+	return ok != 0
+}
+
+func (ps *PhysicsSystem) SetBodySensor(bodyID *BodyID, on bool) {
+	if bodyID == nil {
+		return
+	}
+	flag := C.int(0)
+	if on {
+		flag = 1
+	}
+	C.JoltSetBodySensor(ps.handle, bodyID.handle, flag)
+}
+
+func (ps *PhysicsSystem) GetBodyShape(bodyID *BodyID) *Shape {
+	if bodyID == nil {
+		return nil
+	}
+	handle := C.JoltGetBodyShape(ps.handle, bodyID.handle)
+	if handle == nil {
+		return nil
+	}
+	return &Shape{handle: handle}
+}
+
+func (bi *BodyInterface) CreateBodyEx(shape *Shape, position Vec3, motionType MotionType, isSensor, enhancedEdges bool) *BodyID {
+	sensor, edges := C.int(0), C.int(0)
+	if isSensor {
+		sensor = 1
+	}
+	if enhancedEdges {
+		edges = 1
+	}
+	handle := C.JoltCreateBodyEx(bi.handle, shape.handle,
+		C.float(position.X), C.float(position.Y), C.float(position.Z),
+		C.JoltMotionType(motionType), sensor, edges)
+	if handle == nil {
+		return nil
+	}
+	return &BodyID{handle: handle}
+}

@@ -40,6 +40,9 @@ func (w *World) classic3DCommands(n func(func([]value.Value) (value.Value, error
 				return value.Value{}, err
 			}
 			e.name = argS(a, 1)
+			if e.node != nil {
+				e.node.GetNode().SetName(e.name)
+			}
 			return z()
 		}),
 		"entityname": need(func(a []value.Value) (value.Value, error) {

@@ -44,6 +44,27 @@ void JoltSetHingeFriction(JoltConstraint constraint, float maxFrictionTorque);
 void JoltSetHingeMotor(JoltConstraint constraint, float targetDeg, float maxTorque);
 void JoltDisableBodyPairCollision(JoltPhysicsSystem system, JoltBodyID bodyA, JoltBodyID bodyB);
 
+JoltConstraint JoltCreateGrabConstraint(JoltPhysicsSystem system,
+                                       JoltBodyID bodyA, JoltBodyID bodyB,
+                                       float pivotX, float pivotY, float pivotZ,
+                                       float frequency, float damping);
+
+JoltConstraint JoltCreateFixedConstraint(JoltPhysicsSystem system,
+                                        JoltBodyID bodyA, JoltBodyID bodyB,
+                                        float pivotX, float pivotY, float pivotZ);
+
+JoltConstraint JoltCreateConeConstraint(JoltPhysicsSystem system,
+                                       JoltBodyID bodyA, JoltBodyID bodyB,
+                                       float pivotX, float pivotY, float pivotZ,
+                                       float axisX, float axisY, float axisZ,
+                                       float halfConeDeg);
+
+JoltConstraint JoltCreateSwingTwistConstraint(JoltPhysicsSystem system,
+                                             JoltBodyID bodyA, JoltBodyID bodyB,
+                                             float pivotX, float pivotY, float pivotZ,
+                                             float axisX, float axisY, float axisZ,
+                                             float swingDeg, float twistDeg);
+
 #ifdef __cplusplus
 }
 #endif

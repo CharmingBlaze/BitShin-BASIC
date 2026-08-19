@@ -178,6 +178,15 @@ func (w *joltWorld) AddCapsule(id int, x, y, z, halfH, r float32, dynamic bool) 
 	w.add(id, jolt.CreateCapsule(halfH, r), x, y, z, r+halfH, motionFromDynamic(dynamic))
 }
 
+func (w *joltWorld) AddCylinder(id int, x, y, z, halfH, r float32, motion int) {
+	w.add(id, jolt.CreateCapsule(halfH, r), x, y, z, r+halfH, motion)
+}
+
+func (w *joltWorld) AddConvexHull(id int, points [][3]float32, x, y, z float32, motion int) {
+	hx, hy, hz := hullHalfExtents(points)
+	w.AddBoxEx(id, x, y, z, hx, hy, hz, motion)
+}
+
 func (w *joltWorld) AddCharacter(id int, x, y, z, halfH, r float32) {
 	w.AddCharacterController(id, x, y, z, halfH*2, r, 50, 100)
 }

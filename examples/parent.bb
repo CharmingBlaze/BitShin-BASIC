@@ -11,6 +11,10 @@ SetRotation(camera, 12, 0, 0)
 light = CreateLight()
 SetRotation(light, 45, 30, 0)
 
+ground = CreatePlane(16, 16)
+SetPosition(ground, 0, -1.2, 8)
+SetEntityColor(ground, 36, 42, 52)
+
 planet = CreateSphere(16)
 SetPosition(planet, 0, 0, 8)
 SetEntityColor(planet, 70, 140, 220)

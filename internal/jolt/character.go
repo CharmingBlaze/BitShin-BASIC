@@ -124,6 +124,36 @@ func NewCharacterVirtualSettings(shape *Shape) *CharacterVirtualSettings {
 	}
 }
 
+func characterSettingsC(settings *CharacterVirtualSettings) C.JoltCharacterVirtualSettings {
+	cSettings := C.JoltCharacterVirtualSettings{
+		shape:                       settings.Shape.handle,
+		upX:                         C.float(settings.Up.X),
+		upY:                         C.float(settings.Up.Y),
+		upZ:                         C.float(settings.Up.Z),
+		maxSlopeAngle:               C.float(settings.MaxSlopeAngle),
+		mass:                        C.float(settings.Mass),
+		maxStrength:                 C.float(settings.MaxStrength),
+		shapeOffsetX:                C.float(settings.ShapeOffset.X),
+		shapeOffsetY:                C.float(settings.ShapeOffset.Y),
+		shapeOffsetZ:                C.float(settings.ShapeOffset.Z),
+		backFaceMode:                C.JoltBackFaceMode(settings.BackFaceMode),
+		predictiveContactDistance:   C.float(settings.PredictiveContactDistance),
+		maxCollisionIterations:      C.uint(settings.MaxCollisionIterations),
+		maxConstraintIterations:     C.uint(settings.MaxConstraintIterations),
+		minTimeRemaining:            C.float(settings.MinTimeRemaining),
+		collisionTolerance:          C.float(settings.CollisionTolerance),
+		characterPadding:            C.float(settings.CharacterPadding),
+		maxNumHits:                  C.uint(settings.MaxNumHits),
+		hitReductionCosMaxAngle:     C.float(settings.HitReductionCosMaxAngle),
+		penetrationRecoverySpeed:    C.float(settings.PenetrationRecoverySpeed),
+		enhancedInternalEdgeRemoval: 0,
+	}
+	if settings.EnhancedInternalEdgeRemoval {
+		cSettings.enhancedInternalEdgeRemoval = 1
+	}
+	return cSettings
+}
+
 // CharacterVirtual represents a virtual character in the physics world
 type CharacterVirtual struct {
 	handle C.JoltCharacterVirtual
@@ -161,40 +191,31 @@ func (gs GroundState) String() string {
 
 // CreateCharacterVirtual creates a virtual character with the specified settings at the initial position
 func (ps *PhysicsSystem) CreateCharacterVirtual(settings *CharacterVirtualSettings, position Vec3) *CharacterVirtual {
-	// Convert Go settings to C settings
-	cSettings := C.JoltCharacterVirtualSettings{
-		shape:                       settings.Shape.handle,
-		upX:                         C.float(settings.Up.X),
-		upY:                         C.float(settings.Up.Y),
-		upZ:                         C.float(settings.Up.Z),
-		maxSlopeAngle:               C.float(settings.MaxSlopeAngle),
-		mass:                        C.float(settings.Mass),
-		maxStrength:                 C.float(settings.MaxStrength),
-		shapeOffsetX:                C.float(settings.ShapeOffset.X),
-		shapeOffsetY:                C.float(settings.ShapeOffset.Y),
-		shapeOffsetZ:                C.float(settings.ShapeOffset.Z),
-		backFaceMode:                C.JoltBackFaceMode(settings.BackFaceMode),
-		predictiveContactDistance:   C.float(settings.PredictiveContactDistance),
-		maxCollisionIterations:      C.uint(settings.MaxCollisionIterations),
-		maxConstraintIterations:     C.uint(settings.MaxConstraintIterations),
-		minTimeRemaining:            C.float(settings.MinTimeRemaining),
-		collisionTolerance:          C.float(settings.CollisionTolerance),
-		characterPadding:            C.float(settings.CharacterPadding),
-		maxNumHits:                  C.uint(settings.MaxNumHits),
-		hitReductionCosMaxAngle:     C.float(settings.HitReductionCosMaxAngle),
-		penetrationRecoverySpeed:    C.float(settings.PenetrationRecoverySpeed),
-		enhancedInternalEdgeRemoval: 0,
-	}
-	if settings.EnhancedInternalEdgeRemoval {
-		cSettings.enhancedInternalEdgeRemoval = 1
-	}
-
+	cSettings := characterSettingsC(settings)
 	handle := C.JoltCreateCharacterVirtual(
 		ps.handle,
 		&cSettings,
 		C.float(position.X),
 		C.float(position.Y),
 		C.float(position.Z),
+	)
+	return &CharacterVirtual{handle: handle, ps: ps}
+}
+
+func (ps *PhysicsSystem) CreateCharacterVirtualWithInner(settings *CharacterVirtualSettings, position Vec3, inner *Shape, innerLayer int) *CharacterVirtual {
+	cSettings := characterSettingsC(settings)
+	innerHandle := C.JoltShape(nil)
+	if inner != nil {
+		innerHandle = inner.handle
+	}
+	handle := C.JoltCreateCharacterVirtualWithInner(
+		ps.handle,
+		&cSettings,
+		C.float(position.X),
+		C.float(position.Y),
+		C.float(position.Z),
+		innerHandle,
+		C.int(innerLayer),
 	)
 	return &CharacterVirtual{handle: handle, ps: ps}
 }

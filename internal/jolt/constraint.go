@@ -109,6 +109,60 @@ func (c *Constraint) SetHingeMotor(targetDeg, maxTorque float32) {
 	C.JoltSetHingeMotor(c.handle, C.float(targetDeg), C.float(maxTorque))
 }
 
+// CreateGrabConstraint is a 6DOF spring grab (soft translation, free rotation).
+func (ps *PhysicsSystem) CreateGrabConstraint(a, b *BodyID, pivot Vec3, frequency, damping float32) *Constraint {
+	if a == nil && b == nil {
+		return nil
+	}
+	h := C.JoltCreateGrabConstraint(ps.handle, cBody(a), cBody(b),
+		C.float(pivot.X), C.float(pivot.Y), C.float(pivot.Z),
+		C.float(frequency), C.float(damping))
+	if h == nil {
+		return nil
+	}
+	return &Constraint{handle: h}
+}
+
+func (ps *PhysicsSystem) CreateFixedConstraint(a, b *BodyID, pivot Vec3) *Constraint {
+	if a == nil && b == nil {
+		return nil
+	}
+	h := C.JoltCreateFixedConstraint(ps.handle, cBody(a), cBody(b),
+		C.float(pivot.X), C.float(pivot.Y), C.float(pivot.Z))
+	if h == nil {
+		return nil
+	}
+	return &Constraint{handle: h}
+}
+
+func (ps *PhysicsSystem) CreateConeConstraint(a, b *BodyID, pivot, axis Vec3, halfConeDeg float32) *Constraint {
+	if a == nil && b == nil {
+		return nil
+	}
+	h := C.JoltCreateConeConstraint(ps.handle, cBody(a), cBody(b),
+		C.float(pivot.X), C.float(pivot.Y), C.float(pivot.Z),
+		C.float(axis.X), C.float(axis.Y), C.float(axis.Z),
+		C.float(halfConeDeg))
+	if h == nil {
+		return nil
+	}
+	return &Constraint{handle: h}
+}
+
+func (ps *PhysicsSystem) CreateSwingTwistConstraint(a, b *BodyID, pivot, axis Vec3, swingDeg, twistDeg float32) *Constraint {
+	if a == nil && b == nil {
+		return nil
+	}
+	h := C.JoltCreateSwingTwistConstraint(ps.handle, cBody(a), cBody(b),
+		C.float(pivot.X), C.float(pivot.Y), C.float(pivot.Z),
+		C.float(axis.X), C.float(axis.Y), C.float(axis.Z),
+		C.float(swingDeg), C.float(twistDeg))
+	if h == nil {
+		return nil
+	}
+	return &Constraint{handle: h}
+}
+
 // DisableBodyPairCollision stops contacts between two bodies (GroupFilterTable).
 func (ps *PhysicsSystem) DisableBodyPairCollision(a, b *BodyID) {
 	if ps == nil || (a == nil && b == nil) {

@@ -21,6 +21,7 @@ type body struct {
 	angDamp     float32
 	restitution float32
 	friction    float32
+	layer       int
 }
 
 type softJoint struct {
@@ -38,12 +39,14 @@ type fallback struct {
 	joints     map[int]*softJoint
 	planes     map[int]planeAero
 	posed      map[int]bool
+	cloths     map[int]*clothSim
 	nextJoint  int
 	gx, gy, gz float32
+	layerOff   [32][32]bool
 }
 
 func newFallback() World {
-	return &fallback{bodies: map[int]*body{}, joints: map[int]*softJoint{}, planes: map[int]planeAero{}, posed: map[int]bool{}, nextJoint: 1, gy: -9.81}
+	return &fallback{bodies: map[int]*body{}, joints: map[int]*softJoint{}, planes: map[int]planeAero{}, posed: map[int]bool{}, cloths: map[int]*clothSim{}, nextJoint: 1, gy: -9.81}
 }
 
 func (w *fallback) Backend() string { return BackendFallback }
@@ -56,6 +59,9 @@ func (w *fallback) Step(dt float32) {
 	}
 	for id, b := range w.bodies {
 		if b.asleep {
+			continue
+		}
+		if w.cloths[id] != nil {
 			continue
 		}
 		if b.character {
@@ -116,7 +122,13 @@ func (w *fallback) Step(dt float32) {
 		ids = append(ids, id)
 	}
 	for i := 0; i < len(ids); i++ {
+		if w.cloths[ids[i]] != nil {
+			continue
+		}
 		for j := i + 1; j < len(ids); j++ {
+			if w.cloths[ids[j]] != nil {
+				continue
+			}
 			a, b := w.bodies[ids[i]], w.bodies[ids[j]]
 			dx, dy, dz := a.x-b.x, a.y-b.y, a.z-b.z
 			d2 := dx*dx + dy*dy + dz*dz
@@ -149,6 +161,7 @@ func (w *fallback) Step(dt float32) {
 		}
 	}
 	w.solveJoints()
+	w.stepCloths(dt)
 	clear(w.posed)
 }
 
@@ -210,6 +223,23 @@ func (w *fallback) AddCapsule(id int, x, y, z, halfH, r float32, dynamic bool) {
 		r = halfH
 	}
 	w.bodies[id] = &body{x: x, y: y, z: z, r: r + halfH, mass: 1, dynamic: dynamic, gScale: 1}
+}
+
+func (w *fallback) AddCylinder(id int, x, y, z, halfH, r float32, motion int) {
+	w.AddSphereEx(id, x, y, z, r+halfH, motion)
+}
+
+func (w *fallback) AddConvexHull(id int, points [][3]float32, x, y, z float32, motion int) {
+	hx, hy, hz := hullHalfExtents(points)
+	rad := hx
+	if hy > rad {
+		rad = hy
+	}
+	if hz > rad {
+		rad = hz
+	}
+	w.AddBoxEx(id, x, y, z, hx, hy, hz, motion)
+	_ = rad
 }
 
 func (w *fallback) AddCharacter(id int, x, y, z, halfH, r float32) {
@@ -423,7 +453,10 @@ func (w *fallback) SetGravity(x, y, z float32) { w.gx, w.gy, w.gz = x, y, z }
 func (w *fallback) GetGravity() (float32, float32, float32) {
 	return w.gx, w.gy, w.gz
 }
-func (w *fallback) Remove(id int) { delete(w.bodies, id) }
+func (w *fallback) Remove(id int) {
+	delete(w.bodies, id)
+	delete(w.cloths, id)
+}
 func (w *fallback) Close()        {}
 func (w *fallback) Sleep(id int) {
 	if b := w.bodies[id]; b != nil {
@@ -547,6 +580,129 @@ func (w *fallback) UpdatePlane(id int, throttle, pitch, roll, yaw float32) {
 	w.ApplyTorque(id, pitch*4000, yaw*4000, roll*4000)
 }
 
+func (w *fallback) ApplyBuoyancyImpulse(id int, sx, sy, sz, nx, ny, nz, buoyancy, linDrag, angDrag, fvx, fvy, fvz, dt float32) bool {
+	b := w.bodies[id]
+	if b == nil || !b.dynamic {
+		return false
+	}
+	depth := sy - b.y
+	if depth <= 0 {
+		return false
+	}
+	if buoyancy < 0.01 {
+		buoyancy = 1
+	}
+	if dt <= 0 {
+		dt = 1.0 / 60
+	}
+	g := w.gy
+	if g > 0 {
+		g = -g
+	}
+	w.ApplyForce(id, nx*buoyancy*b.mass*2, -g*buoyancy*b.mass*depth, nz*buoyancy*b.mass*2)
+	b.vx *= 1 - linDrag*dt
+	b.vy *= 1 - linDrag*dt
+	b.vz *= 1 - linDrag*dt
+	b.ax *= 1 - angDrag*dt
+	b.ay *= 1 - angDrag*dt
+	b.az *= 1 - angDrag*dt
+	_ = sx
+	_ = sz
+	_ = fvx
+	_ = fvy
+	_ = fvz
+	return true
+}
+
+func (w *fallback) OffsetCenterOfMass(int, float32, float32, float32) {}
+
+func (w *fallback) AddMesh(id int, verts [][3]float32, indices []int32, motion int) {
+	if len(verts) == 0 {
+		return
+	}
+	minX, minY, minZ := verts[0][0], verts[0][1], verts[0][2]
+	maxX, maxY, maxZ := minX, minY, minZ
+	cx, cy, cz := float32(0), float32(0), float32(0)
+	for _, v := range verts {
+		cx += v[0]
+		cy += v[1]
+		cz += v[2]
+		if v[0] < minX {
+			minX = v[0]
+		}
+		if v[1] < minY {
+			minY = v[1]
+		}
+		if v[2] < minZ {
+			minZ = v[2]
+		}
+		if v[0] > maxX {
+			maxX = v[0]
+		}
+		if v[1] > maxY {
+			maxY = v[1]
+		}
+		if v[2] > maxZ {
+			maxZ = v[2]
+		}
+	}
+	n := float32(len(verts))
+	w.AddBoxEx(id, cx/n, cy/n, cz/n, (maxX-minX)*0.5, (maxY-minY)*0.5, (maxZ-minZ)*0.5, motion)
+	_ = indices
+}
+
+func (w *fallback) AddHeightField(id int, samples []float32, n int, ox, oy, oz, sx, sy, sz float32) {
+	w.AddGround(id, oy)
+	_ = samples
+	_ = n
+	_ = ox
+	_ = oz
+	_ = sx
+	_ = sy
+	_ = sz
+}
+
+func (w *fallback) AddSensorBox(id int, x, y, z, hx, hy, hz float32, motion int) {
+	w.AddBoxEx(id, x, y, z, hx, hy, hz, motion)
+}
+
+func (w *fallback) SetSensor(int, bool) {}
+
+func (w *fallback) ShapeCast(_, _, _, x, y, z, dx, dy, dz float32) (int, float32, float32, float32, bool) {
+	return w.Raycast(x, y, z, dx, dy, dz)
+}
+
+func (w *fallback) OverlapSphere(x, y, z, r float32) (int, bool) {
+	ids := w.OverlapSphereAll(x, y, z, r, 1)
+	if len(ids) == 0 {
+		return 0, false
+	}
+	return ids[0], true
+}
+
+func (w *fallback) OverlapSphereAll(x, y, z, r float32, max int) []int {
+	if max <= 0 {
+		max = 32
+	}
+	out := []int{}
+	for id, b := range w.bodies {
+		dx, dy, dz := b.x-x, b.y-y, b.z-z
+		if dx*dx+dy*dy+dz*dz <= (r+b.r)*(r+b.r) {
+			out = append(out, id)
+			if len(out) >= max {
+				break
+			}
+		}
+	}
+	return out
+}
+
+func (w *fallback) OverlapPoint(x, y, z float32) (int, bool) {
+	return w.OverlapSphere(x, y, z, 0.05)
+}
+
+func (w *fallback) OptimizeBroadPhase() {}
+
 func (w *fallback) addSoftJoint(a, b int, px, py, pz, ax, ay, az, rest, stiff, damp float32, kind int) int {
 	if w.joints == nil {
 		w.joints = map[int]*softJoint{}
@@ -589,6 +745,65 @@ func (w *fallback) CreateSliderJoint(a, b int, px, py, pz, ax, ay, az float32) i
 
 func (w *fallback) CreateSpringJoint(a, b int, px, py, pz, rest, stiff, damp float32) int {
 	return w.addSoftJoint(a, b, px, py, pz, 0, 1, 0, rest, stiff, damp, 3)
+}
+
+func (w *fallback) CreateGrabJoint(a, b int, px, py, pz, freq, damp float32) int {
+	if freq <= 0 {
+		freq = 8
+	}
+	return w.addSoftJoint(a, b, px, py, pz, 0, 1, 0, 0.05, freq*20, damp, 3)
+}
+
+func (w *fallback) CreateFixedJoint(a, b int, px, py, pz float32) int {
+	return w.addSoftJoint(a, b, px, py, pz, 0, 1, 0, 0, 0, 0, 1)
+}
+
+func (w *fallback) CreateConeJoint(a, b int, px, py, pz, ax, ay, az, halfConeDeg float32) int {
+	_ = halfConeDeg
+	return w.addSoftJoint(a, b, px, py, pz, ax, ay, az, 0, 0, 0, 1)
+}
+
+func (w *fallback) CreateSwingTwistJoint(a, b int, px, py, pz, ax, ay, az, swingDeg, twistDeg float32) int {
+	_ = swingDeg
+	_ = twistDeg
+	return w.addSoftJoint(a, b, px, py, pz, ax, ay, az, 0, 0, 0, 1)
+}
+
+func (w *fallback) AddCompound(id int, parts []CompoundPart, x, y, z float32, motion int) {
+	hx, hy, hz := CompoundAABB(parts)
+	w.AddBoxEx(id, x, y, z, hx, hy, hz, motion)
+}
+
+func (w *fallback) SetCollisionLayer(id, layer int) {
+	b := w.bodies[id]
+	if b == nil {
+		return
+	}
+	if layer < 0 {
+		layer = 0
+	}
+	if layer > 31 {
+		layer = 31
+	}
+	b.layer = layer
+}
+
+func (w *fallback) SetLayerCollides(a, b int, on bool) {
+	if a < 0 {
+		a = 0
+	}
+	if b < 0 {
+		b = 0
+	}
+	if a > 31 {
+		a = 31
+	}
+	if b > 31 {
+		b = 31
+	}
+	off := !on
+	w.layerOff[a][b] = off
+	w.layerOff[b][a] = off
 }
 
 func (w *fallback) solveJoints() {

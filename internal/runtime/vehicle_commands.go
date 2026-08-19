@@ -106,6 +106,9 @@ func (w *World) bindCtrl(kind string, a []value.Value, hx, hy, hz, mass float32)
 		}
 	}
 	w.ensureCtrlBody(id, hx, boxHy, hz, mass)
+	if kind == "car" || kind == "moto" || kind == "tank" || kind == "boat" || kind == "jetski" || kind == "ski" {
+		w.phys3.OffsetCenterOfMass(id, 0, -boxHy*0.45, 0)
+	}
 	if kind == "car" || kind == "moto" || kind == "tank" {
 		w.phys3.SetFriction(id, 0.35)
 	}
@@ -174,52 +177,18 @@ func (w *World) applyBoatForces(c *vehCtrl, throttle, steer float32) {
 
 	vx, vy, vz, _ := w.phys3.GetVelocity(c.id)
 	angVx, angVy, angVz, _ := w.phys3.GetAngularVelocity(c.id)
+	w.applyWaterBuoyancy(c.id, 1.15)
 
-	// Sample 6 hull points: 4 corners + bow center + stern center
-	type hullPt struct{ lx, ly, lz float32 }
-	hullPoints := []hullPt{
-		{c.hx * 0.85, -c.hy * 0.5, c.hz * 0.85},
-		{-c.hx * 0.85, -c.hy * 0.5, c.hz * 0.85},
-		{c.hx * 0.85, -c.hy * 0.5, -c.hz * 0.85},
-		{-c.hx * 0.85, -c.hy * 0.5, -c.hz * 0.85},
-		{0, -c.hy * 0.5, c.hz * 0.95},
-		{0, -c.hy * 0.5, -c.hz * 0.95},
+	wh := w.waterHeight(x, z)
+	depth := wh - (y - c.hy)
+	subRatio := depth / (c.hy * 2)
+	if subRatio < 0 {
+		subRatio = 0
 	}
-	numPts := float32(len(hullPoints))
-	submergedCount := float32(0)
-
-	gravity := float32(9.81)
-	if _, gy, _ := w.phys3.GetGravity(); gy < 0 {
-		gravity = -gy
+	if subRatio > 1 {
+		subRatio = 1
 	}
 
-	for _, pt := range hullPoints {
-		px := x + rx*pt.lx + ux*pt.ly + fx*pt.lz
-		py := y + ry*pt.lx + uy*pt.ly + fy*pt.lz
-		pz := z + rz*pt.lx + uz*pt.ly + fz*pt.lz
-
-		wh := w.waterHeight(px, pz)
-		depth := wh - py
-		if depth > 0 {
-			submergedCount++
-			if depth > c.hy*1.5 {
-				depth = c.hy * 1.5
-			}
-			rpx := px - x
-			rpz := pz - z
-			vptY := vy + angVz*rpx - angVx*rpz
-
-			buoy := (depth / (c.hy * 0.8)) * (c.mass * gravity / numPts) * 1.4
-			damp := -vptY * (c.mass / numPts) * 4.0
-			forceY := buoy + damp
-			if forceY < 0 {
-				forceY = 0
-			}
-			w.phys3.ApplyForceAtPosition(c.id, 0, forceY, 0, px, py, pz)
-		}
-	}
-
-	subRatio := submergedCount / numPts
 	if subRatio > 0.1 {
 		// Lateral keel resistance (prevents sliding sideways in water)
 		vLat := vx*rx + vy*ry + vz*rz
@@ -286,52 +255,28 @@ func (w *World) applyJetSkiForces(c *vehCtrl, throttle, steer float32) {
 	}
 	nPts := float32(len(points))
 	wet := float32(0)
-	gravity := float32(9.81)
-	if _, gy, _ := w.phys3.GetGravity(); gy < 0 {
-		gravity = -gy
-	}
+	w.applyWaterBuoyancy(c.id, 1.1)
 
 	for _, pt := range points {
 		px := x + rx*pt.lx + ux*pt.ly + fx*pt.lz
 		py := y + ry*pt.lx + uy*pt.ly + fy*pt.lz
 		pz := z + rz*pt.lx + uz*pt.ly + fz*pt.lz
 		depth := w.waterHeight(px, pz) - py
-		// A small skim band catches the surface smoothly instead of waiting for
-		// a point to cross the water plane by a whole physics step.
 		if depth < -0.10 {
 			continue
 		}
 		wet++
-		if depth < 0 {
-			depth = 0
-		}
-		maxDepth := c.hy * 1.55
-		if depth > maxDepth {
-			depth = maxDepth
-		}
-
-		rpx, rpz := px-x, pz-z
-		// v(point) = v(center) + angularVelocity x radius.
-		vptY := vy + angZ*rpx - angX*rpz
-		buoy := depth / (c.hy * 0.82) * (c.mass * gravity / nPts) * 1.25
-		damp := -vptY * (c.mass / nPts) * (4.2 + planing*2.0)
-		planeLift := fwdSpeed * fwdSpeed * (c.mass / nPts) * 0.0065 * pt.lift
-		maxPlane := c.mass * gravity / nPts * 0.38
-		if planeLift > maxPlane {
-			planeLift = maxPlane
-		}
-		forceY := buoy + damp + planeLift
-		if forceY < 0 {
-			forceY = 0
-		}
-		maxForce := c.mass * gravity / nPts * 2.2
-		if forceY > maxForce {
-			forceY = maxForce
-		}
-		w.phys3.ApplyForceAtPosition(c.id, 0, forceY, 0, px, py, pz)
 	}
 
 	wetRatio := wet / nPts
+	if wetRatio > 0 {
+		planeLift := fwdSpeed * fwdSpeed * c.mass * 0.0065 * wetRatio
+		maxPlane := c.mass * 9.81 * 0.38
+		if planeLift > maxPlane {
+			planeLift = maxPlane
+		}
+		w.phys3.ApplyForce(c.id, 0, planeLift, 0)
+	}
 	if wetRatio <= 0.05 {
 		return
 	}
@@ -392,10 +337,7 @@ func (w *World) applyWaterSkiForces(c *vehCtrl, throttle, edge float32, towID in
 	nPts := float32(len(pts))
 	wet := float32(0)
 	tipY, tailY := float32(0), float32(0)
-	gravity := float32(9.81)
-	if _, gy, _ := w.phys3.GetGravity(); gy < 0 {
-		gravity = -gy
-	}
+	w.applyWaterBuoyancy(c.id, 1.05)
 	plane := fwd / 11.0
 	if plane < 0 {
 		plane = 0
@@ -420,36 +362,13 @@ func (w *World) applyWaterSkiForces(c *vehCtrl, throttle, edge float32, towID in
 			continue
 		}
 		wet++
-		if depth < 0 {
-			depth = 0
-		}
-		if depth > c.hy*2.2 {
-			depth = c.hy * 2.2
-		}
-		rpx := px - x
-		rpz := pz - z
-		vptY := vy + angVz*rpx - angVx*rpz
-		// Slow: skis sink. Fast: planing lift holds the skier on the surface.
-		hold := 0.38 + plane*0.95
-		buoy := (depth / (c.hy * 0.7)) * (c.mass * gravity / nPts) * hold
-		damp := -vptY * (c.mass / nPts) * (2.2 + plane*2.5)
-		forceY := buoy + damp
-		if forceY < 0 {
-			forceY = 0
-		}
-		planing := fwd * fwd * (c.mass / nPts) * 0.018 * (0.55 + plane)
-		if planing > (c.mass*gravity/nPts)*0.35 {
-			planing = (c.mass * gravity / nPts) * 0.35
-		}
-		forceY += planing
-		maxForce := (c.mass * gravity / nPts) * 1.8
-		if forceY > maxForce {
-			forceY = maxForce
-		}
-		w.phys3.ApplyForceAtPosition(c.id, 0, forceY, 0, px, py, pz)
 	}
 
 	onWater := wet / nPts
+	if onWater > 0 {
+		planing := fwd * fwd * c.mass * 0.018 * (0.55 + plane) * onWater
+		w.phys3.ApplyForce(c.id, 0, planing, 0)
+	}
 	if onWater > 0.08 {
 		edgeAbs := float32(math.Abs(float64(edge)))
 		grip := (1.8 + edgeAbs*5.5) * (0.35 + plane) * onWater
@@ -583,26 +502,21 @@ func (w *World) vehicleCommands(n func(func([]value.Value) (value.Value, error))
 		"applybuoyancy": n(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys3()
 			id := argI(a, 0, 0)
-			x, y, pz, ok := w.phys3.GetPosition(id)
-			if !ok {
+			scale := float32(argN(a, 2, 1))
+			if len(a) >= 2 {
+				x, _, pz, ok := w.phys3.GetPosition(id)
+				if !ok {
+					return z()
+				}
+				waterY := float32(argN(a, 1, 0))
+				dt := float32(w.delta)
+				if dt <= 0 {
+					dt = 1.0 / 60
+				}
+				w.phys3.ApplyBuoyancyImpulse(id, x, waterY, pz, 0, 1, 0, scale, 0.5, 0.35, 0, 0, 0, dt)
 				return z()
 			}
-			waterY := float32(argN(a, 1, float64(w.waterHeight(x, pz))))
-			scale := float32(argN(a, 2, 1))
-			depth := waterY - y
-			if depth > 0 {
-				vy := float32(0)
-				if _, v, _, okV := w.phys3.GetVelocity(id); okV {
-					vy = v
-				}
-				mass := float32(100)
-				buoy := depth*scale*mass*15.0 - vy*mass*3.0
-				if buoy > 0 {
-					w.phys3.ApplyForce(id, 0, buoy, 0)
-				}
-				w.phys3.SetLinearDamping(id, 1.2)
-				w.phys3.SetAngularDamping(id, 2.0)
-			}
+			w.applyWaterBuoyancy(id, scale)
 			return z()
 		}),
 		"extendedupdate": n(func(a []value.Value) (value.Value, error) {

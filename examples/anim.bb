@@ -10,6 +10,10 @@ SetPosition(camera, 0, 1.4, -4)
 light = CreateLight()
 SetRotation(light, 50, 30, 0)
 
+ground = CreatePlane(12, 12)
+SetPosition(ground, 0, 0, 4)
+SetEntityColor(ground, 36, 42, 52)
+
 If FileExists("hero.glb") = 1 Then
     hero = LoadAnimation("hero.glb")
     PlayAnimation(hero, 1, 1)
@@ -18,7 +22,7 @@ ElseIf FileExists("hero.gltf") = 1 Then
     PlayAnimation(hero, 1, 1)
 Else
     hero = CreateCube()
-    SetPosition(hero, 0, 0, 4)
+    SetPosition(hero, 0, 1, 4)
     SetEntityColor(hero, 80, 180, 255)
 EndIf
 

@@ -34,3 +34,10 @@ func (ps *PhysicsSystem) Update(deltaTime float32, allocator *TempAllocator) {
 func (ps *PhysicsSystem) SetGravity(g Vec3) {
 	C.JoltSetGravity(ps.handle, C.float(g.X), C.float(g.Y), C.float(g.Z))
 }
+
+func (ps *PhysicsSystem) OptimizeBroadPhase() {
+	if ps == nil {
+		return
+	}
+	C.JoltOptimizeBroadPhase(ps.handle)
+}
