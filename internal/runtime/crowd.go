@@ -168,5 +168,12 @@ func (w *World) crowdCommands(n func(func([]value.Value) (value.Value, error)) c
 			w.navMaxSlope = float32(argN(a, 0, 45))
 			return value.Num(float64(w.navMaxSlope)), nil
 		}),
+		"getnavmaxslope": n(func(a []value.Value) (value.Value, error) {
+			s := w.navMaxSlope
+			if s <= 0 {
+				s = 45
+			}
+			return value.Num(float64(s)), nil
+		}),
 	}
 }

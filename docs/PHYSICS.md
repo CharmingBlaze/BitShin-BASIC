@@ -13,7 +13,7 @@ Quit loops: `While Not KeyDown(1)` works after the first-frame Escape fix. Still
 | `CreateBodyBox(e, hx, hy, hz [, mass])` | Box. `mass` 0 = static. Same handle as the mesh. |
 | `CreateBodySphere(e, r [, mass])` | Sphere |
 | `CreateBodyCapsule(e, halfH, r [, mass])` | Capsule. Alias `CreateRigidBodyCapsule` / `BodyCapsule` |
-| `CreateBodyCylinder(e, halfH, r [, motion, mass])` | Y-aligned cylinder collider (Jolt `CylinderShape`). `halfH` is half the **shaft** height, not `CreateCylinder`’s full visual height. Trailing args match `CreateBodyBox`: `0` static, `1` kinematic, else dynamic (that number is mass unless a fifth arg is mass). Alias `CreateRigidBodyCylinder`. Linux Jolt uses a capsule of the same size. |
+| `CreateBodyCylinder(e, halfH, r [, motion, mass])` | Y-aligned cylinder collider (Jolt `CylinderShape`). `halfH` is half the **shaft** height, not `CreateCylinder`’s full visual height. Trailing args match `CreateBodyBox`: `0` static, `1` kinematic, else dynamic (that number is mass unless a fifth arg is mass). Alias `CreateRigidBodyCylinder`. Linux/macOS Jolt cooks a 12-sided convex hull of the shaft. Fallback uses a box of the same extents. |
 | `CreateBodyConvex(e [, motion, mass])` | Convex hull from the mesh’s world triangles, stored in local space at the entity pose. At most **96** unique points (1/50 m grid). Needs a mesh (`CreateCone`, `LoadMesh`, …). Same motion/mass trailing args as the box. Aliases `CreateConvexHull` / `CreateConvexBody` / `CreateRigidBodyConvex`. If hull cook fails, the backend falls back to an AABB box. |
 | `CreateBodyCompound(e [, motion, mass])` | One actor from the parent mesh plus **child** meshes/colliders (local offsets). Child rigid bodies are removed. Alias `CreateCompoundBody`. Windows Jolt cooks a native compound. Linux/macOS Jolt cooks a convex hull of the child AABBs. Fallback uses a combined AABB box. |
 | `CreateHitbox(e, hx,hy,hz [, motion])` | Query-only sensor (same as `CreateSensor`) tagged for green debug draw. Alias `CreateQueryBox`. |
@@ -28,16 +28,16 @@ Quit loops: `While Not KeyDown(1)` works after the first-frame Escape fix. Still
 | `SetBodyRotation e, pitch, yaw, roll` | Degrees; writes Jolt + the mesh |
 | `GetBodyPitch(e)` / `GetBodyYaw` / `GetBodyRoll` | After `UpdateWorld`, from the synced pose |
 | `SetGravity x, y, z` / `GetGravityX/Y/Z()` | World gravity (default 0, −9.81, 0) |
-| `SetGravityScale e, n` | 0 = no gravity (spaceship). Jolt `SetGravityFactor` |
-| `SetRestitution e, n` / `SetFriction e, n` / `SetLinearDamping e, n` | Material / drag |
-| `SetBodyCCD e, on` / `SetCCD e, on` | Jolt `MotionQuality::LinearCast` (fast projectiles) |
+| `SetGravityScale e, n` | 0 = no gravity (spaceship). Jolt `SetGravityFactor`. `GetGravityScale(e)` |
+| `SetRestitution e, n` / `SetFriction e, n` / `SetLinearDamping e, n` | Material / drag. Restitution default 0.35 on fallback primitives; Linux bounce is a ray kick. `SetFriction` also feeds Linux software linear damping. Matching `Get*` commands. |
+| `SetBodyCCD e, on` / `SetCCD e, on` / `GetCCD(e)` | Windows: Jolt `MotionQuality::LinearCast`. Linux/macOS and fallback: ray sweep from last pose so fast bodies do not skip thin walls. Returns 1 if the body exists. |
 | `Raycast(x,y,z, dx,dy,dz)` | Jolt `CastRay` (hit entity + `PickedX/Y/Z`). Fallback: sphere + box AABB |
 | `ShapeCast(hx,hy,hz, x,y,z, dx,dy,dz)` | Sweep a box; hit entity + `PickedX/Y/Z` |
 | `OverlapSphere(x,y,z, r)` / `OverlapPoint(x,y,z)` | First overlapping body (sensors included) |
 | `Explode x,y,z, r, imp` | Overlap all dynamics in the sphere and apply falloff impulse. Alias `AreaDamage`. |
 | `CreateBodyMesh(e)` | Static mesh collider from the entity’s triangles (world space). Windows Jolt also enables enhanced internal-edge removal. Linux/macOS uses jolt-go `CreateMesh`. |
 | `CreateBodyHeightField(e [, n])` | Static height field from the current terrain (`n` samples on a side, power of two, default 64). Linux/macOS cooks that grid as a triangle mesh. |
-| `CreateSensor(e, hx,hy,hz [, motion])` | Trigger volume (no contact force). Default motion = kinematic. Linux/macOS Jolt sets the sensor flag at create; `SetBodySensor` rebuilds a sphere of the same radius. |
+| `CreateSensor(e, hx,hy,hz [, motion])` | Trigger volume (no contact force). Default motion = kinematic. Linux/macOS Jolt sets the sensor flag at create; `SetBodySensor` rebuilds a sphere of the same radius. Fallback reports overlap contacts but does not shove. |
 | `EnablePhysicsDebug [on]` | Wire AABB overlay: cyan colliders, green hitboxes. |
 | `SetCollisionLayer e, layer` | Layer 0–31 (default 0). |
 | `SetLayerCollides a, b, on` | Whether two layers generate contacts (default all collide). Pairwise `DisableBodyCollision` still exists. |
@@ -94,10 +94,12 @@ World-space unless the name says Local. Jolt uses native `AddImpulse` / `AddForc
 | `SetBuoyancyFactor e, n` | Per-body float/sink. `0` = auto 1.1 when submerged; negative = off. |
 | `CreateCloth w, h [, nx, ny, pin]` | Jolt XPBD sheet on Windows; Verlet sheet on Linux/macOS Jolt and fallback. Pin bits: 1 top, 2 bottom, 4 left, 8 right. `SetClothWind e, n`. |
 | `OffsetCenterOfMass e, x, y, z` | Wrap the collider so mass sits at an offset (vehicles drop COM by default). |
-| `SetGravityScale e, n` | 0 = no gravity |
-| `SetRestitution e, n` | Bounce |
-| `SetLinearDamping e, n` | Linear drag |
-| `SetFriction e, n` | Friction |
+| `SetGravityScale e, n` | 0 = no gravity. `GetGravityScale(e)` |
+| `SetRestitution e, n` | Bounce. Default **0.35** on fallback box/sphere/capsule. `0` = no bounce. Windows Jolt writes the body material. Linux/macOS Jolt stores `n` and kicks upward after a downward ray hits another body. `GetRestitution(e)` is last Set (fallback also returns the create default). |
+| `SetLinearDamping e, n` | Linear drag. `GetLinearDamping(e)` |
+| `SetAngularDamping e, n` | Spin drag. `GetAngularDamping(e)` |
+| `SetFriction e, n` | Friction. `GetFriction(e)` |
+| `GetMass(e)` / `GetCCD(e)` | Last `SetMass` / `SetCCD`. Fallback mass is 1 until Set. |
 | `WaterHeight(x, z)` | CPU Gerstner (boats / `ApplyBuoyancy`) |
 
 ```basic
@@ -133,8 +135,11 @@ There is **no** `CreateDistanceJoint` command. A springy distance constraint is 
 | `CreateSliderJoint(a, b, x,y,z, ax,ay,az)` | Slide along axis. Windows is a Jolt slider. Linux/macOS and fallback keep the hinge point on the axis and leave motion along it free. |
 | `CreateSpringJoint(a, b, x,y,z, rest, stiff, damp)` | Distance spring. Defaults rest=1, stiff=8, damp=1. `rest <= 0` = free length |
 | `CreateFixedJoint(a, b, x,y,z)` | Weld two bodies. Aliases `CreateWeldJoint` / `CreateFixedConstraint`. `JOINT_FIXED` = 5. |
-| `CreateConeJoint(a, b, x,y,z, ax,ay,az [, halfConeDeg])` | Ball socket + swing cone. Default half-angle 45°. `JOINT_CONE` = 6. |
-| `CreateSwingTwistJoint(a, b, x,y,z, ax,ay,az [, swingDeg, twistDeg])` | Ragdoll-ish cone + twist limits. Defaults 45° / 30°. `JOINT_SWINGTWIST` = 7. |
+| `CreateConeJoint(a, b, x,y,z, ax,ay,az [, halfConeDeg])` | Ball socket + swing cone. Default half-angle 45°. `JOINT_CONE` = 6. Windows Jolt is a cone constraint. Linux/macOS and fallback snap the shared point, then clamp the A→B vector into that cone. |
+| `CreateSwingTwistJoint(a, b, x,y,z, ax,ay,az [, swingDeg, twistDeg])` | Ragdoll-ish cone + twist limits. Defaults 45° / 30°. `JOINT_SWINGTWIST` = 7. Linux/macOS and fallback use the swing cone, then kill spin around the axis once accumulated twist exceeds `twistDeg`. |
+| `SetHingeLimits id, minDeg, maxDeg` | Limit hinge swing in the plane perpendicular to the axis (relative to rest). Windows is native. Linux/macOS and fallback clamp the A→B vector. |
+| `SetHingeMotor id, targetDeg, maxTorque` | Drive that hinge angle. Windows is a Jolt motor. Linux/macOS and fallback rotate the A→B vector each step (maxTorque scales the step). |
+| `SetHingeFriction id, torque` | Windows is Jolt hinge friction. Linux/macOS and fallback damp velocity in the plane perpendicular to the axis. |
 | `Grab holder, target [, freq, damp [, x,y,z]]` | 6DOF spring grab. Extra `x,y,z` is a world anchor (not COM). Soft **translation** (default freq 8 Hz, damp 1), **rotation free**. Returns the target handle. Both entities should already have bodies. Aliases `GrabEntity`. |
 | `GrabPick holder, maxDist [, freq, damp]` | Ray from `holder` along local +Z (`pitch`/`yaw`). Grabs the first hit at the **hit point** (not COM). Default `maxDist` 8. Sets `PickedEntity` / `PickedX/Y/Z`. |
 | `DropGrab holder` | Remove that holder’s grab. Alias `ReleaseGrab`. |
@@ -147,7 +152,7 @@ There is **no** `CreateDistanceJoint` command. A springy distance constraint is 
 
 **Grab platforms:** Windows Jolt is a real `SixDOFConstraint`. Linux/macOS Jolt extras use the same **position spring** as fallback `CreateGrabJoint` (not a 6DOF constraint). Fallback (`-tags nojolt`) uses a stiff spring joint. `claw.bb` is still the kinematic-parent claw; `Grab` is the spring/6DOF path.
 
-Linux/macOS `GetRotation` / `ApplyTorque` / `ApplyBuoyancy` / `SetGravityScale` are a software pose on top of jolt-go (no native `SetLinearVelocity` or rotated collision shapes). Visual yaw and force-vehicle `Update*` use that pose; hulls stay axis-aligned. Soft sliders keep the rail axis; `SetCollisionLayer` / `SetLayerCollides` filter overlap queries and software joints (Jolt still simulates all pairs). `OffsetCenterOfMass` adds gravity torque from that offset.
+Linux/macOS `GetRotation` / `ApplyTorque` / `ApplyBuoyancy` / `SetGravityScale` are a software pose on top of jolt-go (no native `SetLinearVelocity` or rotated collision shapes). Fallback (`-tags nojolt`) now integrates the same software quaternion, so `GetRotation` / `ApplyLocalImpulse` / vehicle yaw work without Jolt. Visual yaw and force-vehicle `Update*` use that pose; hulls stay axis-aligned. Soft sliders keep the rail axis; cone / hinge limits / hinge motor clamp or rotate the A→B vector (not a Jolt `Constraint`). Hinge friction damps planar speed; swing-twist also stops spin around the axis after `twistDeg`. `SetCollisionLayer` / `SetLayerCollides` filter overlap queries; software joints still run if you `DisableBodyCollision` a pair. `OffsetCenterOfMass` adds gravity torque from that offset. `SetCCD` is a ray sweep, not `LinearCast`. Native `VehicleConstraint` stays Windows-only.
 
 ### `CreateJoint` kinds
 
@@ -308,7 +313,7 @@ Wend
 
 ## Contacts
 
-Jolt’s `ContactListener` runs on **physics threads**. The wrapper **does not `//export` into Go from those threads**. C++ pushes added/persisted/removed events onto a mutex queue. `UpdateWorld` calls `PollContacts` and fills each entity’s collide list.
+Jolt’s `ContactListener` runs on **physics threads**. The wrapper **does not `//export` into Go from those threads**. C++ pushes added/persisted/removed events onto a mutex queue. `UpdateWorld` calls `PollContacts` and fills each entity’s collide list. Linux/macOS Jolt and fallback synthesize persist events from overlapping spheres (no native listener).
 
 | Command | Meaning |
 | --- | --- |

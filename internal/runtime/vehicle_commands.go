@@ -474,25 +474,53 @@ func (w *World) vehicleCommands(n func(func([]value.Value) (value.Value, error))
 			w.phys3.SetGravityScale(argI(a, 0, 0), float32(argN(a, 1, 1)))
 			return z()
 		}),
+		"getgravityscale": n(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			return value.Num(float64(w.phys3.GetGravityScale(argI(a, 0, 0)))), nil
+		}),
 		"setrestitution": n(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys3()
 			w.phys3.SetRestitution(argI(a, 0, 0), float32(argN(a, 1, 0)))
 			return z()
+		}),
+		"getrestitution": n(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			return value.Num(float64(w.phys3.GetRestitution(argI(a, 0, 0)))), nil
 		}),
 		"setlineardamping": n(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys3()
 			w.phys3.SetLinearDamping(argI(a, 0, 0), float32(argN(a, 1, 0)))
 			return z()
 		}),
+		"getlineardamping": n(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			return value.Num(float64(w.phys3.GetLinearDamping(argI(a, 0, 0)))), nil
+		}),
 		"setangulardamping": n(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys3()
 			w.phys3.SetAngularDamping(argI(a, 0, 0), float32(argN(a, 1, 0)))
 			return z()
 		}),
+		"getangulardamping": n(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			return value.Num(float64(w.phys3.GetAngularDamping(argI(a, 0, 0)))), nil
+		}),
 		"setfriction": n(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys3()
 			w.phys3.SetFriction(argI(a, 0, 0), float32(argN(a, 1, 0.5)))
 			return z()
+		}),
+		"getfriction": n(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			return value.Num(float64(w.phys3.GetFriction(argI(a, 0, 0)))), nil
+		}),
+		"getccd": n(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			return value.Num(float64(w.phys3.GetCCD(argI(a, 0, 0)))), nil
+		}),
+		"getmass": n(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			return value.Num(float64(w.phys3.GetMass(argI(a, 0, 0)))), nil
 		}),
 		"setmass": n(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys3()

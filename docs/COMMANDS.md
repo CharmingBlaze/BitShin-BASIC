@@ -396,10 +396,10 @@ Playback is Oto v3. No OpenAL.
 `CreateBody` / `CreateBodySphere` / `CreateBodyBox` / `CreateBodyCapsule` / `CreateBodyCylinder` / `CreateBodyConvex` return the entity/body handle. `ActivateBody e` wakes the body.  
 `SetBodyVelocity` / `SetVelocity`, `BodyVelocity` / `X/Y/Z`, `GetBodyVelocityX/Y/Z` — **Jolt:** native linear velocity. `BodyVelocity(e)` is the velocity-vector magnitude (speed), while the X/Y/Z forms return components.  
 `ApplyImpulse e, x,y,z` / `ApplyForce e, x,y,z` / `ApplyTorque e, x,y,z` / `ApplyForceAtPosition e, fx,fy,fz, px,py,pz` / `ApplyLocalImpulse e, lx,ly,lz` — Jolt native; fallback integrates.  
-`SetGravityScale e, n` — 0 = no gravity. `SetRestitution` / `SetFriction` / `SetLinearDamping`. `ApplyBuoyancy e [, waterY, scale]` is Jolt `ApplyBuoyancyImpulse` on the `WaterHeight` plane (or a flat `waterY`). `CreateBodyMesh` / `CreateBodyHeightField` / `CreateSensor` / `ShapeCast` / `OverlapSphere`. `OffsetCenterOfMass e, x,y,z`. Vehicles drop COM automatically. After a loop of `CreateBody*`, call `OptimizePhysics` (alias `OptimizeBroadPhase`) so the quad tree is not left deep.  
+`SetGravityScale e, n` — 0 = no gravity. `GetGravityScale(e)`. `SetRestitution` / `GetRestitution` / `SetFriction` / `GetFriction` / `SetLinearDamping` / `GetLinearDamping` / `SetAngularDamping` / `GetAngularDamping`. `GetMass(e)` / `GetCCD(e)` / `GetBodyCCD(e)`. `ApplyBuoyancy e [, waterY, scale]` is Jolt `ApplyBuoyancyImpulse` on the `WaterHeight` plane (or a flat `waterY`). `CreateBodyMesh` / `CreateBodyHeightField` / `CreateSensor` / `ShapeCast` / `OverlapSphere`. `OffsetCenterOfMass e, x,y,z`. Vehicles drop COM automatically. After a loop of `CreateBody*`, call `OptimizePhysics` (alias `OptimizeBroadPhase`) so the quad tree is not left deep.  
 `SetBodyAngularVelocity` / `GetBodyAngularVelocityX/Y/Z` — **Jolt:** native. **fallback:** stored.  
 `SetBodyMass`  
-`SetBodyRotation e, pitch,yaw,roll` / `GetBodyPitch/Yaw/Roll` — Jolt quaternion synced onto G3N nodes.  
+`SetBodyRotation e, pitch,yaw,roll` / `GetBodyPitch/Yaw/Roll` — quaternion synced onto G3N nodes (native Jolt on Windows; software pose on Linux/macOS and fallback).  
 `Raycast(x,y,z, dx,dy,dz)` — Jolt `CastRay` (Windows + Linux/macOS Jolt). Fallback (`-tags nojolt`) uses sphere + AABB. Sets `PickedX/Y/Z`. `LinePick` / `RayPick` use the same physics ray, then a visual-sphere pick if physics missed.  
 `CreateHingeJoint(a, b, x,y,z, ax,ay,az)` — aliases `CreateHinge` / `CreateHinge3D`. `CreatePointJoint` / `CreateBallSocketJoint`. `CreateSliderJoint`. `CreateSpringJoint` (distance spring; **no** `CreateDistanceJoint` command). `CreateFixedJoint` / `CreateConeJoint` / `CreateSwingTwistJoint`. `CreateJoint kind, a, b, …` (`JOINT_HINGE`=1 … `JOINT_SWINGTWIST`=7). `Grab holder, target [, freq, damp [, x,y,z]]` / `GrabPick` (hit-point grab) / `DropGrab` / `Throw holder, speed`. `a`/`b` are body handles; **`0` is world-fixed**. No args on hinge → 0. `FreeJoint id`  
 
@@ -408,10 +408,9 @@ Playback is Oto v3. No OpenAL.
 `Grab holder, target [, freq, damp]` / `GrabPick` / `DropGrab` / `Throw holder, speed` / `GrabbedEntity(holder)` — 6DOF spring on Windows Jolt; parented kinematic fallback if the joint is unavailable.  
 `CreateProjectile e, speed [, gravity, life, radius, bounce, impulse, ignore]` flies along local +Z (ray hits apply impulse). `CreateBeam a, b [, width]` is a stretched cube between two entities. `PlaceAtRay src, dest [, maxDist]` parks `dest` on the first hit (or at max range). `AttachToBone child, mesh, "BoneName"` parents to a named glTF node (or a named child entity).  
 `SetWaterFlow vx, vy, vz` feeds fluid velocity into `ApplyBuoyancyImpulse`. Dynamic bodies that enter the water (not vehicles / buoys) auto-float at factor 1.1; `SetBuoyancyFactor e, n` (`<0` disables).  
-`SetBodyCCD e, on` / `SetCCD e, on` — Jolt `MotionQuality::LinearCast`.  
-`BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate  
+`SetBodyCCD e, on` / `SetCCD e, on` — Windows: Jolt `LinearCast`. Linux/macOS and fallback: ray sweep from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate  
 `CreateCharacterController(e [, height, radius, maxSlope, maxStrength])` — Jolt CharacterVirtual. Windows also attaches an inner kinematic body so rays hit the player; Linux/macOS adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` (or `vx,vy,vz`). `SetCharacterShape e, "capsule"|"box", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. `UpdateWorld` runs `ExtendedUpdate`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper.  
-Classic: `EntityType`, `GetEntityType`, `EntityRadius`, `EntityBox`, `Collisions`, `CountCollisions`, `EntityCollided(e [, type|other])`, `ResetEntity`, `CollisionEntity`, `CollisionX/Y/Z` — Jolt `ContactListener` queues in **C++** (mutex, no `//export` from Jolt threads); Go drains in `UpdateWorld`.
+Classic: `EntityType`, `GetEntityType`, `EntityRadius`, `EntityBox`, `Collisions`, `CountCollisions`, `EntityCollided(e [, type|other])`, `ResetEntity`, `CollisionEntity`, `CollisionX/Y/Z` — Windows Jolt `ContactListener` queues in **C++** (mutex, no `//export` from Jolt threads); Go drains in `UpdateWorld`. Linux/macOS and fallback synthesize persist contacts from overlap.
 
 See `examples/physics3d.bb`, `examples/jolt_drop.bb`, `examples/physics_joints.bb`, `examples/physics_body.bb`, `examples/physics_contacts.bb`, `examples/physics_pile.bb`, `examples/character_virt.bb`, `examples/cloth.bb`, `examples/grab_beam.bb`. Helpers: [PHYSICS.md](PHYSICS.md), [MODERN_GAME_HELPERS.md](MODERN_GAME_HELPERS.md).
 
@@ -571,7 +570,7 @@ See `docs/NAV.md` and `examples/nav.bb`. Detour + grid A* only. **No DetourCrowd
 `CreateNavMesh(mesh)` `AddNavObstacle(entity)` `BakeNavMesh([nav])` `CreateAgent(entity)`  
 `SetAgentSpeed e, n` `SetAgentRadius e, n` `SetAgentDestination e, x, y, z`  
 `GetAgentPathPointX/Y/Z(e, i)` `AgentCountPath(e)` `AgentStop e` `UpdateNav`  
-`SetNavMaxSlope deg` / `GetNavMaxSlope()` — skip faces steeper than `deg` (default 45) when baking  
+`SetNavMaxSlope deg` / `GetNavMaxSlope()` — skip faces steeper than `deg` when baking. Unset reads as **45** and does not write. `GetNavMaxSlope` never sets.  
 `CreateGrid(w, h)` `SetGridWalkable grid, x, y, on` `FindPath(grid, x1, y1, x2, y2)` `PathLength(p)` `PathX(p, i)` `PathY(p, i)`
 
 ### Crowd (local separation)
@@ -592,7 +591,7 @@ CrowdUpdate
 | `CrowdSetDestination(crowd, x, y, z)` / `SetCrowdDestination` | Same Detour path for every member | `CrowdSetDestination(cr, 6, 1, 6)` |
 | `CrowdUpdate()` | `UpdateNav` + local push-apart (also on Flip) | `CrowdUpdate()` |
 | `SetCrowdRadius crowd, n` / `GetCrowdRadius([crowd])` | Separation radius | `SetCrowdRadius(cr, 1.5)` |
-| `SetNavMaxSlope(deg)` / `GetNavMaxSlope()` | Skip steep tris on bake | `SetNavMaxSlope(45)` |
+| `SetNavMaxSlope(deg)` / `GetNavMaxSlope()` | Skip steep tris on bake. Getter does not write. Unset = 45 | `slope = GetNavMaxSlope()` |
 | `BakeTerrainNav([terrain])` | Detour from loaded terrain chunk triangles | `nav = BakeTerrainNav(land)` |
 
 See `docs/NAV.md`, `examples/crowd.bb`, `examples/ecs_crowd.bb`.
@@ -842,8 +841,9 @@ See [PHYSICS.md](PHYSICS.md).
 | --- | --- | --- |
 | `BodySleep(id)` / `SleepBody` | Deactivate (Jolt) / skip step (fallback) | `BodySleep(ball)` |
 | `BodyWake(id)` / `WakeBody` / `ActivateBody` | Activate again | `ActivateBody(ball)` |
-| `SetCCD(id, on)` / `SetBodyCCD` | Jolt `LinearCast` CCD | `SetBodyCCD(ball, 1)` |
+| `SetCCD(id, on)` / `SetBodyCCD` / `GetCCD` / `GetBodyCCD` | Windows LinearCast; else ray sweep. Getters are last Set | `If GetCCD(ball) Then` |
 | `CreateHingeJoint` / `CreateHinge` / `CreateHinge3D` | Hinge; `0` = world | `h = CreateHingeJoint(wall, door, x,y,z, 0,1,0)` |
+| `SetHingeLimits` / `SetHingeMotor` / `SetHingeFriction` | Swing limits / drive / planar damp. Windows native; else software | `SetHingeLimits(h, -10, 95)` |
 | `CreatePointJoint` / `CreateBallSocketJoint` | Shared point | `CreatePointJoint(a, b, x,y,z)` |
 | `CreateSliderJoint` / `CreateSpringJoint` / `CreateJoint` | Slider; distance spring; kind 1–7 | `CreateJoint(JOINT_HINGE, a, b, x,y,z, 0,1,0)` |
 | `FreeJoint id` | Remove constraint | `FreeJoint(h)` |
@@ -964,13 +964,13 @@ See `examples/shader.bb`.
 ## Data
 
 `JSONLoad` `JSONSave` `JSONParse` `JSONGet` `JSONSet` `JSON$`  
-`SceneSave` / `SaveScene file$` — JSON of tagged primitives / `LoadMesh` paths, parent, transform, tint  
-`SceneLoad` / `LoadSceneJSON file$` — rebuild those kinds (`mesh` reloads `src`; unknown / old dumps → cubes)  
+`SceneSave` / `SaveScene file$` — JSON of tagged primitives / `LoadMesh` paths, lights, cameras (`fov`/`near`/`far`), parent, transform, tint, visibility  
+`SceneLoad` / `LoadSceneJSON file$` — rebuild those kinds (`mesh` reloads `src`; `camera` restores frustum; unknown / old dumps → cubes)  
 `LoadScene file$` — `.bb` setup script, **or** `.json` / `.yaml` scene dump  
 `YAMLLoad` `YAMLSave` `YAMLParse` `YAMLGet` `YAMLSet`  
 `PackSave` `PackLoad` `PackEncode$` `PackDecode`
 
-Scene JSON is not a glTF graph (no materials, lights, or clips). See `docs/ASSETS.md`.
+Scene JSON is not a glTF graph (no materials or clips). Lights and cameras round-trip. See `docs/ASSETS.md`.
 
 ## Pools
 

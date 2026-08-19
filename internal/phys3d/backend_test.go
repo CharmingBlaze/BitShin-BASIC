@@ -336,3 +336,220 @@ func TestFallbackShapeCastFatSweep(t *testing.T) {
 		t.Fatalf("fat shapecast should hit thin box, ok=%v id=%d", ok, id)
 	}
 }
+
+func TestFallbackPollContactsOverlap(t *testing.T) {
+	w := newFallback()
+	defer w.Close()
+	w.SetGravity(0, 0, 0)
+	w.AddSphere(1, 0, 1, 0, 0.6, true)
+	w.AddSphere(2, 0.4, 1, 0, 0.6, true)
+	w.Step(1.0 / 60)
+	evs := w.PollContacts(8)
+	if len(evs) == 0 {
+		t.Fatal("overlapping spheres should report a contact")
+	}
+}
+
+func TestFallbackRestitutionBounce(t *testing.T) {
+	bounce := newFallback()
+	defer bounce.Close()
+	bounce.SetGravity(0, -20, 0)
+	bounce.AddSphere(1, 0, 4, 0, 0.5, true)
+	peak := float32(0)
+	for i := 0; i < 90; i++ {
+		bounce.Step(1.0 / 60)
+		_, y, _, _ := bounce.GetPosition(1)
+		if i > 40 && y > peak {
+			peak = y
+		}
+	}
+	if peak < 0.7 {
+		t.Fatalf("default restitution should bounce off the floor, peak y=%v", peak)
+	}
+
+	dead := newFallback()
+	defer dead.Close()
+	dead.SetGravity(0, -20, 0)
+	dead.AddSphere(1, 0, 4, 0, 0.5, true)
+	dead.SetRestitution(1, 0)
+	for i := 0; i < 90; i++ {
+		dead.Step(1.0 / 60)
+	}
+	_, y, _, _ := dead.GetPosition(1)
+	_, vy, _, _ := dead.GetVelocity(1)
+	if y > 0.55 || vy > 0.05 {
+		t.Fatalf("SetRestitution(0) should settle on the floor, y=%v vy=%v", y, vy)
+	}
+}
+
+func TestFallbackConeJointLimitsSwing(t *testing.T) {
+	w := newFallback()
+	defer w.Close()
+	w.SetGravity(0, 0, 0)
+	w.AddBoxEx(1, 0, 0, 0, 0.2, 0.2, 0.2, MotionTypeStatic)
+	w.AddSphere(2, 2, 0, 0, 0.3, true)
+	if w.CreateConeJoint(1, 2, 0, 0, 0, 1, 0, 0, 25) == 0 {
+		t.Fatal("cone")
+	}
+	w.SetPosition(2, 2, 4, 0)
+	for i := 0; i < 12; i++ {
+		w.Step(1.0 / 60)
+	}
+	_, y, _, _ := w.GetPosition(2)
+	if y > 2.3 || y < 0.4 {
+		t.Fatalf("cone should clamp swing off +X, y=%v", y)
+	}
+}
+
+func TestFallbackHingeLimitAndMotor(t *testing.T) {
+	w := newFallback()
+	defer w.Close()
+	w.SetGravity(0, 0, 0)
+	w.AddBoxEx(1, 0, 0, 0, 0.2, 0.2, 0.2, MotionTypeStatic)
+	w.AddSphere(2, 1.5, 0, 0, 0.2, true)
+	jid := w.CreateHingeJoint(1, 2, 0, 0, 0, 0, 1, 0)
+	if jid == 0 {
+		t.Fatal("hinge")
+	}
+	w.SetHingeLimits(jid, -15, 15)
+	w.SetPosition(2, 0, 0, 1.5)
+	for i := 0; i < 20; i++ {
+		w.Step(1.0 / 60)
+	}
+	_, _, z, _ := w.GetPosition(2)
+	if z > 0.6 {
+		t.Fatalf("hinge limit should stop a 90° swing, z=%v", z)
+	}
+	w.SetHingeLimits(jid, -90, 90)
+	w.SetHingeMotor(jid, 70, 80)
+	for i := 0; i < 80; i++ {
+		w.Step(1.0 / 60)
+	}
+	_, _, z2, _ := w.GetPosition(2)
+	if z2 > -0.35 && z2 < 0.35 {
+		t.Fatalf("hinge motor should drive toward 70°, z=%v", z2)
+	}
+}
+
+func TestFallbackCCDStopsTunnel(t *testing.T) {
+	w := newFallback()
+	defer w.Close()
+	w.SetGravity(0, 0, 0)
+	w.AddBoxEx(1, 0, 1, 0, 0.15, 2, 2, MotionTypeStatic)
+	w.AddSphere(2, 8, 1, 0, 0.25, true)
+	if w.SetCCD(2, true) != 1 {
+		t.Fatal("SetCCD")
+	}
+	w.SetVelocity(2, -600, 0, 0)
+	w.Step(1.0 / 60)
+	x, _, _, _ := w.GetPosition(2)
+	if x < 0 {
+		t.Fatalf("CCD should stop before tunneling, x=%v", x)
+	}
+}
+
+func TestFallbackDisableBodyCollision(t *testing.T) {
+	w := newFallback()
+	defer w.Close()
+	w.SetGravity(0, 0, 0)
+	w.AddSphere(1, 0, 1, 0, 0.6, true)
+	w.AddSphere(2, 0.4, 1, 0, 0.6, true)
+	w.DisableBodyCollision(1, 2)
+	w.Step(1.0 / 60)
+	if len(w.PollContacts(8)) != 0 {
+		t.Fatal("disabled pair should not contact")
+	}
+}
+
+func TestFallbackIntegratesRotation(t *testing.T) {
+	w := newFallback()
+	defer w.Close()
+	w.SetGravity(0, 0, 0)
+	w.AddSphere(1, 0, 2, 0, 0.4, true)
+	w.SetAngularVelocity(1, 0, 3, 0)
+	for i := 0; i < 20; i++ {
+		w.Step(1.0 / 60)
+	}
+	_, y, _, qw, ok := w.GetRotation(1)
+	if !ok || (y == 0 && qw == 1) {
+		t.Fatalf("fallback rotation should integrate torque, qy=%v qw=%v", y, qw)
+	}
+}
+
+func TestFallbackHingeFrictionDampsSwing(t *testing.T) {
+	damp := newFallback()
+	defer damp.Close()
+	damp.SetGravity(0, 0, 0)
+	damp.AddBoxEx(1, 0, 0, 0, 0.2, 0.2, 0.2, MotionTypeStatic)
+	damp.AddSphere(2, 1, 0, 0, 0.2, true)
+	jid := damp.CreateHingeJoint(1, 2, 0, 0, 0, 0, 1, 0)
+	damp.SetHingeFriction(jid, 20)
+	damp.SetVelocity(2, 0, 0, 8)
+	for i := 0; i < 30; i++ {
+		damp.Step(1.0 / 60)
+	}
+	_, _, vz, _ := damp.GetVelocity(2)
+	if vz > 4 {
+		t.Fatalf("hinge friction should cut planar speed, vz=%v", vz)
+	}
+}
+
+func TestFallbackTwistStopsSpin(t *testing.T) {
+	w := newFallback()
+	defer w.Close()
+	w.SetGravity(0, 0, 0)
+	w.AddBoxEx(1, 0, 0, 0, 0.2, 0.2, 0.2, MotionTypeStatic)
+	w.AddSphere(2, 1, 0, 0, 0.2, true)
+	if w.CreateSwingTwistJoint(1, 2, 0, 0, 0, 1, 0, 0, 40, 8) == 0 {
+		t.Fatal("swing-twist")
+	}
+	w.SetAngularVelocity(2, 12, 0, 0)
+	for i := 0; i < 40; i++ {
+		w.Step(1.0 / 60)
+	}
+	ax, _, _, _ := w.GetAngularVelocity(2)
+	if ax > 1 {
+		t.Fatalf("twist limit should kill spin on the axis, ax=%v", ax)
+	}
+}
+
+func TestFallbackMaterialGetters(t *testing.T) {
+	w := newFallback()
+	defer w.Close()
+	w.AddSphere(1, 0, 2, 0, 0.4, true)
+	w.SetRestitution(1, 0.8)
+	w.SetFriction(1, 0.2)
+	w.SetLinearDamping(1, 1.5)
+	w.SetAngularDamping(1, 0.7)
+	w.SetGravityScale(1, 0)
+	w.SetMass(1, 12)
+	if w.SetCCD(1, true) != 1 {
+		t.Fatal("ccd")
+	}
+	if w.GetRestitution(1) != 0.8 || w.GetFriction(1) != 0.2 {
+		t.Fatalf("rest/fric %v %v", w.GetRestitution(1), w.GetFriction(1))
+	}
+	if w.GetLinearDamping(1) != 1.5 || w.GetAngularDamping(1) != 0.7 {
+		t.Fatal("damp")
+	}
+	if w.GetGravityScale(1) != 0 || w.GetMass(1) != 12 || w.GetCCD(1) != 1 {
+		t.Fatalf("scale/mass/ccd %v %v %v", w.GetGravityScale(1), w.GetMass(1), w.GetCCD(1))
+	}
+}
+
+func TestFallbackSensorDoesNotPush(t *testing.T) {
+	w := newFallback()
+	defer w.Close()
+	w.SetGravity(0, 0, 0)
+	w.AddSphere(1, 0, 1, 0, 0.5, true)
+	w.AddSensorBox(2, 0.2, 1, 0, 0.5, 0.5, 0.5, MotionTypeKinematic)
+	x0, _, _, _ := w.GetPosition(1)
+	w.Step(1.0 / 60)
+	x1, _, _, _ := w.GetPosition(1)
+	if x1-x0 > 0.05 || x0-x1 > 0.05 {
+		t.Fatalf("sensor should not shove, x0=%v x1=%v", x0, x1)
+	}
+	if len(w.PollContacts(8)) == 0 {
+		t.Fatal("sensor should still report overlap")
+	}
+}

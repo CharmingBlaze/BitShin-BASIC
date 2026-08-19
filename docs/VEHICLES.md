@@ -85,7 +85,7 @@ These are real commands (vehicles use them internally):
 | `ApplyForceAtPosition e, fx,fy,fz, px,py,pz` | Force at a world point |
 | `ApplyLocalImpulse e, lx, ly, lz` | Impulse in body axes (+Z forward) |
 | `SetGravityScale e, n` | 0 = no gravity |
-| `SetRestitution e, n` | Bounce |
+| `SetRestitution e, n` | Bounce (see PHYSICS.md for platform notes) |
 | `SetLinearDamping e, n` | Linear drag |
 | `SetFriction e, n` | Friction |
 | `ApplyBuoyancy e [, waterY, scale]` | Jolt buoyancy impulse vs `waterY` or `WaterHeight(x, z)` |

@@ -112,6 +112,10 @@ func (w *World) scaleCommands(n func(func([]value.Value) (value.Value, error)) c
 			w.ensurePhys3()
 			return value.Num(float64(w.phys3.SetCCD(argI(a, 0, 0), argI(a, 1, 1) != 0))), nil
 		}),
+		"getbodyccd": n(func(a []value.Value) (value.Value, error) {
+			w.ensurePhys3()
+			return value.Num(float64(w.phys3.GetCCD(argI(a, 0, 0)))), nil
+		}),
 		"physicsthreads": n(func(a []value.Value) (value.Value, error) {
 			if len(a) > 0 {
 				w.applyPhysThreads(argI(a, 0, 0))

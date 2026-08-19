@@ -26,5 +26,5 @@ PNG / JPEG via `LoadTexture` / `LoadImage`. Heightmaps: PNG/JPEG grayscale (`Loa
 ## Scene files
 
 - `LoadScene "setup.bb"` — run setup (no `Flip` / `End`).
-- `SaveScene` / `SceneSave` — JSON of primitive `kind`, `LoadMesh` `src`, parent, transform, tint.
-- `LoadScene "dump.json"` — rebuilds tagged primitives and reloads meshes from `src`. Pre-1.0 dumps without `kind` still spawn cubes.
+- `SaveScene` / `SceneSave` — JSON of primitive `kind`, `LoadMesh` `src`, parent, transform, tint, visibility. Lights and cameras included.
+- `LoadScene "dump.json"` — rebuilds tagged primitives, reloads meshes from `src`, restores lights and camera frustum. Pre-1.0 dumps without `kind` still spawn cubes.

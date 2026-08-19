@@ -41,7 +41,7 @@ Two systems, no planner or behavior-tree libraries.
 | `AgentCountPath(e)` | Point count |
 | `AgentStop e` | Stop following |
 | `UpdateNav` | Step agents. Also runs once per `Flip` / `UpdateWorld` |
-| `SetNavMaxSlope(deg)` / `GetNavMaxSlope()` | Skip faces steeper than `deg` when baking (terrain + mesh) |
+| `SetNavMaxSlope(deg)` / `GetNavMaxSlope()` | Skip faces steeper than `deg` when baking (terrain + mesh). Unset getter reports 45 without writing. |
 | `BakeTerrainNav([terrain])` | Bake from **loaded chunk triangles**, not AABBs |
 
 ## Crowd (no DetourCrowd)

@@ -1,5 +1,7 @@
 package phys3d
 
+import "math"
+
 func hullHalfExtents(points [][3]float32) (hx, hy, hz float32) {
 	if len(points) == 0 {
 		return 0.5, 0.5, 0.5
@@ -82,6 +84,30 @@ func compoundHullPoints(parts []CompoundPart) [][3]float32 {
 					out = append(out, [3]float32{p.Ox + sx[i], p.Oy + sy[j], p.Oz + sz[k]})
 				}
 			}
+		}
+	}
+	return out
+}
+
+func cylinderHullPoints(halfH, r float32, sides int) [][3]float32 {
+	if sides < 6 {
+		sides = 12
+	}
+	if r < 0.05 {
+		r = 0.05
+	}
+	if halfH < 0.05 {
+		halfH = 0.05
+	}
+	out := make([][3]float32, 0, sides*2)
+	for ring := 0; ring < 2; ring++ {
+		y := -halfH
+		if ring == 1 {
+			y = halfH
+		}
+		for i := 0; i < sides; i++ {
+			a := float64(i) * 2 * math.Pi / float64(sides)
+			out = append(out, [3]float32{r * float32(math.Cos(a)), y, r * float32(math.Sin(a))})
 		}
 	}
 	return out

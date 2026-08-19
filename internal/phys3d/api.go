@@ -13,13 +13,13 @@ const (
 	ContactPersisted = 2
 	ContactRemoved   = 3
 
-	JointHinge       = 1
-	JointPoint       = 2
-	JointSlider      = 3
-	JointSpring      = 4
-	JointFixed       = 5
-	JointCone        = 6
-	JointSwingTwist  = 7
+	JointHinge      = 1
+	JointPoint      = 2
+	JointSlider     = 3
+	JointSpring     = 4
+	JointFixed      = 5
+	JointCone       = 6
+	JointSwingTwist = 7
 
 	CompoundBox      = 0
 	CompoundSphere   = 1
@@ -98,10 +98,17 @@ type World interface {
 	ApplyForceAtPosition(id int, fx, fy, fz, px, py, pz float32)
 	ApplyLocalImpulse(id int, lx, ly, lz float32)
 	SetGravityScale(id int, scale float32)
+	GetGravityScale(id int) float32
 	SetRestitution(id int, r float32)
+	GetRestitution(id int) float32
 	SetLinearDamping(id int, d float32)
+	GetLinearDamping(id int) float32
 	SetAngularDamping(id int, d float32)
+	GetAngularDamping(id int) float32
 	SetFriction(id int, f float32)
+	GetFriction(id int) float32
+	GetCCD(id int) int
+	GetMass(id int) float32
 	SetHingeLimits(id int, minDeg, maxDeg float32)
 	SetHingeFriction(id int, torque float32)
 	SetHingeMotor(id int, targetDeg, maxTorque float32)

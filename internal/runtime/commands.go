@@ -690,7 +690,7 @@ func (w *World) spawnCamera(parent int) int {
 	}
 	cam := camera.New(aspect)
 	cam.SetFar(4000)
-	id := w.addEntity(&Entity{node: cam, cam: cam}, parent)
+	id := w.addEntity(&Entity{node: cam, cam: cam, kind: "camera"}, parent)
 	if w.cam == nil {
 		w.cam = cam
 	}

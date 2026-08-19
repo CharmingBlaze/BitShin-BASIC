@@ -38,37 +38,82 @@ func (w *joltWorld) ApplyLocalImpulse(id int, lx, ly, lz float32) {
 
 func (w *joltWorld) SetGravityScale(id int, scale float32) {
 	id = w.resolvePhysID(id)
+	if w.gscale == nil {
+		w.gscale = map[int]float32{}
+	}
+	w.gscale[id] = scale
 	if b, ok := w.body[id]; ok {
 		w.ps.SetGravityFactor(b, scale)
 	}
 }
 
+func (w *joltWorld) GetGravityScale(id int) float32 {
+	id = w.resolvePhysID(id)
+	s, ok := w.gscale[id]
+	if !ok {
+		return 1
+	}
+	return s
+}
+
 func (w *joltWorld) SetRestitution(id int, r float32) {
 	id = w.resolvePhysID(id)
+	if w.rest == nil {
+		w.rest = map[int]float32{}
+	}
+	w.rest[id] = r
 	if b, ok := w.body[id]; ok {
 		w.bi.SetRestitution(b, r)
 	}
 }
 
+func (w *joltWorld) GetRestitution(id int) float32 {
+	return w.rest[w.resolvePhysID(id)]
+}
+
 func (w *joltWorld) SetLinearDamping(id int, d float32) {
 	id = w.resolvePhysID(id)
+	if w.linDamp == nil {
+		w.linDamp = map[int]float32{}
+	}
+	w.linDamp[id] = d
 	if b, ok := w.body[id]; ok {
 		w.ps.SetLinearDamping(b, d)
 	}
 }
 
+func (w *joltWorld) GetLinearDamping(id int) float32 {
+	return w.linDamp[w.resolvePhysID(id)]
+}
+
 func (w *joltWorld) SetAngularDamping(id int, d float32) {
 	id = w.resolvePhysID(id)
+	if w.angDamp == nil {
+		w.angDamp = map[int]float32{}
+	}
+	w.angDamp[id] = d
 	if b, ok := w.body[id]; ok {
 		w.ps.SetAngularDamping(b, d)
 	}
 }
 
+func (w *joltWorld) GetAngularDamping(id int) float32 {
+	return w.angDamp[w.resolvePhysID(id)]
+}
+
 func (w *joltWorld) SetFriction(id int, f float32) {
 	id = w.resolvePhysID(id)
+	if w.friction == nil {
+		w.friction = map[int]float32{}
+	}
+	w.friction[id] = f
 	if b, ok := w.body[id]; ok {
 		w.bi.SetFriction(b, f)
 	}
+}
+
+func (w *joltWorld) GetFriction(id int) float32 {
+	return w.friction[w.resolvePhysID(id)]
 }
 
 func (w *joltWorld) createNativeVehicle(id int, halfW, halfH, halfL float32, kind int) int {

@@ -26,3 +26,21 @@ func TestSoftConstraintSlider(t *testing.T) {
 		t.Fatalf("spring should close to rest 1, got %v %v %v", sx, sy, sz)
 	}
 }
+
+func TestConeClampDir(t *testing.T) {
+	x, y, z := coneClampDir(1, 0, 0, 0.4, 2, 4, 0)
+	ang := hingeAngle(0, 0, 1, 1, 0, 0, x, y, z)
+	_ = ang
+	nx, _, _, _ := unit3(x, y, z)
+	c := nx
+	if c < 0.9 {
+		t.Fatalf("cone should pull toward +X, got %v %v %v", x, y, z)
+	}
+}
+
+func TestHingeClampVec(t *testing.T) {
+	x, y, z := hingeClampVec(0, 1, 0, 1, 0, 0, -0.2, 0.2, 0, 0, 1)
+	if x < 0.7 || z > 0.4 {
+		t.Fatalf("hinge limit should keep near +X, got %v %v %v", x, y, z)
+	}
+}

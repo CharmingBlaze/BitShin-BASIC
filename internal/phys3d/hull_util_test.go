@@ -36,3 +36,19 @@ func TestCompoundHullPoints(t *testing.T) {
 		t.Fatal("box offset corners missing")
 	}
 }
+
+func TestCylinderHullRings(t *testing.T) {
+	pts := cylinderHullPoints(1, 0.5, 12)
+	if len(pts) != 24 {
+		t.Fatalf("want 24 verts got %d", len(pts))
+	}
+	top := false
+	for _, p := range pts {
+		if p[1] > 0.9 {
+			top = true
+		}
+	}
+	if !top {
+		t.Fatal("missing top ring")
+	}
+}

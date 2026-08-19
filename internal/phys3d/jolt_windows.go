@@ -31,6 +31,12 @@ type joltWorld struct {
 	planes           map[int]planeAero
 	motion           map[int]int
 	kinPose          map[int]bool
+	rest             map[int]float32
+	friction         map[int]float32
+	linDamp          map[int]float32
+	angDamp          map[int]float32
+	gscale           map[int]float32
+	ccd              map[int]bool
 	pendingAdds      int
 	nextConstraintID int
 	gx, gy, gz       float32
@@ -44,16 +50,16 @@ func New() World {
 	ps.EnableContactListener(true)
 	ps.SetGravity(jolt.Vec3{X: 0, Y: -9.81, Z: 0})
 	return &joltWorld{
-		ps:            ps,
-		tempAllocator: jolt.NewTempAllocatorMalloc(),
-		bi:            ps.GetBodyInterface(),
-		body:      map[int]*jolt.BodyID{},
-		bodyToEnt: map[uintptr]int{},
-		bodyVal:   map[uint32]int{},
-		char:      map[int]*kinChar{},
-		vel:   map[int][3]float32{},
-		ang:   map[int][3]float32{},
-		mass:  map[int]float32{},
+		ps:               ps,
+		tempAllocator:    jolt.NewTempAllocatorMalloc(),
+		bi:               ps.GetBodyInterface(),
+		body:             map[int]*jolt.BodyID{},
+		bodyToEnt:        map[uintptr]int{},
+		bodyVal:          map[uint32]int{},
+		char:             map[int]*kinChar{},
+		vel:              map[int][3]float32{},
+		ang:              map[int][3]float32{},
+		mass:             map[int]float32{},
 		force:            map[int][3]float32{},
 		rad:              map[int]float32{},
 		constraints:      map[int]*jolt.Constraint{},
@@ -62,6 +68,12 @@ func New() World {
 		planes:           map[int]planeAero{},
 		motion:           map[int]int{},
 		kinPose:          map[int]bool{},
+		rest:             map[int]float32{},
+		friction:         map[int]float32{},
+		linDamp:          map[int]float32{},
+		angDamp:          map[int]float32{},
+		gscale:           map[int]float32{},
+		ccd:              map[int]bool{},
 		nextConstraintID: 1,
 		gy:               -9.81,
 	}
@@ -519,6 +531,10 @@ func (w *joltWorld) SetMass(id int, mass float32) {
 	if b, ok := w.body[id]; ok {
 		w.ps.SetMass(b, mass)
 	}
+}
+
+func (w *joltWorld) GetMass(id int) float32 {
+	return w.mass[w.resolvePhysID(id)]
 }
 
 func (w *joltWorld) AddGround(id int, y float32) {

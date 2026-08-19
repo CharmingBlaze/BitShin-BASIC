@@ -42,13 +42,67 @@ func (w *joltWorld) SetRotation(id int, x, y, z, qw float32) {
 	w.rot[id] = [4]float32{x, y, z, qw}
 }
 
-func (w *joltWorld) SetCCD(int, bool) int { return 0 }
+func (w *joltWorld) SetCCD(id int, on bool) int {
+	if w.body[id] == nil && w.char[id] == nil {
+		return 0
+	}
+	if w.ccd == nil {
+		w.ccd = map[int]bool{}
+	}
+	w.ccd[id] = on
+	if on {
+		return 1
+	}
+	return 0
+}
 
 func (w *joltWorld) RemoveJoint(id int) {
 	delete(w.soft, id)
 }
 
-func (w *joltWorld) PollContacts(int) []ContactEvent { return nil }
+func (w *joltWorld) PollContacts(max int) []ContactEvent {
+	if max <= 0 {
+		max = 64
+	}
+	out := make([]ContactEvent, 0, 8)
+	seen := map[[2]int]bool{}
+	for id := range w.body {
+		x, y, z, ok := w.GetPosition(id)
+		if !ok {
+			continue
+		}
+		r := w.rad[id]
+		if r < 0.1 {
+			r = 0.1
+		}
+		hits := w.OverlapSphereAll(x, y, z, r, 12)
+		for i := 0; i < len(hits); i++ {
+			oid := hits[i]
+			if oid == id {
+				continue
+			}
+			k := pairKey(id, oid)
+			if seen[k] {
+				continue
+			}
+			seen[k] = true
+			if !w.layersCollide(id, oid) {
+				continue
+			}
+			ox, oy, oz, _ := w.GetPosition(oid)
+			out = append(out, ContactEvent{
+				Kind: ContactPersisted,
+				A:    id, B: oid,
+				X: (x + ox) * 0.5, Y: (y + oy) * 0.5, Z: (z + oz) * 0.5,
+				NY: 1,
+			})
+			if len(out) >= max {
+				return out
+			}
+		}
+	}
+	return out
+}
 
 func (w *joltWorld) EnableContacts() {}
 
@@ -77,19 +131,63 @@ func (w *joltWorld) ApplyLocalImpulse(id int, lx, ly, lz float32) {
 
 func (w *joltWorld) SetGravityScale(id int, scale float32) { w.gscale[id] = scale }
 
-func (w *joltWorld) SetRestitution(int, float32) {}
+func (w *joltWorld) GetGravityScale(id int) float32 {
+	s, ok := w.gscale[id]
+	if !ok {
+		return 1
+	}
+	return s
+}
+
+func (w *joltWorld) SetRestitution(id int, r float32) { w.rest[id] = r }
+
+func (w *joltWorld) GetRestitution(id int) float32 { return w.rest[id] }
 
 func (w *joltWorld) SetLinearDamping(id int, d float32) { w.linDamp[id] = d }
 
+func (w *joltWorld) GetLinearDamping(id int) float32 { return w.linDamp[id] }
+
 func (w *joltWorld) SetAngularDamping(id int, d float32) { w.angDamp[id] = d }
 
-func (w *joltWorld) SetFriction(int, float32) {}
+func (w *joltWorld) GetAngularDamping(id int) float32 { return w.angDamp[id] }
 
-func (w *joltWorld) SetHingeLimits(int, float32, float32) {}
+func (w *joltWorld) SetFriction(id int, f float32) { w.friction[id] = f }
 
-func (w *joltWorld) SetHingeFriction(int, float32) {}
+func (w *joltWorld) GetFriction(id int) float32 { return w.friction[id] }
 
-func (w *joltWorld) SetHingeMotor(int, float32, float32) {}
+func (w *joltWorld) GetCCD(id int) int {
+	if w.ccd[id] {
+		return 1
+	}
+	return 0
+}
+
+func (w *joltWorld) SetHingeLimits(id int, minDeg, maxDeg float32) {
+	j := w.soft[id]
+	if j == nil {
+		return
+	}
+	j.hlim = true
+	j.hmin = minDeg * 3.14159265 / 180
+	j.hmax = maxDeg * 3.14159265 / 180
+}
+
+func (w *joltWorld) SetHingeFriction(id int, torque float32) {
+	j := w.soft[id]
+	if j == nil {
+		return
+	}
+	j.hfric = torque
+}
+
+func (w *joltWorld) SetHingeMotor(id int, targetDeg, maxTorque float32) {
+	j := w.soft[id]
+	if j == nil {
+		return
+	}
+	j.motor = targetDeg * 3.14159265 / 180
+	j.mtorque = maxTorque
+}
 
 func (w *joltWorld) DisableBodyCollision(a, b int) {
 	if w.nocol == nil {
@@ -412,14 +510,29 @@ func (w *joltWorld) CreateFixedJoint(a, b int, px, py, pz float32) int {
 }
 
 func (w *joltWorld) CreateConeJoint(a, b int, px, py, pz, ax, ay, az, halfConeDeg float32) int {
-	_ = halfConeDeg
-	return w.addSoftJoint(a, b, px, py, pz, ax, ay, az, 0, 0, 0, 1)
+	id := w.addSoftJoint(a, b, px, py, pz, ax, ay, az, 0, 0, 0, 1)
+	if j := w.soft[id]; j != nil {
+		if halfConeDeg <= 0 {
+			halfConeDeg = 45
+		}
+		j.cone = halfConeDeg * 3.14159265 / 180
+	}
+	return id
 }
 
 func (w *joltWorld) CreateSwingTwistJoint(a, b int, px, py, pz, ax, ay, az, swingDeg, twistDeg float32) int {
-	_ = swingDeg
-	_ = twistDeg
-	return w.addSoftJoint(a, b, px, py, pz, ax, ay, az, 0, 0, 0, 1)
+	id := w.addSoftJoint(a, b, px, py, pz, ax, ay, az, 0, 0, 0, 1)
+	if j := w.soft[id]; j != nil {
+		if swingDeg <= 0 {
+			swingDeg = 45
+		}
+		j.cone = swingDeg * 3.14159265 / 180
+		if twistDeg <= 0 {
+			twistDeg = 30
+		}
+		j.twist = twistDeg * 3.14159265 / 180
+	}
+	return id
 }
 
 func (w *joltWorld) AddCompound(id int, parts []CompoundPart, x, y, z float32, motion int) {
@@ -476,6 +589,11 @@ func (w *joltWorld) addSoftJoint(a, b int, px, py, pz, ax, ay, az, rest, stiff, 
 	}
 	if bx, by, bz, ok := w.GetPosition(b); ok {
 		j.lbx, j.lby, j.lbz = px-bx, py-by, pz-bz
+		ox, oy, oz := px, py, pz
+		if apx, apy, apz, aok := w.GetPosition(a); aok {
+			ox, oy, oz = apx, apy, apz
+		}
+		j.captureRef(ox, oy, oz, bx, by, bz)
 	}
 	id := w.nextConstraintID
 	w.nextConstraintID++
@@ -483,12 +601,12 @@ func (w *joltWorld) addSoftJoint(a, b int, px, py, pz, ax, ay, az, rest, stiff, 
 	return id
 }
 
-func (w *joltWorld) solveSoftJoints() {
+func (w *joltWorld) solveSoftJoints(dt float32) {
+	if dt <= 0 {
+		dt = 1.0 / 60
+	}
 	for _, j := range w.soft {
 		if j == nil {
-			continue
-		}
-		if w.nocol[pairKey(j.a, j.b)] || !w.layersCollide(j.a, j.b) {
 			continue
 		}
 		wx, wy, wz := j.px, j.py, j.pz
@@ -514,6 +632,26 @@ func (w *joltWorld) solveSoftJoints() {
 			}
 			continue
 		}
-		w.SetPosition(j.b, bx+dx, by+dy, bz+dz)
+		if j.cone > 0 || j.hlim || j.mtorque > 0 {
+			ox, oy, oz := j.px, j.py, j.pz
+			if ax, ay, az, aok := w.GetPosition(j.a); aok {
+				ox, oy, oz = ax, ay, az
+			}
+			nx, ny, nz, tx, ty, tz := applySoftLimits(j, ox, oy, oz, bx, by, bz)
+			w.SetPosition(j.b, nx, ny, nz)
+			j.lbx, j.lby, j.lbz = wx-nx, wy-ny, wz-nz
+			if tx != 0 || ty != 0 || tz != 0 {
+				w.ApplyTorque(j.b, tx, ty, tz)
+			}
+		} else {
+			w.SetPosition(j.b, bx+dx, by+dy, bz+dz)
+		}
+		vx, vy, vz, vok := w.GetVelocity(j.b)
+		axv, ayv, azv, aok := w.GetAngularVelocity(j.b)
+		if vok && aok {
+			vx, vy, vz, axv, ayv, azv = j.applySpin(vx, vy, vz, axv, ayv, azv, dt)
+			w.SetVelocity(j.b, vx, vy, vz)
+			w.SetAngularVelocity(j.b, axv, ayv, azv)
+		}
 	}
 }

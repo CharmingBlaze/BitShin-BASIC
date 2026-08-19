@@ -428,39 +428,51 @@ func valueToAny(v value.Value) any {
 func (w *World) sceneJSON() map[string]any {
 	ents := []any{}
 	for id, e := range w.ents {
-		if e == nil || e.node == nil || e.cam != nil || e.lgtKind != 0 || e.sky {
+		if e == nil || e.node == nil || e.sky {
 			continue
 		}
 		n := e.node.GetNode()
 		p := worldPos(n)
 		x, y, z := fromG3N(p.X, p.Y, p.Z)
 		s := n.Scale()
-		ents = append(ents, map[string]any{
-			"id":     id,
-			"name":   e.name,
-			"kind":   e.kind,
-			"src":    e.src,
-			"parent": e.parent,
-			"x":      x,
-			"y":      y,
-			"z":      z,
-			"pitch":  e.pitch,
-			"yaw":    e.yaw,
-			"roll":   e.roll,
-			"sx":     s.X,
-			"sy":     s.Y,
-			"sz":     s.Z,
-			"r":      e.tint.R * 255,
-			"g":      e.tint.G * 255,
-			"b":      e.tint.B * 255,
-		})
+		row := map[string]any{
+			"id":      id,
+			"name":    e.name,
+			"kind":    e.kind,
+			"src":     e.src,
+			"parent":  e.parent,
+			"x":       x,
+			"y":       y,
+			"z":       z,
+			"pitch":   e.pitch,
+			"yaw":     e.yaw,
+			"roll":    e.roll,
+			"sx":      s.X,
+			"sy":      s.Y,
+			"sz":      s.Z,
+			"r":       e.tint.R * 255,
+			"g":       e.tint.G * 255,
+			"b":       e.tint.B * 255,
+			"visible": n.Visible(),
+		}
+		if e.lgtKind != 0 || e.kind == "light" {
+			row["kind"] = "light"
+			row["light"] = e.lgtKind
+		}
+		if e.cam != nil {
+			row["kind"] = "camera"
+			row["fov"] = e.cam.Fov()
+			row["near"] = e.cam.Near()
+			row["far"] = e.cam.Far()
+		}
+		ents = append(ents, row)
 	}
 	return map[string]any{"entities": ents}
 }
 
 func spawnKindName(kind string) string {
 	switch strings.ToLower(kind) {
-	case "sphere", "box", "plane", "quad", "cylinder", "cone", "capsule", "torus", "pyramid", "cloth", "mesh", "disk", "wedge", "tube":
+	case "sphere", "box", "plane", "quad", "cylinder", "cone", "capsule", "torus", "pyramid", "cloth", "mesh", "disk", "wedge", "tube", "light", "camera":
 		return strings.ToLower(kind)
 	default:
 		return "cube"
@@ -499,6 +511,21 @@ func (w *World) spawnSceneKind(kind, src string, parent int) int {
 		return w.tagEnt(w.meshEnt(geometry.NewTube(path, 0.5, 8, false), parent), "tube")
 	case "cloth":
 		return w.createCloth(2, 2, 8, 8, 1)
+	case "light":
+		lk := 1
+		if src != "" {
+			switch src {
+			case "0", "ambient":
+				lk = 0
+			case "2", "point":
+				lk = 2
+			case "3", "spot":
+				lk = 3
+			}
+		}
+		return w.makeLight(lk, parent)
+	case "camera":
+		return w.spawnCamera(parent)
 	case "mesh":
 		if src != "" {
 			if id, err := w.loadMeshFile(src, parent); err == nil {
@@ -528,6 +555,12 @@ func (w *World) applySceneJSON(root any) {
 		}
 		kind, _ := em["kind"].(string)
 		src, _ := em["src"].(string)
+		if strings.ToLower(kind) == "light" {
+			src = strings.TrimSpace(src)
+			if src == "" {
+				src = fmt.Sprintf("%d", int(anyToValue(em["light"]).Number()))
+			}
+		}
 		old := int(anyToValue(em["id"]).Number())
 		id := w.spawnSceneKind(kind, src, 0)
 		if id == 0 {
@@ -575,10 +608,31 @@ func (w *World) applySceneJSON(root any) {
 			sz = 1
 		}
 		e.node.GetNode().SetScale(float32(sx), float32(sy), float32(sz))
-		if e.mat != nil {
+		if vis, ok := em["visible"].(bool); ok {
+			e.node.GetNode().SetVisible(vis)
+		}
+		if e.mat != nil || e.lgt != nil {
 			c := rgb(anyToValue(em["r"]).Number(), anyToValue(em["g"]).Number(), anyToValue(em["b"]).Number())
 			e.tint.R, e.tint.G, e.tint.B = c.R, c.G, c.B
-			e.mat.SetColor(c)
+			if e.mat != nil {
+				e.mat.SetColor(c)
+			}
+			if e.lgt != nil {
+				e.lgt.SetColor(c)
+			}
+		}
+		if e.cam != nil {
+			if fov := anyToValue(em["fov"]).Number(); fov > 1 {
+				e.cam.SetFov(float32(fov))
+			}
+			near := anyToValue(em["near"]).Number()
+			far := anyToValue(em["far"]).Number()
+			if near > 0 {
+				e.cam.SetNear(float32(near))
+			}
+			if far > 1 {
+				e.cam.SetFar(float32(far))
+			}
 		}
 	}
 }

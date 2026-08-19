@@ -24,8 +24,19 @@ func (w *joltWorld) SetCCD(id int, on bool) int {
 	if !ok {
 		return 0
 	}
+	if w.ccd == nil {
+		w.ccd = map[int]bool{}
+	}
+	w.ccd[id] = on
 	w.bi.SetMotionQualityLinearCast(b, on)
 	return 1
+}
+
+func (w *joltWorld) GetCCD(id int) int {
+	if w.ccd[id] {
+		return 1
+	}
+	return 0
 }
 
 func (w *joltWorld) EnableContacts() {

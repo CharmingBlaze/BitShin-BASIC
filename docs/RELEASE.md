@@ -40,6 +40,8 @@ IDE: `scripts/build_ide.ps1` (Windows). Preferences are `.ide_settings.json` nex
 | Cloth | Jolt soft body | Verlet sheet (same as fallback) | Verlet |
 | Joints, grab, CCD, vehicles | Full | Position joints + **axis sliders** + grab spring; CCD/vehicles stub | Fallback joints + axis sliders |
 | Mesh / convex / heightfield | Native cook | jolt-go mesh + convex hull; heightfield → triangle mesh | AABB / slab |
+| Cylinder | Jolt `CylinderShape` | 12-sided convex hull of the shaft | Box of the same extents |
+| Contacts (`EntityCollided`) | Native listener | Overlap-sphere persist events | Overlap persist events |
 | Compound / sensor / overlap | Native compound + CollideShape | Convex hull of child AABBs; sensor flag at create / `SetBodySensor` rebuild; CollideShape overlap / stepped box `ShapeCast`; query layers | AABB / sphere |
 | CharacterVirtual | Full + inner body | CharacterVirtual + kinematic inner capsule | Kinematic helper |
 | `ApplyImpulse` on rigid bodies | Native | One-step position kick (jolt-go has no SetLinearVelocity) | Integrated |

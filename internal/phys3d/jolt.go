@@ -56,6 +56,8 @@ type joltWorld struct {
 	sensor           map[int]bool
 	layer            map[int]int
 	layerOff         [32][32]bool
+	friction         map[int]float32
+	ccd              map[int]bool
 	gx, gy, gz       float32
 }
 
@@ -95,6 +97,9 @@ func New() World {
 		motion:           map[int]int{},
 		sensor:           map[int]bool{},
 		layer:            map[int]int{},
+		friction:         map[int]float32{},
+		rest:             map[int]float32{},
+		ccd:              map[int]bool{},
 		nextConstraintID: 1,
 		gy:               -9.81,
 	}
@@ -208,7 +213,7 @@ func (w *joltWorld) Step(dt float32) {
 		kc.x, kc.y, kc.z = x, y, z
 	}
 	w.stepCloths(dt)
-	w.solveSoftJoints()
+	w.solveSoftJoints(dt)
 }
 
 func joltMotion(motion int) jolt.MotionType {
@@ -286,7 +291,7 @@ func (w *joltWorld) AddCapsule(id int, x, y, z, halfH, r float32, dynamic bool) 
 }
 
 func (w *joltWorld) AddCylinder(id int, x, y, z, halfH, r float32, motion int) {
-	w.add(id, jolt.CreateCapsule(halfH, r), x, y, z, r+halfH, motion)
+	w.AddConvexHull(id, cylinderHullPoints(halfH, r, 12), x, y, z, motion)
 }
 
 func (w *joltWorld) AddConvexHull(id int, points [][3]float32, x, y, z float32, motion int) {
@@ -433,6 +438,8 @@ func (w *joltWorld) GetAngularVelocity(id int) (float32, float32, float32, bool)
 
 func (w *joltWorld) SetMass(id int, mass float32) { w.mass[id] = mass }
 
+func (w *joltWorld) GetMass(id int) float32 { return w.mass[id] }
+
 func (w *joltWorld) AddGround(id int, y float32) {
 	w.AddBox(id, 0, y, 0, 80, 0.25, 80, false)
 }
@@ -527,6 +534,9 @@ func (w *joltWorld) sampleVelocities(dt float32) {
 		if prev, ok := w.prev[id]; ok {
 			w.vel[id] = [3]float32{(p.X - prev[0]) / dt, (p.Y - prev[1]) / dt, (p.Z - prev[2]) / dt}
 			d := w.linDamp[id]
+			if f := w.friction[id]; f > d {
+				d = f
+			}
 			if d > 0 && !w.locked[id] {
 				s := 1 - d*dt
 				if s < 0.05 {
@@ -540,6 +550,34 @@ func (w *joltWorld) sampleVelocities(dt float32) {
 				})
 				p = w.bi.GetPosition(b)
 				w.vel[id] = [3]float32{v[0] * s, v[1] * s, v[2] * s}
+			}
+			v := w.vel[id]
+			if w.ccd[id] && !w.locked[id] {
+				dx, dy, dz := p.X-prev[0], p.Y-prev[1], p.Z-prev[2]
+				if dx*dx+dy*dy+dz*dz > 1e-6 {
+					hid, hx, hy, hz, hit := w.Raycast(prev[0], prev[1], prev[2], dx, dy, dz)
+					if hit && hid != id {
+						ln := sqrt32(dx*dx + dy*dy + dz*dz)
+						pad := w.rad[id] * 0.35
+						if pad > ln*0.5 {
+							pad = ln * 0.5
+						}
+						p = jolt.Vec3{X: hx - dx/ln*pad, Y: hy - dy/ln*pad, Z: hz - dz/ln*pad}
+						w.bi.SetPosition(b, p)
+						w.vel[id] = [3]float32{}
+						v = w.vel[id]
+					}
+				}
+			}
+			if rest := w.rest[id]; rest > 0 && v[1] < -0.4 && !w.locked[id] {
+				hid, _, _, _, hit := w.Raycast(p.X, p.Y, p.Z, 0, -(w.rad[id] + 0.3), 0)
+				if hit && hid != id {
+					m := w.mass[id]
+					if m < 0.001 {
+						m = 1
+					}
+					w.ApplyImpulse(id, 0, m*(-v[1]*rest-v[1]), 0)
+				}
 			}
 		}
 		w.prev[id] = [3]float32{p.X, p.Y, p.Z}

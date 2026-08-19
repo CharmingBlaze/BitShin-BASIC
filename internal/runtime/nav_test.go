@@ -4,6 +4,7 @@ import (
 	"strings"
 	"testing"
 
+	"bitshinbasic/internal/value"
 	"github.com/g3n/engine/core"
 	"github.com/g3n/engine/geometry"
 	"github.com/g3n/engine/graphic"
@@ -156,5 +157,40 @@ func TestNavBakeAABBFallback(t *testing.T) {
 	}
 	if n != 2 {
 		t.Fatalf("AABB fallback should write 2 tris, got %d", n)
+	}
+}
+
+func TestGetNavMaxSlopeDoesNotMutate(t *testing.T) {
+	w := New(".")
+	get := w.commandTable()["getnavmaxslope"]
+	set := w.commandTable()["setnavmaxslope"]
+	if get == nil || set == nil {
+		t.Fatal("nav slope commands")
+	}
+	v, err := get(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Number() != 45 {
+		t.Fatalf("unset slope should report 45, got %v", v.Number())
+	}
+	if w.navMaxSlope != 0 {
+		t.Fatalf("getter wrote navMaxSlope=%v", w.navMaxSlope)
+	}
+	if _, err := set([]value.Value{value.Num(22)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := get([]value.Value{value.Num(45)}); err != nil {
+		t.Fatal(err)
+	}
+	if w.navMaxSlope != 22 {
+		t.Fatalf("GetNavMaxSlope must not write, got %v", w.navMaxSlope)
+	}
+	v, err = get(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v.Number() != 22 {
+		t.Fatalf("getter %v", v.Number())
 	}
 }
