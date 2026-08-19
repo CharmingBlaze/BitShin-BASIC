@@ -21,10 +21,10 @@ PNG / JPEG via `LoadTexture` / `LoadImage`. Heightmaps: PNG/JPEG grayscale (`Loa
 
 ## Packaging
 
-`bs build game.bb -o dist` copies the interpreter, the `.bb`, quoted asset paths, `assets/`, and natives from `third_party/$GOOS`. Zip `dist` and run from that folder.
+`bs build game.bb -o dist` copies the interpreter, the `.bb`, quoted asset paths, `assets/`, and natives from `third_party/$GOOS`. Zip `dist` and run from that folder. Details: [RELEASE.md](RELEASE.md).
 
 ## Scene files
 
 - `LoadScene "setup.bb"` — run setup (no `Flip` / `End`).
-- `SaveScene` / `SceneSave` — JSON of entity transforms + tint.
-- `LoadScene "dump.json"` — those transforms as **cubes** (not original meshes).
+- `SaveScene` / `SceneSave` — JSON of primitive `kind`, `LoadMesh` `src`, parent, transform, tint.
+- `LoadScene "dump.json"` — rebuilds tagged primitives and reloads meshes from `src`. Pre-1.0 dumps without `kind` still spawn cubes.

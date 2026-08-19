@@ -136,6 +136,7 @@ type World interface {
 	CreateSwingTwistJoint(a, b int, px, py, pz, ax, ay, az, swingDeg, twistDeg float32) int
 	SetCollisionLayer(id, layer int)
 	SetLayerCollides(a, b int, on bool)
+	SetJobThreads(n int)
 }
 
 // CompoundPart is one child shape in AddCompound (local offset from the actor).

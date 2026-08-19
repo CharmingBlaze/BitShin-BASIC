@@ -35,8 +35,8 @@ func newJobPool(workers int) *jobPool {
 	if workers < 1 {
 		workers = 2
 	}
-	if workers > 16 {
-		workers = 16
+	if workers > 32 {
+		workers = 32
 	}
 	p := &jobPool{
 		ch:    make(chan *jobItem, 256),
@@ -147,6 +147,14 @@ func (p *jobPool) pending() int {
 		return 0
 	}
 	return int(p.queued.Load() + p.live.Load())
+}
+
+func (p *jobPool) close() {
+	if p == nil || p.closed.Swap(true) {
+		return
+	}
+	close(p.ch)
+	p.wg.Wait()
 }
 
 func (w *World) ensureJobs() *jobPool {

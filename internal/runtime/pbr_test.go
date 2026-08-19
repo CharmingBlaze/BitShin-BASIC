@@ -135,3 +135,9 @@ func findSub(s, sub string) string {
 	}
 	return ""
 }
+
+func TestPhysicalIBLUsesEnvBRDF(t *testing.T) {
+	if findSub(mbphysicalFragment, "dfg") == "" {
+		t.Fatal("mbphysical IBL should use the EnvBRDF scale/bias term")
+	}
+}

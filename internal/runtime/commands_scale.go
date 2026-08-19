@@ -114,7 +114,7 @@ func (w *World) scaleCommands(n func(func([]value.Value) (value.Value, error)) c
 		}),
 		"physicsthreads": n(func(a []value.Value) (value.Value, error) {
 			if len(a) > 0 {
-				w.physThreads = argI(a, 0, 0)
+				w.applyPhysThreads(argI(a, 0, 0))
 			}
 			return value.Num(float64(w.physThreads)), nil
 		}),
@@ -122,5 +122,26 @@ func (w *World) scaleCommands(n func(func([]value.Value) (value.Value, error)) c
 			w.physAsync = argI(a, 0, 1) != 0
 			return value.Num(float64(bool01(w.physAsync))), nil
 		}),
+	}
+}
+
+func (w *World) applyPhysThreads(n int) {
+	if n < 0 {
+		n = 0
+	}
+	if n > 32 {
+		n = 32
+	}
+	w.physThreads = n
+	if n > 0 {
+		w.jobWorkers = n
+		if w.jobs != nil {
+			w.jobs.waitAll()
+			w.jobs.close()
+			w.jobs = nil
+		}
+	}
+	if w.phys3 != nil {
+		w.phys3.SetJobThreads(n)
 	}
 }

@@ -254,11 +254,60 @@ func TestCompoundOverlapExplodeAndJoints(t *testing.T) {
 		t.Fatal("OverlapSphereAll missed nearby box")
 	}
 	jid := w.CreateFixedJoint(1, 2, 2.5, 1, 0)
-	if w.Backend() == BackendFallback && jid == 0 {
-		t.Fatal("fallback fixed joint id 0")
+	if jid == 0 {
+		t.Fatal("fixed joint id 0")
 	}
 	_ = w.CreateConeJoint(1, 2, 2.5, 1, 0, 0, 1, 0, 40)
 	_ = w.CreateSwingTwistJoint(1, 2, 2.5, 1, 0, 0, 1, 0, 40, 20)
 	w.SetCollisionLayer(2, 1)
 	w.SetLayerCollides(0, 1, false)
+}
+
+func TestFallbackBoxRaycastAABB(t *testing.T) {
+	w := newFallback()
+	defer w.Close()
+	w.AddBox(1, 0, 0, 0, 4, 0.1, 0.1, false)
+	id, _, _, _, hit := w.Raycast(6, 0, 0, -12, 0, 0)
+	if !hit || id != 1 {
+		t.Fatalf("thin box from the side: hit=%v id=%d", hit, id)
+	}
+	id, _, _, _, hit = w.Raycast(0, 2, 2, 0, 0, -4)
+	if hit && id == 1 {
+		t.Fatal("ray beside a thin box should miss the AABB")
+	}
+}
+
+func TestFallbackFixedJointHolds(t *testing.T) {
+	w := newFallback()
+	defer w.Close()
+	w.SetGravity(0, 0, 0)
+	w.AddBox(1, 0, 1, 0, 0.3, 0.3, 0.3, false)
+	w.AddBox(2, 2, 1, 0, 0.3, 0.3, 0.3, true)
+	if w.CreateFixedJoint(1, 2, 1, 1, 0) == 0 {
+		t.Fatal("joint")
+	}
+	for i := 0; i < 20; i++ {
+		w.Step(1.0 / 60.0)
+	}
+	x, _, _, ok := w.GetPosition(2)
+	if !ok {
+		t.Fatal("missing")
+	}
+	if x < 1.4 || x > 2.6 {
+		t.Fatalf("fixed joint should keep the pair close, x=%v", x)
+	}
+}
+
+func TestFallbackShapeCastFatSweep(t *testing.T) {
+	w := newFallback()
+	defer w.Close()
+	w.AddBox(1, 0, 0, 0, 0.2, 0.05, 0.2, false)
+	_, _, _, _, rayHit := w.Raycast(0, 1, 0, 0, -0.4, 0)
+	if rayHit {
+		t.Fatal("short ray should miss the thin box")
+	}
+	id, _, _, _, ok := w.ShapeCast(0.2, 0.7, 0.2, 0, 1, 0, 0, -0.4, 0)
+	if !ok || id != 1 {
+		t.Fatalf("fat shapecast should hit thin box, ok=%v id=%d", ok, id)
+	}
 }

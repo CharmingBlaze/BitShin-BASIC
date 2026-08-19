@@ -35,6 +35,7 @@ While Not KeyDown(KEY_ESCAPE)
     RenderWorld
     Text(12, 12, "AnimTime=" + GetAnimationTime(hero) + "  length=" + GetAnimationLength(hero))
     Text(12, 28, "Supply hero.glb / hero.gltf with clips for LoadAnimation")
+    Text(12, 44, "SetAnimBlend e, w [, seq] nlerps the previous clip into the current one")
     Flip
 Wend
 End

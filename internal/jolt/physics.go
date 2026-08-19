@@ -41,3 +41,14 @@ func (ps *PhysicsSystem) OptimizeBroadPhase() {
 	}
 	C.JoltOptimizeBroadPhase(ps.handle)
 }
+
+// SetJobThreads rebuilds Jolt's JobSystemThreadPool (1–32 workers).
+func SetJobThreads(n int) {
+	if n < 1 {
+		n = 1
+	}
+	if n > 32 {
+		n = 32
+	}
+	C.JoltSetJobThreads(C.int(n))
+}

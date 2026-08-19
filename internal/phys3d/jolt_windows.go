@@ -581,6 +581,10 @@ func (w *joltWorld) Wake(id int) {
 	}
 }
 
+func (w *joltWorld) SetJobThreads(n int) {
+	jolt.SetJobThreads(n)
+}
+
 func (w *joltWorld) Close() {
 	for _, kc := range w.char {
 		if kc.virtual != nil {

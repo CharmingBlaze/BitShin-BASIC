@@ -8,3 +8,9 @@
 !.vscode/extensions.json
 *.dll
 !third_party/windows/*.dll
+
+# Local-only. Portable zips come from `bs build … -o dist`, not the repo tree.
+scratch/
+imgui.ini
+.ide_settings.json
+/dist/

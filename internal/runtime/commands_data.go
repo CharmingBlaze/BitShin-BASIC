@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/g3n/engine/geometry"
+	"github.com/g3n/engine/math32"
 	"github.com/vmihailenco/msgpack/v5"
 	"gopkg.in/yaml.v3"
 
@@ -427,7 +428,7 @@ func valueToAny(v value.Value) any {
 func (w *World) sceneJSON() map[string]any {
 	ents := []any{}
 	for id, e := range w.ents {
-		if e == nil || e.node == nil {
+		if e == nil || e.node == nil || e.cam != nil || e.lgtKind != 0 || e.sky {
 			continue
 		}
 		n := e.node.GetNode()
@@ -435,23 +436,77 @@ func (w *World) sceneJSON() map[string]any {
 		x, y, z := fromG3N(p.X, p.Y, p.Z)
 		s := n.Scale()
 		ents = append(ents, map[string]any{
-			"id":    id,
-			"name":  e.name,
-			"x":     x,
-			"y":     y,
-			"z":     z,
-			"pitch": e.pitch,
-			"yaw":   e.yaw,
-			"roll":  e.roll,
-			"sx":    s.X,
-			"sy":    s.Y,
-			"sz":    s.Z,
-			"r":     e.tint.R * 255,
-			"g":     e.tint.G * 255,
-			"b":     e.tint.B * 255,
+			"id":     id,
+			"name":   e.name,
+			"kind":   e.kind,
+			"src":    e.src,
+			"parent": e.parent,
+			"x":      x,
+			"y":      y,
+			"z":      z,
+			"pitch":  e.pitch,
+			"yaw":    e.yaw,
+			"roll":   e.roll,
+			"sx":     s.X,
+			"sy":     s.Y,
+			"sz":     s.Z,
+			"r":      e.tint.R * 255,
+			"g":      e.tint.G * 255,
+			"b":      e.tint.B * 255,
 		})
 	}
 	return map[string]any{"entities": ents}
+}
+
+func spawnKindName(kind string) string {
+	switch strings.ToLower(kind) {
+	case "sphere", "box", "plane", "quad", "cylinder", "cone", "capsule", "torus", "pyramid", "cloth", "mesh", "disk", "wedge", "tube":
+		return strings.ToLower(kind)
+	default:
+		return "cube"
+	}
+}
+
+func (w *World) spawnSceneKind(kind, src string, parent int) int {
+	switch strings.ToLower(kind) {
+	case "sphere":
+		return w.tagEnt(w.meshEnt(geometry.NewSphere(1, 16, 8), parent), "sphere")
+	case "box":
+		return w.tagEnt(w.meshEnt(geometry.NewSegmentedBox(2, 2, 2, 1, 1, 1), parent), "box")
+	case "plane", "quad":
+		id := w.tagEnt(w.meshEnt(geometry.NewPlane(20, 20), parent), kind)
+		if e := w.ents[id]; e != nil {
+			e.node.GetNode().SetRotation(-3.14159265/2, 0, 0)
+			e.pitch = -90
+		}
+		return id
+	case "cylinder":
+		return w.tagEnt(w.meshEnt(geometry.NewCylinder(1, 2, 12, 1, true, true), parent), "cylinder")
+	case "cone":
+		return w.tagEnt(w.meshEnt(geometry.NewCone(1, 2, 12, 1, true), parent), "cone")
+	case "capsule":
+		return w.tagEnt(w.meshEnt(newCapsuleGeom(0.4, 1.2, 10), parent), "capsule")
+	case "torus":
+		return w.tagEnt(w.meshEnt(geometry.NewTorus(1, 0.35, 12, 24, 6.2831853), parent), "torus")
+	case "pyramid":
+		return w.tagEnt(w.meshEnt(geometry.NewCone(1, 2, 4, 1, true), parent), "pyramid")
+	case "disk":
+		return w.tagEnt(w.meshEnt(geometry.NewDisk(1, 16), parent), "disk")
+	case "wedge":
+		return w.tagEnt(w.meshEnt(newWedgeGeom(2, 2, 2), parent), "wedge")
+	case "tube":
+		path := []math32.Vector3{{0, -1, 0}, {0, 1, 0}}
+		return w.tagEnt(w.meshEnt(geometry.NewTube(path, 0.5, 8, false), parent), "tube")
+	case "cloth":
+		return w.createCloth(2, 2, 8, 8, 1)
+	case "mesh":
+		if src != "" {
+			if id, err := w.loadMeshFile(src, parent); err == nil {
+				return id
+			}
+		}
+	}
+	return w.tagEnt(w.meshEnt(geometry.NewCube(2), parent), "cube")
 }
 
 func (w *World) applySceneJSON(root any) {
@@ -460,16 +515,41 @@ func (w *World) applySceneJSON(root any) {
 		return
 	}
 	list, _ := m["entities"].([]any)
+	remap := map[int]int{}
+	type pending struct {
+		id, parent int
+		em         map[string]any
+	}
+	var rows []pending
 	for _, raw := range list {
 		em, _ := raw.(map[string]any)
 		if em == nil {
 			continue
 		}
-		id := w.meshEnt(geometry.NewCube(2), 0)
-		e := w.ents[id]
+		kind, _ := em["kind"].(string)
+		src, _ := em["src"].(string)
+		old := int(anyToValue(em["id"]).Number())
+		id := w.spawnSceneKind(kind, src, 0)
+		if id == 0 {
+			continue
+		}
+		remap[old] = id
+		rows = append(rows, pending{id: id, parent: int(anyToValue(em["parent"]).Number()), em: em})
+	}
+	for _, row := range rows {
+		if p := remap[row.parent]; p != 0 && p != row.id {
+			if e := w.ents[row.id]; e != nil {
+				e.parent = p
+				if pn := w.parentNode(p); pn != nil && e.node != nil {
+					pn.GetNode().Add(e.node)
+				}
+			}
+		}
+		e := w.ents[row.id]
 		if e == nil {
 			continue
 		}
+		em := row.em
 		if name, ok := em["name"].(string); ok {
 			e.name = name
 		}

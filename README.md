@@ -1,6 +1,6 @@
 # BitShin BASIC
 
-Blitz3D-style BASIC for small 3D and 2D games, implemented in Go.
+Blitz3D-style BASIC for small 3D and 2D games, implemented in Go. `bs version` is **1.0.0**.
 
 - **3D graphics:** [G3N](https://github.com/g3n/engine) + go-gl. **Runs on OpenGL 3.3.** GL 4.x (compute, SSBO, tessellation) is optional and feature-detected — old GPUs skip those commands instead of refusing to start. See [docs/GRAPHICS.md](docs/GRAPHICS.md).
 - **Numerics:** [Gonum](https://www.gonum.org/) for FBM / SH / batch transforms. G3N scene types stay `math32`.
@@ -189,7 +189,8 @@ This workspace maps `*.bb` → language id `bitshinbasic` (`.vscode/settings.jso
 - [docs/PHYSICS.md](docs/PHYSICS.md) — Jolt bodies, joints, grab, cloth, CharacterVirtual
 - [docs/MODERN_GAME_HELPERS.md](docs/MODERN_GAME_HELPERS.md) — FPS/TPS, tweens, grab / beam / projectile
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — packages and Flip
-- [docs/STATUS.md](docs/STATUS.md) — Real / Partial / not in product
+- [docs/STATUS.md](docs/STATUS.md) — Real / Partial / not in product (**1.0.0**)
+- [docs/RELEASE.md](docs/RELEASE.md) — portable `bs build` folders
 - [docs/COMPAT.md](docs/COMPAT.md) — OpenGL 3.3 required / 4.x optional
 - [docs/GRAPHICS.md](docs/GRAPHICS.md) — optional compute / SSBO / tess / GPU instances
 - [docs/PBR.md](docs/PBR.md) — metallic-roughness (`mbphysical`)

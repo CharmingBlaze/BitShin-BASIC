@@ -6,7 +6,9 @@ import (
 	"strings"
 
 	"github.com/g3n/engine/animation"
+	"github.com/g3n/engine/core"
 	"github.com/g3n/engine/loader/gltf"
+	"github.com/g3n/engine/math32"
 
 	"bitshinbasic/internal/value"
 )
@@ -18,11 +20,13 @@ type animState struct {
 	first  []float32
 	last   []float32
 	seq    int
+	prev   int
 	mode   int // 0 stop 1 loop 2 pingpong 3 once
 	speed  float32
 	time   float32
+	prevT  float32
 	dir    float32
-	blend  float32 // stored only; G3N clips are not dual-posed
+	blend  float32 // 0 = previous clip, 1 = current clip
 }
 
 func (w *World) animCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error), need func(func([]value.Value) (value.Value, error)) cmd) map[string]cmd {
@@ -66,7 +70,7 @@ func (w *World) animCommands(n func(func([]value.Value) (value.Value, error)) cm
 				return value.Value{}, fmt.Errorf("SetAnimTime: no clips")
 			}
 			e.anim.time = float32(argN(a, 1, 0))
-			e.anim.applyPose()
+			e.anim.applyPose(e.node)
 			w.MarkShadowDirty()
 			return z()
 		}),
@@ -160,15 +164,30 @@ func (w *World) animCommands(n func(func([]value.Value) (value.Value, error)) cm
 			if e.anim == nil {
 				return value.Value{}, fmt.Errorf("SetAnimBlend: no clips")
 			}
-			e.anim.blend = float32(argN(a, 1, 1))
+			st := e.anim
+			st.blend = float32(argN(a, 1, 1))
+			if st.blend < 0 {
+				st.blend = 0
+			}
+			if st.blend > 1 {
+				st.blend = 1
+			}
 			if len(a) >= 3 {
+				old := st.seq
 				if a[2].Kind == value.KindStr {
-					_ = e.anim.setName(argS(a, 2))
+					_ = st.setName(argS(a, 2))
 				} else {
-					e.anim.seq = argI(a, 2, e.anim.seq)
+					st.seq = argI(a, 2, st.seq)
+				}
+				if st.seq != old && old >= 0 && old < len(st.clips) {
+					st.prev = old
+					st.prevT = st.time
+					st.time = st.first[st.seq]
 				}
 			}
-			return value.Num(float64(e.anim.blend)), nil
+			st.applyPose(e.node)
+			w.MarkShadowDirty()
+			return value.Num(float64(st.blend)), nil
 		}),
 		"animseqname": need(func(a []value.Value) (value.Value, error) {
 			e, err := w.ent(argI(a, 0, 0))
@@ -207,16 +226,85 @@ func (st *animState) span() float32 {
 	return st.last[st.seq] - st.first[st.seq]
 }
 
-func (st *animState) applyPose() {
+func (st *animState) applyPose(root core.INode) {
 	if st.seq < 0 || st.seq >= len(st.clips) {
 		return
 	}
-	cl := st.clips[st.seq]
-	cl.SetSpeed(1)
-	cl.SetLoop(false)
-	cl.SetPaused(false)
-	cl.Reset()
-	cl.Update(st.time)
+	eval := func(i int, t float32) {
+		if i < 0 || i >= len(st.clips) {
+			return
+		}
+		cl := st.clips[i]
+		cl.SetSpeed(1)
+		cl.SetLoop(false)
+		cl.SetPaused(false)
+		cl.Reset()
+		cl.Update(t)
+	}
+	eval(st.seq, st.time)
+	if root == nil || st.prev < 0 || st.prev == st.seq || st.blend >= 0.999 {
+		return
+	}
+	cur := snapshotLocal(root)
+	eval(st.prev, st.prevT)
+	prev := snapshotLocal(root)
+	if len(cur) != len(prev) {
+		eval(st.seq, st.time)
+		return
+	}
+	t := st.blend
+	u := 1 - t
+	for i := range cur {
+		n := cur[i].n
+		if n == nil {
+			continue
+		}
+		n.SetPosition(prev[i].p.X*u+cur[i].p.X*t, prev[i].p.Y*u+cur[i].p.Y*t, prev[i].p.Z*u+cur[i].p.Z*t)
+		n.SetScale(prev[i].s.X*u+cur[i].s.X*t, prev[i].s.Y*u+cur[i].s.Y*t, prev[i].s.Z*u+cur[i].s.Z*t)
+		q := nlerpQuat(prev[i].q, cur[i].q, t)
+		n.SetQuaternion(q.X, q.Y, q.Z, q.W)
+	}
+}
+
+type localXF struct {
+	n *core.Node
+	p math32.Vector3
+	s math32.Vector3
+	q math32.Quaternion
+}
+
+func snapshotLocal(n core.INode) []localXF {
+	var out []localXF
+	walkLocal(n, &out)
+	return out
+}
+
+func walkLocal(n core.INode, out *[]localXF) {
+	if n == nil {
+		return
+	}
+	node := n.GetNode()
+	p := node.Position()
+	s := node.Scale()
+	q := node.Quaternion()
+	*out = append(*out, localXF{n: node, p: p, s: s, q: q})
+	for _, c := range node.Children() {
+		walkLocal(c, out)
+	}
+}
+
+func nlerpQuat(a, b math32.Quaternion, t float32) math32.Quaternion {
+	if a.X*b.X+a.Y*b.Y+a.Z*b.Z+a.W*b.W < 0 {
+		b.X, b.Y, b.Z, b.W = -b.X, -b.Y, -b.Z, -b.W
+	}
+	q := math32.Quaternion{
+		X: a.X + (b.X-a.X)*t,
+		Y: a.Y + (b.Y-a.Y)*t,
+		Z: a.Z + (b.Z-a.Z)*t,
+		W: a.W + (b.W-a.W)*t,
+	}
+	q.Normalize()
+	return q
 }
 
 func (w *World) tickAnims(dt float32) {
@@ -257,7 +345,7 @@ func (w *World) tickAnims(dt float32) {
 				st.mode = 0
 			}
 		}
-		st.applyPose()
+		st.applyPose(e.node)
 		posed = true
 	}
 	w.tickBoneAttaches()
@@ -283,7 +371,7 @@ func (w *World) loadAnimMesh(file string, parent int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	st := &animState{dir: 1, speed: 1}
+	st := &animState{dir: 1, speed: 1, prev: -1, blend: 1}
 	for i := range g.Animations {
 		clip, err := g.LoadAnimation(i)
 		if err != nil {

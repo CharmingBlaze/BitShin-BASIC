@@ -222,3 +222,51 @@ func Separate2D(xs, zs []float64, i int, sep float64) (ax, az float64) {
 	}
 	return ax, az
 }
+
+// Avoid2D is a time-to-collision sidestep for agent i (horizon seconds).
+func Avoid2D(xs, zs, vxs, vzs []float64, i int, radius, horizon float64) (ax, az float64) {
+	if i < 0 || i >= len(xs) || i >= len(zs) || radius <= 0 || horizon <= 0 {
+		return 0, 0
+	}
+	if i >= len(vxs) || i >= len(vzs) {
+		return 0, 0
+	}
+	px, pz := xs[i], zs[i]
+	vx, vz := vxs[i], vzs[i]
+	lim := radius * 2
+	for j := range xs {
+		if j == i || j >= len(zs) || j >= len(vxs) || j >= len(vzs) {
+			continue
+		}
+		rx, rz := px-xs[j], pz-zs[j]
+		rvx, rvz := vx-vxs[j], vz-vzs[j]
+		a := rvx*rvx + rvz*rvz
+		if a < 1e-8 {
+			continue
+		}
+		b := rx*rvx + rz*rvz
+		c := rx*rx + rz*rz - lim*lim
+		disc := b*b - a*c
+		if disc <= 0 {
+			continue
+		}
+		t := (-b - math.Sqrt(disc)) / a
+		if t <= 0 || t > horizon {
+			continue
+		}
+		fx := rx + rvx*t
+		fz := rz + rvz*t
+		d := math.Hypot(fx, fz)
+		if d < 1e-6 {
+			fx, fz = -rz, rx
+			d = math.Hypot(fx, fz)
+		}
+		if d < 1e-6 {
+			continue
+		}
+		w := (horizon - t) / horizon
+		ax += (fx / d) * w
+		az += (fz / d) * w
+	}
+	return ax, az
+}

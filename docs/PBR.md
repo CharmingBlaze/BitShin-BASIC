@@ -35,12 +35,11 @@ Fog (linear / exp / exp²) is the same uniforms as `mbshadow`.
 
 `EntityColor` / `EntityAlpha` / `EntityTexture` still work on a PBR entity (albedo / opacity / base-color map). RGB is 0–255 or 0–1 (if all channels ≤ 1). Shininess/specular are ignored once PBR is on.
 
-## IBL (Partial)
+## IBL
 
-No prefiltered cubemap, no BRDF LUT, no compute / tess / SSBO.
+Analytic hemisphere (sky / ground) plus **UE4 EnvBRDF split-sum** (`scale * F + bias`) so rough metals lose the old `gloss²` sparkle. Optional `SetEnvMap tex` samples a **2D** lat-long with `textureLod` (GLSL 330). No prefiltered cubemap / GPU DFG LUT texture.
 
-- **Default:** analytic hemisphere (sky / ground) + a cheap split-sum-style GGX spec from the same colors. `SetIBL True` is on by default for PBR.
-- **Optional:** `SetEnvMap tex` samples a **2D** lat-long texture with `textureLod` (GLSL 330). Rough surfaces use a higher lod.
+- **Default:** `SetIBL True` is on for PBR.
 - Skybox faces are not a cubemap sampler. A visible skybox only tints the analytic sky color.
 
 `SetIBL 0` / `SetIBL e, 0` turns this off. Direct sun + hemi + GGX still run.

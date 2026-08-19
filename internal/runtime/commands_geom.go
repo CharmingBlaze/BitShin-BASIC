@@ -22,6 +22,13 @@ func (w *World) knownEnt(id int) bool {
 	return id != 0 && w.ents[id] != nil
 }
 
+func (w *World) tagEnt(id int, kind string) int {
+	if e := w.ents[id]; e != nil {
+		e.kind = kind
+	}
+	return id
+}
+
 func (w *World) createCubeMesh(a []value.Value) int {
 	size := 2.0
 	parent := 0
@@ -40,7 +47,7 @@ func (w *World) createCubeMesh(a []value.Value) int {
 	if size <= 0 {
 		size = 2
 	}
-	return w.meshEnt(geometry.NewCube(float32(size)), parent)
+	return w.tagEnt(w.meshEnt(geometry.NewCube(float32(size)), parent), "cube")
 }
 
 func (w *World) createBoxMesh(a []value.Value) int {
@@ -65,7 +72,7 @@ func (w *World) createBoxMesh(a []value.Value) int {
 	case len(a) == 4:
 		parent = argI(a, 3, 0)
 	}
-	return w.meshEnt(geometry.NewSegmentedBox(float32(ww), float32(hh), float32(dd), sw, sh, sd), parent)
+	return w.tagEnt(w.meshEnt(geometry.NewSegmentedBox(float32(ww), float32(hh), float32(dd), sw, sh, sd), parent), "box")
 }
 
 func parseSphereArgs(a []value.Value, known func(int) bool) (radius float64, segs, parent int) {
@@ -127,17 +134,17 @@ func parseCylinderArgs(a []value.Value, known func(int) bool) (radius, height fl
 
 func (w *World) createSphereMesh(a []value.Value) int {
 	r, segs, parent := parseSphereArgs(a, w.knownEnt)
-	return w.meshEnt(geometry.NewSphere(r, segs*2, segs), parent)
+	return w.tagEnt(w.meshEnt(geometry.NewSphere(r, segs*2, segs), parent), "sphere")
 }
 
 func (w *World) createCylinderMesh(a []value.Value) int {
 	r, h, segs, caps, parent := parseCylinderArgs(a, w.knownEnt)
-	return w.meshEnt(geometry.NewCylinder(r, h, segs, 1, caps, caps), parent)
+	return w.tagEnt(w.meshEnt(geometry.NewCylinder(r, h, segs, 1, caps, caps), parent), "cylinder")
 }
 
 func (w *World) createConeMesh(a []value.Value) int {
 	r, h, segs, _, parent := parseCylinderArgs(a, w.knownEnt)
-	return w.meshEnt(geometry.NewCone(r, h, segs, 1, true), parent)
+	return w.tagEnt(w.meshEnt(geometry.NewCone(r, h, segs, 1, true), parent), "cone")
 }
 
 func (w *World) createPlaneMesh(a []value.Value) int {
@@ -162,7 +169,7 @@ func (w *World) createPlaneMesh(a []value.Value) int {
 	if ph <= 0 {
 		ph = 20
 	}
-	id := w.meshEnt(geometry.NewPlane(float32(pw), float32(ph)), parent)
+	id := w.tagEnt(w.meshEnt(geometry.NewPlane(float32(pw), float32(ph)), parent), "plane")
 	if e := w.ents[id]; e != nil {
 		e.node.GetNode().SetRotation(-math32.Pi/2, 0, 0)
 		e.pitch = -90
@@ -213,7 +220,7 @@ func (w *World) createTorusMesh(a []value.Value) int {
 	if minor <= 0 {
 		minor = 0.35
 	}
-	return w.meshEnt(geometry.NewTorus(major, minor, radial, tubular, math.Pi*2), parent)
+	return w.tagEnt(w.meshEnt(geometry.NewTorus(major, minor, radial, tubular, math.Pi*2), parent), "torus")
 }
 
 func (w *World) createCapsuleMesh(a []value.Value) int {
@@ -240,7 +247,7 @@ func (w *World) createCapsuleMesh(a []value.Value) int {
 		h = 0
 	}
 	segs = clampSegs(segs, 6, 10)
-	return w.meshEnt(newCapsuleGeom(r, h, segs), parent)
+	return w.tagEnt(w.meshEnt(newCapsuleGeom(r, h, segs), parent), "capsule")
 }
 
 func (w *World) createDiskMesh(a []value.Value) int {
@@ -264,7 +271,7 @@ func (w *World) createDiskMesh(a []value.Value) int {
 		r = 1
 	}
 	segs = clampSegs(segs, 3, 24)
-	id := w.meshEnt(geometry.NewDisk(r, segs), parent)
+	id := w.tagEnt(w.meshEnt(geometry.NewDisk(r, segs), parent), "disk")
 	if e := w.ents[id]; e != nil {
 		e.node.GetNode().SetRotation(-math32.Pi/2, 0, 0)
 		e.pitch = -90
@@ -284,7 +291,7 @@ func (w *World) createPyramidMesh(a []value.Value) int {
 	if size <= 0 {
 		size = 2
 	}
-	return w.meshEnt(geometry.NewCone(size*0.5, size, 4, 1, true), parent)
+	return w.tagEnt(w.meshEnt(geometry.NewCone(size*0.5, size, 4, 1, true), parent), "pyramid")
 }
 
 func (w *World) createWedgeMesh(a []value.Value) int {
@@ -299,7 +306,7 @@ func (w *World) createWedgeMesh(a []value.Value) int {
 	if dd <= 0 {
 		dd = 2
 	}
-	return w.meshEnt(newWedgeGeom(float32(ww), float32(hh), float32(dd)), parent)
+	return w.tagEnt(w.meshEnt(newWedgeGeom(float32(ww), float32(hh), float32(dd)), parent), "wedge")
 }
 
 func (w *World) createTubeMesh(a []value.Value) int {
@@ -329,7 +336,7 @@ func (w *World) createTubeMesh(a []value.Value) int {
 	}
 	segs = clampSegs(segs, 3, 16)
 	path := []math32.Vector3{{0, float32(-h / 2), 0}, {0, float32(h / 2), 0}}
-	return w.meshEnt(geometry.NewTube(path, float32(r), segs, false), parent)
+	return w.tagEnt(w.meshEnt(geometry.NewTube(path, float32(r), segs, false), parent), "tube")
 }
 
 func (w *World) createQuadMesh(a []value.Value) int {
@@ -348,7 +355,7 @@ func (w *World) createQuadMesh(a []value.Value) int {
 	if size <= 0 {
 		size = 2
 	}
-	id := w.meshEnt(geometry.NewPlane(float32(size), float32(size)), parent)
+	id := w.tagEnt(w.meshEnt(geometry.NewPlane(float32(size), float32(size)), parent), "quad")
 	if e := w.ents[id]; e != nil {
 		e.node.GetNode().SetRotation(-math32.Pi/2, 0, 0)
 		e.pitch = -90

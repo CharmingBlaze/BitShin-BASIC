@@ -234,9 +234,13 @@ vec3 iblTerm(PBRInfo pbrInputs, vec3 n, vec3 v) {
 #endif
     float nv = abs(dot(n, v)) + 0.001;
     vec3 Fs = pbrInputs.reflectance0 + (vec3(1.0) - pbrInputs.reflectance0) * pow(1.0 - nv, 5.0);
-    float gloss = (1.0 - pbrInputs.perceptualRoughness);
+    vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
+    vec4 c1 = vec4(1.0, 0.0425, 1.04, -0.04);
+    vec4 ruf = pbrInputs.perceptualRoughness * c0 + c1;
+    float a004 = min(ruf.x * ruf.x, exp2(-9.28 * nv)) * ruf.x + ruf.y;
+    vec2 dfg = vec2(-1.04, 1.04) * a004 + ruf.zw;
     vec3 diff = irr * pbrInputs.diffuseColor;
-    vec3 spec = specEnv * Fs * gloss * gloss;
+    vec3 spec = specEnv * (Fs * dfg.x + dfg.y);
     return (diff + spec) * IBLIntensity;
 }
 `
@@ -389,4 +393,3 @@ void main() {
 `
 
 var mbphysicalFragment = mbphysicalFragmentHead + mbshadowSampleGLSL + mbphysicalFragmentTail
-

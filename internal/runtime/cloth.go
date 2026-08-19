@@ -90,6 +90,7 @@ func (w *World) createCloth(width, height float32, nx, ny, pin int) int {
 		p := e.node.GetNode().Position()
 		px, py, pz = fromG3N(p.X, p.Y, p.Z)
 		e.name = "cloth"
+		e.kind = "cloth"
 	}
 	w.phys3.AddCloth(id, px, py, pz, width, height, nx, ny, pin, 0.01, 0.12, 1)
 	if w.cloths == nil {

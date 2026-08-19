@@ -12,7 +12,7 @@ Public name: **BitShin BASIC**. Module path: `bitshinbasic`. CLI: `bs` / `bs.exe
 
 MinGW `gcc` on `PATH`. Dist copies `libc++.dll` and `libunwind.dll` (ImGui) from `third_party/windows/`. Audio is Oto — no OpenAL DLL.
 
-`bs build game.bb -o dist` copies `third_party/windows` DLLs into `dist\`. Zip `dist` and run from that folder. OpenGL, UCRT, and `dbghelp.dll` come from Windows.
+`bs build game.bb -o dist` copies `third_party/windows` DLLs into `dist\`. Zip `dist` and run from that folder. See [docs/RELEASE.md](docs/RELEASE.md). OpenGL, UCRT, and `dbghelp.dll` come from Windows.
 
 ### Linux
 

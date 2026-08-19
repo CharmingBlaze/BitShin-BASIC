@@ -5,18 +5,20 @@ package phys3d
 // not Linux amd64/arm64, not macOS ARM). PhysicsBackend$() returns "fallback".
 
 type body struct {
-	x, y, z    float32
-	vx, vy, vz float32
-	ax, ay, az float32
-	fx, fy, fz float32
-	r          float32
-	mass       float32
-	dynamic    bool
-	kinematic  bool
-	asleep     bool
-	character  bool
-	onGround   bool
-	gScale     float32
+	x, y, z     float32
+	vx, vy, vz  float32
+	ax, ay, az  float32
+	fx, fy, fz  float32
+	r           float32
+	hx, hy, hz  float32
+	box         bool
+	mass        float32
+	dynamic     bool
+	kinematic   bool
+	asleep      bool
+	character   bool
+	onGround    bool
+	gScale      float32
 	linDamp     float32
 	angDamp     float32
 	restitution float32
@@ -25,13 +27,13 @@ type body struct {
 }
 
 type softJoint struct {
-	a, b                 int
-	px, py, pz           float32
-	lax, lay, laz        float32
-	lbx, lby, lbz        float32
-	ax, ay, az           float32
-	rest, stiff, damp    float32
-	kind                 int
+	a, b              int
+	px, py, pz        float32
+	lax, lay, laz     float32
+	lbx, lby, lbz     float32
+	ax, ay, az        float32
+	rest, stiff, damp float32
+	kind              int
 }
 
 type fallback struct {
@@ -200,7 +202,7 @@ func (w *fallback) AddBoxEx(id int, x, y, z, hx, hy, hz float32, motion int) {
 		r = hz
 	}
 	w.bodies[id] = &body{
-		x: x, y: y, z: z, r: r, mass: 1, gScale: 1,
+		x: x, y: y, z: z, r: r, hx: hx, hy: hy, hz: hz, box: true, mass: 1, gScale: 1,
 		dynamic:   motion == MotionTypeDynamic,
 		kinematic: motion == MotionTypeKinematic,
 	}
@@ -413,7 +415,13 @@ func (w *fallback) Raycast(ox, oy, oz, dx, dy, dz float32) (int, float32, float3
 	var hx, hy, hz float32
 	ok := false
 	for id, b := range w.bodies {
-		t, hit := raySphere(ox, oy, oz, dx, dy, dz, b.x, b.y, b.z, b.r)
+		var t float32
+		hit := false
+		if b.box {
+			t, hit = rayAABB(ox, oy, oz, dx, dy, dz, b.x-b.hx, b.y-b.hy, b.z-b.hz, b.x+b.hx, b.y+b.hy, b.z+b.hz)
+		} else {
+			t, hit = raySphere(ox, oy, oz, dx, dy, dz, b.x, b.y, b.z, b.r)
+		}
 		if !hit || t >= best {
 			continue
 		}
@@ -422,6 +430,42 @@ func (w *fallback) Raycast(ox, oy, oz, dx, dy, dz float32) (int, float32, float3
 		ok = true
 	}
 	return hitID, hx, hy, hz, ok
+}
+
+func rayAABB(ox, oy, oz, dx, dy, dz, minX, minY, minZ, maxX, maxY, maxZ float32) (float32, bool) {
+	tmin := float32(0)
+	tmax := float32(1)
+	slab := func(o, d, mn, mx float32) bool {
+		if d*d < 1e-20 {
+			return o >= mn && o <= mx
+		}
+		inv := 1 / d
+		t0 := (mn - o) * inv
+		t1 := (mx - o) * inv
+		if t0 > t1 {
+			t0, t1 = t1, t0
+		}
+		if t0 > tmin {
+			tmin = t0
+		}
+		if t1 < tmax {
+			tmax = t1
+		}
+		return tmin <= tmax
+	}
+	if !slab(ox, dx, minX, maxX) || !slab(oy, dy, minY, maxY) || !slab(oz, dz, minZ, maxZ) {
+		return 0, false
+	}
+	if tmin < 0 {
+		if tmax < 0 || tmax > 1 {
+			return 0, false
+		}
+		return tmax, true
+	}
+	if tmin > 1 {
+		return 0, false
+	}
+	return tmin, true
 }
 
 func raySphere(ox, oy, oz, dx, dy, dz, cx, cy, cz, r float32) (float32, bool) {
@@ -457,7 +501,9 @@ func (w *fallback) Remove(id int) {
 	delete(w.bodies, id)
 	delete(w.cloths, id)
 }
-func (w *fallback) Close()        {}
+func (w *fallback) Close() {}
+
+func (w *fallback) SetJobThreads(int) {}
 func (w *fallback) Sleep(id int) {
 	if b := w.bodies[id]; b != nil {
 		b.asleep = true
@@ -652,14 +698,27 @@ func (w *fallback) AddMesh(id int, verts [][3]float32, indices []int32, motion i
 }
 
 func (w *fallback) AddHeightField(id int, samples []float32, n int, ox, oy, oz, sx, sy, sz float32) {
-	w.AddGround(id, oy)
-	_ = samples
-	_ = n
-	_ = ox
-	_ = oz
-	_ = sx
-	_ = sy
-	_ = sz
+	if n < 2 || len(samples) < n*n {
+		w.AddGround(id, oy)
+		return
+	}
+	minH, maxH := samples[0], samples[0]
+	for _, h := range samples[:n*n] {
+		if h < minH {
+			minH = h
+		}
+		if h > maxH {
+			maxH = h
+		}
+	}
+	hy := (maxH - minH) * sy * 0.5
+	if hy < 0.25 {
+		hy = 0.25
+	}
+	cx := ox + sx*float32(n-1)*0.5
+	cy := oy + (minH+maxH)*sy*0.5
+	cz := oz + sz*float32(n-1)*0.5
+	w.AddBoxEx(id, cx, cy, cz, sx*float32(n-1)*0.5, hy, sz*float32(n-1)*0.5, MotionTypeStatic)
 }
 
 func (w *fallback) AddSensorBox(id int, x, y, z, hx, hy, hz float32, motion int) {
@@ -668,8 +727,68 @@ func (w *fallback) AddSensorBox(id int, x, y, z, hx, hy, hz float32, motion int)
 
 func (w *fallback) SetSensor(int, bool) {}
 
-func (w *fallback) ShapeCast(_, _, _, x, y, z, dx, dy, dz float32) (int, float32, float32, float32, bool) {
+func (w *fallback) ShapeCast(hx, hy, hz, x, y, z, dx, dy, dz float32) (int, float32, float32, float32, bool) {
+	if hx < 0.02 {
+		hx = 0.02
+	}
+	if hy < 0.02 {
+		hy = 0.02
+	}
+	if hz < 0.02 {
+		hz = 0.02
+	}
+	steps := 16
+	for i := 1; i <= steps; i++ {
+		t := float32(i) / float32(steps)
+		px, py, pz := x+dx*t, y+dy*t, z+dz*t
+		for id, b := range w.bodies {
+			if bodyHitsBox(b, px, py, pz, hx, hy, hz) {
+				return id, px, py, pz, true
+			}
+		}
+	}
 	return w.Raycast(x, y, z, dx, dy, dz)
+}
+
+func bodyHitsSphere(b *body, x, y, z, r float32) bool {
+	if b == nil {
+		return false
+	}
+	if b.box {
+		cx := clamp32(x, b.x-b.hx, b.x+b.hx)
+		cy := clamp32(y, b.y-b.hy, b.y+b.hy)
+		cz := clamp32(z, b.z-b.hz, b.z+b.hz)
+		dx, dy, dz := x-cx, y-cy, z-cz
+		return dx*dx+dy*dy+dz*dz <= r*r
+	}
+	dx, dy, dz := b.x-x, b.y-y, b.z-z
+	lim := r + b.r
+	return dx*dx+dy*dy+dz*dz <= lim*lim
+}
+
+func bodyHitsBox(b *body, x, y, z, hx, hy, hz float32) bool {
+	if b == nil {
+		return false
+	}
+	if b.box {
+		return abs32(b.x-x) <= b.hx+hx && abs32(b.y-y) <= b.hy+hy && abs32(b.z-z) <= b.hz+hz
+	}
+	cx := clamp32(b.x, x-hx, x+hx)
+	cy := clamp32(b.y, y-hy, y+hy)
+	cz := clamp32(b.z, z-hz, z+hz)
+	dx, dy, dz := b.x-cx, b.y-cy, b.z-cz
+	r := b.r
+	return dx*dx+dy*dy+dz*dz <= r*r
+}
+
+func clamp32(v, lo, hi float32) float32 {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
 }
 
 func (w *fallback) OverlapSphere(x, y, z, r float32) (int, bool) {
@@ -686,8 +805,7 @@ func (w *fallback) OverlapSphereAll(x, y, z, r float32, max int) []int {
 	}
 	out := []int{}
 	for id, b := range w.bodies {
-		dx, dy, dz := b.x-x, b.y-y, b.z-z
-		if dx*dx+dy*dy+dz*dz <= (r+b.r)*(r+b.r) {
+		if bodyHitsSphere(b, x, y, z, r) {
 			out = append(out, id)
 			if len(out) >= max {
 				break

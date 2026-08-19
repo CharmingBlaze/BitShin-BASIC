@@ -16,6 +16,8 @@ jobs:
       - name: Vet language packages
         run: go vet ./internal/lex ./internal/parse ./internal/interp ./internal/value ./internal/ast ./internal/phys2d ./internal/phys3d ./internal/netenet
       - name: Test (no window)
-        run: go test ./internal/lex ./internal/parse ./internal/interp ./internal/value ./internal/phys2d
+        run: go test ./internal/lex ./internal/parse ./internal/interp ./internal/value ./internal/phys2d ./internal/phys3d ./internal/runtime ./internal/mathx ./cmd/bs
       - name: Build CLI
         run: go build -o bs ./cmd/bs
+      - name: Version
+        run: ./bs version

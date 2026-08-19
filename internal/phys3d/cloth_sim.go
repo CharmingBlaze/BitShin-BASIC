@@ -3,18 +3,16 @@ package phys3d
 import "math"
 
 type clothSim struct {
-	nx, ny   int
-	pos      [][3]float32
-	prev     [][3]float32
-	inv      []float32
-	rest     [][3]float32 // i0, i1 as float in [0], [1]; rest in [2]
-	nRest    int
-	damp     float32
+	nx, ny int
+	pos    [][3]float32
+	prev   [][3]float32
+	inv    []float32
+	rest   [][3]float32 // i0, i1 as float in [0], [1]; rest in [2]
+	nRest  int
+	damp   float32
 }
 
-func (w *fallback) AddCloth(id int, x, y, z, width, height float32, nx, ny, pinFlags int, thickness, damping, gravityFactor float32) {
-	_ = thickness
-	_ = gravityFactor
+func newClothSim(x, y, z, width, height float32, nx, ny, pinFlags int, damping float32) *clothSim {
 	if nx < 2 {
 		nx = 2
 	}
@@ -87,6 +85,13 @@ func (w *fallback) AddCloth(id int, x, y, z, width, height float32, nx, ny, pinF
 			}
 		}
 	}
+	return c
+}
+
+func (w *fallback) AddCloth(id int, x, y, z, width, height float32, nx, ny, pinFlags int, thickness, damping, gravityFactor float32) {
+	_ = thickness
+	_ = gravityFactor
+	c := newClothSim(x, y, z, width, height, nx, ny, pinFlags, damping)
 	if w.cloths == nil {
 		w.cloths = map[int]*clothSim{}
 	}
@@ -109,6 +114,51 @@ func (c *clothSim) com() (float32, float32, float32) {
 	return sx / n, sy / n, sz / n
 }
 
+func (c *clothSim) step(dt, g float32) {
+	if c == nil {
+		return
+	}
+	for i := 0; i < len(c.pos); i++ {
+		if c.inv[i] == 0 {
+			continue
+		}
+		px, py, pz := c.pos[i][0], c.pos[i][1], c.pos[i][2]
+		vx := (px - c.prev[i][0]) * (1 - c.damp*dt)
+		vy := (py - c.prev[i][1]) * (1 - c.damp*dt)
+		vz := (pz - c.prev[i][2]) * (1 - c.damp*dt)
+		c.prev[i] = c.pos[i]
+		c.pos[i][0] = px + vx
+		c.pos[i][1] = py + vy + g*dt*dt
+		c.pos[i][2] = pz + vz
+	}
+	for k := 0; k < 8; k++ {
+		for e := 0; e < c.nRest; e++ {
+			a := int(c.rest[e][0])
+			b := int(c.rest[e][1])
+			rest := c.rest[e][2]
+			dx := c.pos[b][0] - c.pos[a][0]
+			dy := c.pos[b][1] - c.pos[a][1]
+			dz := c.pos[b][2] - c.pos[a][2]
+			d := sqrt32(dx*dx + dy*dy + dz*dz)
+			if d < 1e-6 {
+				continue
+			}
+			diff := (d - rest) / d
+			ia, ib := c.inv[a], c.inv[b]
+			wsum := ia + ib
+			if wsum <= 0 {
+				continue
+			}
+			c.pos[a][0] += dx * diff * 0.5 * (ia / wsum)
+			c.pos[a][1] += dy * diff * 0.5 * (ia / wsum)
+			c.pos[a][2] += dz * diff * 0.5 * (ia / wsum)
+			c.pos[b][0] -= dx * diff * 0.5 * (ib / wsum)
+			c.pos[b][1] -= dy * diff * 0.5 * (ib / wsum)
+			c.pos[b][2] -= dz * diff * 0.5 * (ib / wsum)
+		}
+	}
+}
+
 func (w *fallback) stepCloths(dt float32) {
 	g := w.gy
 	if g == 0 {
@@ -118,45 +168,7 @@ func (w *fallback) stepCloths(dt float32) {
 		if c == nil {
 			continue
 		}
-		for i := 0; i < len(c.pos); i++ {
-			if c.inv[i] == 0 {
-				continue
-			}
-			px, py, pz := c.pos[i][0], c.pos[i][1], c.pos[i][2]
-			vx := (px - c.prev[i][0]) * (1 - c.damp*dt)
-			vy := (py - c.prev[i][1]) * (1 - c.damp*dt)
-			vz := (pz - c.prev[i][2]) * (1 - c.damp*dt)
-			c.prev[i] = c.pos[i]
-			c.pos[i][0] = px + vx
-			c.pos[i][1] = py + vy + g*dt*dt
-			c.pos[i][2] = pz + vz
-		}
-		for k := 0; k < 8; k++ {
-			for e := 0; e < c.nRest; e++ {
-				a := int(c.rest[e][0])
-				b := int(c.rest[e][1])
-				rest := c.rest[e][2]
-				dx := c.pos[b][0] - c.pos[a][0]
-				dy := c.pos[b][1] - c.pos[a][1]
-				dz := c.pos[b][2] - c.pos[a][2]
-				d := sqrt32(dx*dx + dy*dy + dz*dz)
-				if d < 1e-6 {
-					continue
-				}
-				diff := (d - rest) / d
-				ia, ib := c.inv[a], c.inv[b]
-				wsum := ia + ib
-				if wsum <= 0 {
-					continue
-				}
-				c.pos[a][0] += dx * diff * 0.5 * (ia / wsum)
-				c.pos[a][1] += dy * diff * 0.5 * (ia / wsum)
-				c.pos[a][2] += dz * diff * 0.5 * (ia / wsum)
-				c.pos[b][0] -= dx * diff * 0.5 * (ib / wsum)
-				c.pos[b][1] -= dy * diff * 0.5 * (ib / wsum)
-				c.pos[b][2] -= dz * diff * 0.5 * (ib / wsum)
-			}
-		}
+		c.step(dt, g)
 		cx, cy, cz := c.com()
 		if b := w.bodies[id]; b != nil {
 			b.x, b.y, b.z = cx, cy, cz

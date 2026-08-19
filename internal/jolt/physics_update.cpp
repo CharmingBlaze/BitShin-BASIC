@@ -14,6 +14,7 @@
 #include <Jolt/Core/JobSystemThreadPool.h>
 #include <Jolt/Core/TempAllocator.h>
 #include <Jolt/Physics/PhysicsSystem.h>
+#include <Jolt/Physics/PhysicsSettings.h>
 
 #include <cstdarg>
 #include <cstdio>
@@ -78,4 +79,17 @@ extern "C" void JoltOptimizeBroadPhase(JoltPhysicsSystem system)
 		return;
 	}
 	ps->OptimizeBroadPhase();
+}
+
+extern "C" void JoltSetJobThreads(int n)
+{
+	if (n < 1)
+	{
+		n = 1;
+	}
+	if (n > 32)
+	{
+		n = 32;
+	}
+	gJobSystem = std::make_unique<JobSystemThreadPool>(cMaxPhysicsJobs, cMaxPhysicsBarriers, n);
 }

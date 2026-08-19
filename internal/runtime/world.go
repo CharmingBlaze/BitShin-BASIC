@@ -54,6 +54,8 @@ type Entity struct {
 	roll                               float32
 	parent                             int
 	name                               string
+	kind                               string // cube, sphere, mesh, …
+	src                                string // LoadMesh path
 	collided                           []int
 	hitID                              int
 	hitX                               float32
@@ -1454,16 +1456,25 @@ func (w *World) loadMeshFile(path string, parent int) (int, error) {
 		return 0, err
 	}
 	ext := strings.ToLower(filepath.Ext(realPath))
+	var id int
 	switch ext {
 	case ".gltf":
-		return w.loadGLTFAt(realPath, parent, false)
+		id, err = w.loadGLTFAt(realPath, parent, false)
 	case ".glb":
-		return w.loadGLTFAt(realPath, parent, true)
+		id, err = w.loadGLTFAt(realPath, parent, true)
 	case ".dae":
-		return w.loadColladaAt(realPath, parent)
+		id, err = w.loadColladaAt(realPath, parent)
 	default:
-		return w.loadObjAt(realPath, parent)
+		id, err = w.loadObjAt(realPath, parent)
 	}
+	if err != nil {
+		return 0, err
+	}
+	if e := w.ents[id]; e != nil {
+		e.kind = "mesh"
+		e.src = path
+	}
+	return id, nil
 }
 
 func (w *World) loadGLTF(path string, parent int, bin bool) (int, error) {

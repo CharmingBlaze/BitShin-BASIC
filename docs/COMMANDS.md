@@ -136,7 +136,7 @@ SetIBL(True)
 | `GetIBL([e])` | |
 | `SetIBLIntensity n` / `GetIBLIntensity()` | Scale (default 1) |
 
-`LoadMesh` glTF/GLB Physical materials already use `mbphysical` (shadows, fog, these commands). IBL is Partial — analytic hemi + optional 2D `textureLod`, not a prefiltered cubemap.
+`LoadMesh` glTF/GLB Physical materials already use `mbphysical` (shadows, fog, these commands). IBL is analytic hemi + UE4 EnvBRDF split-sum + optional 2D `textureLod` (no prefiltered cubemap).
 
 ## Mesh animation (glTF)
 
@@ -153,7 +153,7 @@ Source must be `.gltf` / `.glb` **with clips**.
 | `AnimSeqName e [, name$]` | Get/set clip by name |
 | `StopAnim e` / `StopAnimation e` | Pause (`mode` 0). **Not** the same as `Animate e` |
 | `AnimPlaying(e)` | 1 if a clip is advancing |
-| `SetAnimBlend e, w# [, seq\|name$]` / `BlendAnimation` | Stores a 0–1 weight and optional clip switch. **G3N does not dual-pose** — this is not a real crossfade |
+| `SetAnimBlend e, w# [, seq\|name$]` / `BlendAnimation` | 0–1 mix of the previous clip pose into the current clip (`w=1` is current only). Passing a new seq/name stashes the old clip |
 | `AttachToBone child, mesh, bone$` | Parent `child` to a named glTF node (or a named child entity). Alias `AttachBone`. See [PHYSICS.md](PHYSICS.md) |
 
 Clips advance with `DeltaTime` each frame (Flip), not twice if you also `UpdateWorld`.
@@ -400,7 +400,7 @@ Playback is Oto v3. No OpenAL.
 `SetBodyAngularVelocity` / `GetBodyAngularVelocityX/Y/Z` — **Jolt:** native. **fallback:** stored.  
 `SetBodyMass`  
 `SetBodyRotation e, pitch,yaw,roll` / `GetBodyPitch/Yaw/Roll` — Jolt quaternion synced onto G3N nodes.  
-`Raycast(x,y,z, dx,dy,dz)` — returns hit entity (0 if none) and sets `PickedX/Y/Z`. `LinePick` / `RayPick` still do physics + visual-sphere fallback.  
+`Raycast(x,y,z, dx,dy,dz)` — Jolt `CastRay` (Windows + Linux/macOS Jolt). Fallback (`-tags nojolt`) uses sphere + AABB. Sets `PickedX/Y/Z`. `LinePick` / `RayPick` use the same physics ray, then a visual-sphere pick if physics missed.  
 `CreateHingeJoint(a, b, x,y,z, ax,ay,az)` — aliases `CreateHinge` / `CreateHinge3D`. `CreatePointJoint` / `CreateBallSocketJoint`. `CreateSliderJoint`. `CreateSpringJoint` (distance spring; **no** `CreateDistanceJoint` command). `CreateFixedJoint` / `CreateConeJoint` / `CreateSwingTwistJoint`. `CreateJoint kind, a, b, …` (`JOINT_HINGE`=1 … `JOINT_SWINGTWIST`=7). `Grab holder, target [, freq, damp [, x,y,z]]` / `GrabPick` (hit-point grab) / `DropGrab` / `Throw holder, speed`. `a`/`b` are body handles; **`0` is world-fixed**. No args on hinge → 0. `FreeJoint id`  
 
 `CreateRope(a, b [, length, segments, radius])` creates a sagging, colliding physical rope between body centers. `CreateRopeAnchored(a, b, ax,ay,az, bx,by,bz [, length,segments,radius])` uses local body anchors; an anchor belonging to body `0` is a world coordinate. `SetRopeColor`, `SetRopeMass`, `SetRopeDamping`, `SetRopeStrength rope, stiffness, damping, maxForce`, `SetRopeVisible`, `ResetRope`, `FreeRope`; queries: `RopeLength`, `RopeSegments`, `RopeTension` (0–1).  
@@ -410,7 +410,7 @@ Playback is Oto v3. No OpenAL.
 `SetWaterFlow vx, vy, vz` feeds fluid velocity into `ApplyBuoyancyImpulse`. Dynamic bodies that enter the water (not vehicles / buoys) auto-float at factor 1.1; `SetBuoyancyFactor e, n` (`<0` disables).  
 `SetBodyCCD e, on` / `SetCCD e, on` — Jolt `MotionQuality::LinearCast`.  
 `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate  
-`CreateCharacterController(e [, height, radius, maxSlope, maxStrength])` — Jolt CharacterVirtual with an inner rigid body (rays hit the player). `MoveCharacter e, vx, vz` (or `vx,vy,vz`). `SetCharacterShape e, "capsule"|"box", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. `UpdateWorld` runs `ExtendedUpdate`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper.  
+`CreateCharacterController(e [, height, radius, maxSlope, maxStrength])` — Jolt CharacterVirtual. Windows also attaches an inner kinematic body so rays hit the player; Linux/macOS adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` (or `vx,vy,vz`). `SetCharacterShape e, "capsule"|"box", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. `UpdateWorld` runs `ExtendedUpdate`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper.  
 Classic: `EntityType`, `GetEntityType`, `EntityRadius`, `EntityBox`, `Collisions`, `CountCollisions`, `EntityCollided(e [, type|other])`, `ResetEntity`, `CollisionEntity`, `CollisionX/Y/Z` — Jolt `ContactListener` queues in **C++** (mutex, no `//export` from Jolt threads); Go drains in `UpdateWorld`.
 
 See `examples/physics3d.bb`, `examples/jolt_drop.bb`, `examples/physics_joints.bb`, `examples/physics_body.bb`, `examples/physics_contacts.bb`, `examples/physics_pile.bb`, `examples/character_virt.bb`, `examples/cloth.bb`, `examples/grab_beam.bb`. Helpers: [PHYSICS.md](PHYSICS.md), [MODERN_GAME_HELPERS.md](MODERN_GAME_HELPERS.md).
@@ -848,7 +848,7 @@ See [PHYSICS.md](PHYSICS.md).
 | `CreateSliderJoint` / `CreateSpringJoint` / `CreateJoint` | Slider; distance spring; kind 1–7 | `CreateJoint(JOINT_HINGE, a, b, x,y,z, 0,1,0)` |
 | `FreeJoint id` | Remove constraint | `FreeJoint(h)` |
 | `ApplyTorque` / `ApplyForceAtPosition` / `ApplyLocalImpulse` / `SetGravityScale` | Extra forces | `ApplyLocalImpulse(ship, 0, 0, 12)` |
-| `Raycast(x,y,z, dx,dy,dz)` | Physics ray; hit entity + `PickedX/Y/Z` | `e = Raycast(0, 10, 0, 0, -20, 0)` |
+| `Raycast(x,y,z, dx,dy,dz)` | Jolt `CastRay`; fallback sphere+AABB | `e = Raycast(0, 10, 0, 0, -20, 0)` |
 | `ShapeCast(hx,hy,hz, x,y,z, dx,dy,dz)` | Sweep a box | `e = ShapeCast(0.4,0.4,0.4, x,y,z, 0,-20,0)` |
 | `OverlapSphere` / `OverlapPoint` | Overlap query | `e = OverlapSphere(x,y,z, 1)` |
 | `CreateCloth(width, height [, nx, ny, pin])` | Soft-body sheet. Alias `CreateFlag`. Pin 1=top | `flag = CreateCloth(2, 1.4, 10, 8)` |
@@ -879,7 +879,7 @@ See [PHYSICS.md](PHYSICS.md).
 | `MoveCharacter` / `SetCharacterShape` / `GetCharacterGroundState` | Walk + ground 0–3 | `MoveCharacter(hero, vx, vz)` |
 | `CreateCharacter(e [, halfH, r])` | Older kinematic capsule | `CreateCharacter(hero, 0.9, 0.4)` |
 | `CreatePin2D` / `CreateSpring2D` / `CreateSlide2D` | Chipmunk joints | `CreatePin2D(floor, crate)` |
-| `PhysicsThreads([n])` / `SetPhysicsThreads` / `GetPhysicsThreads()` | Stored only; C++ pool not exposed | `n = PhysicsThreads()` |
+| `PhysicsThreads([n])` / `SetPhysicsThreads` / `GetPhysicsThreads()` | Windows: rebuild Jolt job pool (1–32). Also sizes the Go `PhysicsAsync` / `Job*` pool | `PhysicsThreads(4)` |
 | `PhysicsAsync([on])` / `SetPhysicsAsync` / `GetPhysicsAsync()` | Step on a job, wait before apply | `PhysicsAsync(True)` |
 
 ## Vehicles
@@ -964,13 +964,13 @@ See `examples/shader.bb`.
 ## Data
 
 `JSONLoad` `JSONSave` `JSONParse` `JSONGet` `JSONSet` `JSON$`  
-`SceneSave` / `SaveScene file$` — entity transforms + tint as JSON  
-`SceneLoad` / `LoadSceneJSON file$` — spawn cubes from that JSON  
+`SceneSave` / `SaveScene file$` — JSON of tagged primitives / `LoadMesh` paths, parent, transform, tint  
+`SceneLoad` / `LoadSceneJSON file$` — rebuild those kinds (`mesh` reloads `src`; unknown / old dumps → cubes)  
 `LoadScene file$` — `.bb` setup script, **or** `.json` / `.yaml` scene dump  
 `YAMLLoad` `YAMLSave` `YAMLParse` `YAMLGet` `YAMLSet`  
 `PackSave` `PackLoad` `PackEncode$` `PackDecode`
 
-Scene JSON is transforms only (reloaded as cubes). Not a full glTF scene graph. See `docs/ASSETS.md`.
+Scene JSON is not a glTF graph (no materials, lights, or clips). See `docs/ASSETS.md`.
 
 ## Pools
 

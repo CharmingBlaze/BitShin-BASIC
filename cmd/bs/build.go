@@ -20,6 +20,8 @@ func runBuild(args []string) error {
 	src := args[0]
 	outDir := "dist"
 	targetOS := runtime.GOOS
+	targetArch := runtime.GOARCH
+	buildTags := ""
 	for i := 1; i < len(args); i++ {
 		switch args[i] {
 		case "-o":
@@ -30,6 +32,16 @@ func runBuild(args []string) error {
 		case "-os":
 			if i+1 < len(args) {
 				targetOS = normalizeOS(args[i+1])
+				i++
+			}
+		case "-arch":
+			if i+1 < len(args) {
+				targetArch = strings.ToLower(args[i+1])
+				i++
+			}
+		case "-tags":
+			if i+1 < len(args) {
+				buildTags = args[i+1]
 				i++
 			}
 		}
@@ -48,20 +60,28 @@ func runBuild(args []string) error {
 		binName = "bs.exe"
 	}
 	binPath := filepath.Join(outDir, binName)
-	cmd := exec.Command("go", "build", "-o", binPath, "./cmd/bs")
+	gocmd := []string{"build", "-o", binPath}
+	if buildTags != "" {
+		gocmd = append(gocmd, "-tags", buildTags)
+	}
+	gocmd = append(gocmd, "./cmd/bs")
+	cmd := exec.Command("go", gocmd...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	env := append([]string{}, os.Environ()...)
+	env = append(env, "CGO_ENABLED=1")
 	if targetOS != runtime.GOOS {
-		cmd.Env = append(os.Environ(), "GOOS="+targetOS)
+		env = append(env, "GOOS="+targetOS)
 	}
+	if targetArch != runtime.GOARCH {
+		env = append(env, "GOARCH="+targetArch)
+	}
+	cmd.Env = env
 	if err := cmd.Run(); err != nil {
-		self, err2 := os.Executable()
-		if err2 != nil {
-			return fmt.Errorf("bs build: compile: %w", err)
+		if targetOS != runtime.GOOS || targetArch != runtime.GOARCH {
+			return fmt.Errorf("bs build: CGO cross-compile failed for %s/%s — build on that OS (see docs/RELEASE.md): %w", targetOS, targetArch, err)
 		}
-		if err := copyFile(self, binPath); err != nil {
-			return fmt.Errorf("bs build: %w", err)
-		}
+		return fmt.Errorf("bs build: compile: %w", err)
 	}
 	base := filepath.Dir(src)
 	if err := copyFile(src, filepath.Join(outDir, filepath.Base(src))); err != nil {

@@ -22,6 +22,8 @@ func (w *joltWorld) AddCharacterController(id int, x, y, z, height, radius, maxS
 	settings.MaxSlopeAngle = jolt.DegreesToRadians(maxSlopeDeg)
 	settings.MaxStrength = maxStrength
 	cv := w.ps.CreateCharacterVirtual(settings, jolt.Vec3{X: x, Y: y, Z: z})
+	inner := jolt.CreateCapsule(height*0.46, radius*0.92)
+	w.add(id, inner, x, y, z, radius+height*0.5, MotionTypeKinematic)
 	w.char[id] = &kinChar{
 		x: x, y: y, z: z,
 		radius:  radius + height*0.5,
@@ -109,7 +111,7 @@ func (w *joltWorld) CharacterContact(id int) int {
 			continue
 		}
 		if c.BodyB != nil {
-			if ent, ok := w.bodyToEnt[c.BodyB]; ok {
+			if ent := w.hitEntity(c.BodyB); ent != 0 {
 				return ent
 			}
 			p := w.bi.GetPosition(c.BodyB)

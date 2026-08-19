@@ -27,12 +27,18 @@ func (w *World) tickCrowds() {
 		ps := make([]pos, len(c.agents))
 		xs := make([]float64, len(c.agents))
 		zs := make([]float64, len(c.agents))
+		vxs := make([]float64, len(c.agents))
+		vzs := make([]float64, len(c.agents))
 		for i, id := range c.agents {
 			if e := w.ents[id]; e != nil && e.node != nil {
 				p := worldPos(e.node.GetNode())
 				x, y, z := fromG3N(p.X, p.Y, p.Z)
 				ps[i] = pos{x, y, z}
 				xs[i], zs[i] = float64(x), float64(z)
+				if ag := w.agents[id]; ag != nil && ag.hasLast {
+					vxs[i] = float64(x-ag.lastX) / float64(dt)
+					vzs[i] = float64(z-ag.lastZ) / float64(dt)
+				}
 			}
 		}
 		for i, id := range c.agents {
@@ -41,9 +47,17 @@ func (w *World) tickCrowds() {
 				continue
 			}
 			px, py, pz := ps[i].x, ps[i].y, ps[i].z
-			ax64, az64 := mathx.Separate2D(xs, zs, i, float64(sep))
-			ax, az := float32(ax64), float32(az64)
+			rad := sep
+			if ag := w.agents[id]; ag != nil && ag.radius > 0 {
+				rad = ag.radius * 2.4
+			}
+			ax64, az64 := mathx.Separate2D(xs, zs, i, float64(rad))
+			bx, bz := mathx.Avoid2D(xs, zs, vxs, vzs, i, float64(rad)*0.5, 1.2)
+			ax, az := float32(ax64+bx), float32(az64+bz)
 			if ax == 0 && az == 0 {
+				if ag := w.agents[id]; ag != nil {
+					ag.lastX, ag.lastZ, ag.hasLast = px, pz, true
+				}
 				continue
 			}
 			px += ax * dt * 2
@@ -53,6 +67,9 @@ func (w *World) tickCrowds() {
 			}
 			gx, gy, gz := toG3N(px, py, pz)
 			e.node.GetNode().SetPosition(gx, gy, gz)
+			if ag := w.agents[id]; ag != nil {
+				ag.lastX, ag.lastZ, ag.hasLast = px, pz, true
+			}
 		}
 	}
 }

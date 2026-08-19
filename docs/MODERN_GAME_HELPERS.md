@@ -267,4 +267,4 @@ Animate(hero, 1)
 AttachToBone(gun, hero, "mixamorig:RightHand")
 ```
 
-Looks up a glTF node name (case-insensitive), then a `NameEntity` child, then the mesh root. Alias `AttachBone`. `SetAnimBlend` is still weight-only (no dual-pose). Not two-bone IK.
+Looks up a glTF node name (case-insensitive), then a `NameEntity` child, then the mesh root. Alias `AttachBone`. `SetAnimBlend e, w [, clip]` nlerps the previous clip’s local pose into the current one. Not two-bone IK.

@@ -2,7 +2,18 @@
 
 package phys3d
 
-import "github.com/bbitechnologies/jolt-go/jolt"
+import (
+	"unsafe"
+
+	"github.com/bbitechnologies/jolt-go/jolt"
+)
+
+func joltHandle(b *jolt.BodyID) uintptr {
+	if b == nil {
+		return 0
+	}
+	return uintptr(*(*unsafe.Pointer)(unsafe.Pointer(b)))
+}
 
 type kinChar struct {
 	x, y, z  float32
@@ -16,7 +27,7 @@ type joltWorld struct {
 	ps               *jolt.PhysicsSystem
 	bi               *jolt.BodyInterface
 	body             map[int]*jolt.BodyID
-	bodyToEnt        map[*jolt.BodyID]int
+	bodyToEnt        map[uintptr]int
 	bodyVal          map[uint32]int
 	char             map[int]*kinChar
 	vel              map[int][3]float32
@@ -29,6 +40,10 @@ type joltWorld struct {
 	linked           map[int]bool
 	planes           map[int]planeAero
 	nextConstraintID int
+	kick             map[int][3]float32
+	soft             map[int]*softJoint
+	locked           map[int]bool
+	cloths           map[int]*clothSim
 	gx, gy, gz       float32
 }
 
@@ -41,7 +56,7 @@ func New() World {
 		ps:               ps,
 		bi:               ps.GetBodyInterface(),
 		body:             map[int]*jolt.BodyID{},
-		bodyToEnt:        map[*jolt.BodyID]int{},
+		bodyToEnt:        map[uintptr]int{},
 		bodyVal:          map[uint32]int{},
 		char:             map[int]*kinChar{},
 		vel:              map[int][3]float32{},
@@ -53,6 +68,10 @@ func New() World {
 		vehicles:         map[int]int{},
 		linked:           map[int]bool{},
 		planes:           map[int]planeAero{},
+		cloths:           map[int]*clothSim{},
+		kick:             map[int][3]float32{},
+		soft:             map[int]*softJoint{},
+		locked:           map[int]bool{},
 		nextConstraintID: 1,
 		gy:               -9.81,
 	}
@@ -67,6 +86,29 @@ func (w *joltWorld) Step(dt float32) {
 		dt = 1.0 / 60.0
 	}
 	g := jolt.Vec3{X: w.gx, Y: w.gy, Z: w.gz}
+	for id, f := range w.force {
+		if w.char[id] != nil {
+			continue
+		}
+		if f[0] == 0 && f[1] == 0 && f[2] == 0 {
+			continue
+		}
+		k := w.kick[id]
+		w.kick[id] = [3]float32{k[0] + f[0]*dt, k[1] + f[1]*dt, k[2] + f[2]*dt}
+		w.force[id] = [3]float32{}
+	}
+	for id, k := range w.kick {
+		m := w.mass[id]
+		if m < 0.001 {
+			m = 1
+		}
+		if b, ok := w.body[id]; ok {
+			p := w.bi.GetPosition(b)
+			w.bi.SetPosition(b, jolt.Vec3{X: p.X + k[0]/m*dt, Y: p.Y + k[1]/m*dt, Z: p.Z + k[2]/m*dt})
+			w.bi.ActivateBody(b)
+		}
+		delete(w.kick, id)
+	}
 	w.ps.Update(dt)
 	for id := range w.vehicles {
 		if b, ok := w.body[id]; ok {
@@ -95,6 +137,9 @@ func (w *joltWorld) Step(dt float32) {
 			lv := kc.virtual.GetLinearVelocity()
 			w.vel[id] = [3]float32{lv.X, lv.Y, lv.Z}
 			kc.onGround = kc.virtual.GetGroundState() == jolt.GroundStateOnGround
+			if b, ok := w.body[id]; ok {
+				w.bi.SetPosition(b, p)
+			}
 			continue
 		}
 		v := w.vel[id]
@@ -126,6 +171,8 @@ func (w *joltWorld) Step(dt float32) {
 		w.vel[id] = v
 		kc.x, kc.y, kc.z = x, y, z
 	}
+	w.stepCloths(dt)
+	w.solveSoftJoints()
 }
 
 func joltMotion(motion int) jolt.MotionType {
@@ -140,15 +187,35 @@ func joltMotion(motion int) jolt.MotionType {
 }
 
 func (w *joltWorld) add(id int, shape *jolt.Shape, x, y, z, r float32, motion int) {
+	w.addSensor(id, shape, x, y, z, r, motion, false)
+}
+
+func (w *joltWorld) addSensor(id int, shape *jolt.Shape, x, y, z, r float32, motion int, sensor bool) {
 	mt := joltMotion(motion)
-	b := w.bi.CreateBody(shape, jolt.Vec3{X: x, Y: y, Z: z}, mt, false)
+	b := w.bi.CreateBody(shape, jolt.Vec3{X: x, Y: y, Z: z}, mt, sensor)
 	w.bi.ActivateBody(b)
 	w.body[id] = b
-	w.bodyToEnt[b] = id
+	key := joltHandle(b)
+	w.bodyToEnt[key] = id
+	w.bodyVal[uint32(key)] = id
 	if r < 0.1 {
 		r = 0.1
 	}
 	w.rad[id] = r
+	if w.locked == nil {
+		w.locked = map[int]bool{}
+	}
+	w.locked[id] = motion == MotionTypeStatic
+}
+
+func (w *joltWorld) hitEntity(b *jolt.BodyID) int {
+	if b == nil {
+		return 0
+	}
+	if id, ok := w.bodyToEnt[joltHandle(b)]; ok {
+		return id
+	}
+	return 0
 }
 
 func (w *joltWorld) AddBox(id int, x, y, z, hx, hy, hz float32, dynamic bool) {
@@ -183,8 +250,22 @@ func (w *joltWorld) AddCylinder(id int, x, y, z, halfH, r float32, motion int) {
 }
 
 func (w *joltWorld) AddConvexHull(id int, points [][3]float32, x, y, z float32, motion int) {
-	hx, hy, hz := hullHalfExtents(points)
-	w.AddBoxEx(id, x, y, z, hx, hy, hz, motion)
+	if len(points) < 3 {
+		hx, hy, hz := hullHalfExtents(points)
+		w.AddBoxEx(id, x, y, z, hx, hy, hz, motion)
+		return
+	}
+	pts := make([]jolt.Vec3, len(points))
+	for i, p := range points {
+		pts[i] = jolt.Vec3{X: p[0], Y: p[1], Z: p[2]}
+	}
+	shape := jolt.CreateConvexHull(pts)
+	if shape == nil {
+		hx, hy, hz := hullHalfExtents(points)
+		w.AddBoxEx(id, x, y, z, hx, hy, hz, motion)
+		return
+	}
+	w.add(id, shape, x, y, z, hullRadius(points), motion)
 }
 
 func (w *joltWorld) AddCharacter(id int, x, y, z, halfH, r float32) {
@@ -247,14 +328,6 @@ func (w *joltWorld) SetVelocity(id int, x, y, z float32) {
 }
 
 func (w *joltWorld) ApplyImpulse(id int, x, y, z float32) {
-	if w.body[id] == nil && w.char[id] == nil {
-		for b, ent := range w.bodyToEnt {
-			if ent == id && b != nil {
-				id = ent
-				break
-			}
-		}
-	}
 	if kc := w.char[id]; kc != nil && kc.virtual != nil {
 		lv := kc.virtual.GetLinearVelocity()
 		kc.virtual.SetLinearVelocity(jolt.Vec3{X: lv.X + x, Y: lv.Y + y, Z: lv.Z + z})
@@ -263,6 +336,8 @@ func (w *joltWorld) ApplyImpulse(id int, x, y, z float32) {
 		return
 	}
 	if b, ok := w.body[id]; ok {
+		k := w.kick[id]
+		w.kick[id] = [3]float32{k[0] + x, k[1] + y, k[2] + z}
 		w.bi.ActivateBody(b)
 	}
 }
@@ -272,13 +347,9 @@ func (w *joltWorld) Raycast(ox, oy, oz, dx, dy, dz float32) (int, float32, float
 	if !ok {
 		return 0, 0, 0, 0, false
 	}
-	id := 0
-	if hit.BodyID != nil {
-		if ent, found := w.bodyToEnt[hit.BodyID]; found {
-			id = ent
-		} else {
-			id = w.entityNear(hit.HitPoint.X, hit.HitPoint.Y, hit.HitPoint.Z)
-		}
+	id := w.hitEntity(hit.BodyID)
+	if id == 0 {
+		id = w.entityNear(hit.HitPoint.X, hit.HitPoint.Y, hit.HitPoint.Z)
 	}
 	return id, hit.HitPoint.X, hit.HitPoint.Y, hit.HitPoint.Z, true
 }
@@ -336,7 +407,9 @@ func (w *joltWorld) Remove(id int) {
 		kc.virtual.Destroy()
 	}
 	if b, ok := w.body[id]; ok {
-		delete(w.bodyToEnt, b)
+		key := joltHandle(b)
+		delete(w.bodyToEnt, key)
+		delete(w.bodyVal, uint32(key))
 	}
 	delete(w.char, id)
 	delete(w.body, id)
@@ -356,6 +429,8 @@ func (w *joltWorld) Wake(id int) {
 		w.bi.ActivateBody(b)
 	}
 }
+
+func (w *joltWorld) SetJobThreads(int) {}
 
 func (w *joltWorld) Close() {
 	for _, kc := range w.char {

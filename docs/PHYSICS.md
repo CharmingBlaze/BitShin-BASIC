@@ -15,7 +15,7 @@ Quit loops: `While Not KeyDown(1)` works after the first-frame Escape fix. Still
 | `CreateBodyCapsule(e, halfH, r [, mass])` | Capsule. Alias `CreateRigidBodyCapsule` / `BodyCapsule` |
 | `CreateBodyCylinder(e, halfH, r [, motion, mass])` | Y-aligned cylinder collider (Jolt `CylinderShape`). `halfH` is half the **shaft** height, not `CreateCylinder`’s full visual height. Trailing args match `CreateBodyBox`: `0` static, `1` kinematic, else dynamic (that number is mass unless a fifth arg is mass). Alias `CreateRigidBodyCylinder`. Linux Jolt uses a capsule of the same size. |
 | `CreateBodyConvex(e [, motion, mass])` | Convex hull from the mesh’s world triangles, stored in local space at the entity pose. At most **96** unique points (1/50 m grid). Needs a mesh (`CreateCone`, `LoadMesh`, …). Same motion/mass trailing args as the box. Aliases `CreateConvexHull` / `CreateConvexBody` / `CreateRigidBodyConvex`. If hull cook fails, the backend falls back to an AABB box. |
-| `CreateBodyCompound(e [, motion, mass])` | One actor from the parent mesh plus **child** meshes/colliders (local offsets). Child rigid bodies are removed. Alias `CreateCompoundBody`. Linux Jolt / fallback use a combined AABB box. |
+| `CreateBodyCompound(e [, motion, mass])` | One actor from the parent mesh plus **child** meshes/colliders (local offsets). Child rigid bodies are removed. Alias `CreateCompoundBody`. Windows Jolt cooks a native compound. Linux/macOS Jolt cooks a convex hull of the child AABBs. Fallback uses a combined AABB box. |
 | `CreateHitbox(e, hx,hy,hz [, motion])` | Query-only sensor (same as `CreateSensor`) tagged for green debug draw. Alias `CreateQueryBox`. |
 | `CreateBody(e [, shape, dyn])` | `shape` 2 = box, else sphere |
 | `ActivateBody e` | Wake (`BodyWake` / `WakeBody`) |
@@ -31,18 +31,19 @@ Quit loops: `While Not KeyDown(1)` works after the first-frame Escape fix. Still
 | `SetGravityScale e, n` | 0 = no gravity (spaceship). Jolt `SetGravityFactor` |
 | `SetRestitution e, n` / `SetFriction e, n` / `SetLinearDamping e, n` | Material / drag |
 | `SetBodyCCD e, on` / `SetCCD e, on` | Jolt `MotionQuality::LinearCast` (fast projectiles) |
-| `Raycast(x,y,z, dx,dy,dz)` | Hit entity (0 = none) + `PickedX/Y/Z` |
+| `Raycast(x,y,z, dx,dy,dz)` | Jolt `CastRay` (hit entity + `PickedX/Y/Z`). Fallback: sphere + box AABB |
 | `ShapeCast(hx,hy,hz, x,y,z, dx,dy,dz)` | Sweep a box; hit entity + `PickedX/Y/Z` |
 | `OverlapSphere(x,y,z, r)` / `OverlapPoint(x,y,z)` | First overlapping body (sensors included) |
 | `Explode x,y,z, r, imp` | Overlap all dynamics in the sphere and apply falloff impulse. Alias `AreaDamage`. |
-| `CreateBodyMesh(e)` | Static mesh collider from the entity’s triangles (world space). Enables Jolt enhanced internal-edge removal. |
-| `CreateBodyHeightField(e [, n])` | Static height field from the current terrain (`n` samples on a side, power of two, default 64). |
-| `CreateSensor(e, hx,hy,hz [, motion])` | Trigger volume (no contact force). Default motion = kinematic. |
+| `CreateBodyMesh(e)` | Static mesh collider from the entity’s triangles (world space). Windows Jolt also enables enhanced internal-edge removal. Linux/macOS uses jolt-go `CreateMesh`. |
+| `CreateBodyHeightField(e [, n])` | Static height field from the current terrain (`n` samples on a side, power of two, default 64). Linux/macOS cooks that grid as a triangle mesh. |
+| `CreateSensor(e, hx,hy,hz [, motion])` | Trigger volume (no contact force). Default motion = kinematic. Linux/macOS Jolt creates the body with jolt-go’s sensor flag (no later `SetBodySensor`). |
 | `EnablePhysicsDebug [on]` | Wire AABB overlay: cyan colliders, green hitboxes. |
 | `SetCollisionLayer e, layer` | Layer 0–31 (default 0). |
 | `SetLayerCollides a, b, on` | Whether two layers generate contacts (default all collide). Pairwise `DisableBodyCollision` still exists. |
 | `SetBodySensor e, on` | Toggle sensor on an existing body |
 | `OptimizePhysics()` | Rebuild Jolt’s broadphase after spawning many bodies (`OptimizeBroadPhase` / `RebuildBroadPhase`) |
+| `PhysicsThreads n` | Windows Jolt `JobSystemThreadPool` size (1–32) and the Go job pool used by `PhysicsAsync`. Call before a lot of `JobSubmit` if you already started the pool. Linux/macOS Jolt: Go pool only |
 
 `CreateRigidBodyBox` is an alias of `CreateBodyBox`.
 
@@ -91,7 +92,7 @@ World-space unless the name says Local. Jolt uses native `AddImpulse` / `AddForc
 | `ApplyBuoyancy e [, waterY, scale]` | Jolt `ApplyBuoyancyImpulse` against a water plane. Omit `waterY` to use `WaterHeight(x,z)` (slope from nearby samples). `scale` 1 ≈ body density matches water. Fluid velocity comes from `SetWaterFlow`. |
 | `SetWaterFlow vx, vy, vz` | Current in `ApplyBuoyancy` / auto water volume. |
 | `SetBuoyancyFactor e, n` | Per-body float/sink. `0` = auto 1.1 when submerged; negative = off. |
-| `CreateCloth w, h [, nx, ny, pin]` | Jolt XPBD sheet. Pin bits: 1 top, 2 bottom, 4 left, 8 right. `SetClothWind e, n`. |
+| `CreateCloth w, h [, nx, ny, pin]` | Jolt XPBD sheet on Windows; Verlet sheet on Linux/macOS Jolt and fallback. Pin bits: 1 top, 2 bottom, 4 left, 8 right. `SetClothWind e, n`. |
 | `OffsetCenterOfMass e, x, y, z` | Wrap the collider so mass sits at an offset (vehicles drop COM by default). |
 | `SetGravityScale e, n` | 0 = no gravity |
 | `SetRestitution e, n` | Bounce |
@@ -144,7 +145,7 @@ There is **no** `CreateDistanceJoint` command. A springy distance constraint is 
 
 `CreateHinge` / `CreateHingeJoint` with fewer than two args returns **0**.
 
-**Grab platforms:** Windows Jolt is a real `SixDOFConstraint`. Linux/macOS Jolt extras stub the joint to 0; `Grab` then **parents** the target to the holder (kinematic) until `DropGrab`. Fallback (`-tags nojolt`) uses a stiff spring joint. `claw.bb` is still the kinematic-parent claw; `Grab` is the spring/6DOF path.
+**Grab platforms:** Windows Jolt is a real `SixDOFConstraint`. Linux/macOS Jolt extras use the same **position spring** as fallback `CreateGrabJoint` (not a 6DOF constraint). Fallback (`-tags nojolt`) uses a stiff spring joint. `claw.bb` is still the kinematic-parent claw; `Grab` is the spring/6DOF path.
 
 ### `CreateJoint` kinds
 
@@ -217,7 +218,7 @@ Text(12, 12, "Tension " + Int(RopeTension(rope) * 100) + "%")
 
 Use `CreateRope(a,b,length,segments,radius)` for center-to-center attachment. `CreateRopeAnchored` accepts local offsets for each body; offsets attached to body `0` are world positions. `SetRopeStrength` tunes the taut-line stiffness, velocity damping, and force cap for unusually light or heavy endpoints. `ResetRope` rebuilds its sag after teleporting an endpoint, and `FreeRope` safely removes its bodies and constraints. See `examples/rope.bb` and `examples/waterski.bb`.
 
-`CreateCloth` is a pinned rectangle (default top edge) using Jolt soft bodies on Windows. See `examples/cloth.bb`.
+`CreateCloth` is a pinned rectangle (default top edge). Windows uses Jolt soft bodies; Linux/macOS Jolt and `-tags nojolt` use Verlet. See `examples/cloth.bb`.
 
 ## Grab, projectiles, beams
 
@@ -234,7 +235,7 @@ Demos: `examples/grab_beam.bb` (Space grab, T throw, G drop, laser via `PlaceAtR
 
 ## CharacterVirtual
 
-`CreateCharacterController` builds a Jolt **CharacterVirtual** (capsule) on the entity, with a slightly smaller **inner kinematic rigid body** so rays, CCD, and contact listeners can hit the player. `GetPhysicsCharacter$()` is `"jolt"` when that path is live, `"kinematic"` on fallback.
+`CreateCharacterController` builds a Jolt **CharacterVirtual** (capsule). On **Windows** it also creates a slightly smaller **inner kinematic rigid body** (`CreateCharacterVirtualWithInner`) so rays, CCD, and contact listeners can hit the player. On **Linux/macOS** jolt-go has CharacterVirtual but not that inner helper — we add a kinematic capsule on the same handle so `Raycast` still hits the player. `GetPhysicsCharacter$()` is `"jolt"` when that path is live, `"kinematic"` on fallback.
 
 `UpdateWorld` / `Flip` already run Jolt `CharacterVirtual::ExtendedUpdate` (stick-to-floor + walk-stairs). `ExtendedUpdate` / `CharacterExtendedUpdate` are documented no-ops you can call for other engines; they do not double-step.
 

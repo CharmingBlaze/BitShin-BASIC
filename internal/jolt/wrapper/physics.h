@@ -33,6 +33,8 @@ void JoltSetGravity(JoltPhysicsSystem system, float x, float y, float z);
 
 void JoltOptimizeBroadPhase(JoltPhysicsSystem system);
 
+void JoltSetJobThreads(int n);
+
 #ifdef __cplusplus
 }
 

@@ -33,6 +33,9 @@ type navAgent struct {
 	path    [][3]float32
 	i       int
 	moving  bool
+	lastX   float32
+	lastZ   float32
+	hasLast bool
 }
 
 func (w *World) navCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error), need func(func([]value.Value) (value.Value, error)) cmd) map[string]cmd {

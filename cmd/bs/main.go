@@ -12,7 +12,7 @@ import (
 	"bitshinbasic/internal/runtime"
 )
 
-const version = "0.1.0"
+const version = "1.0.0"
 
 func main() {
 	args := os.Args[1:]
@@ -22,8 +22,9 @@ func main() {
 Usage:
   bs <program.bb>              Run a program
   bs run <program.bb>          Same
-  bs build <program.bb> [-o dist] [-os windows|linux|darwin]
-                               Folder with binary + assets + natives (zip and send)
+  bs build <program.bb> [-o dist] [-os windows|linux|darwin] [-arch amd64|arm64] [-tags tags]
+                               Portable folder: binary + .bb + assets + natives.
+                               Build on the target OS (CGO). Do not zip the git tree.
   bs lsp                       Language server (stdio JSON-RPC); same as bsls
   bs version                   Print version
   bs shader <file.glsl> [stage]  Validate GLSL (optional SPIR-V)

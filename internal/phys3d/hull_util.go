@@ -53,3 +53,60 @@ func hullRadius(points [][3]float32) float32 {
 	}
 	return r
 }
+
+func compoundHullPoints(parts []CompoundPart) [][3]float32 {
+	out := make([][3]float32, 0, len(parts)*8)
+	for _, p := range parts {
+		hx, hy, hz := p.A, p.B, p.C
+		switch p.Kind {
+		case CompoundSphere:
+			hx, hy, hz = p.A, p.A, p.A
+		case CompoundCapsule, CompoundCylinder:
+			hx, hy, hz = p.B, p.A+p.B, p.B
+		}
+		if hx < 0.05 {
+			hx = 0.05
+		}
+		if hy < 0.05 {
+			hy = 0.05
+		}
+		if hz < 0.05 {
+			hz = 0.05
+		}
+		sx := [2]float32{-hx, hx}
+		sy := [2]float32{-hy, hy}
+		sz := [2]float32{-hz, hz}
+		for i := 0; i < 2; i++ {
+			for j := 0; j < 2; j++ {
+				for k := 0; k < 2; k++ {
+					out = append(out, [3]float32{p.Ox + sx[i], p.Oy + sy[j], p.Oz + sz[k]})
+				}
+			}
+		}
+	}
+	return out
+}
+
+func heightFieldTris(samples []float32, n int, ox, oy, oz, sx, sy, sz float32) ([][3]float32, []int32) {
+	if n < 2 || len(samples) < n*n {
+		return nil, nil
+	}
+	verts := make([][3]float32, n*n)
+	for j := 0; j < n; j++ {
+		for i := 0; i < n; i++ {
+			h := samples[j*n+i]
+			verts[j*n+i] = [3]float32{ox + float32(i)*sx, oy + h*sy, oz + float32(j)*sz}
+		}
+	}
+	idx := make([]int32, 0, (n-1)*(n-1)*6)
+	for j := 0; j < n-1; j++ {
+		for i := 0; i < n-1; i++ {
+			a := int32(i + j*n)
+			b := a + 1
+			c := int32(i + (j+1)*n)
+			d := c + 1
+			idx = append(idx, a, c, b, b, c, d)
+		}
+	}
+	return verts, idx
+}

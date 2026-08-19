@@ -87,3 +87,14 @@ func TestSeparate2D(t *testing.T) {
 		t.Fatalf("expected push left, got %v", ax)
 	}
 }
+
+func TestAvoid2DHeadOn(t *testing.T) {
+	xs := []float64{0, 2}
+	zs := []float64{0, 0}
+	vxs := []float64{1, -1}
+	vzs := []float64{0, 0}
+	ax, _ := Avoid2D(xs, zs, vxs, vzs, 0, 0.5, 2)
+	if ax == 0 {
+		t.Fatal("expected a sidestep from a head-on pair")
+	}
+}

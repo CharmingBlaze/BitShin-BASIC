@@ -17,6 +17,7 @@ Topic pages for script authors. Command lists stay in [COMMANDS.md](COMMANDS.md)
 | [GEO.md](GEO.md) / [STREAM.md](STREAM.md) / [ECS.md](ECS.md) | Map, chunks, Flecs |
 | [ASSETS.md](ASSETS.md) / [ARCHITECTURE.md](ARCHITECTURE.md) | Pack / Flip loop |
 | [STATUS.md](STATUS.md) | Honest feature table |
+| [RELEASE.md](RELEASE.md) | Portable `bs build`, natives, 1.0 version |
 
 Pathfinding (this file) is below.
 
@@ -45,7 +46,7 @@ Two systems, no planner or behavior-tree libraries.
 
 ## Crowd (no DetourCrowd)
 
-`go-detour` v0.1.3 does not ship DetourCrowd. `CreateCrowd` / `CrowdAddAgent` / `CrowdSetDestination` / `CrowdUpdate` / `SetCrowdRadius` / `GetCrowdRadius` run Detour paths plus a local separation push. `SetNavMaxSlope(deg)` drops steep triangles when writing the bake OBJ (G3N Y-up). Hierarchical: coarse grid A* is still available via `CreateGrid`.
+`go-detour` v0.1.3 does not ship DetourCrowd. `CreateCrowd` / `CrowdAddAgent` / `CrowdSetDestination` / `CrowdUpdate` / `SetCrowdRadius` / `GetCrowdRadius` run Detour paths plus local separation and a time-to-collision sidestep. `SetNavMaxSlope(deg)` drops steep triangles when writing the bake OBJ (G3N Y-up). Hierarchical: coarse grid A* is still available via `CreateGrid`.
 
 See `examples/nav.bb`, `examples/crowd.bb`, `examples/ecs_crowd.bb`.
 

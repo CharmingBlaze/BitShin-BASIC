@@ -28,6 +28,7 @@ func TestJobPoolSubmitWait(t *testing.T) {
 	}
 	_ = id2
 	_ = id3
+	p.close()
 }
 
 func TestJobCommandsRegistered(t *testing.T) {
