@@ -96,6 +96,21 @@ func TestWeatherTransitionRateRamp(t *testing.T) {
 	}
 }
 
+func TestReapplyingClearWeatherPreservesManualFog(t *testing.T) {
+	w := New(".")
+	w.fogMode = 1
+	w.fogRGB = math32.Color{0.57, 0.69, 0.80}
+	w.fogNear = 45
+	w.fogFar = 220
+	w.setWeather("clear")
+	if w.wx.isTransitioning {
+		t.Fatal("reapplying clear weather must not start a transition")
+	}
+	if w.fogMode != 1 || w.fogRGB != (math32.Color{0.57, 0.69, 0.80}) || w.fogNear != 45 || w.fogFar != 220 {
+		t.Fatalf("manual camera fog changed: mode=%d color=%v range=%v..%v", w.fogMode, w.fogRGB, w.fogNear, w.fogFar)
+	}
+}
+
 func TestWeatherDrying(t *testing.T) {
 	w := New(".")
 	w.wetness = 0.8

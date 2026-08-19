@@ -9,8 +9,8 @@ uniform mat4 ModelViewMatrix;
 uniform mat3 NormalMatrix;
 uniform mat4 MVP;
 uniform mat4 ModelMatrix;
-uniform mat4 LightVP[3];
-uniform vec3 ShadowTexelWorld;
+uniform mat4 LightVP[4];
+uniform vec4 ShadowTexelWorld;
 #include <morphtarget_vertex_declaration>
 #include <bones_vertex_declaration>
 out vec3 Position;
@@ -19,7 +19,7 @@ out vec3 CamDir;
 out vec2 FragTexcoord;
 out vec3 WorldPos;
 out vec3 WorldNormal;
-out vec4 LightSpacePos[3];
+out vec4 LightSpacePos[4];
 void main() {
     Position = vec3(ModelViewMatrix * vec4(VertexPosition, 1.0));
     Normal = normalize(NormalMatrix * VertexNormal);
@@ -38,6 +38,7 @@ void main() {
     LightSpacePos[0] = LightVP[0] * vec4(wpShadow, 1.0);
     LightSpacePos[1] = LightVP[1] * vec4(wpShadow, 1.0);
     LightSpacePos[2] = LightVP[2] * vec4(wpShadow, 1.0);
+    LightSpacePos[3] = LightVP[3] * vec4(wpShadow, 1.0);
     gl_Position = MVP * finalWorld * vec4(vPosition, 1.0);
 }
 `
@@ -78,7 +79,6 @@ uniform int ShadowFilter;
 uniform int ShadowPCF;
 uniform float ShadowBias;
 uniform float ShadowLightSize;
-uniform vec3 ShadowSplit;
 uniform int ShadowContact;
 uniform int ShadowSSS;
 uniform int AtlasCols;
@@ -121,7 +121,7 @@ in vec3 CamDir;
 in vec2 FragTexcoord;
 in vec3 WorldPos;
 in vec3 WorldNormal;
-in vec4 LightSpacePos[3];
+in vec4 LightSpacePos[4];
 out vec4 FragColor;
 
 const float M_PI = 3.141592653589793;
@@ -298,7 +298,8 @@ void main() {
 #if DIR_LIGHTS>0
     for (int i = 0; i < DIR_LIGHTS; i++) {
         vec3 lightDirection = normalize(DirLightPosition(i));
-        direct += pbrDirect(pbrInputs, n, v, DirLightColor(i), lightDirection);
+        float sh = (i == 0) ? sunShadowFactor(WorldPos, wN, ShadowSunDir) : 1.0;
+        direct += pbrDirect(pbrInputs, n, v, DirLightColor(i), lightDirection) * sh;
     }
 #endif
 
@@ -309,7 +310,8 @@ void main() {
         lightDirection = lightDirection / max(lightDistance, 0.0001);
         float attenuation = 1.0 / (1.0 + PointLightLinearDecay(i) * lightDistance +
             PointLightQuadraticDecay(i) * lightDistance * lightDistance);
-        direct += pbrDirect(pbrInputs, n, v, PointLightColor(i) * attenuation, lightDirection);
+        float psh = pointShadowFactor(i, WorldPos, n);
+        direct += pbrDirect(pbrInputs, n, v, PointLightColor(i) * attenuation, lightDirection) * psh;
     }
 #endif
 
@@ -323,8 +325,9 @@ void main() {
         float angle = acos(dot(-lightDirection, SpotLightDirection(i)));
         float cutoff = radians(clamp(SpotLightCutoffAngle(i), 0.0, 90.0));
         if (angle < cutoff) {
-            float spotFactor = pow(dot(-lightDirection, SpotLightDirection(i)), SpotLightAngularDecay(i));
-            direct += pbrDirect(pbrInputs, n, v, SpotLightColor(i) * attenuation * spotFactor, lightDirection);
+            float spotFactor = pow(dot(-lightDirection, SpotLightDirection(i)), max(SpotLightAngularDecay(i), 1.0));
+            float ssh = spotShadowFactor(i, WorldPos, n);
+            direct += pbrDirect(pbrInputs, n, v, SpotLightColor(i) * attenuation * spotFactor, lightDirection) * ssh;
         }
     }
 #endif
@@ -341,8 +344,8 @@ void main() {
     vec3 emissive = vec3(uEmissiveColor);
 #endif
 
-    float sh = shadowFactor();
-    vec3 color = ambient * ao + direct * sh + emissive;
+    vec3 shadowAmbient = ambient + ShadowColor * (0.35 * pbrInputs.diffuseColor);
+    vec3 color = shadowAmbient * ao + direct + emissive;
     color = pow(max(color, vec3(0.0)), vec3(1.0 / 2.2));
     FragColor = vec4(color, baseColor.a);
     if (Wetness > 0.001) {

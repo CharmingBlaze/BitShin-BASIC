@@ -44,23 +44,23 @@ type weatherState struct {
 	wetOwned            bool
 	bolts               []lightningBolt
 
-	targetMode                           string
-	targetIntensity                      float64
+	targetMode                            string
+	targetIntensity                       float64
 	targetWindX, targetWindY, targetWindZ float64
-	targetWindStr                        float64
-	transitionTimer                      float64
-	transitionDuration                   float64
-	isTransitioning                      bool
-	oldIds                               []int
-	from, to                             weatherSnap
-	fromIntensity                        float64
-	dryingSpeed                          float64
-	dryingInit                           bool
-	camRain     bool
-	thunder     []thunderWait
-	thunderOnce bool
-	impactN     int
-	ringID      int
+	targetWindStr                         float64
+	transitionTimer                       float64
+	transitionDuration                    float64
+	isTransitioning                       bool
+	oldIds                                []int
+	from, to                              weatherSnap
+	fromIntensity                         float64
+	dryingSpeed                           float64
+	dryingInit                            bool
+	camRain                               bool
+	thunder                               []thunderWait
+	thunderOnce                           bool
+	impactN                               int
+	ringID                                int
 }
 
 func (w *World) ensureWeather() {
@@ -177,6 +177,16 @@ func (w *World) currentCloud() *cloudLayer {
 
 func (w *World) setWeather(mode string) {
 	w.ensureWeather()
+	mode = normalizeWeatherMode(mode)
+	// Reapplying the active weather must not manufacture a transition. In
+	// particular, a game may configure its own camera fog and then confirm
+	// "clear" weather; fading that fog toward clear-weather zero values creates
+	// a short black wall that looks like a giant shadow crossing the camera.
+	if !w.wx.isTransitioning && mode == w.wx.mode {
+		w.wx.targetMode = mode
+		w.wx.targetIntensity = w.wx.intensity
+		return
+	}
 	w.setWeatherTransition(mode, w.wx.intensity, 1.5)
 }
 

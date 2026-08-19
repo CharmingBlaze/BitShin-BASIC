@@ -301,6 +301,9 @@ func (w *World) setAtmosphereParams(a []value.Value) {
 		w.atmo.sunX = float32(argN(a, 0, -0.35))
 		w.atmo.sunY = float32(argN(a, 1, 0.62))
 		w.atmo.sunZ = float32(argN(a, 2, 0.70))
+		w.aimDirLightVec(w.atmo.sunX, w.atmo.sunY, w.atmo.sunZ)
+		w.skySunOK = false
+		w.syncVisualSun()
 	}
 	if len(a) >= 4 {
 		w.atmo.rayleigh = float32(argN(a, 3, 1))

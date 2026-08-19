@@ -78,8 +78,10 @@ func (ps *PhysicsSystem) RemoveConstraint(c *Constraint) {
 	if c == nil || c.handle == nil {
 		return
 	}
+	// Jolt owns the constraint while it is registered. RemoveConstraint drops
+	// that owning reference and may destroy the object immediately; deleting
+	// the same pointer again corrupts the native heap.
 	C.JoltRemoveConstraint(ps.handle, c.handle)
-	C.JoltDestroyConstraint(c.handle)
 	c.handle = nil
 }
 

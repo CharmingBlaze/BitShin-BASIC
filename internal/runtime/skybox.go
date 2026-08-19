@@ -154,6 +154,67 @@ func generateDefaultSkyFaces() [6]*texture.Texture2D {
 	return generateAtmosphereCubemap(-0.35, 0.62, 0.70, 1, 1, 1.1)
 }
 
+func (w *World) proceduralSkySun() (sx, sy, sz float64) {
+	if w.hasShadowLight() || w.dirLightEntity() != nil {
+		d := w.shadowLightDir()
+		return float64(d.X), float64(d.Y), float64(d.Z)
+	}
+	return -0.35, 0.62, 0.70
+}
+
+func (w *World) dirLightEntity() *Entity {
+	if e := w.ents[w.shadow.lightID]; e != nil && e.lgtKind == 1 {
+		return e
+	}
+	for _, e := range w.ents {
+		if e != nil && e.lgtKind == 1 {
+			return e
+		}
+	}
+	return nil
+}
+
+func (w *World) aimDirLightVec(x, y, z float32) {
+	d := math32.Vector3{x, y, z}
+	if d.Length() < 0.01 {
+		return
+	}
+	d.Normalize()
+	e := w.dirLightEntity()
+	if e == nil || e.node == nil {
+		return
+	}
+	e.node.GetNode().SetPosition(d.X, d.Y, d.Z)
+}
+
+func (w *World) syncVisualSun() {
+	d := w.shadowLightDir()
+	if w.atmo != nil {
+		w.atmo.sunX, w.atmo.sunY, w.atmo.sunZ = d.X, d.Y, d.Z
+	}
+	if !w.skyProc {
+		w.skySun = d
+		return
+	}
+	if w.skySunOK && math32.Abs(w.skySun.X-d.X)+math32.Abs(w.skySun.Y-d.Y)+math32.Abs(w.skySun.Z-d.Z) < 0.002 {
+		return
+	}
+	w.skySun = d
+	w.skySunOK = true
+	if w.scene == nil || w.skies == nil || len(w.skies) == 0 {
+		return
+	}
+	sx, sy, sz := float64(d.X), float64(d.Y), float64(d.Z)
+	faces := generateAtmosphereCubemap(sx, sy, sz, 1, 1, 1.1)
+	if w.skyTop.R+w.skyTop.G+w.skyTop.B > 0 {
+		faces = generateSkyFaces(w.skyTop, w.skyBot, sx, sy, sz)
+	}
+	id, err := w.createSkyBoxFromFaces(faces)
+	if err == nil {
+		w.setSkyBox(id)
+	}
+}
+
 func generateSkyFaces(top, bot math32.Color, sunX, sunY, sunZ float64) [6]*texture.Texture2D {
 	const n = 128
 	var out [6]*texture.Texture2D
@@ -205,8 +266,10 @@ func (w *World) applySkyPreset(name string) {
 		w.skyBot = math32.Color{0.9, 0.9, 0.95}
 		w.fogRGB = math32.Color{0.5, 0.6, 0.7}
 	}
-	id, err := w.createSkyBoxFromFaces(generateSkyFaces(w.skyTop, w.skyBot, -0.5, 0.55, 0.75))
+	sx, sy, sz := w.proceduralSkySun()
+	id, err := w.createSkyBoxFromFaces(generateSkyFaces(w.skyTop, w.skyBot, sx, sy, sz))
 	if err == nil {
+		w.skyProc = true
 		w.setSkyBox(id)
 	}
 }
@@ -294,12 +357,15 @@ func (w *World) trySkyPrefix(prefix string) ([6]*texture.Texture2D, bool) {
 
 func (w *World) makeSkyBox(prefix string) (int, error) {
 	if faces, ok := w.trySkyPrefix(prefix); ok {
+		w.skyProc = false
 		return w.createSkyBoxFromFaces(faces)
 	}
+	w.skyProc = true
+	sx, sy, sz := w.proceduralSkySun()
 	if w.skyTop.R+w.skyTop.G+w.skyTop.B > 0 {
-		return w.createSkyBoxFromFaces(generateSkyFaces(w.skyTop, w.skyBot, -0.5, 0.55, 0.75))
+		return w.createSkyBoxFromFaces(generateSkyFaces(w.skyTop, w.skyBot, sx, sy, sz))
 	}
-	return w.createSkyBoxFromFaces(generateDefaultSkyFaces())
+	return w.createSkyBoxFromFaces(generateAtmosphereCubemap(sx, sy, sz, 1, 1, 1.1))
 }
 
 func (w *World) setSkyBox(id int) {

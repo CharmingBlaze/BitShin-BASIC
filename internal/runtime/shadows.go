@@ -8,6 +8,7 @@ import (
 	"github.com/g3n/engine/camera"
 	"github.com/g3n/engine/geometry"
 	"github.com/g3n/engine/gls"
+	"github.com/g3n/engine/graphic"
 	"github.com/g3n/engine/light"
 	"github.com/g3n/engine/material"
 	"github.com/g3n/engine/math32"
@@ -16,15 +17,21 @@ import (
 )
 
 const (
-	maxShadowCascades = 3
+	maxShadowCascades = 4
 	maxShadowPoints   = 2
+	maxPointFaces     = 12
 	maxShadowSpots    = 2
-	maxPointFaces     = maxShadowPoints * 6
+	maxShadowTiles    = 18
 
 	shadowFilterPCF  = 0
 	shadowFilterPCSS = 1
 	shadowFilterEVSM = 2
 	shadowFilterMSM  = 3
+
+	// Let the user camera, scene transforms, and all CSM tiles settle before
+	// exposing the atlas. This prevents a valid-but-transient startup cascade
+	// from sweeping an oversized shadow across the first visible frames.
+	shadowWarmupFrames = 6
 )
 
 type shaderUni struct {
@@ -45,6 +52,8 @@ type shadowMap struct {
 	on, ready, glOK                                                           bool
 	size                                                                      int
 	extent                                                                    float32
+	distance                                                                  float32
+	zPad                                                                      float32
 	lightID                                                                   int
 	cascades                                                                  int
 	filter                                                                    int // 0 PCF, 1 PCSS, 2 EVSM, 3 MSM
@@ -54,7 +63,11 @@ type shadowMap struct {
 	cache                                                                     bool
 	atlas                                                                     bool
 	contact                                                                   bool
-	sss                                                                       int  // 0 off, 1 on (8 taps), >1 high (16 taps)
+	sss                                                                       int // 0 off, 1 on (8 taps), >1 high (16 taps)
+	softness                                                                  float32
+	color                                                                     math32.Color
+	fadeNear                                                                  float32
+	fadeFar                                                                   float32
 	dirty                                                                     bool // MarkShadowDirty / deforming casters
 	cacheKey                                                                  uint64
 	staticKey                                                                 uint64
@@ -73,8 +86,13 @@ type shadowMap struct {
 	atlasCols                                                                 int
 	atlasRows                                                                 int
 	depthG3N                                                                  *gls.Program
+	depthMomentG3N                                                            *gls.Program
+	depthAlphaG3N                                                             *gls.Program
 	primed                                                                    map[*geometry.Geometry]bool
 	okLogged                                                                  bool
+	warm                                                                      int // consecutive good depth frames
+	lastCam                                                                   math32.Vector3
+	camTrack                                                                  bool
 	tmpMVP, tmpView, tmpProj                                                  math32.Matrix4
 	tmpCamPos, tmpCamDir, tmpCenter, tmpEye, tmpDir, tmpOff, tmpUp, tmpTarget math32.Vector3
 	tmpOrtho, tmpPersp                                                        *camera.Camera
@@ -96,10 +114,15 @@ type shadowMap struct {
 
 type litMat struct {
 	*material.Standard
-	w *World
+	w          *World
+	recvShadow bool
 }
 
 func (m *litMat) GetMaterial() *material.Material { return m.Standard.GetMaterial() }
+
+func newLitMat(w *World, mat *material.Standard) *litMat {
+	return &litMat{Standard: mat, w: w, recvShadow: true}
+}
 
 func (m *litMat) RenderSetup(gs *gls.GLS) {
 	m.Standard.RenderSetup(gs)
@@ -107,6 +130,11 @@ func (m *litMat) RenderSetup(gs *gls.GLS) {
 		m.w.applyUserUniforms(gs)
 		m.w.bindShadowUniforms(gs)
 		m.w.bindFogUniforms(gs)
+		recv := 1
+		if !m.recvShadow {
+			recv = 0
+		}
+		setUni1i(gs, "MeshReceiveShadow", recv)
 	}
 }
 
@@ -163,11 +191,12 @@ func (w *World) bindShadowUniforms(gs *gls.GLS) {
 			fmt.Println("EnableShadows: uniform panic", r)
 		}
 	}()
-	if !w.shadow.on || !w.shadow.ready || w.shadow.tex == 0 || !w.hasShadowLight() {
+	if !w.shadowSampleOK() {
 		dummy := w.ensureDummyShadowTex()
 		w.bindShadowSampler(gs, dummy, 8, "ShadowMap")
 		w.bindShadowSampler(gs, dummy, 9, "ShadowMapDyn")
 		setUni1i(gs, "ShadowEnabled", 0)
+		setUni1i(gs, "MeshReceiveShadow", 0)
 		setUni1i(gs, "ShadowCacheSplit", 0)
 		setUni1i(gs, "ShadowContact", 0)
 		setUni1i(gs, "ShadowSSS", 0)
@@ -184,15 +213,26 @@ func (w *World) bindShadowUniforms(gs *gls.GLS) {
 	}
 	setUni1i(gs, "ShadowCacheSplit", split)
 	setUni1i(gs, "ShadowEnabled", 1)
+	setUni1i(gs, "MeshReceiveShadow", 1)
 	setUni1i(gs, "ShadowCascades", w.shadow.cascades)
 	setUni1i(gs, "ShadowFilter", w.shadow.filter)
 	setUni1i(gs, "ShadowPCF", w.shadow.pcf)
 	setUni1f(gs, "ShadowBias", w.shadow.bias)
 	setUni1f(gs, "ShadowNormalBias", w.shadow.normalBias)
-	setUni3f(gs, "ShadowTexelWorld", w.shadow.texelWorld[0], w.shadow.texelWorld[1], w.shadow.texelWorld[2])
+	soft := w.shadow.softness
+	if soft <= 0.001 {
+		soft = 1.0
+	}
+	setUni1f(gs, "ShadowSoftness", soft)
+	setUni3f(gs, "ShadowColor", w.shadow.color.R, w.shadow.color.G, w.shadow.color.B)
+	setUni1f(gs, "ShadowFadeNear", w.shadow.fadeNear)
+	setUni1f(gs, "ShadowFadeFar", w.shadow.fadeFar)
+	sdir := w.shadowLightDir()
+	setUni3f(gs, "ShadowSunDir", sdir.X, sdir.Y, sdir.Z)
+	setUni4f(gs, "ShadowTexelWorld", w.shadow.texelWorld[0], w.shadow.texelWorld[1], w.shadow.texelWorld[2], w.shadow.texelWorld[3])
 	c := w.shadow.evsmC
-	if c <= 0 {
-		c = 40
+	if c <= 0 || c > 14 {
+		c = 8
 	}
 	setUni1f(gs, "EvsmC", c)
 	setUni1f(gs, "ShadowLightSize", w.shadow.lightSize)
@@ -210,10 +250,8 @@ func (w *World) bindShadowUniforms(gs *gls.GLS) {
 	}
 	setUni1i(gs, "AtlasCols", cols)
 	setUni1i(gs, "AtlasRows", rows)
-	setUni3f(gs, "ShadowSplit", w.shadow.splits[0], w.shadow.splits[1], w.shadow.splits[2])
-	for i := 0; i < maxShadowCascades; i++ {
-		setUniMat4(gs, fmt.Sprintf("LightVP[%d]", i), &w.shadow.lightVP[i])
-	}
+	setUni4f(gs, "ShadowSplit", w.shadow.splits[0], w.shadow.splits[1], w.shadow.splits[2], w.shadow.splits[3])
+	setUniMat4s(gs, "LightVP", w.shadow.lightVP[:])
 	setUni1i(gs, "ShadowPoints", w.shadow.pointN)
 	for i := 0; i < maxShadowPoints; i++ {
 		p := w.shadow.pointPos[i]
@@ -221,9 +259,7 @@ func (w *World) bindShadowUniforms(gs *gls.GLS) {
 		setUni1f(gs, fmt.Sprintf("PointRange[%d]", i), w.shadow.pointRange[i])
 		setUni1i(gs, fmt.Sprintf("PointTile[%d]", i), w.shadow.pointTile[i])
 	}
-	for i := 0; i < maxPointFaces; i++ {
-		setUniMat4(gs, fmt.Sprintf("PointVP[%d]", i), &w.shadow.pointVP[i])
-	}
+	setUniMat4s(gs, "PointVP", w.shadow.pointVP[:])
 	setUni1i(gs, "ShadowSpots", w.shadow.spotN)
 	for i := 0; i < maxShadowSpots; i++ {
 		p := w.shadow.spotPos[i]
@@ -233,8 +269,8 @@ func (w *World) bindShadowUniforms(gs *gls.GLS) {
 		setUni1f(gs, fmt.Sprintf("SpotRange[%d]", i), w.shadow.spotRange[i])
 		setUni1f(gs, fmt.Sprintf("SpotCos[%d]", i), w.shadow.spotCos[i])
 		setUni1i(gs, fmt.Sprintf("SpotTile[%d]", i), w.shadow.spotTile[i])
-		setUniMat4(gs, fmt.Sprintf("SpotVP[%d]", i), &w.shadow.spotVP[i])
 	}
+	setUniMat4s(gs, "SpotVP", w.shadow.spotVP[:])
 }
 
 func (w *World) bindShadowSampler(gs *gls.GLS, tex uint32, unit uint32, name string) {
@@ -243,6 +279,7 @@ func (w *World) bindShadowSampler(gs *gls.GLS, tex uint32, unit uint32, name str
 	}
 	gs.ActiveTexture(gls.TEXTURE0 + unit)
 	gs.BindTexture(gls.TEXTURE_2D, tex)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.NONE)
 	setUni1i(gs, name, int(unit))
 	gs.ActiveTexture(gls.TEXTURE0)
 }
@@ -314,8 +351,58 @@ func setUniMat4(gs *gls.GLS, name string, m *math32.Matrix4) {
 	}
 }
 
+func setUniMat4s(gs *gls.GLS, name string, mats []math32.Matrix4) {
+	if gs == nil || len(mats) == 0 {
+		return
+	}
+	u := gls.Uniform{}
+	u.Init(name + "[0]")
+	loc := u.Location(gs)
+	if loc < 0 {
+		u.Init(name)
+		loc = u.Location(gs)
+	}
+	if loc >= 0 {
+		gs.UniformMatrix4fv(loc, int32(len(mats)), false, &mats[0][0])
+	}
+}
+
+func (w *World) shadowSampleOK() bool {
+	if w == nil || !w.shadow.on || !w.shadow.ready || w.shadow.tex == 0 || !w.hasShadowLight() {
+		return false
+	}
+	// Flip 1 presents setup without the user loop (no CameraFollow yet).
+	if w.loopFrames < 2 {
+		return false
+	}
+	if w.shadow.warm < shadowWarmupFrames {
+		return false
+	}
+	if !w.cascadeReady() {
+		return false
+	}
+	return true
+}
+
+func (w *World) cascadeReady() bool {
+	tw := w.shadow.texelWorld[0]
+	if tw < 1e-6 || tw > 2 {
+		return false
+	}
+	m := w.shadow.lightVP[0]
+	if m[0] == 0 && m[5] == 0 && m[10] == 0 {
+		return false
+	}
+	return true
+}
+
 func (w *World) renderShadows(rend *renderer.Renderer, cam *camera.Camera) {
 	if !w.shadow.on || w.app == nil || cam == nil || !w.hasShadowLight() {
+		return
+	}
+	if w.loopFrames < 2 {
+		w.shadow.ready = false
+		w.shadow.warm = 0
 		return
 	}
 	defer func() {
@@ -334,7 +421,7 @@ func (w *World) renderShadows(rend *renderer.Renderer, cam *camera.Camera) {
 	}
 	n := w.shadow.cascades
 	if n < 1 {
-		n = 1
+		n = 4
 	}
 	if n > maxShadowCascades {
 		n = maxShadowCascades
@@ -343,7 +430,7 @@ func (w *World) renderShadows(rend *renderer.Renderer, cam *camera.Camera) {
 	if w.shadow.size < 256 {
 		w.shadow.size = 256
 	}
-	if w.shadow.pcf < 1 {
+	if w.shadow.pcf < 3 {
 		w.shadow.pcf = 3
 	}
 	if w.shadow.bias <= 0 {
@@ -352,8 +439,22 @@ func (w *World) renderShadows(rend *renderer.Renderer, cam *camera.Camera) {
 	if w.shadow.lightSize <= 0 {
 		w.shadow.lightSize = 0.04
 	}
+	if w.scene != nil {
+		w.scene.UpdateMatrixWorld()
+	}
 	w.computeCascadeSplits(cam, n)
 	w.buildCascadeViews(cam, n)
+	if w.shadow.camTrack && w.shadow.tmpCamPos.DistanceTo(&w.shadow.lastCam) > 6 {
+		w.shadow.warm = 0
+		w.shadow.ready = false
+	}
+	w.shadow.lastCam = w.shadow.tmpCamPos
+	w.shadow.camTrack = true
+	if !w.cascadeReady() {
+		w.shadow.warm = 0
+		w.shadow.ready = false
+		return
+	}
 	tiles := w.collectLocalLightViews(n)
 	cols, rows := atlasGrid(tiles, !w.shadow.atlas && w.shadow.pointN == 0 && w.shadow.spotN == 0)
 	w.shadow.atlasCols, w.shadow.atlasRows = cols, rows
@@ -361,84 +462,90 @@ func (w *World) renderShadows(rend *renderer.Renderer, cam *camera.Camera) {
 		fmt.Println("EnableShadows:", err)
 		return
 	}
+	w.markShadowPrimed()
 	if len(w.shadow.primed) == 0 {
 		return
 	}
-	if w.scene != nil {
-		w.scene.UpdateMatrixWorld()
-	}
-
 	gs := w.app.Gls()
 	if gs == nil {
 		return
 	}
 	restore := saveShadowGL(gs)
 	defer restore()
-	gs.UseProgram(w.shadow.depthG3N)
-	mvpLoc := w.shadow.depthG3N.GetUniformLocation("MVP")
+	depthProg := w.shadowDepthProgram()
+	gs.UseProgram(depthProg)
+	mvpLoc := depthProg.GetUniformLocation("MVP")
 	if mvpLoc < 0 {
 		fmt.Println("EnableShadows: MVP uniform missing")
 		return
 	}
 	w.setDepthMomentUniforms(gs)
 	gs.Enable(gls.DEPTH_TEST)
+	gs.DepthMask(true)
 	gs.Enable(gls.CULL_FACE)
-	gs.CullFace(gls.FRONT)
+	// Render the light-facing surface into the depth map. Front-face culling
+	// records the exit face of thick primitives (notably the large platform
+	// cube), which can make the whole receiver look like one giant shadow.
+	// Normal bias and polygon offset already handle surface acne.
+	gs.CullFace(gls.BACK)
+	gs.Disable(gls.SCISSOR_TEST)
+	gl.Disable(gl.SCISSOR_TEST)
+	gl.DepthMask(true)
+	gl.ClearDepth(1)
 	gs.Enable(gls.POLYGON_OFFSET_FILL)
 	gs.PolygonOffset(1.1, 4)
 
-	drew := 0
-	if w.shadow.cache {
-		sk := w.shadowStaticKey()
-		staticStale := !w.shadow.staticReady || w.shadowStaticStale() || sk != w.shadow.staticKey
-		if staticStale {
-			drew += w.renderShadowLayer(gs, &w.shadow.staticT, mvpLoc, n, shadowLayerStatic)
-			w.shadow.staticKey = sk
-			w.shadow.staticReady = drew > 0 || w.shadow.staticT.fbo != 0
-		}
-		drew += w.renderShadowLayer(gs, &w.shadow.dynT, mvpLoc, n, shadowLayerDynamic)
-		w.shadow.tex = w.shadow.staticT.lightTex()
-		w.shadow.dynTex = w.shadow.dynT.lightTex()
-		w.shadow.depthTex = w.shadow.staticT.depth
-		w.shadow.fbo = w.shadow.staticT.fbo
-		w.shadow.allocW, w.shadow.allocH = w.shadow.staticT.w, w.shadow.staticT.h
-	} else {
-		drew += w.renderShadowLayer(gs, &w.shadow.mainT, mvpLoc, n, shadowLayerAll)
-		w.shadow.tex = w.shadow.mainT.lightTex()
-		w.shadow.dynTex = 0
-		w.shadow.depthTex = w.shadow.mainT.depth
-		w.shadow.fbo = w.shadow.mainT.fbo
-		w.shadow.allocW, w.shadow.allocH = w.shadow.mainT.w, w.shadow.mainT.h
-		w.shadow.staticReady = false
-	}
-	if drew > 0 || w.shadow.tex != 0 {
+	drew := w.renderShadowLayer(gs, &w.shadow.mainT, mvpLoc, n, shadowLayerAll)
+	w.shadow.tex = w.shadow.mainT.lightTex()
+	w.shadow.dynTex = 0
+	w.shadow.depthTex = w.shadow.mainT.depth
+	w.shadow.fbo = w.shadow.mainT.fbo
+	w.shadow.allocW, w.shadow.allocH = w.shadow.mainT.w, w.shadow.mainT.h
+	w.shadow.staticReady = false
+	if drew > 0 && w.cascadeReady() {
 		w.shadow.ready = true
+		if w.shadow.warm < shadowWarmupFrames {
+			w.shadow.warm++
+		}
 		w.shadow.cacheKey = w.shadowSceneKey()
 		w.clearShadowDirty()
 		if !w.shadow.okLogged {
 			fmt.Println("shadows: ok")
 			w.shadow.okLogged = true
 		}
+		return
 	}
+	w.shadow.ready = false
+	w.shadow.warm = 0
 	_ = rend
 }
 
+func (w *World) shadowDepthProgram() *gls.Program {
+	if w.shadow.filter == shadowFilterEVSM || w.shadow.filter == shadowFilterMSM {
+		if w.shadow.depthMomentG3N != nil && w.shadow.depthMomentG3N.Handle() != 0 {
+			return w.shadow.depthMomentG3N
+		}
+	}
+	return w.shadow.depthG3N
+}
+
 func (w *World) setDepthMomentUniforms(gs *gls.GLS) {
-	if gs == nil || w.shadow.depthG3N == nil {
+	prog := w.shadowDepthProgram()
+	if gs == nil || prog == nil {
 		return
 	}
 	mode := 0
 	if w.shadow.filter == shadowFilterEVSM || w.shadow.filter == shadowFilterMSM {
 		mode = w.shadow.filter
 	}
-	if loc := w.shadow.depthG3N.GetUniformLocation("MomentMode"); loc >= 0 {
+	if loc := prog.GetUniformLocation("MomentMode"); loc >= 0 {
 		gs.Uniform1i(loc, int32(mode))
 	}
 	c := w.shadow.evsmC
 	if c <= 0 {
 		c = 40
 	}
-	if loc := w.shadow.depthG3N.GetUniformLocation("EvsmC"); loc >= 0 {
+	if loc := prog.GetUniformLocation("EvsmC"); loc >= 0 {
 		gs.Uniform1f(loc, c)
 	}
 }
@@ -447,7 +554,7 @@ func (w *World) renderShadowLayer(gs *gls.GLS, tgt *shadowTarget, mvpLoc int32, 
 	if gs == nil || tgt == nil || tgt.fbo == 0 {
 		return 0
 	}
-	gs.UseProgram(w.shadow.depthG3N)
+	gs.UseProgram(w.shadowDepthProgram())
 	w.setDepthMomentUniforms(gs)
 	w.bindShadowTarget(gs, tgt)
 	drew := 0
@@ -468,7 +575,7 @@ func (w *World) renderShadowLayer(gs *gls.GLS, tgt *shadowTarget, mvpLoc int32, 
 	}
 	if tgt.color != 0 {
 		w.blurMoments(gs, tgt)
-		gs.UseProgram(w.shadow.depthG3N)
+		gs.UseProgram(w.shadowDepthProgram())
 	}
 	return drew
 }
@@ -484,9 +591,12 @@ func saveShadowGL(gs *gls.GLS) func() {
 			gs.Enable(gls.CULL_FACE)
 			gs.CullFace(gls.BACK)
 			gs.Enable(gls.DEPTH_TEST)
+			gs.DepthMask(true)
 			gs.Viewport(vp[0], vp[1], vp[2], vp[3])
 		}
 		gl.BindFramebuffer(gl.FRAMEBUFFER, uint32(fbo))
+		gl.DepthMask(true)
+		gl.Disable(gl.SCISSOR_TEST)
 	}
 }
 
@@ -523,6 +633,19 @@ func atlasGrid(tiles int, strip bool) (cols, rows int) {
 	return cols, rows
 }
 
+func compileShadowProgram(gs *gls.GLS, vs, fs, label string) (*gls.Program, error) {
+	prog := gs.NewProgram()
+	prog.AddShader(gls.VERTEX_SHADER, vs)
+	prog.AddShader(gls.FRAGMENT_SHADER, fs)
+	if err := prog.Build(); err != nil {
+		return nil, fmt.Errorf("%s shader:\n%s", label, err)
+	}
+	if prog.Handle() == 0 {
+		return nil, fmt.Errorf("%s shader: link produced program 0", label)
+	}
+	return prog, nil
+}
+
 func (w *World) ensureShadowGL() error {
 	if w.shadow.glOK && w.shadow.depthG3N != nil && w.shadow.depthG3N.Handle() != 0 {
 		return nil
@@ -537,16 +660,21 @@ func (w *World) ensureShadowGL() error {
 	if err := gl.Init(); err != nil {
 		return err
 	}
-	prog := gs.NewProgram()
-	prog.AddShader(gls.VERTEX_SHADER, depthVertexSrc)
-	prog.AddShader(gls.FRAGMENT_SHADER, depthFragmentSrc)
-	if err := prog.Build(); err != nil {
-		return fmt.Errorf("depth shader:\n%s", err)
+	empty, err := compileShadowProgram(gs, depthVertexSrc, depthEmptyFragmentSrc, "depth")
+	if err != nil {
+		return err
 	}
-	if prog.Handle() == 0 {
-		return fmt.Errorf("depth shader: link produced program 0")
+	moment, err := compileShadowProgram(gs, depthVertexSrc, depthFragmentSrc, "depth-moment")
+	if err != nil {
+		return err
 	}
-	w.shadow.depthG3N = prog
+	alpha, err := compileShadowProgram(gs, depthAlphaVertexSrc, depthAlphaFragmentSrc, "depth-alpha")
+	if err != nil {
+		return err
+	}
+	w.shadow.depthG3N = empty
+	w.shadow.depthMomentG3N = moment
+	w.shadow.depthAlphaG3N = alpha
 	w.shadow.glOK = true
 	return nil
 }
@@ -595,114 +723,11 @@ func (w *World) ensureShadowFBO(cols, rows int) error {
 	return nil
 }
 
-func (w *World) computeCascadeSplits(cam *camera.Camera, n int) {
-	near := cam.Near()
-	if near < 0.05 {
-		near = 0.05
-	}
-	far := cam.Far()
-	maxFar := float32(80)
-	if w.shadow.extent > 0 {
-		maxFar = max32(maxFar, w.shadow.extent*1.5)
-	}
-	if far > maxFar {
-		far = maxFar
-	}
-	if far <= near+1 {
-		far = near + 30
-	}
-	// Practical split (0.85): cluster near cascades for foreground texel density.
-	const lambda = float32(0.85)
-	for i := 0; i < n; i++ {
-		p := float32(i + 1) / float32(n)
-		logS := near * math32.Pow(far/near, p)
-		uniS := near + (far-near)*p
-		w.shadow.splits[i] = logS*lambda + uniS*(1.0-lambda)
-	}
-	for i := n; i < maxShadowCascades; i++ {
-		w.shadow.splits[i] = far
-	}
-}
-
 func snapShadow(v, step float32) float32 {
 	if step <= 1e-5 {
 		return v
 	}
 	return float32(math.Floor(float64(v/step)+0.5)) * step
-}
-
-func (w *World) buildCascadeViews(cam *camera.Camera, n int) {
-	s := &w.shadow
-	s.tmpDir = w.shadowLightDir()
-	cam.GetNode().UpdateMatrixWorld()
-	cam.GetNode().WorldPosition(&s.tmpCamPos)
-	// G3N LookAt stores +Z as eye-target, so WorldDirection points behind the camera.
-	cam.GetNode().WorldDirection(&s.tmpCamDir)
-	s.tmpCamDir.Negate()
-	// Keep the volume on the play plane: pitch must not lift the ortho into the sky.
-	s.tmpCamDir.Y = 0
-	if s.tmpCamDir.Length() < 0.08 {
-		s.tmpCamDir.Set(0, 0, 1)
-	} else {
-		s.tmpCamDir.Normalize()
-	}
-	playY := s.tmpCamPos.Y * 0.2
-	if playY < 1.2 {
-		playY = 1.2
-	}
-	if playY > 10 {
-		playY = 10
-	}
-	s.tmpUp = math32.Vector3{0, 1, 0}
-	if math32.Abs(s.tmpDir.Dot(&s.tmpUp)) > 0.94 {
-		s.tmpUp = math32.Vector3{0, 0, 1}
-	}
-	play := s.extent
-	if play <= 0 {
-		play = 40
-	}
-	den := float32(n - 1)
-	if den < 1 {
-		den = 1
-	}
-	for i := 0; i < n; i++ {
-		far := s.splits[i]
-		extent := far * 0.75
-		minE := play
-		if n > 1 {
-			minE = play * (0.35 + 0.65*float32(i)/den)
-		}
-		if extent < minE {
-			extent = minE
-		}
-		ahead := far * 0.18
-		if ahead > 10 {
-			ahead = 10
-		}
-		s.tmpOff.Copy(&s.tmpCamDir).MultiplyScalar(ahead)
-		s.tmpCenter.Set(s.tmpCamPos.X, playY, s.tmpCamPos.Z)
-		s.tmpCenter.Add(&s.tmpOff)
-		texel := (extent * 2) / float32(s.size)
-		if s.size < 256 {
-			texel = (extent * 2) / 256
-		}
-		if texel < 0.02 {
-			texel = 0.02
-		}
-		s.texelWorld[i] = texel
-		s.tmpCenter.X = snapShadow(s.tmpCenter.X, texel)
-		s.tmpCenter.Y = snapShadow(s.tmpCenter.Y, texel)
-		s.tmpCenter.Z = snapShadow(s.tmpCenter.Z, texel)
-		pull := extent * 2.0
-		s.tmpOff.Copy(&s.tmpDir).MultiplyScalar(pull)
-		s.tmpEye.Copy(&s.tmpCenter).Add(&s.tmpOff)
-		lc := s.orthoCam(1, 0.5, pull+extent*3.0, extent*2)
-		lc.SetPosition(s.tmpEye.X, s.tmpEye.Y, s.tmpEye.Z)
-		lc.LookAt(&s.tmpCenter, &s.tmpUp)
-		lc.ViewMatrix(&s.tmpView)
-		lc.ProjMatrix(&s.tmpProj)
-		s.lightVP[i].MultiplyMatrices(&s.tmpProj, &s.tmpView)
-	}
 }
 
 func (w *World) hasShadowLight() bool {
@@ -1078,8 +1103,25 @@ func (s *shadowMap) perspCam(aspect, near, far, fov float32) *camera.Camera {
 	return s.tmpPersp
 }
 
+func shadowSkipMesh(e *Entity) bool {
+	if e == nil || e.sky || e.meshNoCast {
+		return true
+	}
+	if e.name == "water" || e.name == "atmosphere" {
+		return true
+	}
+	if e.mat != nil {
+		switch e.mat.Shader() {
+		case "mbpart", "mbflake", "mbclouds", "mbatmo", "mbwater":
+			return true
+		}
+	}
+	return false
+}
+
 func (w *World) drawShadowCasters(gs *gls.GLS, lightVP *math32.Matrix4, mvpLoc int32, layer int) (drew int) {
-	if gs == nil || w.shadow.depthG3N == nil || w.shadow.depthG3N.Handle() == 0 {
+	base := w.shadowDepthProgram()
+	if gs == nil || base == nil || base.Handle() == 0 {
 		return 0
 	}
 	defer func() {
@@ -1089,7 +1131,7 @@ func (w *World) drawShadowCasters(gs *gls.GLS, lightVP *math32.Matrix4, mvpLoc i
 	}()
 	s := &w.shadow
 	for _, e := range w.ents {
-		if e == nil || e.sky || e.name == "water" {
+		if shadowSkipMesh(e) {
 			continue
 		}
 		if layer == shadowLayerStatic && !shadowCasterStatic(e) {
@@ -1105,11 +1147,39 @@ func (w *World) drawShadowCasters(gs *gls.GLS, lightVP *math32.Matrix4, mvpLoc i
 		if geom == nil || s.primed == nil || !s.primed[geom] {
 			continue
 		}
+		if e.mat != nil && e.mat.Side() == material.SideDouble {
+			gs.Disable(gls.CULL_FACE)
+		} else {
+			gs.Enable(gls.CULL_FACE)
+			gs.CullFace(gls.BACK)
+		}
 		n := e.mesh.GetNode()
 		n.UpdateMatrixWorld()
 		mm := n.MatrixWorld()
 		s.tmpMVP.MultiplyMatrices(lightVP, &mm)
-		gs.UniformMatrix4fv(mvpLoc, 1, false, &s.tmpMVP[0])
+		prog := base
+		cutout := e.albedoTex != nil && s.depthAlphaG3N != nil && s.depthAlphaG3N.Handle() != 0 &&
+			w.shadow.filter != shadowFilterEVSM && w.shadow.filter != shadowFilterMSM
+		if cutout {
+			prog = s.depthAlphaG3N
+		}
+		gs.UseProgram(prog)
+		loc := prog.GetUniformLocation("MVP")
+		if loc < 0 {
+			loc = mvpLoc
+		}
+		gs.UniformMatrix4fv(loc, 1, false, &s.tmpMVP[0])
+		if cutout {
+			e.albedoTex.RenderSetup(gs, 0, 0)
+			if ul := prog.GetUniformLocation("Cutout"); ul >= 0 {
+				gs.Uniform1i(ul, 0)
+			}
+			if ul := prog.GetUniformLocation("CutoutAlpha"); ul >= 0 {
+				gs.Uniform1f(ul, 0.5)
+			}
+		} else {
+			w.setDepthMomentUniforms(gs)
+		}
 		geom.RenderSetup(gs)
 		idx := geom.Indices()
 		if len(idx) > 0 {
@@ -1191,6 +1261,34 @@ func keepCustomLitShader(e *Entity) bool {
 	return false
 }
 
+func (w *World) setMeshReceiveShadow(e *Entity, on bool) {
+	if e == nil {
+		return
+	}
+	if e.pbrWrap != nil {
+		e.pbrWrap.recvShadow = on
+	}
+	apply := func(mesh *graphic.Mesh) {
+		if mesh == nil {
+			return
+		}
+		im := mesh.GetMaterial(0)
+		if lm, ok := im.(*litMat); ok {
+			lm.recvShadow = on
+		}
+		if pm, ok := im.(*pbrMat); ok {
+			pm.recvShadow = on
+		}
+	}
+	if e.mesh != nil {
+		apply(e.mesh)
+		return
+	}
+	if e.node != nil {
+		w.walkMeshes(e.node, apply)
+	}
+}
+
 func (w *World) applyLitShaders() {
 	name := w.litShaderName()
 	for _, e := range w.ents {
@@ -1246,18 +1344,18 @@ func max32(a, b float32) float32 {
 }
 
 func (w *World) ensureShadowOn() {
-	if w.shadow.on {
-		return
-	}
 	w.shadow.on = true
 	if w.shadow.size <= 0 {
 		w.shadow.size = 2048
 	}
 	if w.shadow.cascades < 1 {
-		w.shadow.cascades = 2
+		w.shadow.cascades = 4
 	}
-	if w.shadow.pcf < 1 {
+	if w.shadow.pcf < 3 {
 		w.shadow.pcf = 3
+	}
+	if w.shadow.distance < 40 {
+		w.shadow.distance = defaultShadowDistance
 	}
 	if w.shadow.bias <= 0 {
 		w.shadow.bias = 0.0025

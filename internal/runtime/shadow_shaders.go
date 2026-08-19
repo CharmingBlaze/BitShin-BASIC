@@ -8,8 +8,8 @@ uniform mat4 ModelViewMatrix;
 uniform mat3 NormalMatrix;
 uniform mat4 MVP;
 uniform mat4 ModelMatrix;
-uniform mat4 LightVP[3];
-uniform vec3 ShadowTexelWorld;
+uniform mat4 LightVP[4];
+uniform vec4 ShadowTexelWorld;
 #include <material>
 #include <morphtarget_vertex_declaration>
 #include <bones_vertex_declaration>
@@ -18,7 +18,7 @@ out vec3 Normal;
 out vec2 FragTexcoord;
 out vec3 WorldPos;
 out vec3 WorldNormal;
-out vec4 LightSpacePos[3];
+out vec4 LightSpacePos[4];
 void main() {
     Position = ModelViewMatrix * vec4(VertexPosition, 1.0);
     Normal = normalize(NormalMatrix * VertexNormal);
@@ -40,6 +40,7 @@ void main() {
     LightSpacePos[0] = LightVP[0] * vec4(wpShadow, 1.0);
     LightSpacePos[1] = LightVP[1] * vec4(wpShadow, 1.0);
     LightSpacePos[2] = LightVP[2] * vec4(wpShadow, 1.0);
+    LightSpacePos[3] = LightVP[3] * vec4(wpShadow, 1.0);
     gl_Position = MVP * finalWorld * vec4(vPosition, 1.0);
 }
 `
@@ -50,7 +51,7 @@ in vec3 Normal;
 in vec2 FragTexcoord;
 in vec3 WorldPos;
 in vec3 WorldNormal;
-in vec4 LightSpacePos[3];
+in vec4 LightSpacePos[4];
 #include <lights>
 #include <material>
 #include <phong_model>
@@ -61,7 +62,6 @@ uniform int ShadowFilter;
 uniform int ShadowPCF;
 uniform float ShadowBias;
 uniform float ShadowLightSize;
-uniform vec3 ShadowSplit;
 uniform int ShadowContact;
 uniform int ShadowSSS;
 uniform int AtlasCols;
@@ -123,24 +123,79 @@ void main() {
     vec4 matDiffuse = vec4(MatDiffuseColor, MatOpacity) * texMixed;
     vec4 matAmbient = vec4(MatAmbientColor, MatOpacity) * texMixed;
     vec3 fragNormal = normalize(Normal);
+    if (!gl_FrontFacing) { fragNormal = -fragNormal; }
     vec3 camDir = normalize(-Position.xyz);
-    vec3 fdx = dFdx(Position.xyz);
-    vec3 fdy = dFdy(Position.xyz);
-    vec3 faceNormal = normalize(cross(fdx, fdy));
-    if (dot(fragNormal, faceNormal) < 0.0) { fragNormal = -fragNormal; }
-    vec3 Ambdiff, Spec;
-    phongModel(Position, fragNormal, camDir, vec3(matAmbient), vec3(matDiffuse), Ambdiff, Spec);
-    float sh = shadowFactor();
-    vec3 ambientOnly = MatEmissiveColor;
+    vec3 totalDiffuse = vec3(0.0);
+    vec3 totalSpec = vec3(0.0);
+    vec3 ambientColor = MatEmissiveColor;
+
 #if AMB_LIGHTS>0
     for (int i = 0; i < AMB_LIGHTS; ++i) {
-        ambientOnly += AmbientLightColor[i] * vec3(matAmbient);
+        ambientColor += AmbientLightColor[i] * vec3(matAmbient);
     }
 #endif
+
     vec3 wN = normalize(WorldNormal);
-    vec3 dn = cross(dFdx(WorldPos), dFdy(WorldPos));
-    float dnLen = length(dn);
-    if (dnLen > 1e-4) { wN = dn / dnLen; }
+    float sunSh = sunShadowFactor(WorldPos, wN, ShadowSunDir);
+
+#if DIR_LIGHTS>0
+    for (int i = 0; i < DIR_LIGHTS; ++i) {
+        vec3 lightDir = normalize(DirLightPosition(i));
+        float ndl = max(dot(fragNormal, lightDir), 0.0);
+        float sh = (i == 0) ? sunSh : 1.0;
+        totalDiffuse += DirLightColor(i) * vec3(matDiffuse) * (ndl * sh);
+        if (ndl > 0.0 && MatShininess > 0.0) {
+            vec3 halfV = normalize(lightDir + camDir);
+            float ndh = max(dot(fragNormal, halfV), 0.0);
+            totalSpec += DirLightColor(i) * MatSpecularColor * (pow(ndh, MatShininess) * sh);
+        }
+    }
+#endif
+
+#if POINT_LIGHTS>0
+    for (int i = 0; i < POINT_LIGHTS; ++i) {
+        vec3 lPos = PointLightPosition(i) - Position.xyz;
+        float dist = length(lPos);
+        if (dist > 0.001) {
+            vec3 lightDir = lPos / dist;
+            float att = 1.0 / (1.0 + PointLightLinearDecay(i) * dist + PointLightQuadraticDecay(i) * dist * dist);
+            float ndl = max(dot(fragNormal, lightDir), 0.0);
+            float psh = pointShadowFactor(i, WorldPos, wN);
+            totalDiffuse += PointLightColor(i) * vec3(matDiffuse) * (ndl * att * psh);
+            if (ndl > 0.0 && MatShininess > 0.0) {
+                vec3 halfV = normalize(lightDir + camDir);
+                float ndh = max(dot(fragNormal, halfV), 0.0);
+                totalSpec += PointLightColor(i) * MatSpecularColor * (pow(ndh, MatShininess) * att * psh);
+            }
+        }
+    }
+#endif
+
+#if SPOT_LIGHTS>0
+    for (int i = 0; i < SPOT_LIGHTS; ++i) {
+        vec3 lPos = SpotLightPosition(i) - Position.xyz;
+        float dist = length(lPos);
+        if (dist > 0.001) {
+            vec3 lightDir = lPos / dist;
+            float angle = dot(-lightDir, normalize(SpotLightDirection(i)));
+            if (angle >= SpotLightCutoffAngle(i)) {
+                float att = 1.0 / (1.0 + SpotLightLinearDecay(i) * dist + SpotLightQuadraticDecay(i) * dist * dist);
+                float sc = SpotLightCutoffAngle(i);
+                float spotFactor = clamp((angle - sc) / max(1.0 - sc, 0.001), 0.0, 1.0);
+                att *= spotFactor;
+                float ndl = max(dot(fragNormal, lightDir), 0.0);
+                float ssh = spotShadowFactor(i, WorldPos, wN);
+                totalDiffuse += SpotLightColor(i) * vec3(matDiffuse) * (ndl * att * ssh);
+                if (ndl > 0.0 && MatShininess > 0.0) {
+                    vec3 halfV = normalize(lightDir + camDir);
+                    float ndh = max(dot(fragNormal, halfV), 0.0);
+                    totalSpec += SpotLightColor(i) * MatSpecularColor * (pow(ndh, MatShininess) * att * ssh);
+                }
+            }
+        }
+    }
+#endif
+
     float sky = clamp(wN.y * 0.5 + 0.5, 0.0, 1.0);
     vec3 hemiLo = vec3(0.24, 0.20, 0.16);
     vec3 hemiHi = vec3(0.28, 0.34, 0.42);
@@ -149,12 +204,12 @@ void main() {
         hemiHi = ProbeSky;
     }
     vec3 hemi = mix(hemiLo, hemiHi, sky) * vec3(matDiffuse);
-    vec3 lit = Ambdiff - ambientOnly;
-    FragColor = min(vec4(ambientOnly + hemi * 0.55 + (lit + Spec) * sh, matDiffuse.a), vec4(1.0));
+    vec3 finalRGB = ambientColor + hemi * 0.45 + totalDiffuse + totalSpec;
+    FragColor = min(vec4(finalRGB, matDiffuse.a), vec4(1.0));
     if (Wetness > 0.001) {
         float up = clamp(WorldNormal.y, 0.0, 1.0);
         FragColor.rgb *= mix(1.0, 0.58, Wetness * up);
-        FragColor.rgb += (Spec * 1.8 + vec3(0.10, 0.11, 0.12)) * Wetness * up;
+        FragColor.rgb += (totalSpec * 1.8 + vec3(0.10, 0.11, 0.12)) * Wetness * up;
     }
     if (WaterCausticsOn != 0 && WorldPos.y < WaterCausticLevel - 0.02) {
         vec3 Lc = WaterCausticSun;
@@ -254,6 +309,30 @@ void main() {
 }
 `
 
+const depthEmptyFragmentSrc = `#version 330 core
+void main() {}
+`
+
+const depthAlphaVertexSrc = `#version 330 core
+layout(location = 0) in vec3 VertexPosition;
+layout(location = 3) in vec2 VertexTexcoord;
+uniform mat4 MVP;
+out vec2 vUV;
+void main() {
+    vUV = VertexTexcoord;
+    gl_Position = MVP * vec4(VertexPosition, 1.0);
+}
+`
+
+const depthAlphaFragmentSrc = `#version 330 core
+in vec2 vUV;
+uniform sampler2D Cutout;
+uniform float CutoutAlpha;
+void main() {
+    if (texture(Cutout, vUV).a < CutoutAlpha) { discard; }
+}
+`
+
 const depthFragmentSrc = `#version 330 core
 uniform int MomentMode;
 uniform float EvsmC;
@@ -262,7 +341,7 @@ void main() {
     float d = clamp(gl_FragCoord.z, 0.0, 1.0);
     if (MomentMode == 2) {
         float c = EvsmC;
-        if (c < 1.0) { c = 40.0; }
+        if (c < 1.0 || c > 14.0) { c = 8.0; }
         float e = exp(c * d);
         FragColor = vec4(e, e * e, 0.0, 1.0);
     } else if (MomentMode == 3) {

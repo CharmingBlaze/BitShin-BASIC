@@ -104,6 +104,7 @@ func (w *World) ensureShadowTarget(t *shadowTarget, cols, rows, moment int) erro
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_BORDER)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_BORDER)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.NONE)
 	border := []float32{1, 1, 1, 1}
 	gl.TexParameterfv(gl.TEXTURE_2D, gl.TEXTURE_BORDER_COLOR, &border[0])
 
@@ -159,12 +160,12 @@ func (w *World) allocMomentColor(wdt, hgt int32, moment int) (tex uint32, intern
 	if moment == shadowFilterEVSM {
 		tex = allocColorTex(wdt, hgt, gl.RG32F, gl.RG, gl.FLOAT)
 		if tex != 0 {
-			w.shadow.evsmC = 40
+			w.shadow.evsmC = 8
 			return tex, gl.RG32F, false
 		}
 		tex = allocColorTex(wdt, hgt, gl.RGBA16F, gl.RGBA, gl.FLOAT)
 		if tex != 0 {
-			w.shadow.evsmC = 5
+			w.shadow.evsmC = 6
 			return tex, gl.RGBA16F, true
 		}
 		return 0, 0, true
@@ -185,7 +186,13 @@ func (w *World) bindShadowTarget(gs *gls.GLS, t *shadowTarget) {
 		return
 	}
 	gl.BindFramebuffer(gl.FRAMEBUFFER, t.fbo)
+	gl.Disable(gl.SCISSOR_TEST)
+	gl.DepthMask(true)
+	gl.ClearDepth(1)
 	if gs != nil {
+		gs.Disable(gls.SCISSOR_TEST)
+		gs.DepthMask(true)
+		gs.ClearDepth(1)
 		gs.Viewport(0, 0, t.w, t.h)
 	} else {
 		gl.Viewport(0, 0, t.w, t.h)
@@ -193,8 +200,8 @@ func (w *World) bindShadowTarget(gs *gls.GLS, t *shadowTarget) {
 	if t.color != 0 {
 		gl.DrawBuffer(gl.COLOR_ATTACHMENT0)
 		c := w.shadow.evsmC
-		if c <= 0 {
-			c = 40
+		if c <= 0 || c > 14 {
+			c = 8
 		}
 		if t.moment == shadowFilterEVSM {
 			e := float32(math.Exp(float64(c)))
@@ -207,10 +214,13 @@ func (w *World) bindShadowTarget(gs *gls.GLS, t *shadowTarget) {
 		} else {
 			gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 		}
+		gl.ClearDepth(1)
 		return
 	}
 	gl.DrawBuffer(gl.NONE)
+	gl.ClearDepth(1)
 	if gs != nil {
+		gs.ClearDepth(1)
 		gs.Clear(gls.DEPTH_BUFFER_BIT)
 	} else {
 		gl.Clear(gl.DEPTH_BUFFER_BIT)

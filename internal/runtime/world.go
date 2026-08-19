@@ -68,6 +68,10 @@ type Entity struct {
 	anim                               *animState
 	lgtKind                            int // 0 ambient/none, 1 directional, 2 point, 3 spot
 	castShadow                         bool
+	camFollowed                        bool
+	meshNoCast                         bool
+	meshNoRecv                         bool
+	albedoTex                          *texture.Texture2D
 	shadowRes                          int
 	shadowGeomDirty                    bool // vertex/morph edits: skip shadow cache until redrawn
 	sky                                bool
@@ -132,6 +136,8 @@ type World struct {
 	cmdMap                 map[string]cmd
 	phys3                  phys3d.World
 	vehCtrls               map[int]*vehCtrl
+	ropes                  map[int]*ropeSystem
+	nextRope               int
 	phys2                  *phys2d.Space
 	net                    netenet.Host
 	nets                   map[int]netenet.Host
@@ -279,6 +285,9 @@ type World struct {
 	curCloud               int
 	skyTop                 math32.Color
 	skyBot                 math32.Color
+	skyProc                bool
+	skySun                 math32.Vector3
+	skySunOK               bool
 	atmo                   *atmoDome
 	fogHeight              float32
 	fogHFall               float32
@@ -287,6 +296,16 @@ type World struct {
 	ushaders               map[int]*userShader
 	freeUSh                []int
 	nextUSh                int
+	timeScale              float32
+	shakeTrauma            float32
+	shakeDuration          float32
+	shakeElapsed           float32
+	shakeFreq              float32
+	fpsControllers         map[int]*fpsCtrl
+	tpsControllers         map[int]*tpsCtrl
+	topDownControllers     map[int]*topDownCtrl
+	platformerControllers  map[int]*platformerCtrl
+	actTweens              []*activeTween
 }
 
 type blitzTimer struct {
@@ -311,93 +330,99 @@ type sndSlot struct {
 
 func New(base string) *World {
 	return &World{
-		ents:         map[int]*Entity{},
-		texs:         map[int]*texSlot{},
-		keys:         map[int]bool{},
-		prev:         map[int]bool{},
-		hits:         map[int]bool{},
-		heldAtFlip:   map[int]bool{},
-		nextID:       1,
-		nextTex:      1,
-		shadow:       shadowMap{size: 2048, extent: 32, cascades: 2, pcf: 3, bias: 0.0025, normalBias: 1, lightSize: 0.04, evsmC: 40, primed: map[*geometry.Geometry]bool{}},
-		shaderUnis:   map[string]shaderUni{},
-		title:        "BitShin BASIC",
-		clear:        math32.Color{0.15, 0.16, 0.2},
-		textRGB:      math32.Color{1, 1, 1},
-		fogRGB:       math32.Color{0.6, 0.65, 0.75},
-		fogNear:      10,
-		fogFar:       100,
-		fogDensity:   0.025,
-		delta:        1.0 / 60.0,
-		started:      time.Now(),
-		base:         base,
-		images:       map[int]*ebiImage{},
-		sprites:      map[int]*ebiSprite{},
-		nextImg:      1,
-		nextTimer:    1,
-		nextSnd:      1,
-		timers:       map[int]*blitzTimer{},
-		namedT:       map[string]*namedTimer{},
-		sounds:       map[int]*sndSlot{},
-		emitters:     map[int]*emitter{},
-		skies:        map[int]*skySlot{},
-		nextSky:      1,
-		tiles:        map[int]*tileMap{},
-		fonts:        map[int]*fontSlot{},
-		nextEmit:     1,
-		nextTile:     1,
-		nextFont:     1,
-		imgFilter:    1,
-		drawRGB:      [3]uint8{255, 255, 255},
-		clsRGB:       [3]uint8{20, 22, 32},
-		scrW:         800,
-		scrH:         600,
-		guiPrevKeys:  map[window.Key]bool{},
-		gpDead:       0.15,
-		sess:         newNetSess(),
-		nets:         map[int]netenet.Host{},
-		netQ:         map[int][]netenet.Event{},
-		nextNet:      1,
-		docs:         map[int]*dataDoc{},
-		nextDoc:      1,
-		pools:        map[int]*userPool{},
-		nextPool:     1,
-		banks:        map[int]*bankSlot{},
-		nextBank:     1,
-		navs:         map[int]*navMesh{},
-		nextNav:      1,
-		agents:       map[int]*navAgent{},
-		grids:        map[int]*gridMap{},
-		nextGrid:     1,
-		paths:        map[int]*gridPath{},
-		nextPath:     1,
-		guiSlide:     map[string]*float32{},
-		guiCheck:     map[string]*bool{},
-		guiInput:     map[string]*string{},
-		wins:         map[int]*extraWin{},
-		nextWin:      1,
-		instances:    map[int]*instancedMesh{},
-		probes:       map[int]*lightProbe{},
-		nextProbe:    1,
-		terrains:     map[int]*terrain{},
-		nextTerrain:  1,
-		hmaps:        map[int]*heightMap{},
-		nextHMap:     1,
-		waters:       map[int]*waterBody{},
-		nextWater:    1,
-		crowds:       map[int]*crowd{},
-		nextCrowd:    1,
-		pbrLib:       map[int]*pbrMat{},
-		nextPBR:      1,
-		iblOn:        true,
-		iblIntensity: 1,
-		clouds:       map[int]*cloudLayer{},
-		nextCloud:    1,
-		skyTop:       math32.Color{0.525, 0.735, 0.84},
-		skyBot:       math32.Color{0.9, 0.9, 0.95},
-		ushaders:     map[int]*userShader{},
-		nextUSh:      1,
-		post:         postFX{exposure: 1, contrast: 1, sat: 1, tint: math32.Color{1, 1, 1}},
+		ents:                  map[int]*Entity{},
+		texs:                  map[int]*texSlot{},
+		keys:                  map[int]bool{},
+		prev:                  map[int]bool{},
+		hits:                  map[int]bool{},
+		heldAtFlip:            map[int]bool{},
+		nextID:                1,
+		nextTex:               1,
+		scene:                 core.NewNode(),
+		shadow:                shadowMap{on: true, size: 2048, extent: 32, distance: 250, zPad: 60, cascades: 4, pcf: 3, bias: 0.0025, normalBias: 1, lightSize: 0.04, evsmC: 8, fadeNear: 220, fadeFar: 250, primed: map[*geometry.Geometry]bool{}},
+		shaderUnis:            map[string]shaderUni{},
+		title:                 "BitShin BASIC",
+		clear:                 math32.Color{0.15, 0.16, 0.2},
+		textRGB:               math32.Color{1, 1, 1},
+		fogRGB:                math32.Color{0.6, 0.65, 0.75},
+		fogNear:               10,
+		fogFar:                100,
+		fogDensity:            0.025,
+		delta:                 1.0 / 60.0,
+		started:               time.Now(),
+		base:                  base,
+		images:                map[int]*ebiImage{},
+		sprites:               map[int]*ebiSprite{},
+		nextImg:               1,
+		nextTimer:             1,
+		nextSnd:               1,
+		timers:                map[int]*blitzTimer{},
+		namedT:                map[string]*namedTimer{},
+		sounds:                map[int]*sndSlot{},
+		emitters:              map[int]*emitter{},
+		skies:                 map[int]*skySlot{},
+		nextSky:               1,
+		tiles:                 map[int]*tileMap{},
+		fonts:                 map[int]*fontSlot{},
+		nextEmit:              1,
+		nextTile:              1,
+		nextFont:              1,
+		imgFilter:             1,
+		drawRGB:               [3]uint8{255, 255, 255},
+		clsRGB:                [3]uint8{20, 22, 32},
+		scrW:                  800,
+		scrH:                  600,
+		guiPrevKeys:           map[window.Key]bool{},
+		gpDead:                0.15,
+		sess:                  newNetSess(),
+		nets:                  map[int]netenet.Host{},
+		netQ:                  map[int][]netenet.Event{},
+		nextNet:               1,
+		docs:                  map[int]*dataDoc{},
+		nextDoc:               1,
+		pools:                 map[int]*userPool{},
+		nextPool:              1,
+		banks:                 map[int]*bankSlot{},
+		nextBank:              1,
+		navs:                  map[int]*navMesh{},
+		nextNav:               1,
+		agents:                map[int]*navAgent{},
+		grids:                 map[int]*gridMap{},
+		nextGrid:              1,
+		paths:                 map[int]*gridPath{},
+		nextPath:              1,
+		guiSlide:              map[string]*float32{},
+		guiCheck:              map[string]*bool{},
+		guiInput:              map[string]*string{},
+		wins:                  map[int]*extraWin{},
+		nextWin:               1,
+		instances:             map[int]*instancedMesh{},
+		probes:                map[int]*lightProbe{},
+		nextProbe:             1,
+		terrains:              map[int]*terrain{},
+		nextTerrain:           1,
+		hmaps:                 map[int]*heightMap{},
+		nextHMap:              1,
+		waters:                map[int]*waterBody{},
+		nextWater:             1,
+		crowds:                map[int]*crowd{},
+		nextCrowd:             1,
+		pbrLib:                map[int]*pbrMat{},
+		nextPBR:               1,
+		iblOn:                 true,
+		iblIntensity:          1,
+		clouds:                map[int]*cloudLayer{},
+		nextCloud:             1,
+		skyTop:                math32.Color{0.525, 0.735, 0.84},
+		skyBot:                math32.Color{0.9, 0.9, 0.95},
+		ushaders:              map[int]*userShader{},
+		nextUSh:               1,
+		post:                  postFX{exposure: 1, contrast: 1, sat: 1, tint: math32.Color{1, 1, 1}},
+		timeScale:             1.0,
+		fpsControllers:        map[int]*fpsCtrl{},
+		tpsControllers:        map[int]*tpsCtrl{},
+		topDownControllers:    map[int]*topDownCtrl{},
+		platformerControllers: map[int]*platformerCtrl{},
 	}
 }
 
@@ -554,6 +579,8 @@ func (w *World) graphics3D(width, height, depth, mode int) (value.Value, error) 
 	w.app.beforeDestroy = w.destroyExtraWindows
 	w.detectModernGL()
 	_ = depth
+	// Blitz3D-style: shadows are on after Graphics3D. Authors call EnableShadows False.
+	w.ensureShadowOn()
 	if w.runner != nil {
 		w.runner.MarkLive()
 	}
@@ -746,7 +773,9 @@ func (w *World) addEntity(e *Entity, parent int) int {
 	e.tint = math32.Color4{1, 1, 1, 1}
 	e.parent = parent
 	p := w.parentNode(parent)
-	p.GetNode().Add(e.node)
+	if p != nil && p.GetNode() != nil && e.node != nil {
+		p.GetNode().Add(e.node)
+	}
 	return id
 }
 
@@ -814,7 +843,7 @@ func (w *World) newMat() *material.Standard {
 
 func (w *World) meshEnt(geom *geometry.Geometry, parent int) int {
 	mat := w.newMat()
-	mesh := graphic.NewMesh(geom, &litMat{Standard: mat, w: w})
+	mesh := graphic.NewMesh(geom, newLitMat(w, mat))
 	mesh.SetCullable(false)
 	return w.addEntity(&Entity{node: mesh, mesh: mesh, mat: mat}, parent)
 }
@@ -1283,15 +1312,21 @@ func (w *World) resolveDrivenOverlaps() {
 }
 
 func (w *World) updateWorld() {
-	dt := float32(w.delta)
-	if dt <= 0 {
-		dt = 1.0 / 60.0
+	ts := w.timeScale
+	if ts <= 0 {
+		ts = 1.0
 	}
+	dt := float32(w.delta) * ts
+	if dt <= 0 {
+		dt = (1.0 / 60.0) * ts
+	}
+	w.updateTweens(dt)
 	for _, e := range w.ents {
 		e.collided = e.collided[:0]
 	}
 	if w.phys3 != nil {
 		w.driveParentedBodies(dt)
+		w.applyRopeForces()
 		if w.physAsync {
 			w.ensureJobs().submit(func() { w.phys3.Step(dt) })
 			w.jobs.waitAll()
@@ -1300,6 +1335,8 @@ func (w *World) updateWorld() {
 		}
 		w.resolveDrivenOverlaps()
 		w.syncPhys3Pose()
+		w.simulateRopes(dt)
+		w.tickRopes()
 		w.processPhysicsContacts()
 	}
 	if w.phys2 != nil {

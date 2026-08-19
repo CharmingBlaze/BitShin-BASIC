@@ -33,6 +33,7 @@ func TestCommandTablePillars(t *testing.T) {
 		"setshadowevsm", "setshadowmsm", "enableshadowcache", "enableshadowatlas",
 		"enablecontactshadows", "enablescreenspaceshadows",
 		"createdirectionallight", "setlightdirection", "setlightshadow",
+		"entitycastshadow", "entityreceiveshadow", "setshadowdistance",
 		"createemitter", "emittercolor", "emittervelocity", "emitterburst",
 		"createemitter2d", "particle2drate",
 		"createskybox", "loadskybox", "hideskybox", "setskycolor",
@@ -100,6 +101,10 @@ func TestCommandTablePillars(t *testing.T) {
 		"createsubmarinecontroller", "updatesubmarine",
 		"createtankcontroller", "updatetank", "createtrackedcontroller", "updatetracked",
 		"createdronecontroller", "updatedrone",
+		"createwaterskicontroller", "updatewaterski",
+		"createrope", "createropeanchored", "setropecolor", "setropemass",
+		"setropedamping", "setropestrength", "setropevisible", "resetrope", "freerope",
+		"ropelength", "ropetension", "ropesegments",
 	}
 	for _, name := range need {
 		if m[name] == nil {

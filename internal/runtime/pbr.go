@@ -15,14 +15,15 @@ import (
 // pbrMat is G3N Physical plus the same shadow atlas / fog uniforms as litMat.
 type pbrMat struct {
 	*material.Physical
-	w         *World
-	metallic  float32
-	roughness float32
-	ao        float32
-	albedo    math32.Color4
-	emissive  math32.Color
-	ibl       int // -1 world default, 0 off, 1 on
-	envTex    *texture.Texture2D
+	w          *World
+	metallic   float32
+	roughness  float32
+	ao         float32
+	albedo     math32.Color4
+	emissive   math32.Color
+	ibl        int // -1 world default, 0 off, 1 on
+	envTex     *texture.Texture2D
+	recvShadow bool
 }
 
 func (m *pbrMat) GetMaterial() *material.Material { return m.Physical.GetMaterial() }
@@ -36,6 +37,11 @@ func (m *pbrMat) RenderSetup(gs *gls.GLS) {
 		m.w.bindShadowUniforms(gs)
 		m.w.bindFogUniforms(gs)
 		m.w.bindPBRUniforms(gs, m)
+		recv := 1
+		if !m.recvShadow {
+			recv = 0
+		}
+		setUni1i(gs, "MeshReceiveShadow", recv)
 	}
 }
 
@@ -59,14 +65,15 @@ func (w *World) newPBR() *pbrMat {
 		p.SetWireframe(true)
 	}
 	m := &pbrMat{
-		Physical:  p,
-		w:         w,
-		metallic:  0,
-		roughness: 0.5,
-		ao:        1,
-		albedo:    math32.Color4{0.82, 0.84, 0.88, 1},
-		emissive:  math32.Color{0, 0, 0},
-		ibl:       -1,
+		Physical:   p,
+		w:          w,
+		metallic:   0,
+		roughness:  0.5,
+		ao:         1,
+		albedo:     math32.Color4{0.82, 0.84, 0.88, 1},
+		emissive:   math32.Color{0, 0, 0},
+		ibl:        -1,
+		recvShadow: true,
 	}
 	m.applyFactors()
 	return m
@@ -79,14 +86,15 @@ func (w *World) wrapPhysical(p *material.Physical) *pbrMat {
 	p.SetShader("mbphysical")
 	metal, rough, base, emit := readPhysical(p)
 	return &pbrMat{
-		Physical:  p,
-		w:         w,
-		metallic:  metal,
-		roughness: rough,
-		ao:        1,
-		albedo:    base,
-		emissive:  emit,
-		ibl:       -1,
+		Physical:   p,
+		w:          w,
+		metallic:   metal,
+		roughness:  rough,
+		ao:         1,
+		albedo:     base,
+		emissive:   emit,
+		ibl:        -1,
+		recvShadow: true,
 	}
 }
 
@@ -300,10 +308,10 @@ func (w *World) convertEntityPhong(e *Entity) {
 		e.mat.SetShader(w.litShaderName())
 	}
 	if e.mesh != nil {
-		e.mesh.SetMaterial(&litMat{Standard: e.mat, w: w})
+		e.mesh.SetMaterial(newLitMat(w, e.mat))
 	} else if e.node != nil {
 		w.walkMeshes(e.node, func(mesh *graphic.Mesh) {
-			mesh.SetMaterial(&litMat{Standard: e.mat, w: w})
+			mesh.SetMaterial(newLitMat(w, e.mat))
 		})
 	}
 	e.usePBR = false

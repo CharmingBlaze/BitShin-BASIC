@@ -140,6 +140,10 @@ func (w *World) loadClip(a []value.Value, music bool) (value.Value, error) {
 }
 
 func (w *World) startClip(id int, loop bool) (v value.Value, err error) {
+	return w.startClipWithVol(id, loop, 1.0)
+}
+
+func (w *World) startClipWithVol(id int, loop bool, volScale float64) (v value.Value, err error) {
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Println("PlaySound:", r)
@@ -153,7 +157,14 @@ func (w *World) startClip(id int, loop bool) (v value.Value, err error) {
 	if s.voice != nil {
 		s.voice.Close()
 	}
-	voice, playErr := s.clip.PlayAt(s.vol, s.pitch, 0, loop || s.music)
+	vFinal := s.vol * volScale
+	if vFinal > 1.0 {
+		vFinal = 1.0
+	}
+	if vFinal < 0 {
+		vFinal = 0
+	}
+	voice, playErr := s.clip.PlayAt(vFinal, s.pitch, 0, loop || s.music)
 	if playErr != nil {
 		fmt.Println("PlaySound:", playErr)
 		return value.Num(0), nil

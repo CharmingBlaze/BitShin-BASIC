@@ -46,11 +46,11 @@ Names are case-insensitive. Optional arguments in brackets. Handles are integers
 `PositionEntity e, x, y, z`, `MoveEntity`, `TranslateEntity`, `TurnEntity`, `RotateEntity`, `ScaleEntity`, `PointEntity`  
 `EntityColor e, r, g, b`, `EntityAlpha e, a`, `EntityShininess e, n`, `EntitySpecular e, r, g, b`  
 Dot methods: `cam.Position(x,y,z)`, `box.Color(r,g,b)`, chaining `CreateCube().Scale().Position().Color()`. Vec `[x,y,z]` and `$RRGGBB` / `Hex("RRGGBB")` expand on those commands. Setters return the entity handle.  
-`EntityX/Y/Z`, `EntityPitch/Yaw/Roll`, `EntityScaleX/Y/Z`, `EntityDistance a, b`  
+`EntityX/Y/Z(e [, global])`, `EntityPitch/Yaw/Roll`, `EntityScaleX/Y/Z`, `EntityDistance a, b` — pass `True` for a parented entity's world position.  
 `EntityParent child, parent`, `GetParent(e)`, `NameEntity e, s$`, `EntityName$(e)`  
 `AmbientLight r, g, b` / `SetAmbientColor r, g, b`, `LightColor` / `SetLightColor`, `LightRange` — RGB 0–255 or 0–1 (if all channels ≤ 1)  
 `CreateDirectionalLight([parent])`, `CreatePointLight`, `CreateSpotLight`, `CreateAmbientLight`  
-`SetLightDirection light, pitch, yaw [, roll]`, `SetLightIntensity`, `SetLightCone`, `SetLightShadow light, on`  
+`SetLightDirection light, pitch, yaw [, roll]`, `SetLightIntensity`, `SetLightCone`, `SetLightShadow light, on` — directional lights **cast by default**; point/spot need `SetLightShadow True`.  
 `CameraRange cam, near, far`, `CameraZoom cam, z`, `CameraViewport cam, x, y, w, h`  
 `CameraFollow cam, target, dist, height [, damp, yaw, pitch]` — Lakitu-style ease toward an orbit point (yaw/pitch in degrees; damp is follow stiffness)  
 `CameraFogMode([cam,] mode)` — 0 off, 1 linear, 2 exp, 3 exp². Distance fog on the lit/shadow shader; shadows stay on.  
@@ -68,13 +68,14 @@ See `docs/SHADOWS.md`. All of these change rendering (or skip a redundant depth 
 
 | Command | Meaning |
 | --- | --- |
-| `EnableShadows [on]` | Depth atlas + `mbshadow` receive |
-| `ShadowCascades n` | Directional 1–3 frustum splits |
+| `EnableShadows [on]` | Depth atlas + `mbshadow` receive. **On after `Graphics3D`** (Blitz3D-style). Pass `False` to disable. |
+| `ShadowCascades n` | Directional 1–4 frustum-fitted CSM splits |
+| `SetShadowDistance n` | CSM far (~200–300). Fade over the last 30 units |
 | `ShadowMapSize n` / `SetShadowResolution(n)` | Resolution per atlas tile (256–8192). Alias of each other |
 | `SetLightShadowRes(light, n)` | Stored on the light; if it is the CSM sun, also sets `ShadowMapSize` |
 | `SetShadowBias n [, normalBias]` | Depth bias; optional world-normal offset in texels (`ShadowNormalBias`) |
-| `SetShadowQuality mode [, pcfTaps]` | `0` grid PCF, `1` PCSS, `2` EVSM (smooth), `3` MSM (names also work). Optional PCF radius |
-| `SetShadowPCF k` | PCF kernel (odd 1–9) |
+| `SetShadowQuality mode [, pcfTaps]` | `0` PCF, `1` PCSS, `2` EVSM, `3` MSM, or `"low"`/`"medium"`/`"high"`/`"ultra"` presets |
+| `SetShadowPCF k` | PCF kernel (minimum 3) |
 | `SetShadowFilter "pcf"\|"pcss"\|"evsm"\|"msm"` | Filter (also `0`–`3`) |
 | `SetShadowPCSS on` | Filter `pcss` / `pcf` |
 | `SetShadowEVSM [on]` | Exponential variance (Chebyshev) |
@@ -82,9 +83,10 @@ See `docs/SHADOWS.md`. All of these change rendering (or skip a redundant depth 
 | `SetShadowLightSize n` | PCSS penumbra scale |
 | `EnableShadowCache` / `SetShadowCache` / `EnableShadowCaching` | Split static (terrain / static bodies) vs dynamic maps; static redraws when sun/dir or static key changes |
 | `EnableShadowAtlas` / `SetShadowAtlas` | Packed atlas (cascades + point/spot) |
-| `EnableContactShadows` / `SetContactShadows` | Short contact march |
-| `EnableScreenSpaceShadows` / `SetScreenSpaceShadows` | Longer light-space march |
-| `SetLightShadow light, on` | Directional = CSM sun; point/spot = extra maps |
+| `EnableContactShadows` / `SetContactShadows` | Stub |
+| `EnableScreenSpaceShadows` / `SetScreenSpaceShadows` | Stub |
+| `SetLightShadow light, on` | Directional = CSM sun (on by default for the first directional). Point/spot = extra maps, opt-in |
+| `EntityCastShadow` / `EntityReceiveShadow` | Per-mesh cast/receive (aliases `CastShadow`, `ReceiveShadow`) |
 
 ## PBR (opt-in metallic-roughness)
 
@@ -390,7 +392,7 @@ Playback is Oto v3. No OpenAL.
 
 `SetGravity x,y,z` / `GetGravityX/Y/Z()` — stored and applied to Jolt via `SetGravity`.  
 `CreateBody` / `CreateBodySphere` / `CreateBodyBox` / `CreateBodyCapsule` return the entity/body handle. `ActivateBody e` wakes the body.  
-`SetBodyVelocity` / `SetVelocity`, `BodyVelocity` / `X/Y/Z`, `GetBodyVelocityX/Y/Z` — **Jolt:** native linear velocity.  
+`SetBodyVelocity` / `SetVelocity`, `BodyVelocity` / `X/Y/Z`, `GetBodyVelocityX/Y/Z` — **Jolt:** native linear velocity. `BodyVelocity(e)` is the velocity-vector magnitude (speed), while the X/Y/Z forms return components.  
 `ApplyImpulse e, x,y,z` / `ApplyForce e, x,y,z` / `ApplyTorque e, x,y,z` / `ApplyForceAtPosition e, fx,fy,fz, px,py,pz` / `ApplyLocalImpulse e, lx,ly,lz` — Jolt native; fallback integrates.  
 `SetGravityScale e, n` — 0 = no gravity. `SetRestitution` / `SetFriction` / `SetLinearDamping`. `ApplyBuoyancy e [, waterY, scale]` uses `WaterHeight` if you omit `waterY`.  
 `SetBodyAngularVelocity` / `GetBodyAngularVelocityX/Y/Z` — **Jolt:** native. **fallback:** stored.  
@@ -398,6 +400,8 @@ Playback is Oto v3. No OpenAL.
 `SetBodyRotation e, pitch,yaw,roll` / `GetBodyPitch/Yaw/Roll` — Jolt quaternion synced onto G3N nodes.  
 `Raycast(x,y,z, dx,dy,dz)` — returns hit entity (0 if none) and sets `PickedX/Y/Z`. `LinePick` / `RayPick` still do physics + visual-sphere fallback.  
 `CreateHingeJoint(a, b, x,y,z, ax,ay,az)` — aliases `CreateHinge` / `CreateHinge3D`. `CreatePointJoint` / `CreateBallSocketJoint`. `CreateSliderJoint`. `CreateSpringJoint` (distance spring; **no** `CreateDistanceJoint` command). `CreateJoint kind, a, b, …` (`JOINT_HINGE`=1, `JOINT_POINT`=2, `JOINT_SLIDER`=3, `JOINT_SPRING`=4). `a`/`b` are body handles; **`0` is world-fixed**. No args on hinge → 0. `FreeJoint id`  
+
+`CreateRope(a, b [, length, segments, radius])` creates a sagging, colliding physical rope between body centers. `CreateRopeAnchored(a, b, ax,ay,az, bx,by,bz [, length,segments,radius])` uses local body anchors; an anchor belonging to body `0` is a world coordinate. `SetRopeColor`, `SetRopeMass`, `SetRopeDamping`, `SetRopeStrength rope, stiffness, damping, maxForce`, `SetRopeVisible`, `ResetRope`, `FreeRope`; queries: `RopeLength`, `RopeSegments`, `RopeTension` (0–1).  
 `SetBodyCCD e, on` / `SetCCD e, on` — Jolt `MotionQuality::LinearCast`.  
 `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate  
 `CreateCharacterController(e [, height, radius, maxSlope, maxStrength])` — Jolt CharacterVirtual. `MoveCharacter e, vx, vz` (or `vx,vy,vz`). `SetCharacterShape e, "capsule"|"box", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper.  

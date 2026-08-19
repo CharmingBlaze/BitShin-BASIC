@@ -130,7 +130,7 @@ uniform int ShadowEnabled;
 uniform float ShadowBias;
 uniform int AtlasCols;
 uniform int AtlasRows;
-uniform mat4 LightVP[3];
+uniform mat4 LightVP[4];
 uniform sampler2D ShadowMap;
 uniform float WaterPeak;
 uniform int WaterSSROn;

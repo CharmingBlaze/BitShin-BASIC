@@ -91,15 +91,6 @@ func (w *joltWorld) Step(dt float32) {
 			w.bi.ActivateBody(b)
 		}
 	}
-	for id, f := range w.force {
-		if w.char[id] != nil {
-			continue
-		}
-		if b, ok := w.body[id]; ok && (f[0] != 0 || f[1] != 0 || f[2] != 0) {
-			w.bi.AddForce(b, jolt.Vec3{X: f[0], Y: f[1], Z: f[2]})
-		}
-		w.force[id] = [3]float32{}
-	}
 	w.ps.Update(dt, w.tempAllocator)
 	for id := range w.vehicles {
 		if b, ok := w.body[id]; ok {

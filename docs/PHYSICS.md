@@ -165,6 +165,21 @@ FreeJoint(spring)
 
 Demo: `examples/physics_joints.bb`.
 
+## Physical ropes
+
+Ropes use a stable position-based Verlet chain for sag, bending, and obstacle contact, with forces applied through Jolt at both local attachment points. This avoids unstable light-link/heavy-vehicle mass ratios while still transferring towing force and torque to the attached bodies.
+
+```basic
+rope = CreateRopeAnchored(boat, skier, 0,0.2,-2.8, 0,0.92,0.58, 13.5,14,0.03)
+SetRopeColor(rope, 226,204,132)
+SetRopeMass(rope, 0.09)
+SetRopeDamping(rope, 0.24)
+SetRopeStrength(rope, 4000, 500, 3500)
+Text(12, 12, "Tension " + Int(RopeTension(rope) * 100) + "%")
+```
+
+Use `CreateRope(a,b,length,segments,radius)` for center-to-center attachment. `CreateRopeAnchored` accepts local offsets for each body; offsets attached to body `0` are world positions. `SetRopeStrength` tunes the taut-line stiffness, velocity damping, and force cap for unusually light or heavy endpoints. `ResetRope` rebuilds its sag after teleporting an endpoint, and `FreeRope` safely removes its bodies and constraints. See `examples/rope.bb` and `examples/waterski.bb`.
+
 ## CharacterVirtual
 
 `CreateCharacterController` builds a Jolt **CharacterVirtual** (capsule) on the entity. `GetPhysicsCharacter$()` is `"jolt"` when that path is live, `"kinematic"` on fallback.

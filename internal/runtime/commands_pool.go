@@ -5,9 +5,9 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/g3n/engine/math32"
 	"github.com/gobwas/pool"
 	"github.com/gobwas/pool/pbytes"
-	"github.com/g3n/engine/math32"
 
 	"bitshinbasic/internal/value"
 )
@@ -24,11 +24,11 @@ type bankSlot struct {
 }
 
 var (
-	byteBags   = pbytes.New(64, 1<<20)
-	sizeBags   = pool.New(16, 1<<20)
-	entBag     = sync.Pool{New: func() any { return &Entity{} }}
-	sbBag      = sync.Pool{New: func() any { return &strings.Builder{} }}
-	vecBag     = sync.Pool{New: func() any { return &math32.Vector3{} }}
+	byteBags = pbytes.New(64, 1<<20)
+	sizeBags = pool.New(16, 1<<20)
+	entBag   = sync.Pool{New: func() any { return &Entity{} }}
+	sbBag    = sync.Pool{New: func() any { return &strings.Builder{} }}
+	vecBag   = sync.Pool{New: func() any { return &math32.Vector3{} }}
 )
 
 func (w *World) takeHandle(free *[]int, next *int) int {
@@ -177,6 +177,11 @@ func (w *World) poolOf(id int) (*userPool, error) {
 }
 
 func (w *World) freeEntityID(id int) {
+	for ropeID, rope := range w.ropes {
+		if rope != nil && (rope.a == id || rope.b == id) {
+			w.freeRope(ropeID)
+		}
+	}
 	if em := w.emitters[id]; em != nil {
 		w.releaseEmitterParts(em)
 		delete(w.emitters, id)

@@ -221,7 +221,7 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 		"bodyvelocity": need(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys3()
 			x, y, z, _ := w.phys3.GetVelocity(argI(a, 0, 0))
-			return value.Num(float64(x*x + y*y + z*z)), nil
+			return value.Num(math.Sqrt(float64(x*x + y*y + z*z))), nil
 		}),
 		"setbodymass": need(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys3()

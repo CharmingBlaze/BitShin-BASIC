@@ -363,11 +363,15 @@ func (w *World) fxCommands(n func(func([]value.Value) (value.Value, error)) cmd,
 		}),
 		"setsundirection": need(func(a []value.Value) (value.Value, error) {
 			w.ensureAtmosphere()
+			dx := float32(argN(a, 0, -0.35))
+			dy := float32(argN(a, 1, 0.62))
+			dz := float32(argN(a, 2, 0.70))
 			if w.atmo != nil {
-				w.atmo.sunX = float32(argN(a, 0, -0.35))
-				w.atmo.sunY = float32(argN(a, 1, 0.62))
-				w.atmo.sunZ = float32(argN(a, 2, 0.70))
+				w.atmo.sunX, w.atmo.sunY, w.atmo.sunZ = dx, dy, dz
 			}
+			w.aimDirLightVec(dx, dy, dz)
+			w.skySunOK = false
+			w.syncVisualSun()
 			return z()
 		}),
 		"strikelightning": need(func(a []value.Value) (value.Value, error) {

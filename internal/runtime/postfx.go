@@ -320,6 +320,10 @@ func (w *World) renderSceneCams(rend *renderer.Renderer, ww, hh int) {
 			break
 		}
 	}
+	targetFBO := uint32(0)
+	if w.post.on && w.post.fbo != 0 {
+		targetFBO = w.post.fbo
+	}
 	if !split {
 		cam := w.cam
 		if cam == nil && len(list) > 0 {
@@ -327,10 +331,10 @@ func (w *World) renderSceneCams(rend *renderer.Renderer, ww, hh int) {
 		}
 		if cam != nil {
 			w.renderShadows(rend, cam)
-			gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
-			gl.UseProgram(0)
+			gl.BindFramebuffer(gl.FRAMEBUFFER, targetFBO)
 			drainGL("pre-water")
 			w.renderWaterReflection(rend, cam)
+			gl.BindFramebuffer(gl.FRAMEBUFFER, targetFBO)
 			if ww > 0 && hh > 0 {
 				gl.Viewport(0, 0, int32(ww), int32(hh))
 			}
@@ -354,10 +358,10 @@ func (w *World) renderSceneCams(rend *renderer.Renderer, ww, hh int) {
 			glY = 0
 		}
 		w.renderShadows(rend, c.cam)
-		gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
-		gl.UseProgram(0)
+		gl.BindFramebuffer(gl.FRAMEBUFFER, targetFBO)
 		drainGL("pre-water")
 		w.renderWaterReflection(rend, c.cam)
+		gl.BindFramebuffer(gl.FRAMEBUFFER, targetFBO)
 		gl.Viewport(int32(c.x), int32(glY), int32(vw), int32(vh))
 		if vh > 0 {
 			c.cam.SetAspect(float32(vw) / float32(vh))

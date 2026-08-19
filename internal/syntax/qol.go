@@ -113,17 +113,18 @@ var KeyConstants = map[string]float64{
 	"key_q": 16, "key_w": 17, "key_e": 18, "key_r": 19, "key_t": 20,
 	"key_y": 21, "key_u": 22, "key_i": 23, "key_o": 24, "key_p": 25,
 	"key_lbracket": 26, "key_rbracket": 27,
-	"key_enter": 28, "key_lcontrol": 29,
+	"key_enter": 28, "key_lcontrol": 29, "key_left_control": 29, "key_ctrl": 29, "key_control": 29, "key_lctrl": 29,
 	"key_a": 30, "key_s": 31, "key_d": 32, "key_f": 33, "key_g": 34,
 	"key_h": 35, "key_j": 36, "key_k": 37, "key_l": 38,
-	"key_lshift": 42, "key_rshift": 54,
+	"key_lshift": 42, "key_left_shift": 42, "key_shift": 42, "key_rshift": 54, "key_right_shift": 54,
 	"key_z": 44, "key_x": 45, "key_c": 46, "key_v": 47, "key_b": 48,
 	"key_n": 49, "key_m": 50,
+	"key_alt": 56, "key_lalt": 56, "key_ralt": 184,
 	"key_space": 57,
 	"key_f1":    59, "key_f2": 60, "key_f3": 61, "key_f4": 62, "key_f5": 63,
 	"key_f6": 64, "key_f7": 65, "key_f8": 66, "key_f9": 67, "key_f10": 68,
 	"key_up": 200, "key_left": 203, "key_right": 205, "key_down": 208,
-	"key_rcontrol": 157,
+	"key_rcontrol": 157, "key_right_control": 157, "key_rctrl": 157,
 }
 
 // ParseHexInt parses FFECc8 / $FFECc8 into an integer (typically packed RGB).

@@ -18,10 +18,8 @@ SetWeather("clear")
 SetWeatherIntensity(0.85)
 
 EnableShadows True
-ShadowCascades 2
-ShadowMapSize 2048
+SetShadowQuality "high"
 SetShadowBias 0.0018
-SetShadowQuality(2, 4)
 
 sun = CreateDirectionalLight()
 SetLightDirection sun, 55, 40, 0

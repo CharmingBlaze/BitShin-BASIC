@@ -87,11 +87,21 @@ func TestHasShadowLight(t *testing.T) {
 	if !w.hasShadowLight() {
 		t.Fatal("directional light should drive shadows")
 	}
+	if !w.ents[dir].castShadow {
+		t.Fatal("CreateDirectionalLight / CreateLight(1) must cast by default")
+	}
+	if w.shadow.lightID != dir {
+		t.Fatalf("first directional should be the CSM sun, lightID=%d dir=%d", w.shadow.lightID, dir)
+	}
 	delete(w.ents, dir)
 	pt := w.makeLight(2, 0)
 	w.ents[pt].castShadow = true
 	if !w.hasShadowLight() {
 		t.Fatal("shadow-casting point light should count")
+	}
+	pt2 := w.makeLight(2, 0)
+	if w.ents[pt2].castShadow {
+		t.Fatal("point lights stay opt-in unless SetLightShadow")
 	}
 }
 

@@ -1,69 +1,110 @@
-; Directional CSM plus point/spot maps and the extra filter commands.
-; Esc quits. Headless CI covers the command logic; this is the visual check.
-
-Graphics3D(960, 600)
-SetWindowTitle("BitShin BASIC — Shadows")
-SetCameraClsColor(12, 14, 22)
-SetAmbientLight(28, 32, 42)
+; BitShin BASIC — Modern Dynamic Shadows Showcase
+SetWindowTitle("BitShin BASIC — Real-Time Game Shadows")
+Graphics3D(1280, 720, 0, 2)
+SetBuffer(BackBuffer())
+SetCameraClsColor(45, 55, 75)
+SetAmbientLight(65, 70, 85)
 
 cam = CreateCamera()
-SetPosition(cam, 0, 4, -10)
-PointEntity(cam, 0, 0.4, 2)
+SetCameraRange(cam, 0.1, 1000)
+SetPosition(cam, 0, 5.5, -8.5)
+PointEntity(cam, 0, 0.8, 3.5)
 
 EnableShadows True
 ShadowCascades 2
-ShadowMapSize 1024
-SetShadowBias 0.003
+ShadowMapSize 2048
+SetShadowBias 0.002
 SetShadowPCF 3
-SetShadowFilter "pcss"
-EnableShadowAtlas True
-EnableShadowCache True
-EnableContactShadows True
-EnableScreenSpaceShadows True
+SetShadowFilter "pcf"
 
+; Directional Sunlight
 sun = CreateDirectionalLight()
-SetLightDirection sun, 50, 35, 0
-SetLightColor sun, 255, 230, 190
+SetLightDirection sun, 50, 40, 0
+SetLightColor sun, 255, 240, 210
 SetLightShadow sun, True
 
+; Point Lamp
 lamp = CreatePointLight()
-SetPosition(lamp, 2.2, 2.4, 3)
-SetLightColor lamp, 80, 170, 255
-SetLightRange lamp, 10
+SetPosition(lamp, 3.0, 3.0, 3.0)
+SetLightColor lamp, 100, 180, 255
+SetLightRange lamp, 12
 SetLightShadow lamp, True
 
+; Spot Light
 spot = CreateSpotLight()
-SetPosition(spot, -3, 4, 1)
-SetLightDirection spot, -55, 20, 0
-SetLightCone spot, 12, 35
-SetLightColor spot, 255, 180, 90
-SetLightRange spot, 14
+SetPosition(spot, -4.0, 4.5, 1.0)
+SetLightDirection spot, -45, 30, 0
+SetLightCone spot, 15, 45
+SetLightColor spot, 255, 190, 100
+SetLightRange spot, 16
 SetLightShadow spot, True
 
-ground = CreatePlane()
-SetScale(ground, 16, 1, 16)
-SetPosition(ground, 0, 0, 4)
-SetEntityColor(ground, 48, 54, 64)
+; Arena Floor
+ground = CreateCube()
+SetScale(ground, 20, 0.25, 20)
+SetPosition(ground, 0, 0, 3.5)
+SetEntityColor(ground, 65, 80, 70)
+EntityShininess(ground, 0.05)
 
+; Central Rotating Cube
 cube = CreateCube()
-SetPosition(cube, 0, 0.7, 4)
-SetEntityColor(cube, 220, 90, 70)
+SetScale(cube, 1.2, 1.2, 1.2)
+SetPosition(cube, 0, 1.2, 3.5)
+SetEntityColor(cube, 230, 80, 60)
+EntityShininess(cube, 0.2)
+EntitySpecular(cube, 60, 60, 60)
 
-ball = CreateSphere()
-SetPosition(ball, 2.4, 0.7, 5)
-SetEntityColor(ball, 80, 200, 140)
+; Sphere
+ball = CreateSphere(16)
+SetScale(ball, 1.0, 1.0, 1.0)
+SetPosition(ball, 2.6, 1.0, 4.5)
+SetEntityColor(ball, 70, 190, 130)
+EntityShininess(ball, 0.3)
+EntitySpecular(ball, 80, 80, 80)
 
-Print "Shadows: directional + point + spot  |  1=PCF 2=PCSS 3=EVSM 4=MSM"
+; Torus Ring
+ring = CreateTorus(1.4, 0.25, 16, 24)
+SetPosition(ring, -2.8, 1.8, 3.5)
+SetRotation(ring, 45, 30, 0)
+SetEntityColor(ring, 240, 180, 50)
+EntityShininess(ring, 0.4)
+EntitySpecular(ring, 100, 100, 100)
 
-While Not KeyDown(1)
+mode$ = "1: 16-Tap Poisson PCF"
+frames = 0
+
+While 1
+    frames = frames + 1
+    If frames > 8 And KeyHit(KEY_ESCAPE) Then Exit
     dt# = DeltaTime() * 60
-    TurnEntity(cube, 0.3 * dt, 0.5 * dt, 0)
-    If KeyHit(KEY_1) Then SetShadowFilter "pcf"
-    If KeyHit(KEY_2) Then SetShadowFilter "pcss"
-    If KeyHit(KEY_3) Then SetShadowEVSM True
-    If KeyHit(KEY_4) Then SetShadowMSM True
+
+    TurnEntity(cube, 0.4 * dt, 0.6 * dt, 0.2 * dt)
+    TurnEntity(ring, 0.3 * dt, 0.5 * dt, 0)
+
+    If KeyHit(KEY_1) Then
+        SetShadowFilter "pcf"
+        mode$ = "1: 16-Tap Poisson PCF"
+    EndIf
+    If KeyHit(KEY_2) Then
+        SetShadowFilter "pcss"
+        mode$ = "2: Contact-Hardening PCSS"
+    EndIf
+    If KeyHit(KEY_3) Then
+        SetShadowEVSM True
+        mode$ = "3: Exponential Variance (EVSM)"
+    EndIf
+    If KeyHit(KEY_4) Then
+        SetShadowMSM True
+        mode$ = "4: Moment Shadows (MSM)"
+    EndIf
+
+    Cls
     UpdateWorld
     RenderWorld
+
+    Text(20, 20, "BitShin BASIC — Real-Time Game Shadows Pipeline")
+    Text(20, 44, "1: PCF | 2: PCSS (Variable Soft Penumbra) | 3: EVSM | 4: MSM | Esc: Quit")
+    Text(20, 68, "Active Shadow Filtering: " + mode$)
     Flip
 Wend
 End

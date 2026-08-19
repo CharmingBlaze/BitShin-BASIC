@@ -111,7 +111,7 @@ func (w *World) commandTable() map[string]cmd {
 				c := src.mat.AmbientColor()
 				mat.SetColor(&c)
 			}
-			mesh := graphic.NewMesh(src.mesh.GetGeometry(), &litMat{Standard: mat, w: w})
+			mesh := graphic.NewMesh(src.mesh.GetGeometry(), newLitMat(w, mat))
 			id := w.addEntity(&Entity{node: mesh, mesh: mesh, mat: mat}, argI(a, 1, 0))
 			return value.Num(float64(id)), nil
 		}),
@@ -142,6 +142,12 @@ func (w *World) commandTable() map[string]cmd {
 			}
 			gx, gy, gz := toG3N(float32(argN(a, 1, 0)), float32(argN(a, 2, 0)), float32(argN(a, 3, 0)))
 			e.node.GetNode().SetPosition(gx, gy, gz)
+			if e.parent == 0 && w.phys3 != nil {
+				if _, _, _, ok := w.phys3.GetPosition(argI(a, 0, 0)); ok {
+					w.phys3.SetPosition(argI(a, 0, 0), float32(argN(a, 1, 0)), float32(argN(a, 2, 0)), float32(argN(a, 3, 0)))
+					w.phys3.Wake(argI(a, 0, 0))
+				}
+			}
 			w.aimDefaultCamera(e)
 			return z()
 		}),
@@ -206,15 +212,7 @@ func (w *World) commandTable() map[string]cmd {
 			if err != nil {
 				return value.Value{}, err
 			}
-			c := rgb(argN(a, 1, 255), argN(a, 2, 255), argN(a, 3, 255))
-			e.tint.R, e.tint.G, e.tint.B = c.R, c.G, c.B
-			if e.mat != nil {
-				e.mat.SetColor(c)
-				e.mat.SetEmissiveColor(&math32.Color{0, 0, 0})
-			}
-			if e.pbr != nil {
-				e.pbr.SetBaseColorFactor(&e.tint)
-			}
+			w.setEntityRGB(e, float32(argN(a, 1, 255)), float32(argN(a, 2, 255)), float32(argN(a, 3, 255)))
 			return z()
 		}),
 		"entityalpha": need(func(a []value.Value) (value.Value, error) {
@@ -239,7 +237,12 @@ func (w *World) commandTable() map[string]cmd {
 			if err != nil {
 				return value.Value{}, err
 			}
-			x, _, _ := fromG3N(n.Position().X, n.Position().Y, n.Position().Z)
+			p := n.Position()
+			if argI(a, 1, 0) != 0 {
+				w.refreshWorldMatrices()
+				p = worldPos(n)
+			}
+			x, _, _ := fromG3N(p.X, p.Y, p.Z)
 			return value.Num(float64(x)), nil
 		}),
 		"entityy": need(func(a []value.Value) (value.Value, error) {
@@ -247,14 +250,24 @@ func (w *World) commandTable() map[string]cmd {
 			if err != nil {
 				return value.Value{}, err
 			}
-			return value.Num(float64(n.Position().Y)), nil
+			p := n.Position()
+			if argI(a, 1, 0) != 0 {
+				w.refreshWorldMatrices()
+				p = worldPos(n)
+			}
+			return value.Num(float64(p.Y)), nil
 		}),
 		"entityz": need(func(a []value.Value) (value.Value, error) {
 			n, err := w.nodeOf(argI(a, 0, 0))
 			if err != nil {
 				return value.Value{}, err
 			}
-			_, _, z := fromG3N(n.Position().X, n.Position().Y, n.Position().Z)
+			p := n.Position()
+			if argI(a, 1, 0) != 0 {
+				w.refreshWorldMatrices()
+				p = worldPos(n)
+			}
+			_, _, z := fromG3N(p.X, p.Y, p.Z)
 			return value.Num(float64(z)), nil
 		}),
 		"entitypitch": need(func(a []value.Value) (value.Value, error) {
@@ -356,6 +369,7 @@ func (w *World) commandTable() map[string]cmd {
 			t := w.texs[argI(a, 1, 0)]
 			if t != nil && e.mat != nil {
 				e.mat.AddTexture(t.tex)
+				e.albedoTex = t.tex
 			}
 			if t != nil && e.pbr != nil {
 				e.pbr.SetBaseColorMap(t.tex)
@@ -522,6 +536,9 @@ func (w *World) commandTable() map[string]cmd {
 	for k, v := range w.vehicleCommands(n, z, need) {
 		m[k] = v
 	}
+	for k, v := range w.ropeCommands(n, z, need) {
+		m[k] = v
+	}
 	for k, v := range w.characterCommands(n, z, need) {
 		m[k] = v
 	}
@@ -645,6 +662,12 @@ func (w *World) commandTable() map[string]cmd {
 		m[k] = v
 	}
 	for k, v := range w.shaderCommands(n, z, need) {
+		m[k] = v
+	}
+	for k, v := range w.cameraCommands(n, z, need) {
+		m[k] = v
+	}
+	for k, v := range w.gameplayCommands(n, z, need) {
 		m[k] = v
 	}
 	applyModernAliases(m)
@@ -794,9 +817,10 @@ func (w *World) cameraFollow(a []value.Value) (value.Value, error) {
 		dt = 0.05
 	}
 	k := 1.0
-	if damp > 0 {
+	if camE.camFollowed && damp > 0 {
 		k = 1 - math.Exp(-damp*dt)
 	}
+	camE.camFollowed = true
 	nx := float64(cx) + (wishX-float64(cx))*k
 	ny := float64(cy) + (wishY-float64(cy))*k
 	nz := float64(cz) + (wishZ-float64(cz))*k
@@ -834,6 +858,21 @@ func (w *World) pointOrLook(a []value.Value) (value.Value, error) {
 	return value.Num(0), nil
 }
 
+func (w *World) setEntityRGB(e *Entity, r, g, b float32) {
+	if e == nil {
+		return
+	}
+	c := rgb(float64(r), float64(g), float64(b))
+	e.tint.R, e.tint.G, e.tint.B = c.R, c.G, c.B
+	if e.mat != nil {
+		e.mat.SetColor(c)
+		e.mat.SetEmissiveColor(&math32.Color{0, 0, 0})
+	}
+	if e.pbr != nil {
+		e.pbr.SetBaseColorFactor(&e.tint)
+	}
+}
+
 func (w *World) applyRot(e *Entity) {
 	n := e.node.GetNode()
 	if e.cam != nil {
@@ -846,6 +885,7 @@ func (w *World) applyRot(e *Entity) {
 	if e.lgtKind == 1 {
 		gx, gy, gz := dirLightOffset(float64(e.pitch), float64(e.yaw))
 		n.SetPosition(gx, gy, gz)
+		w.syncVisualSun()
 	}
 }
 

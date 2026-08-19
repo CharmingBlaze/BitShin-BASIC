@@ -6,8 +6,35 @@ import (
 	"github.com/go-gl/gl/v3.3-core/gl"
 )
 
+func (w *World) hasModernPass() bool {
+	if w.hasGPUInstances() {
+		return true
+	}
+	if len(w.glmod.geoms) > 0 {
+		for _, g := range w.glmod.geoms {
+			if g != nil && g.count > 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (w *World) hasGPUInstances() bool {
+	m := &w.glmod
+	if !m.gpuInst || !m.caps.instance {
+		return false
+	}
+	for _, im := range w.instances {
+		if im != nil && im.count > 0 && im.gpuOK && im.vao != 0 {
+			return true
+		}
+	}
+	return false
+}
+
 func (w *World) drawModernPass(cam *camera.Camera) {
-	if w.app == nil || cam == nil {
+	if w.app == nil || cam == nil || !w.hasModernPass() {
 		return
 	}
 	w.detectModernGL()
@@ -30,10 +57,10 @@ func (w *World) drawGPUInstanceDepth(lightVP *math32.Matrix4) int {
 }
 
 func (w *World) drawGPUInstances(viewProj *math32.Matrix4, depth bool) int {
-	m := w.ensureGLMod()
-	if !m.gpuInst || !m.caps.instance {
+	if !w.hasGPUInstances() {
 		return 0
 	}
+	m := w.ensureGLMod()
 	prog := m.instProg
 	if depth {
 		if !m.instDepthOK {

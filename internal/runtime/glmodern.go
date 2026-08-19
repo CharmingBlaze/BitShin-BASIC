@@ -177,6 +177,8 @@ func (w *World) detectModernGL() {
 			b01(m.caps.compute), b01(m.caps.ssbo), b01(m.caps.tess))
 		m.logged = true
 	}
+	for gl.GetError() != gl.NO_ERROR {
+	}
 }
 
 func b01(v bool) int {
@@ -208,14 +210,20 @@ func saveModernGL(gs *gls.GLS) func() {
 	gl.GetIntegerv(gl.CURRENT_PROGRAM, &prog)
 	gl.GetIntegerv(gl.VERTEX_ARRAY_BINDING, &vao)
 	gl.GetIntegerv(gl.ARRAY_BUFFER_BINDING, &arrayBuf)
-	gl.GetIntegerv(gl.ELEMENT_ARRAY_BUFFER_BINDING, &ebo)
+	if vao != 0 {
+		gl.GetIntegerv(gl.ELEMENT_ARRAY_BUFFER_BINDING, &ebo)
+	}
 	gl.GetIntegerv(gl.UNIFORM_BUFFER_BINDING, &ubo)
 	return func() {
 		gl.UseProgram(uint32(prog))
 		gl.BindVertexArray(uint32(vao))
 		gl.BindBuffer(gl.ARRAY_BUFFER, uint32(arrayBuf))
-		gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, uint32(ebo))
-		gl.BindBuffer(gl.UNIFORM_BUFFER, uint32(ubo))
+		if vao != 0 && ebo != 0 {
+			gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, uint32(ebo))
+		}
+		if ubo != 0 {
+			gl.BindBuffer(gl.UNIFORM_BUFFER, uint32(ubo))
+		}
 		if vp[2] > 0 && vp[3] > 0 {
 			// Raw GL — G3N's wrapper exits the process on any leftover error.
 			gl.Viewport(vp[0], vp[1], vp[2], vp[3])

@@ -48,12 +48,17 @@ Demo of the aircraft: `examples/plane.bb`.
 | `CreateJetController(e)` (`CreateJet`) | `UpdateJet e, throttle, pitch, roll, yaw` | `examples/jet.bb` |
 | `CreateSpaceshipController(e)` (`CreateSpaceship`) | `UpdateSpaceship e, throttle, pitch, roll, yaw` | `examples/spaceship.bb` |
 | `CreateBoatController(e)` (`CreateBoat`) | `UpdateBoat e, throttle, steer` | `examples/boat.bb` |
+| `CreateJetSkiController(e)` (`CreateJetSki`) | `UpdateJetSki e, throttle, steer` | `examples/jetski.bb` |
 | `CreateHelicopterController(e)` (`CreateHeli`) | `UpdateHelicopter e, collective, cyclicP, cyclicR, yaw` | `examples/helicopter.bb` |
 | `CreateHovercraftController(e)` (`CreateHover`) | `UpdateHovercraft e, throttle, steer` | `examples/hovercraft.bb` |
 | `CreateSubmarineController(e)` (`CreateSub`) | `UpdateSubmarine e, throttle, steer, dive` | `examples/submarine.bb` |
 | `CreateDroneController(e)` (`CreateDrone`) | `UpdateDrone e, throttle, pitch, roll, yaw` | `examples/drone.bb` |
+| `CreateMechController(e)` (`CreateMech`) | `UpdateMech e, throttle, turn, strafe` | `examples/mech.bb` |
+| `CreateLanderController(e)` (`CreateLander`) | `UpdateLander e, mainThrust, pitch, roll, yaw` | `examples/lander.bb` |
 
-Also registered (same pattern): `CreateGliderController` / `UpdateGlider` (aero, no thrust), `CreateSkiController` / `UpdateSki` (low friction). All six extra kinds together: `examples/vehicles_more.bb`.
+Also registered (same pattern): `CreateGliderController` / `UpdateGlider` (aero, no thrust), `CreateSkiController` / `UpdateSki` (low friction). All kinds together: `examples/vehicles_more.bb`.
+
+Controller creation also accepts optional hull and mass values: `CreateBoatController(e, halfWidth, halfHeight, halfLength, mass)`. The same optional form works for the other controllers; omitted values use that vehicle type's defaults.
 
 ## What the sim actually does
 
@@ -62,7 +67,9 @@ Also registered (same pattern): `CreateGliderController` / `UpdateGlider` (aero,
 | Car / moto / tank | Jolt wheeled / motorcycle / tracked when `Create*Vehicle` succeeds; else `ApplyForce` along +Z, yaw `ApplyTorque`, brake drag |
 | Plane / jet / glider | Aero: lift + drag + thrust `ApplyForce`, stick `ApplyTorque`. Plane stall ~12, jet ~28 |
 | Spaceship | `SetGravityScale 0`, `ApplyLocalImpulse` +Z, `ApplyTorque` |
-| Boat | Gerstner `WaterHeight` at four hull corners → `ApplyForceAtPosition` lift + forward thrust |
+| Boat / JetSki | Gerstner `WaterHeight` at hull sample points → `ApplyForceAtPosition` lift + planing thrust + turn banking |
+| Mech / Walker | Bipedal mass thrust, turn torque, heavy friction + angular damping, upright gyro stabilization |
+| Lunar Lander / Rocket | Gimbal +Up main engine thrust + 3-axis RCS attitude control |
 | Hovercraft | Constant up-force, low `SetFriction`, XZ thrust |
 | Submarine | Buoyancy vs `WaterHeight` + dive force |
 | Helicopter | Hover = mass × \|g\| + **collective**; cyclicP / cyclicR / yaw are torques |
@@ -165,6 +172,7 @@ UpdateSubmarine(sub, throttle, steer, dive)
 - Native Jolt vehicles are wired on **Windows**. Other Jolt platforms may get the force fallback.
 - Boat / sub use **CPU** `WaterHeight`, not a separate fluid sim.
 - `CreateBuoy(ent)` (splash / wake) is a different water helper — [WATER.md](WATER.md).
+- `CreateRopeAnchored` supplies real Jolt tow-rope physics. `UpdateWaterSki` automatically skips its legacy spring pull when the skier and tow boat already share a physical rope.
 
 ## Demos
 

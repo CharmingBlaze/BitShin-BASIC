@@ -12,7 +12,7 @@ in vec3 Normal;
 in vec2 FragTexcoord;
 in vec3 WorldPos;
 in vec3 WorldNormal;
-in vec4 LightSpacePos[3];
+in vec4 LightSpacePos[4];
 #include <lights>
 #include <material>
 #include <phong_model>
@@ -23,7 +23,6 @@ uniform int ShadowFilter;
 uniform int ShadowPCF;
 uniform float ShadowBias;
 uniform float ShadowLightSize;
-uniform vec3 ShadowSplit;
 uniform int ShadowContact;
 uniform int ShadowSSS;
 uniform int AtlasCols;
@@ -153,15 +152,19 @@ void main() {
     if (dot(L, L) < 1e-6) { L = vec3(0.35, 0.82, 0.28); }
     L = normalize(L);
     float ndl = max(dot(n, L), 0.0);
-    float sh = shadowFactor();
-    vec3 sun = TerrainSunColor * ndl * sh;
-    if (dot(TerrainSunColor, TerrainSunColor) < 1e-6) {
-        sun = vec3(1.0, 0.92, 0.78) * ndl * sh;
+    float sunSh = sunShadowFactor(WorldPos, n, L);
+    float locSh = localShadows();
+    float sh = sunSh * locSh;
+    vec3 sunColor = TerrainSunColor;
+    if (dot(sunColor, sunColor) < 1e-6) {
+        sunColor = vec3(1.0, 0.92, 0.78);
     }
+    vec3 sun = sunColor * ndl * sh;
     vec3 hemi = mix(vec3(0.30, 0.22, 0.14), vec3(0.40, 0.50, 0.62), n.y * 0.5 + 0.5);
     vec3 V = normalize(CamWorldPos - WorldPos);
     float spec = pow(max(dot(reflect(-L, n), V), 0.0), 28.0) * ndl * sh * 0.22;
-    vec3 col = albedo * (sun * 1.15 + hemi * 0.62) + spec * TerrainSunColor;
+    vec3 shadowTint = ShadowColor * (1.0 - sh) * albedo;
+    vec3 col = albedo * (sun * 1.15 + hemi * 0.62) + shadowTint + spec * sunColor;
     FragColor = vec4(min(col, vec3(0.97)), texMixed.a * MatOpacity);
     float shoreWet = 1.0 - smoothstep(0.06, 1.9, abs(WorldPos.y - WaterCausticLevel));
     float wet = clamp(max(Wetness, shoreWet * 0.82), 0.0, 1.0);

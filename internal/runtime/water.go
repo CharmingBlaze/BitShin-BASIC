@@ -99,7 +99,7 @@ func (w *World) bindWaterShadows(gs *gls.GLS) {
 		return
 	}
 	dummy := w.ensureDummyShadowTex()
-	if !w.shadow.on || !w.shadow.ready || w.shadow.tex == 0 {
+	if !w.shadowSampleOK() {
 		bindWaterSampler(gs, 11, dummy, "ShadowMap")
 		setUni1i(gs, "ShadowEnabled", 0)
 		setUni1f(gs, "ShadowBias", 0.0025)
@@ -831,12 +831,14 @@ func (w *World) renderWaterFBO(rend *renderer.Renderer, cam *camera.Camera, t *w
 	if t.fbo == 0 || cam == nil || t.w < 1 || t.h < 1 {
 		return
 	}
+	var prevFBO int32
+	gl.GetIntegerv(gl.FRAMEBUFFER_BINDING, &prevFBO)
 	gl.BindFramebuffer(gl.FRAMEBUFFER, t.fbo)
 	gl.Viewport(0, 0, t.w, t.h)
 	gl.ClearColor(clear.R, clear.G, clear.B, 1)
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 	_ = rend.Render(w.scene, cam)
-	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
+	gl.BindFramebuffer(gl.FRAMEBUFFER, uint32(prevFBO))
 }
 
 func (w *World) reflectionCamera(cam *camera.Camera, waterY float32) *camera.Camera {

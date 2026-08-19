@@ -17,7 +17,7 @@ SetLightColor(sun, 255, 236, 200)
 SetLightShadow(sun, True)
 EnableShadows(True)
 ShadowMapSize(1024)
-SetShadowQuality(2, 4)
+SetShadowQuality(0, 4)
 SetShadowBias(0.0018)
 SetAmbientColor(61, 71, 92)
 

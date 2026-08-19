@@ -23,6 +23,10 @@ func (w *World) makeLight(kind, parent int) int {
 	default:
 		id := w.finishLight(light.NewDirectional(col, 1.15), 1, parent)
 		w.setLightDir(w.ents[id], 40, 30, 0)
+		w.ents[id].castShadow = true
+		if w.shadow.lightID == 0 {
+			w.shadow.lightID = id
+		}
 		return id
 	}
 }
@@ -112,21 +116,16 @@ func (w *World) lightCommands(n func(func([]value.Value) (value.Value, error)) c
 			return z()
 		}),
 		"enableshadows": need(func(a []value.Value) (value.Value, error) {
-			w.shadow.on = argI(a, 0, 1) != 0
+			on := argI(a, 0, 1) != 0
+			if on {
+				w.ensureShadowOn()
+			} else {
+				w.shadow.on = false
+				w.shadow.ready = false
+				w.shadow.warm = 0
+				w.useShadowMaterials(false)
+			}
 			fmt.Println("EnableShadows:", w.shadow.on)
-			if w.shadow.size <= 0 {
-				w.shadow.size = 2048
-			}
-			if w.shadow.cascades < 1 {
-				w.shadow.cascades = 2
-			}
-			if w.shadow.pcf < 1 {
-				w.shadow.pcf = 3
-			}
-			if w.shadow.bias <= 0 {
-				w.shadow.bias = 0.0025
-			}
-			w.useShadowMaterials(w.shadow.on)
 			return z()
 		}),
 		"setshadowresolution": n(func(a []value.Value) (value.Value, error) {
@@ -188,8 +187,21 @@ func (w *World) lightCommands(n func(func([]value.Value) (value.Value, error)) c
 			return z()
 		}),
 		"setshadowquality": n(func(a []value.Value) (value.Value, error) {
-			mode := argI(a, 0, 0)
 			name := strings.ToLower(strings.TrimSpace(argS(a, 0)))
+			if w.applyShadowPreset(name) {
+				if len(a) >= 2 {
+					k := argI(a, 1, 3)
+					if k < 3 {
+						k = 3
+					}
+					if k > 9 {
+						k = 9
+					}
+					w.shadow.pcf = k
+				}
+				return z()
+			}
+			mode := argI(a, 0, 0)
 			switch name {
 			case "pcf":
 				mode = shadowFilterPCF
@@ -209,8 +221,8 @@ func (w *World) lightCommands(n func(func([]value.Value) (value.Value, error)) c
 			w.shadow.filter = mode
 			if len(a) >= 2 {
 				k := argI(a, 1, 3)
-				if k < 1 {
-					k = 1
+				if k < 3 {
+					k = 3
 				}
 				if k > 9 {
 					k = 9
@@ -224,8 +236,8 @@ func (w *World) lightCommands(n func(func([]value.Value) (value.Value, error)) c
 		}),
 		"setshadowpcf": n(func(a []value.Value) (value.Value, error) {
 			k := argI(a, 0, 3)
-			if k < 1 {
-				k = 1
+			if k < 3 {
+				k = 3
 			}
 			if k > 9 {
 				k = 9
@@ -345,6 +357,65 @@ func (w *World) lightCommands(n func(func([]value.Value) (value.Value, error)) c
 		"setsss": n(func(a []value.Value) (value.Value, error) {
 			w.shadow.sss = argI(a, 0, 1)
 			w.ensureShadowOn()
+			return z()
+		}),
+		"setshadowsoftness": n(func(a []value.Value) (value.Value, error) {
+			w.shadow.softness = float32(argN(a, 0, 1.0))
+			return z()
+		}),
+		"shadowsoftness": n(func(a []value.Value) (value.Value, error) {
+			w.shadow.softness = float32(argN(a, 0, 1.0))
+			return z()
+		}),
+		"setshadowcolor": n(func(a []value.Value) (value.Value, error) {
+			w.shadow.color = *rgb(argN(a, 0, 0), argN(a, 1, 0), argN(a, 2, 0))
+			return z()
+		}),
+		"shadowcolor": n(func(a []value.Value) (value.Value, error) {
+			w.shadow.color = *rgb(argN(a, 0, 0), argN(a, 1, 0), argN(a, 2, 0))
+			return z()
+		}),
+		"setshadowfade": n(func(a []value.Value) (value.Value, error) {
+			w.shadow.fadeNear = float32(argN(a, 0, 60))
+			w.shadow.fadeFar = float32(argN(a, 1, 100))
+			return z()
+		}),
+		"setlightspecular": need(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			_ = e
+			return z()
+		}),
+		"entitycastshadow": need(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			e.meshNoCast = argI(a, 1, 1) == 0
+			return z()
+		}),
+		"entityreceiveshadow": need(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			on := argI(a, 1, 1) != 0
+			e.meshNoRecv = !on
+			w.setMeshReceiveShadow(e, on)
+			return z()
+		}),
+		"setshadowdistance": n(func(a []value.Value) (value.Value, error) {
+			d := float32(argN(a, 0, 250))
+			if d < 40 {
+				d = 40
+			}
+			w.shadow.distance = d
+			if w.shadow.fadeFar <= 0 || w.shadow.fadeFar > d {
+				w.shadow.fadeFar = d
+				w.shadow.fadeNear = d - shadowFadeTail
+			}
 			return z()
 		}),
 	}
