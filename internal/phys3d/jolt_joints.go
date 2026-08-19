@@ -27,13 +27,20 @@ func (w *joltWorld) CreateSpringJoint(a, b int, px, py, pz, rest, stiff, damp fl
 }
 
 func (w *joltWorld) GetRotation(id int) (float32, float32, float32, float32, bool) {
-	if _, ok := w.body[id]; !ok {
+	if _, ok := w.body[id]; !ok && w.char[id] == nil {
 		return 0, 0, 0, 1, false
 	}
-	return 0, 0, 0, 1, true
+	q := w.rot[id]
+	if q[0] == 0 && q[1] == 0 && q[2] == 0 && q[3] == 0 {
+		return 0, 0, 0, 1, true
+	}
+	return q[0], q[1], q[2], q[3], true
 }
 
-func (w *joltWorld) SetRotation(int, float32, float32, float32, float32) {}
+func (w *joltWorld) SetRotation(id int, x, y, z, qw float32) {
+	x, y, z, qw = quatNormalize(x, y, z, qw)
+	w.rot[id] = [4]float32{x, y, z, qw}
+}
 
 func (w *joltWorld) SetCCD(int, bool) int { return 0 }
 
@@ -48,25 +55,33 @@ func (w *joltWorld) EnableContacts() {}
 func (w *joltWorld) LookupBody(v uint32) int { return w.bodyVal[v] }
 
 func (w *joltWorld) ApplyTorque(id int, x, y, z float32) {
-	a := w.ang[id]
-	w.ang[id] = [3]float32{a[0] + x, a[1] + y, a[2] + z}
+	t := w.torque[id]
+	w.torque[id] = [3]float32{t[0] + x, t[1] + y, t[2] + z}
 }
 
-func (w *joltWorld) ApplyForceAtPosition(id int, fx, fy, fz, _, _, _ float32) {
+func (w *joltWorld) ApplyForceAtPosition(id int, fx, fy, fz, px, py, pz float32) {
 	w.ApplyForce(id, fx, fy, fz)
+	ax, ay, az, ok := w.GetPosition(id)
+	if !ok {
+		return
+	}
+	rx, ry, rz := px-ax, py-ay, pz-az
+	w.ApplyTorque(id, ry*fz-rz*fy, rz*fx-rx*fz, rx*fy-ry*fx)
 }
 
 func (w *joltWorld) ApplyLocalImpulse(id int, lx, ly, lz float32) {
-	w.ApplyImpulse(id, lx, ly, lz)
+	qx, qy, qz, qw, _ := w.GetRotation(id)
+	wx, wy, wz := quatRotateVec(qx, qy, qz, qw, lx, ly, lz)
+	w.ApplyImpulse(id, wx, wy, wz)
 }
 
-func (w *joltWorld) SetGravityScale(int, float32) {}
+func (w *joltWorld) SetGravityScale(id int, scale float32) { w.gscale[id] = scale }
 
 func (w *joltWorld) SetRestitution(int, float32) {}
 
-func (w *joltWorld) SetLinearDamping(int, float32) {}
+func (w *joltWorld) SetLinearDamping(id int, d float32) { w.linDamp[id] = d }
 
-func (w *joltWorld) SetAngularDamping(int, float32) {}
+func (w *joltWorld) SetAngularDamping(id int, d float32) { w.angDamp[id] = d }
 
 func (w *joltWorld) SetFriction(int, float32) {}
 
@@ -76,7 +91,12 @@ func (w *joltWorld) SetHingeFriction(int, float32) {}
 
 func (w *joltWorld) SetHingeMotor(int, float32, float32) {}
 
-func (w *joltWorld) DisableBodyCollision(int, int) {}
+func (w *joltWorld) DisableBodyCollision(a, b int) {
+	if w.nocol == nil {
+		w.nocol = map[[2]int]bool{}
+	}
+	w.nocol[pairKey(a, b)] = true
+}
 
 func (w *joltWorld) CreateWheeledVehicle(int, float32, float32, float32) int { return 0 }
 
@@ -87,10 +107,77 @@ func (w *joltWorld) CreateTrackedVehicle(int, float32, float32, float32) int { r
 func (w *joltWorld) SetVehicleInput(int, float32, float32, float32) {}
 
 func (w *joltWorld) ApplyBuoyancyImpulse(id int, sx, sy, sz, nx, ny, nz, buoyancy, linDrag, angDrag, fvx, fvy, fvz, dt float32) bool {
-	return false
+	if w.locked[id] || (w.body[id] == nil && w.char[id] == nil) {
+		return false
+	}
+	_, y, _, ok := w.GetPosition(id)
+	if !ok {
+		return false
+	}
+	depth := sy - y
+	if depth <= 0 {
+		return false
+	}
+	if buoyancy < 0.01 {
+		buoyancy = 1
+	}
+	if dt <= 0 {
+		dt = 1.0 / 60
+	}
+	m := w.mass[id]
+	if m < 0.001 {
+		m = 1
+	}
+	g := w.gy
+	if g > 0 {
+		g = -g
+	}
+	w.ApplyForce(id, nx*buoyancy*m*2, -g*buoyancy*m*depth, nz*buoyancy*m*2)
+	if linDrag > 0 {
+		cur := w.linDamp[id]
+		if linDrag > cur {
+			w.linDamp[id] = linDrag
+		}
+	}
+	if angDrag > 0 {
+		cur := w.angDamp[id]
+		if angDrag > cur {
+			w.angDamp[id] = angDrag
+		}
+	}
+	_ = sx
+	_ = sz
+	_ = fvx
+	_ = fvy
+	_ = fvz
+	return true
 }
 
-func (w *joltWorld) OffsetCenterOfMass(int, float32, float32, float32) {}
+func (w *joltWorld) OffsetCenterOfMass(id int, ox, oy, oz float32) {
+	w.com[id] = [3]float32{ox, oy, oz}
+}
+
+func (w *joltWorld) SetSensor(id int, on bool) {
+	if w.body[id] == nil {
+		return
+	}
+	x, y, z, ok := w.GetPosition(id)
+	if !ok {
+		return
+	}
+	r := w.rad[id]
+	if r < 0.1 {
+		r = 0.1
+	}
+	b := w.body[id]
+	key := joltHandle(b)
+	delete(w.bodyToEnt, key)
+	delete(w.bodyVal, uint32(key))
+	b.Destroy()
+	delete(w.body, id)
+	mot := w.motion[id]
+	w.addSensor(id, jolt.CreateSphere(r), x, y, z, r, mot, on)
+}
 
 func (w *joltWorld) AddMesh(id int, verts [][3]float32, indices []int32, motion int) {
 	if len(verts) < 3 || len(indices) < 3 {
@@ -138,8 +225,6 @@ func (w *joltWorld) AddSensorBox(id int, x, y, z, hx, hy, hz float32, motion int
 	w.addSensor(id, jolt.CreateBox(jolt.Vec3{X: hx, Y: hy, Z: hz}), x, y, z, r, motion, true)
 }
 
-func (w *joltWorld) SetSensor(int, bool) {}
-
 func (w *joltWorld) collideHits(shape *jolt.Shape, x, y, z float32, max int) []int {
 	if shape == nil {
 		return nil
@@ -155,6 +240,9 @@ func (w *joltWorld) collideHits(shape *jolt.Shape, x, y, z float32, max int) []i
 			id = w.entityNear(hits[i].ContactPoint.X, hits[i].ContactPoint.Y, hits[i].ContactPoint.Z)
 		}
 		if id == 0 {
+			continue
+		}
+		if !w.layersCollide(id, 0) && w.layer[id] != 0 {
 			continue
 		}
 		out = append(out, id)
@@ -344,9 +432,24 @@ func (w *joltWorld) AddCompound(id int, parts []CompoundPart, x, y, z float32, m
 	w.AddBoxEx(id, x, y, z, hx, hy, hz, motion)
 }
 
-func (w *joltWorld) SetCollisionLayer(int, int) {}
+func (w *joltWorld) SetCollisionLayer(id, layer int) {
+	w.layer[id] = clampLayer(layer)
+}
 
-func (w *joltWorld) SetLayerCollides(int, int, bool) {}
+func (w *joltWorld) SetLayerCollides(a, b int, on bool) {
+	a, b = clampLayer(a), clampLayer(b)
+	off := !on
+	w.layerOff[a][b] = off
+	w.layerOff[b][a] = off
+}
+
+func (w *joltWorld) layersCollide(a, b int) bool {
+	if w.nocol[pairKey(a, b)] {
+		return false
+	}
+	la, lb := clampLayer(w.layer[a]), clampLayer(w.layer[b])
+	return !w.layerOff[la][lb]
+}
 
 func (w *joltWorld) addSoftJoint(a, b int, px, py, pz, ax, ay, az, rest, stiff, damp float32, kind int) int {
 	if a != 0 {
@@ -385,6 +488,9 @@ func (w *joltWorld) solveSoftJoints() {
 		if j == nil {
 			continue
 		}
+		if w.nocol[pairKey(j.a, j.b)] || !w.layersCollide(j.a, j.b) {
+			continue
+		}
 		wx, wy, wz := j.px, j.py, j.pz
 		if ax, ay, az, ok := w.GetPosition(j.a); ok {
 			wx, wy, wz = ax+j.lax, ay+j.lay, az+j.laz
@@ -395,6 +501,7 @@ func (w *joltWorld) solveSoftJoints() {
 		}
 		cx, cy, cz := bx+j.lbx, by+j.lby, bz+j.lbz
 		dx, dy, dz := wx-cx, wy-cy, wz-cz
+		dx, dy, dz = softConstraintDelta(j.kind, j.ax, j.ay, j.az, dx, dy, dz, j.rest)
 		if j.kind == 3 && j.stiff > 0 {
 			w.ApplyImpulse(j.b, dx*j.stiff*0.02, dy*j.stiff*0.02, dz*j.stiff*0.02)
 			continue

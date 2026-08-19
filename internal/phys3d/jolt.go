@@ -44,6 +44,18 @@ type joltWorld struct {
 	soft             map[int]*softJoint
 	locked           map[int]bool
 	cloths           map[int]*clothSim
+	rot              map[int][4]float32
+	gscale           map[int]float32
+	linDamp          map[int]float32
+	angDamp          map[int]float32
+	nocol            map[[2]int]bool
+	prev             map[int][3]float32
+	torque           map[int][3]float32
+	com              map[int][3]float32
+	motion           map[int]int
+	sensor           map[int]bool
+	layer            map[int]int
+	layerOff         [32][32]bool
 	gx, gy, gz       float32
 }
 
@@ -72,6 +84,17 @@ func New() World {
 		kick:             map[int][3]float32{},
 		soft:             map[int]*softJoint{},
 		locked:           map[int]bool{},
+		rot:              map[int][4]float32{},
+		gscale:           map[int]float32{},
+		linDamp:          map[int]float32{},
+		angDamp:          map[int]float32{},
+		nocol:            map[[2]int]bool{},
+		prev:             map[int][3]float32{},
+		torque:           map[int][3]float32{},
+		com:              map[int][3]float32{},
+		motion:           map[int]int{},
+		sensor:           map[int]bool{},
+		layer:            map[int]int{},
 		nextConstraintID: 1,
 		gy:               -9.81,
 	}
@@ -86,6 +109,17 @@ func (w *joltWorld) Step(dt float32) {
 		dt = 1.0 / 60.0
 	}
 	g := jolt.Vec3{X: w.gx, Y: w.gy, Z: w.gz}
+	for id, s := range w.gscale {
+		if w.char[id] != nil || s == 1 || w.locked[id] {
+			continue
+		}
+		m := w.mass[id]
+		if m < 0.001 {
+			m = 1
+		}
+		f := w.force[id]
+		w.force[id] = [3]float32{f[0] - w.gx*(1-s)*m, f[1] - w.gy*(1-s)*m, f[2] - w.gz*(1-s)*m}
+	}
 	for id, f := range w.force {
 		if w.char[id] != nil {
 			continue
@@ -109,7 +143,9 @@ func (w *joltWorld) Step(dt float32) {
 		}
 		delete(w.kick, id)
 	}
+	w.stepSoftPose(dt)
 	w.ps.Update(dt)
+	w.sampleVelocities(dt)
 	for id := range w.vehicles {
 		if b, ok := w.body[id]; ok {
 			w.bi.ActivateBody(b)
@@ -206,6 +242,10 @@ func (w *joltWorld) addSensor(id int, shape *jolt.Shape, x, y, z, r float32, mot
 		w.locked = map[int]bool{}
 	}
 	w.locked[id] = motion == MotionTypeStatic
+	w.rot[id] = [4]float32{0, 0, 0, 1}
+	w.gscale[id] = 1
+	w.motion[id] = motion
+	w.sensor[id] = sensor
 }
 
 func (w *joltWorld) hitEntity(b *jolt.BodyID) int {
@@ -427,6 +467,82 @@ func (w *joltWorld) Sleep(id int) {
 func (w *joltWorld) Wake(id int) {
 	if b, ok := w.body[id]; ok {
 		w.bi.ActivateBody(b)
+	}
+}
+
+func (w *joltWorld) stepSoftPose(dt float32) {
+	for id := range w.body {
+		if w.char[id] != nil || w.locked[id] {
+			continue
+		}
+		m := w.mass[id]
+		if m < 0.001 {
+			m = 1
+		}
+		inertia := m * 0.4
+		t := w.torque[id]
+		c := w.com[id]
+		if c[0] != 0 || c[1] != 0 || c[2] != 0 {
+			q := w.rot[id]
+			rx, ry, rz := quatRotateVec(q[0], q[1], q[2], q[3], c[0], c[1], c[2])
+			s := w.gscale[id]
+			fx, fy, fz := w.gx*s*m, w.gy*s*m, w.gz*s*m
+			t[0] += ry*fz - rz*fy
+			t[1] += rz*fx - rx*fz
+			t[2] += rx*fy - ry*fx
+		}
+		a := w.ang[id]
+		a[0] += t[0] / inertia * dt
+		a[1] += t[1] / inertia * dt
+		a[2] += t[2] / inertia * dt
+		w.torque[id] = [3]float32{}
+		d := w.angDamp[id]
+		if d > 0 {
+			s := 1 - d*dt
+			if s < 0.05 {
+				s = 0.05
+			}
+			a[0] *= s
+			a[1] *= s
+			a[2] *= s
+		}
+		w.ang[id] = a
+		q := w.rot[id]
+		if q[0] == 0 && q[1] == 0 && q[2] == 0 && q[3] == 0 {
+			q = [4]float32{0, 0, 0, 1}
+		}
+		w.rot[id] = quatIntegrate(q, a, dt)
+	}
+}
+
+func (w *joltWorld) sampleVelocities(dt float32) {
+	if dt < 1e-6 {
+		dt = 1.0 / 60
+	}
+	for id, b := range w.body {
+		if w.char[id] != nil {
+			continue
+		}
+		p := w.bi.GetPosition(b)
+		if prev, ok := w.prev[id]; ok {
+			w.vel[id] = [3]float32{(p.X - prev[0]) / dt, (p.Y - prev[1]) / dt, (p.Z - prev[2]) / dt}
+			d := w.linDamp[id]
+			if d > 0 && !w.locked[id] {
+				s := 1 - d*dt
+				if s < 0.05 {
+					s = 0.05
+				}
+				v := w.vel[id]
+				w.bi.SetPosition(b, jolt.Vec3{
+					X: prev[0] + (p.X-prev[0])*s,
+					Y: prev[1] + (p.Y-prev[1])*s,
+					Z: prev[2] + (p.Z-prev[2])*s,
+				})
+				p = w.bi.GetPosition(b)
+				w.vel[id] = [3]float32{v[0] * s, v[1] * s, v[2] * s}
+			}
+		}
+		w.prev[id] = [3]float32{p.X, p.Y, p.Z}
 	}
 }
 

@@ -30,7 +30,7 @@ Demo of the aircraft: `examples/plane.bb`.
 
 ## Two physics paths
 
-**Native Jolt VehicleConstraint** (Windows Jolt; otherwise the same `Update*` still runs a force fallback):
+**Native Jolt VehicleConstraint** (Windows Jolt; Linux/macOS and `-tags nojolt` keep `native = 0` so the same `Update*` runs the force fallback, now with software `GetRotation` on Linux/macOS):
 
 | Create | Update / input | Demo |
 | --- | --- | --- |

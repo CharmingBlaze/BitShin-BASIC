@@ -298,6 +298,31 @@ func TestFallbackFixedJointHolds(t *testing.T) {
 	}
 }
 
+func TestFallbackSliderJointAxis(t *testing.T) {
+	w := newFallback()
+	defer w.Close()
+	w.SetGravity(0, 0, 0)
+	w.AddBox(1, 0, 1, 0, 0.3, 0.3, 0.3, false)
+	w.AddBox(2, 1, 1, 0, 0.3, 0.3, 0.3, true)
+	if w.CreateSliderJoint(1, 2, 0.5, 1, 0, 1, 0, 0) == 0 {
+		t.Fatal("slider")
+	}
+	w.ApplyImpulse(2, 6, 0, 0)
+	for i := 0; i < 25; i++ {
+		w.Step(1.0 / 60.0)
+	}
+	x, y, _, ok := w.GetPosition(2)
+	if !ok {
+		t.Fatal("missing")
+	}
+	if x < 1.3 {
+		t.Fatalf("slider should allow X travel, x=%v", x)
+	}
+	if y < 0.7 || y > 1.3 {
+		t.Fatalf("slider should hold Y, y=%v", y)
+	}
+}
+
 func TestFallbackShapeCastFatSweep(t *testing.T) {
 	w := newFallback()
 	defer w.Close()

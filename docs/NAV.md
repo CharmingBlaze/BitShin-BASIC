@@ -46,7 +46,7 @@ Two systems, no planner or behavior-tree libraries.
 
 ## Crowd (no DetourCrowd)
 
-`go-detour` v0.1.3 does not ship DetourCrowd. `CreateCrowd` / `CrowdAddAgent` / `CrowdSetDestination` / `CrowdUpdate` / `SetCrowdRadius` / `GetCrowdRadius` run Detour paths plus local separation and a time-to-collision sidestep. `SetNavMaxSlope(deg)` drops steep triangles when writing the bake OBJ (G3N Y-up). Hierarchical: coarse grid A* is still available via `CreateGrid`.
+`go-detour` v0.1.3 does not ship DetourCrowd. `CreateCrowd` / `CrowdAddAgent` / `CrowdSetDestination` / `CrowdUpdate` / `SetCrowdRadius` / `GetCrowdRadius` run Detour paths plus local separation, a time-to-collision sidestep, and yaw toward travel. `SetNavMaxSlope(deg)` drops steep triangles when writing the bake OBJ (G3N Y-up). Hierarchical: coarse grid A* is still available via `CreateGrid`.
 
 See `examples/nav.bb`, `examples/crowd.bb`, `examples/ecs_crowd.bb`.
 

@@ -1,6 +1,8 @@
 package runtime
 
 import (
+	"math"
+
 	"bitshinbasic/internal/mathx"
 	"bitshinbasic/internal/value"
 )
@@ -55,6 +57,9 @@ func (w *World) tickCrowds() {
 			bx, bz := mathx.Avoid2D(xs, zs, vxs, vzs, i, float64(rad)*0.5, 1.2)
 			ax, az := float32(ax64+bx), float32(az64+bz)
 			if ax == 0 && az == 0 {
+				if fx, fz := float32(vxs[i]), float32(vzs[i]); fx*fx+fz*fz > 0.0001 {
+					e.node.GetNode().SetRotationY(float32(-math.Atan2(float64(fx), float64(fz))))
+				}
 				if ag := w.agents[id]; ag != nil {
 					ag.lastX, ag.lastZ, ag.hasLast = px, pz, true
 				}
@@ -67,6 +72,13 @@ func (w *World) tickCrowds() {
 			}
 			gx, gy, gz := toG3N(px, py, pz)
 			e.node.GetNode().SetPosition(gx, gy, gz)
+			fx, fz := ax, az
+			if fx == 0 && fz == 0 {
+				fx, fz = float32(vxs[i]), float32(vzs[i])
+			}
+			if fx*fx+fz*fz > 0.0001 {
+				e.node.GetNode().SetRotationY(float32(-math.Atan2(float64(fx), float64(fz))))
+			}
 			if ag := w.agents[id]; ag != nil {
 				ag.lastX, ag.lastZ, ag.hasLast = px, pz, true
 			}

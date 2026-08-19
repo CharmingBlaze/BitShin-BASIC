@@ -576,7 +576,7 @@ See `docs/NAV.md` and `examples/nav.bb`. Detour + grid A* only. **No DetourCrowd
 
 ### Crowd (local separation)
 
-go-detour v0.1.3 has **no DetourCrowd C API**. This is Detour paths plus a local push-apart.
+go-detour v0.1.3 has **no DetourCrowd C API**. This is Detour paths plus a local push-apart, time-to-collision sidestep, and yaw toward travel.
 
 ```basic
 crowd = CreateCrowd(1.2)

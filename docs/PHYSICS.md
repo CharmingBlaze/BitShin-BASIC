@@ -37,7 +37,7 @@ Quit loops: `While Not KeyDown(1)` works after the first-frame Escape fix. Still
 | `Explode x,y,z, r, imp` | Overlap all dynamics in the sphere and apply falloff impulse. Alias `AreaDamage`. |
 | `CreateBodyMesh(e)` | Static mesh collider from the entity’s triangles (world space). Windows Jolt also enables enhanced internal-edge removal. Linux/macOS uses jolt-go `CreateMesh`. |
 | `CreateBodyHeightField(e [, n])` | Static height field from the current terrain (`n` samples on a side, power of two, default 64). Linux/macOS cooks that grid as a triangle mesh. |
-| `CreateSensor(e, hx,hy,hz [, motion])` | Trigger volume (no contact force). Default motion = kinematic. Linux/macOS Jolt creates the body with jolt-go’s sensor flag (no later `SetBodySensor`). |
+| `CreateSensor(e, hx,hy,hz [, motion])` | Trigger volume (no contact force). Default motion = kinematic. Linux/macOS Jolt sets the sensor flag at create; `SetBodySensor` rebuilds a sphere of the same radius. |
 | `EnablePhysicsDebug [on]` | Wire AABB overlay: cyan colliders, green hitboxes. |
 | `SetCollisionLayer e, layer` | Layer 0–31 (default 0). |
 | `SetLayerCollides a, b, on` | Whether two layers generate contacts (default all collide). Pairwise `DisableBodyCollision` still exists. |
@@ -130,7 +130,7 @@ There is **no** `CreateDistanceJoint` command. A springy distance constraint is 
 | --- | --- |
 | `CreateHingeJoint(a, b, x,y,z, ax,ay,az)` | Rotate around axis through the pivot. Aliases: `CreateHinge`, `CreateHinge3D` |
 | `CreatePointJoint(a, b, x,y,z)` | Ball socket (shared point). Alias: `CreateBallSocketJoint` |
-| `CreateSliderJoint(a, b, x,y,z, ax,ay,az)` | Slide along axis |
+| `CreateSliderJoint(a, b, x,y,z, ax,ay,az)` | Slide along axis. Windows is a Jolt slider. Linux/macOS and fallback keep the hinge point on the axis and leave motion along it free. |
 | `CreateSpringJoint(a, b, x,y,z, rest, stiff, damp)` | Distance spring. Defaults rest=1, stiff=8, damp=1. `rest <= 0` = free length |
 | `CreateFixedJoint(a, b, x,y,z)` | Weld two bodies. Aliases `CreateWeldJoint` / `CreateFixedConstraint`. `JOINT_FIXED` = 5. |
 | `CreateConeJoint(a, b, x,y,z, ax,ay,az [, halfConeDeg])` | Ball socket + swing cone. Default half-angle 45°. `JOINT_CONE` = 6. |
@@ -146,6 +146,8 @@ There is **no** `CreateDistanceJoint` command. A springy distance constraint is 
 `CreateHinge` / `CreateHingeJoint` with fewer than two args returns **0**.
 
 **Grab platforms:** Windows Jolt is a real `SixDOFConstraint`. Linux/macOS Jolt extras use the same **position spring** as fallback `CreateGrabJoint` (not a 6DOF constraint). Fallback (`-tags nojolt`) uses a stiff spring joint. `claw.bb` is still the kinematic-parent claw; `Grab` is the spring/6DOF path.
+
+Linux/macOS `GetRotation` / `ApplyTorque` / `ApplyBuoyancy` / `SetGravityScale` are a software pose on top of jolt-go (no native `SetLinearVelocity` or rotated collision shapes). Visual yaw and force-vehicle `Update*` use that pose; hulls stay axis-aligned. Soft sliders keep the rail axis; `SetCollisionLayer` / `SetLayerCollides` filter overlap queries and software joints (Jolt still simulates all pairs). `OffsetCenterOfMass` adds gravity torque from that offset.
 
 ### `CreateJoint` kinds
 

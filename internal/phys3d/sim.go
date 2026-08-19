@@ -5,25 +5,26 @@ package phys3d
 // not Linux amd64/arm64, not macOS ARM). PhysicsBackend$() returns "fallback".
 
 type body struct {
-	x, y, z     float32
-	vx, vy, vz  float32
-	ax, ay, az  float32
-	fx, fy, fz  float32
-	r           float32
-	hx, hy, hz  float32
-	box         bool
-	mass        float32
-	dynamic     bool
-	kinematic   bool
-	asleep      bool
-	character   bool
-	onGround    bool
-	gScale      float32
-	linDamp     float32
-	angDamp     float32
-	restitution float32
-	friction    float32
-	layer       int
+	x, y, z          float32
+	vx, vy, vz       float32
+	ax, ay, az       float32
+	fx, fy, fz       float32
+	r                float32
+	hx, hy, hz       float32
+	box              bool
+	mass             float32
+	dynamic          bool
+	kinematic        bool
+	asleep           bool
+	character        bool
+	onGround         bool
+	gScale           float32
+	linDamp          float32
+	angDamp          float32
+	restitution      float32
+	friction         float32
+	layer            int
+	comx, comy, comz float32
 }
 
 type softJoint struct {
@@ -109,6 +110,12 @@ func (w *fallback) Step(dt float32) {
 			b.az *= ad
 		}
 		b.fx, b.fy, b.fz = 0, 0, 0
+		if b.comx != 0 || b.comy != 0 || b.comz != 0 {
+			fx, fy, fz := w.gx*gs*m, w.gy*gs*m, w.gz*gs*m
+			b.ax += (b.comy*fz - b.comz*fy) * 0.02
+			b.ay += (b.comz*fx - b.comx*fz) * 0.02
+			b.az += (b.comx*fy - b.comy*fx) * 0.02
+		}
 		b.x += b.vx * dt
 		b.y += b.vy * dt
 		b.z += b.vz * dt
@@ -132,6 +139,9 @@ func (w *fallback) Step(dt float32) {
 				continue
 			}
 			a, b := w.bodies[ids[i]], w.bodies[ids[j]]
+			if w.layerOff[a.layer][b.layer] {
+				continue
+			}
 			dx, dy, dz := a.x-b.x, a.y-b.y, a.z-b.z
 			d2 := dx*dx + dy*dy + dz*dz
 			min := a.r + b.r
@@ -660,7 +670,11 @@ func (w *fallback) ApplyBuoyancyImpulse(id int, sx, sy, sz, nx, ny, nz, buoyancy
 	return true
 }
 
-func (w *fallback) OffsetCenterOfMass(int, float32, float32, float32) {}
+func (w *fallback) OffsetCenterOfMass(id int, ox, oy, oz float32) {
+	if b := w.bodies[id]; b != nil {
+		b.comx, b.comy, b.comz = ox, oy, oz
+	}
+}
 
 func (w *fallback) AddMesh(id int, verts [][3]float32, indices []int32, motion int) {
 	if len(verts) == 0 {
@@ -937,6 +951,7 @@ func (w *fallback) solveJoints() {
 		}
 		cx, cy, cz := bb.x+j.lbx, bb.y+j.lby, bb.z+j.lbz
 		dx, dy, dz := wx-cx, wy-cy, wz-cz
+		dx, dy, dz = softConstraintDelta(j.kind, j.ax, j.ay, j.az, dx, dy, dz, j.rest)
 		if j.kind == 3 && j.stiff > 0 {
 			bb.vx += dx * j.stiff * 0.02
 			bb.vy += dy * j.stiff * 0.02

@@ -38,11 +38,12 @@ IDE: `scripts/build_ide.ps1` (Windows). Preferences are `.ide_settings.json` nex
 |---|---|---|---|
 | Rigid bodies + `Raycast` | Jolt | Jolt (`jolt-go`) | Software spheres/boxes |
 | Cloth | Jolt soft body | Verlet sheet (same as fallback) | Verlet |
-| Joints, grab, CCD, vehicles | Full | Position joints + grab spring; CCD/vehicles stub | Fallback joints |
+| Joints, grab, CCD, vehicles | Full | Position joints + **axis sliders** + grab spring; CCD/vehicles stub | Fallback joints + axis sliders |
 | Mesh / convex / heightfield | Native cook | jolt-go mesh + convex hull; heightfield → triangle mesh | AABB / slab |
-| Compound / sensor / overlap | Native compound + CollideShape | Convex hull of child AABBs; sensor flag at create; CollideShape overlap / stepped box `ShapeCast` | AABB / sphere |
+| Compound / sensor / overlap | Native compound + CollideShape | Convex hull of child AABBs; sensor flag at create / `SetBodySensor` rebuild; CollideShape overlap / stepped box `ShapeCast`; query layers | AABB / sphere |
 | CharacterVirtual | Full + inner body | CharacterVirtual + kinematic inner capsule | Kinematic helper |
 | `ApplyImpulse` on rigid bodies | Native | One-step position kick (jolt-go has no SetLinearVelocity) | Integrated |
+| Rotation / torque / buoyancy | Native | Software quaternion + sampled velocity; buoyancy force; shapes stay AABB-aligned | Integrated |
 | `PhysicsThreads n` | Rebuilds Jolt job pool (1–32) + sizes the Go async pool | Sizes the Go `PhysicsAsync` pool | Same |
 
 ## Version
