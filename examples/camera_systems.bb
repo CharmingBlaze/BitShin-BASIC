@@ -1,13 +1,17 @@
-; BitShin BASIC — Modern Camera Systems Showcase Demo
+; Camera systems — 1 spring-arm, 2 orbit, 3 RTS; Space shakes; WASD moves the red target.
+; Esc quits after a few frames.
+
 SetWindowTitle("BitShin BASIC — Modern Camera Systems")
 Graphics3D(1280, 720, 0, 2)
 SetBuffer(BackBuffer())
 SetCameraClsColor(40, 50, 65)
 SetAmbientLight(60, 70, 80)
 
+; Camera
 cam = CreateCamera()
 SetCameraRange(cam, 0.1, 1000)
 
+; Sun + shadows
 sun = CreateDirectionalLight()
 SetLightDirection(sun, 50, 35, 0)
 SetLightColor(sun, 255, 235, 200)
@@ -15,16 +19,10 @@ SetLightShadow(sun, True)
 EnableShadows(True)
 
 ; Scene
-ground = CreateCube()
-SetScale(ground, 60, 0.25, 60)
-SetPosition(ground, 0, 0, 0)
-SetEntityColor(ground, 50, 80, 60)
+ground = CreateCube().Scale(60, 0.25, 60).Position([0, 0, 0]).Color(50, 80, 60)
 CreateRigidBodyBox(ground, 60, 0.25, 60, 0)
 
-target = CreateCube()
-SetScale(target, 1.5, 1.5, 1.5)
-SetPosition(target, 0, 1.5, 0)
-SetEntityColor(target, 220, 80, 60)
+target = CreateCube().Scale(1.5, 1.5, 1.5).Position([0, 1.5, 0]).Color(220, 80, 60)
 
 camMode = 1
 orbitYaw# = 0.0
@@ -49,20 +47,19 @@ While 1
     SetPosition(target, tx, 1.5, tz)
 
     If camMode = 1 Then
-        ; Mode 1: SpringArm Follow Camera
+        ; Mode 1: spring-arm follow
         CameraSpringArm(cam, target, 1.5, 8.0, 0.3, 12.0, 0, 20)
     ElseIf camMode = 2 Then
-        ; Mode 2: Orbital Camera
+        ; Mode 2: orbital
         orbitYaw = orbitYaw + 45.0 * dt
         CameraOrbit(cam, target, 12.0, 3.5, orbitYaw, 25.0)
     ElseIf camMode = 3 Then
-        ; Mode 3: Strategy / RTS Camera
+        ; Mode 3: strategy / RTS
         rtsX = tx
         rtsZ = tz
         CameraRTS(cam, rtsX, rtsZ, rtsZoom, 55.0, 0)
     EndIf
 
-    ; Process procedural camera shake
     UpdateCameraShake(cam)
 
     Cls

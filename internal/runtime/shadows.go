@@ -13,6 +13,7 @@ import (
 	"github.com/g3n/engine/material"
 	"github.com/g3n/engine/math32"
 	"github.com/g3n/engine/renderer"
+	"github.com/g3n/engine/texture"
 	"github.com/go-gl/gl/v3.3-core/gl"
 )
 
@@ -116,6 +117,9 @@ type litMat struct {
 	*material.Standard
 	w          *World
 	recvShadow bool
+	specMap    *texture.Texture2D
+	emitMap    *texture.Texture2D
+	normMap    *texture.Texture2D
 }
 
 func (m *litMat) GetMaterial() *material.Material { return m.Standard.GetMaterial() }
@@ -135,7 +139,30 @@ func (m *litMat) RenderSetup(gs *gls.GLS) {
 			recv = 0
 		}
 		setUni1i(gs, "MeshReceiveShadow", recv)
+		m.bindPhongMaps(gs)
+		m.w.uploadPhongLightTerms(gs)
 	}
+}
+
+func (m *litMat) bindPhongMaps(gs *gls.GLS) {
+	specOn := 0
+	if m.specMap != nil {
+		specOn = 1
+		bindNamedMap(gs, m.specMap, 10, "SpecMap")
+	}
+	setUni1i(gs, "SpecMapOn", specOn)
+	emitOn := 0
+	if m.emitMap != nil {
+		emitOn = 1
+		bindNamedMap(gs, m.emitMap, 11, "EmitMap")
+	}
+	setUni1i(gs, "EmitMapOn", emitOn)
+	normOn := 0
+	if m.normMap != nil {
+		normOn = 1
+		bindNamedMap(gs, m.normMap, 14, "NormMap")
+	}
+	setUni1i(gs, "NormMapOn", normOn)
 }
 
 func (m *litMat) Dispose() { m.Standard.Dispose() }
@@ -149,6 +176,8 @@ func registerShadowShaders(r *renderer.Renderer) {
 	r.AddProgram("mbpart", "mbpart_vertex", "mbpart_fragment")
 	r.AddShader("mbflake_fragment", mbflakeFragment)
 	r.AddProgram("mbflake", "mbpart_vertex", "mbflake_fragment")
+	r.AddShader("mbsoft_fragment", mbsoftFragment)
+	r.AddProgram("mbsoft", "mbpart_vertex", "mbsoft_fragment")
 	r.AddShader("mbphysical_vertex", mbphysicalVertex)
 	r.AddShader("mbphysical_fragment", mbphysicalFragment)
 	r.AddProgram("mbphysical", "mbphysical_vertex", "mbphysical_fragment")
@@ -167,7 +196,7 @@ func (w *World) applyUserUniforms(gs *gls.GLS) {
 		}
 		switch u.n {
 		case 1:
-			if name == "ProbeEnabled" || name == "FogMode" || name == "ShadowEnabled" || name == "UseIBL" {
+			if name == "ProbeEnabled" || name == "FogMode" || name == "ShadowEnabled" || name == "UseIBL" || name == "GammaOut" {
 				gs.Uniform1i(loc, int32(u.v[0]))
 			} else {
 				gs.Uniform1f(loc, u.v[0])
@@ -186,6 +215,9 @@ func (w *World) bindShadowUniforms(gs *gls.GLS) {
 	if gs == nil {
 		return
 	}
+	w.bindSpotCookies(gs)
+	clip := w.waterClip
+	setUni4f(gs, "WaterClipPlane", clip[0], clip[1], clip[2], clip[3])
 	defer func() {
 		if r := recover(); r != nil {
 			fmt.Println("EnableShadows: uniform panic", r)
@@ -847,6 +879,9 @@ func entityWorldDir(e *Entity) math32.Vector3 {
 }
 
 func entityLightRange(e *Entity) float32 {
+	if e != nil && e.lgtRange > 0.25 {
+		return e.lgtRange
+	}
 	if p, ok := e.node.(interface{ LinearDecay() float32 }); ok {
 		d := p.LinearDecay()
 		if d > 0.0001 {
@@ -1112,7 +1147,7 @@ func shadowSkipMesh(e *Entity) bool {
 	}
 	if e.mat != nil {
 		switch e.mat.Shader() {
-		case "mbpart", "mbflake", "mbclouds", "mbatmo", "mbwater":
+		case "mbpart", "mbsoft", "mbflake", "mbclouds", "mbatmo", "mbwater":
 			return true
 		}
 	}
@@ -1255,7 +1290,7 @@ func keepCustomLitShader(e *Entity) bool {
 		return false
 	}
 	switch e.mat.Shader() {
-	case "mbwater", "mbterrain", "mbclouds", "mbatmo", "mbpart", "mbflake":
+	case "mbwater", "mbterrain", "mbclouds", "mbatmo", "mbpart", "mbsoft", "mbflake":
 		return true
 	}
 	return false
@@ -1309,7 +1344,11 @@ func (w *World) applyLitShaders() {
 			e.pbrWrap.Physical.SetShader("mbphysical")
 		}
 		if e.mat != nil && !e.usePBR {
-			e.mat.SetShader(name)
+			sh := name
+			if lm := w.litMatOf(e); lm != nil && (lm.specMap != nil || lm.emitMap != nil || lm.normMap != nil) {
+				sh = "bsshadow"
+			}
+			e.mat.SetShader(sh)
 		}
 		if e.usePBR && e.node != nil {
 			w.retargetPBRShaders(e.node)

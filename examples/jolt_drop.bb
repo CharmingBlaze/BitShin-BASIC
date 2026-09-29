@@ -1,28 +1,24 @@
-; 3D rigid bodies — Jolt by default (Windows / Linux / macOS ARM). -tags nojolt for fallback.
-; Space applies an impulse. Esc / X quits.
+; Jolt drop — rigid bodies (Jolt by default; -tags nojolt for fallback).
+; Space applies an impulse. Esc or X quits.
 
 SetWindowTitle("BitShin BASIC — Jolt drop")
 Graphics3D(960, 600, 0, 2)
 SetCameraClsColor(18, 20, 28)
 
-cam = CreateCamera()
-SetPosition(cam, 0, 6, -14)
-SetRotation(cam, 18, 0, 0)
+; Camera / light
+cam = CreateCamera().Position([0, 6, -14]).Rotate(18, 0, 0)
 CreateLight()
 
-ground = CreateCube()
-SetScale(ground, 8, 0.2, 8)
-SetPosition(ground, 0, 0, 10)
-SetEntityColor(ground, 50, 56, 70)
+; World
+ground = CreateCube().Scale(8, 0.2, 8).Position([0, 0, 10]).Color(50, 56, 70)
 CreateRigidBodyBox(ground, 8, 0.2, 8, 0)
 
-ball = CreateSphere(12)
-SetPosition(ball, 0, 8, 10)
-SetEntityColor(ball, 80, 190, 255)
+ball = CreateSphere(12).Position([0, 8, 10]).Color(80, 190, 255)
 CreateRigidBodySphere(ball, 1, 1)
 
 Print("Physics backend:", GetPhysicsBackend())
 
+; Loop
 While Not KeyDown(1) And Not KeyDown(KEY_X)
     If KeyHit(KEY_SPACE) Then ApplyImpulse(ball, 0, 6, 0)
     UpdateWorld

@@ -1,26 +1,25 @@
-; Jet: high thrust, weaker low-speed lift. Esc after a few frames.
+; Jet — high thrust with weaker low-speed lift.
+; W afterburner, S cut, arrows pitch, A/D roll, Q/E yaw.
+; Esc quits after a few frames.
 
+; window
 SetWindowTitle("BitShin BASIC — Jet")
 Graphics3D(960, 540, 0, 2)
 SetCameraClsColor(40, 70, 110)
 CreateLight()
 
-cam = CreateCamera()
-SetPosition(cam, 0, 14, -32)
-SetRotation(cam, 14, 0, 0)
+; camera
+cam = CreateCamera().Position([0, 14, -32]).Rotate(14, 0, 0)
 
-ground = CreateCube()
-SetScale(ground, 90, 0.25, 90)
-SetPosition(ground, 0, 0, 24)
-SetEntityColor(ground, 70, 90, 70)
+; world
+ground = CreateCube().Scale(90, 0.25, 90).Position([0, 0, 24]).Color(70, 90, 70)
 CreateRigidBodyBox(ground, 90, 0.25, 90, 0)
 
-jet = CreateCube()
-SetScale(jet, 2.4, 0.28, 4.5)
-SetPosition(jet, 0, 10, 24)
-SetEntityColor(jet, 180, 190, 210)
+; vehicle
+jet = CreateCube().Scale(2.4, 0.28, 4.5).Position([0, 10, 24]).Color(180, 190, 210)
 CreateJetController(jet)
 
+; loop
 frames = 0
 While 1
     frames = frames + 1
@@ -38,6 +37,7 @@ While 1
     If KeyDown(KEY_E) Then yaw = 0.3
     UpdateJet(jet, th, pitch, roll, yaw)
     UpdateWorld
+    CameraFollow(cam, jet, 28, 7, 5, EntityYaw(jet), 12)
     RenderWorld
     Text(12, 12, "Jet  W afterburner  arrows pitch  AD roll  QE yaw")
     Flip

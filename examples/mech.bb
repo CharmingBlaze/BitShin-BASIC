@@ -1,10 +1,15 @@
-; BitShin BASIC — Heavy Mech Walker Vehicle Demo
+; Mech — heavy bipedal walker with torso turn and strafe.
+; W/S walk, A/D turn, Q/E strafe.
+; Esc quits after a few frames.
+
+; window
 SetWindowTitle("BitShin BASIC — Heavy Mech Walker")
 Graphics3D(1280, 720, 0, 2)
 SetBuffer(BackBuffer())
 SetCameraClsColor(45, 55, 65)
 SetAmbientLight(70, 75, 85)
 
+; camera
 cam = CreateCamera()
 SetCameraRange(cam, 0.1, 1000)
 
@@ -14,32 +19,19 @@ SetLightColor(sun, 255, 235, 200)
 SetLightShadow(sun, True)
 EnableShadows(True)
 
-ground = CreateCube()
-SetScale(ground, 60, 0.25, 60)
-SetPosition(ground, 0, 0, 0)
-SetEntityColor(ground, 60, 70, 50)
+; world
+ground = CreateCube().Scale(60, 0.25, 60).Position([0, 0, 0]).Color(60, 70, 50)
 CreateRigidBodyBox(ground, 60, 0.25, 60, 0)
 
-; Mech Body
-mech = CreateCube()
-SetScale(mech, 1.4, 1.8, 1.4)
-SetPosition(mech, 0, 4, 0)
-SetEntityColor(mech, 160, 80, 50)
+; vehicle
+mech = CreateCube().Scale(1.4, 1.8, 1.4).Position([0, 4, 0]).Color(160, 80, 50)
 
-gunL = CreateCylinder(8, mech)
-SetScale(gunL, 0.2, 1.2, 0.2)
-SetPosition(gunL, -1.2, 0.2, 0.8)
-SetRotation(gunL, 90, 0, 0)
-SetEntityColor(gunL, 80, 85, 90)
-
-gunR = CreateCylinder(8, mech)
-SetScale(gunR, 0.2, 1.2, 0.2)
-SetPosition(gunR, 1.2, 0.2, 0.8)
-SetRotation(gunR, 90, 0, 0)
-SetEntityColor(gunR, 80, 85, 90)
+gunL = CreateCylinder(8, mech).Scale(0.2, 1.2, 0.2).Position([-1.2, 0.2, 0.8]).Rotate(90, 0, 0).Color(80, 85, 90)
+gunR = CreateCylinder(8, mech).Scale(0.2, 1.2, 0.2).Position([1.2, 0.2, 0.8]).Rotate(90, 0, 0).Color(80, 85, 90)
 
 CreateMechController(mech, 1.4, 1.8, 1.4, 4500)
 
+; loop
 frames = 0
 camYaw# = 0.0
 While 1

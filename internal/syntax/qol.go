@@ -30,6 +30,7 @@ var EntityMethods = map[string]string{
 	"texture":   "entitytexture",
 	"shininess": "entityshininess",
 	"specular":  "entityspecular",
+	"material":  "entitymaterial",
 	"follow":    "camerafollow",
 }
 
@@ -50,7 +51,7 @@ func init() {
 		"positionentity", "scaleentity", "rotateentity", "entitycolor", "entityalpha",
 		"moveentity", "translateentity", "turnentity", "pointentity",
 		"hideentity", "showentity", "nameentity", "entityparent",
-		"entitytexture", "entityshininess", "entityspecular", "camerafollow",
+		"entitytexture", "entityshininess", "entityspecular", "entitymaterial", "camerafollow",
 	} {
 		chainCommands[cmd] = true
 	}
@@ -71,6 +72,24 @@ var WeatherConstants = map[string]string{
 	"weather_snow":  "snow",
 	"weather_fog":   "fog",
 	"weather_storm": "storm",
+}
+
+// PhysicsConstants are motion types and character ground states.
+// STATIC 0, KINEMATIC 1, and DYNAMIC 2 match phys3d.MotionType.
+// ON_GROUND 0 and IN_AIR 3 match CharacterVirtual ground state.
+var PhysicsConstants = map[string]float64{
+	"static":             0,
+	"kinematic":          1,
+	"dynamic":            2,
+	"motion_static":      0,
+	"motion_kinematic":   1,
+	"motion_dynamic":     2,
+	"on_ground":          0,
+	"ground_steep":       1,
+	"ground_unsupported": 2,
+	"in_air":             3,
+	"ground_on":          0,
+	"ground_air":         3,
 }
 
 // NetConstants are PollNetwork event kinds (ENet order: none, connect, disconnect, receive).

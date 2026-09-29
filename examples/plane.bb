@@ -1,26 +1,25 @@
-; Aero plane: lift/drag + torque. Esc after a few frames.
+; Plane — aero lift / drag with control torque.
+; W throttle, arrows pitch, A/D roll, Q/E yaw.
+; Esc quits after a few frames.
 
+; window
 SetWindowTitle("BitShin BASIC — Plane")
 Graphics3D(960, 540, 0, 2)
 SetCameraClsColor(70, 140, 210)
 CreateLight()
 
-cam = CreateCamera()
-SetPosition(cam, 0, 12, -28)
-SetRotation(cam, 12, 0, 0)
+; camera
+cam = CreateCamera().Position([0, 12, -28]).Rotate(12, 0, 0)
 
-ground = CreateCube()
-SetScale(ground, 80, 0.25, 80)
-SetPosition(ground, 0, 0, 20)
-SetEntityColor(ground, 60, 110, 55)
+; world
+ground = CreateCube().Scale(80, 0.25, 80).Position([0, 0, 20]).Color(60, 110, 55)
 CreateRigidBodyBox(ground, 80, 0.25, 80, 0)
 
-plane = CreateCube()
-SetScale(plane, 4, 0.25, 3)
-SetPosition(plane, 0, 8, 20)
-SetEntityColor(plane, 230, 230, 240)
+; vehicle
+plane = CreateCube().Scale(4, 0.25, 3).Position([0, 8, 20]).Color(230, 230, 240)
 CreatePlaneController(plane)
 
+; loop
 frames = 0
 While 1
     frames = frames + 1
@@ -38,6 +37,7 @@ While 1
     If KeyDown(KEY_E) Then yaw = 0.35
     UpdatePlane(plane, th, pitch, roll, yaw)
     UpdateWorld
+    CameraFollow(cam, plane, 22, 6, 6, EntityYaw(plane), 12)
     RenderWorld
     Text(12, 12, "Plane  W throttle  arrows pitch  AD roll  QE yaw")
     Flip

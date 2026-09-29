@@ -31,9 +31,22 @@ type BodyID struct {
 	handle C.JoltBodyID
 }
 
-// Destroy frees the body ID
+// Destroy frees the body ID wrapper. It does not remove the body from the world.
 func (b *BodyID) Destroy() {
+	if b == nil || b.handle == nil {
+		return
+	}
 	C.JoltDestroyBodyID(b.handle)
+	b.handle = nil
+}
+
+// RemoveAndDestroy takes the body out of the simulation and frees the wrapper.
+func (bi *BodyInterface) RemoveAndDestroy(bodyID *BodyID) {
+	if bi == nil || bodyID == nil || bodyID.handle == nil {
+		return
+	}
+	C.JoltRemoveAndDestroyBody(bi.handle, bodyID.handle)
+	bodyID.handle = nil
 }
 
 // Key is a comparable handle for bodyToEnt maps.

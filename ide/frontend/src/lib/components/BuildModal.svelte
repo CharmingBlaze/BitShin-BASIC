@@ -37,32 +37,31 @@
   <div class="ide-modal md">
     <div class="ide-modal-head">
       <div>
-        <h2>Build package</h2>
-        <p>Create a distribution folder with the executable and natives</p>
+        <h2>Compile native executable</h2>
+        <p>Compile Blitz source code directly to a native machine-code binary (AOT) or Web export</p>
       </div>
       <button class="ide-iconbtn" onclick={() => editorStore.showBuildModal = false}><X size={15} /></button>
     </div>
     <div class="ide-modal-body space-y-4 text-xs">
       <div>
-        <div style="margin-bottom:6px;color:var(--text-secondary);">Target platform</div>
-        <div class="grid grid-cols-3 gap-2">
-          {#each ['windows', 'linux', 'darwin'] as os}
+        <div class="ide-label">Target platform</div>
+        <div class="grid grid-cols-4 gap-2">
+          {#each ['windows', 'linux', 'darwin', 'wasm'] as os}
             <button
-              class="ide-btn"
-              style={targetOS === os ? 'border-color:#6d5818;color:var(--accent-bright);background:var(--accent-dim);' : ''}
+              class="ide-btn {targetOS === os ? 'ide-choice is-on' : ''}"
               onclick={() => targetOS = os}
             >
-              {os === 'darwin' ? 'macOS' : os}
+              {os === 'darwin' ? 'macOS' : (os === 'wasm' ? 'Web (WASM)' : os)}
             </button>
           {/each}
         </div>
       </div>
       <div>
-        <label for="out-dir" style="display:block;margin-bottom:6px;color:var(--text-secondary);">Output folder</label>
+        <label for="out-dir" class="ide-label">Output folder</label>
         <input id="out-dir" class="ide-field font-mono" bind:value={outputDir} placeholder="dist" />
       </div>
       {#if buildResult}
-        <div class="ide-badge {buildResult.success ? 'ok' : 'err'}" style="height:auto;padding:8px;white-space:pre-wrap;font-size:11px;">
+        <div class="ide-badge ide-note {buildResult.success ? 'ok' : 'err'}">
           {buildResult.message}
         </div>
       {/if}

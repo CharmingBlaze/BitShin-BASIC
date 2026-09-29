@@ -452,6 +452,7 @@ func (w *World) bindPBRUniforms(gs *gls.GLS, m *pbrMat) {
 	}
 	setUni3f(gs, "IBLSky", sky.R, sky.G, sky.B)
 	setUni3f(gs, "IBLGround", ground.R, ground.G, ground.B)
+	w.bindEnvCube(gs)
 	ao := float32(1)
 	if m != nil {
 		ao = m.ao

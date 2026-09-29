@@ -155,6 +155,12 @@ func (w *World) pbrCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			return value.Num(0), nil
 		}),
 		"setmaterial": need(func(a []value.Value) (value.Value, error) {
+			if len(a) >= 2 && a[1].Kind == value.KindStr {
+				if err := w.applyPhysicsMaterial(argI(a, 0, 0), a[1].Str); err != nil {
+					return value.Value{}, err
+				}
+				return z()
+			}
 			e, err := w.ent(argI(a, 0, 0))
 			if err != nil {
 				return value.Value{}, err
@@ -164,16 +170,16 @@ func (w *World) pbrCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			}
 			return z()
 		}),
-		"setalbedo":     n(setColor),
-		"setbasecolor":  n(setColor),
-		"setalbedomap":  n(setMap("SetAlbedoMap")),
+		"setalbedo":       n(setColor),
+		"setbasecolor":    n(setColor),
+		"setalbedomap":    n(setMap("SetAlbedoMap")),
 		"setbasecolormap": n(setMap("SetAlbedoMap")),
-		"getalbedor":    n(getChan("ar")),
-		"getbasecolorr": n(getChan("ar")),
-		"getalbedog":    n(getChan("ag")),
-		"getbasecolorg": n(getChan("ag")),
-		"getalbedob":    n(getChan("ab")),
-		"getbasecolorb": n(getChan("ab")),
+		"getalbedor":      n(getChan("ar")),
+		"getbasecolorr":   n(getChan("ar")),
+		"getalbedog":      n(getChan("ag")),
+		"getbasecolorg":   n(getChan("ag")),
+		"getalbedob":      n(getChan("ab")),
+		"getbasecolorb":   n(getChan("ab")),
 		"setmetallic": n(func(a []value.Value) (value.Value, error) {
 			pm, e, err := w.pbrOf(argI(a, 0, 0), true)
 			if err != nil {
@@ -287,15 +293,15 @@ func (w *World) pbrCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			}
 			return z()
 		}),
-		"getemissiver": n(getChan("er")),
-		"getemissiveg": n(getChan("eg")),
-		"getemissiveb": n(getChan("eb")),
-		"setnormalmap":             n(setMap("SetNormalMap")),
-		"setmetallicroughnessmap":  n(setMap("SetMetallicRoughnessMap")),
-		"setmetalroughmap":         n(setMap("SetMetallicRoughnessMap")),
-		"setemissivemap":           n(setMap("SetEmissiveMap")),
-		"setaomap":                 n(setMap("SetAOMap")),
-		"setocclusionmap":          n(setMap("SetAOMap")),
+		"getemissiver":            n(getChan("er")),
+		"getemissiveg":            n(getChan("eg")),
+		"getemissiveb":            n(getChan("eb")),
+		"setnormalmap":            n(setMap("SetNormalMap")),
+		"setmetallicroughnessmap": n(setMap("SetMetallicRoughnessMap")),
+		"setmetalroughmap":        n(setMap("SetMetallicRoughnessMap")),
+		"setemissivemap":          n(setMap("SetEmissiveMap")),
+		"setaomap":                n(setMap("SetAOMap")),
+		"setocclusionmap":         n(setMap("SetAOMap")),
 		"setenvmap": n(func(a []value.Value) (value.Value, error) {
 			if len(a) < 2 {
 				tex := w.texByID(argI(a, 0, 0))

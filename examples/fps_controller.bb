@@ -1,4 +1,6 @@
-; BitShin BASIC — Modern First-Person Controller (FPS) Demo
+; FPS controller — WASD move, Shift sprint, Ctrl crouch, Space jump, mouse look.
+; Esc quits after a few frames.
+
 SetWindowTitle("BitShin BASIC — Modern FPS Controller")
 Graphics3D(1280, 720, 0, 2)
 SetBuffer(BackBuffer())
@@ -6,37 +8,33 @@ SetCameraClsColor(40, 50, 70)
 SetAmbientLight(60, 65, 80)
 HidePointer()
 
+; Camera
 cam = CreateCamera()
 SetCameraRange(cam, 0.1, 1000)
 
+; Sun + shadows
 sun = CreateDirectionalLight()
 SetLightDirection(sun, 45, 35, 0)
 SetLightColor(sun, 255, 240, 210)
 SetLightShadow(sun, True)
 EnableShadows(True)
 
-; Arena Ground & Obstacles
-ground = CreateCube()
-SetScale(ground, 60, 0.25, 60)
-SetPosition(ground, 0, 0, 0)
-SetEntityColor(ground, 45, 80, 60)
+; Arena ground
+ground = CreateCube().Scale(60, 0.25, 60).Position([0, 0, 0]).Color(45, 80, 60)
 CreateRigidBodyBox(ground, 60, 0.25, 60, 0)
 
-; Pillars and ramps
+; Pillars in a ring
 For i = 0 To 7
     ang# = i * 45.0
     px# = Sin(ang) * 22.0
     pz# = Cos(ang) * 22.0
-    pillar = CreateCylinder(12)
-    SetScale(pillar, 1.2, 4.0, 1.2)
-    SetPosition(pillar, px, 4.0, pz)
-    SetEntityColor(pillar, 180, 150, 110)
+    pillar = CreateCylinder(12).Scale(1.2, 4.0, 1.2).Position([px, 4.0, pz]).Color(180, 150, 110)
     CreateRigidBodyBox(pillar, 1.2, 4.0, 1.2, 0)
 Next
 
-; Player entity and controller
+; Player + FPS controller
 player = CreatePivot()
-SetPosition(player, 0, 2, 0)
+player.Position([0, 2, 0])
 CreateFPSController(player, cam, 1.8, 0.4, 6.5, 11.5, 9.5)
 
 frames = 0

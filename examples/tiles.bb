@@ -1,14 +1,15 @@
-; Tilemap + DrawImageRect — Esc quits
+; Tiles — CreateTileMap / SetTile / DrawTileMap
+; Esc quits.
 
 Graphics2D(640, 400)
 SetClsColor(18, 22, 34)
 SetWindowTitle("BitShin BASIC — tiles")
 
+; Atlas placeholder (DrawTileMap without atlas uses solid colors; ids 1..4)
 SetColor(70, 120, 70)
 atlas = CreateImage(64, 16)
-; four 16px tiles painted as strips via Rect on the atlas is not supported;
-; DrawTileMap without an atlas uses solid colors. SetTile ids 1..4.
 
+; Fill a 20x12 map: grass, props, and a ground row
 map = CreateTileMap(16, 16, 20, 12)
 For y = 0 To 11
     For x = 0 To 19
@@ -19,6 +20,7 @@ For y = 0 To 11
     Next
 Next
 
+; Loop — draw the tilemap
 While Not KeyDown(KEY_ESCAPE)
     Cls
     DrawTileMap(map, 0, 80)

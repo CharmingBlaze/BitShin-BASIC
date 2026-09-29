@@ -114,7 +114,12 @@ func terrainSplatWeights(height, waterY, blend, grassCover, ny float64, snowOn b
 	if blend < 0.15 {
 		blend = 0.15
 	}
-	_ = grassCover
+	if grassCover < 0 {
+		grassCover = 0
+	}
+	if grassCover > 1 {
+		grassCover = 1
+	}
 	slope := ny
 	if slope < 0 {
 		slope = 0
@@ -122,7 +127,9 @@ func terrainSplatWeights(height, waterY, blend, grassCover, ny float64, snowOn b
 	if slope > 1 {
 		slope = 1
 	}
-	rock = 1 - smoothstep64(0.4, 0.75, slope)
+	// Higher coverage lets grass climb steeper slopes. 0.65 matches the old 0.40–0.75 window.
+	grassLo := 0.55*(1-grassCover) + 0.32*grassCover
+	rock = 1 - smoothstep64(grassLo, grassLo+0.35, slope)
 	sand = 1 - smoothstep64(waterY, waterY+blend*2, height)
 	if snowOn {
 		snow = smoothstep64(snowH-1.2, snowH+2, height) * smoothstep64(0.38, 0.78, slope)

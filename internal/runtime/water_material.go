@@ -31,12 +31,12 @@ func (m *WaterMaterial) Configure() {
 	m.SetShader("mbwater")
 	m.SetShaderUnique(true)
 	m.SetUseLights(material.UseLightNone)
-	m.SetSide(material.SideDouble)
+	m.SetSide(material.SideFront)
 	m.SetTransparent(true)
-	m.SetOpacity(0.75)
+	m.SetOpacity(1)
 	m.SetBlending(material.BlendNormal)
 	m.SetDepthTest(true)
-	m.SetDepthMask(false)
+	m.SetDepthMask(true)
 	m.SetWireframe(false)
 }
 

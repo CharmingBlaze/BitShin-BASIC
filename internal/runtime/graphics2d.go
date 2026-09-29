@@ -17,6 +17,8 @@ import (
 
 type ebiImage struct {
 	img    *ebiten.Image
+	src    image.Image
+	glTex  uint32
 	mid    bool
 	w, h   int
 }
@@ -31,6 +33,9 @@ type ebiSprite struct {
 type drawOp struct {
 	kind       int // 0 image, 1 rect, 2 oval, 3 line, 4 text
 	img        *ebiten.Image
+	imgID      int
+	glTex      uint32
+	texW, texH int
 	x, y, w, h float32
 	x2, y2     float32
 	sx, sy, sw, sh int

@@ -1,6 +1,10 @@
 package runtime
 
 import (
+	"image"
+	"image/color"
+	"os"
+
 	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 
@@ -28,14 +32,28 @@ func (w *World) twoDCommands(n func(func([]value.Value) (value.Value, error)) cm
 			if err != nil {
 				return value.Value{}, err
 			}
-			img, _, err := ebitenutil.NewImageFromFile(path)
-			if err != nil {
-				return value.Value{}, err
-			}
 			id := w.nextImg
 			w.nextImg++
-			b := img.Bounds()
-			w.images[id] = &ebiImage{img: img, w: b.Dx(), h: b.Dy()}
+			if w.mode2D {
+				img, _, err := ebitenutil.NewImageFromFile(path)
+				if err != nil {
+					return value.Value{}, err
+				}
+				b := img.Bounds()
+				w.images[id] = &ebiImage{img: img, w: b.Dx(), h: b.Dy()}
+			} else {
+				f, err := os.Open(path)
+				if err != nil {
+					return value.Value{}, err
+				}
+				defer f.Close()
+				m, _, err := image.Decode(f)
+				if err != nil {
+					return value.Value{}, err
+				}
+				b := m.Bounds()
+				w.images[id] = &ebiImage{src: m, w: b.Dx(), h: b.Dy()}
+			}
 			return value.Num(float64(id)), nil
 		}),
 		"createimage": need2(func(a []value.Value) (value.Value, error) {
@@ -46,18 +64,50 @@ func (w *World) twoDCommands(n func(func([]value.Value) (value.Value, error)) cm
 			if hh < 1 {
 				hh = 1
 			}
-			img := w.solidImage(ww, hh, w.drawRGB[0], w.drawRGB[1], w.drawRGB[2])
 			id := w.nextImg
 			w.nextImg++
-			w.images[id] = &ebiImage{img: img, w: ww, h: hh}
+			if w.mode2D {
+				img := w.solidImage(ww, hh, w.drawRGB[0], w.drawRGB[1], w.drawRGB[2])
+				w.images[id] = &ebiImage{img: img, w: ww, h: hh}
+			} else {
+				alpha := w.drawAlpha
+				if alpha == 0 {
+					alpha = 255
+				}
+				rgba := image.NewRGBA(image.Rect(0, 0, ww, hh))
+				c := color.RGBA{w.drawRGB[0], w.drawRGB[1], w.drawRGB[2], alpha}
+				for y := 0; y < hh; y++ {
+					for x := 0; x < ww; x++ {
+						rgba.Set(x, y, c)
+					}
+				}
+				w.images[id] = &ebiImage{src: rgba, w: ww, h: hh}
+			}
 			return value.Num(float64(id)), nil
 		}),
 		"drawimage": need2(func(a []value.Value) (value.Value, error) {
-			im := w.images[argI(a, 0, 0)]
+			imgID := argI(a, 0, 0)
+			im := w.images[imgID]
 			if im == nil {
 				return z()
 			}
-			w.draws = append(w.draws, drawOp{kind: 0, img: im.img, x: float32(argN(a, 1, 0)), y: float32(argN(a, 2, 0))})
+			alpha := w.drawAlpha
+			if alpha == 0 {
+				alpha = 255
+			}
+			w.draws = append(w.draws, drawOp{
+				kind:  0,
+				img:   im.img,
+				imgID: imgID,
+				glTex: im.glTex,
+				texW:  im.w,
+				texH:  im.h,
+				x:     float32(argN(a, 1, 0)),
+				y:     float32(argN(a, 2, 0)),
+				w:     float32(im.w),
+				h:     float32(im.h),
+				r:     255, g: 255, b: 255, a: alpha,
+			})
 			return z()
 		}),
 		"createsprite": need2(func(a []value.Value) (value.Value, error) {
@@ -122,27 +172,39 @@ func (w *World) twoDCommands(n func(func([]value.Value) (value.Value, error)) cm
 			return z()
 		}),
 		"rect": need2(func(a []value.Value) (value.Value, error) {
+			alpha := w.drawAlpha
+			if alpha == 0 {
+				alpha = 255
+			}
 			w.draws = append(w.draws, drawOp{
 				kind: 1, x: float32(argN(a, 0, 0)), y: float32(argN(a, 1, 0)),
 				w: float32(argN(a, 2, 10)), h: float32(argN(a, 3, 10)),
-				r: w.drawRGB[0], g: w.drawRGB[1], b: w.drawRGB[2],
+				r: w.drawRGB[0], g: w.drawRGB[1], b: w.drawRGB[2], a: alpha,
 				filled: argI(a, 4, 1) != 0,
 			})
 			return z()
 		}),
 		"oval": need2(func(a []value.Value) (value.Value, error) {
+			alpha := w.drawAlpha
+			if alpha == 0 {
+				alpha = 255
+			}
 			w.draws = append(w.draws, drawOp{
 				kind: 2, x: float32(argN(a, 0, 0)), y: float32(argN(a, 1, 0)),
 				w: float32(argN(a, 2, 16)), h: float32(argN(a, 3, 16)),
-				r: w.drawRGB[0], g: w.drawRGB[1], b: w.drawRGB[2], filled: true,
+				r: w.drawRGB[0], g: w.drawRGB[1], b: w.drawRGB[2], a: alpha, filled: true,
 			})
 			return z()
 		}),
 		"line": need2(func(a []value.Value) (value.Value, error) {
+			alpha := w.drawAlpha
+			if alpha == 0 {
+				alpha = 255
+			}
 			w.draws = append(w.draws, drawOp{
 				kind: 3, x: float32(argN(a, 0, 0)), y: float32(argN(a, 1, 0)),
 				x2: float32(argN(a, 2, 0)), y2: float32(argN(a, 3, 0)),
-				r: w.drawRGB[0], g: w.drawRGB[1], b: w.drawRGB[2],
+				r: w.drawRGB[0], g: w.drawRGB[1], b: w.drawRGB[2], a: alpha,
 			})
 			return z()
 		}),

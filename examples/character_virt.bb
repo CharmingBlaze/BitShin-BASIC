@@ -1,25 +1,25 @@
-; CharacterVirtual controller. Esc after a few frames.
+; Character — Jolt CharacterVirtual walk controller.
+; WASD move on the ground plane.
+; Esc quits after a few frames.
 
+; window
 SetWindowTitle("BitShin BASIC — Character")
 Graphics3D(960, 540, 0, 2)
 SetCameraClsColor(18, 22, 30)
 CreateLight()
 
-cam = CreateCamera()
-SetPosition(cam, 0, 6, -14)
-SetRotation(cam, 18, 0, 0)
+; camera
+cam = CreateCamera().Position([0, 6, -14]).Rotate(18, 0, 0)
 
-ground = CreateCube()
-SetScale(ground, 12, 0.2, 12)
-SetPosition(ground, 0, 0, 8)
-SetEntityColor(ground, 50, 58, 70)
+; world
+ground = CreateCube().Scale(12, 0.2, 12).Position([0, 0, 8]).Color(50, 58, 70)
 CreateRigidBodyBox(ground, 12, 0.2, 12, 0)
 
-hero = CreateCapsule(0.4, 0.9, 8)
-SetPosition(hero, 0, 2.2, 8)
-SetEntityColor(hero, 255, 170, 80)
+; vehicle
+hero = CreateCapsule(0.4, 0.9, 8).Position([0, 2.2, 8]).Color(255, 170, 80)
 CreateCharacterController(hero, 1.8, 0.4, 50, 100)
 
+; loop
 frames = 0
 While 1
     frames = frames + 1

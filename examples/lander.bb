@@ -1,10 +1,15 @@
-; BitShin BASIC — Lunar Lander / Rocket Vehicle Demo
+; Lander — lunar / rocket physics with main engine and RCS.
+; Space / W thrust, arrows pitch / roll, A/D yaw.
+; Esc quits after a few frames.
+
+; window
 SetWindowTitle("BitShin BASIC — Lunar Lander Physics")
 Graphics3D(1280, 720, 0, 2)
 SetBuffer(BackBuffer())
 SetCameraClsColor(10, 12, 18)
 SetAmbientLight(40, 45, 55)
 
+; camera
 cam = CreateCamera()
 SetCameraRange(cam, 0.1, 1000)
 
@@ -14,33 +19,21 @@ SetLightColor(sun, 255, 250, 230)
 SetLightShadow(sun, True)
 EnableShadows(True)
 
-; Lunar surface & Landing Pad
-ground = CreateCube()
-SetScale(ground, 80, 0.5, 80)
-SetPosition(ground, 0, 0, 0)
-SetEntityColor(ground, 100, 105, 115)
+; world
+ground = CreateCube().Scale(80, 0.5, 80).Position([0, 0, 0]).Color(100, 105, 115)
 CreateRigidBodyBox(ground, 80, 0.5, 80, 0)
 
-pad = CreateCylinder(16)
-SetScale(pad, 6, 0.2, 6)
-SetPosition(pad, 0, 0.6, 0)
-SetEntityColor(pad, 220, 180, 50)
+pad = CreateCylinder(16).Scale(6, 0.2, 6).Position([0, 0.6, 0]).Color(220, 180, 50)
 CreateRigidBodyBox(pad, 6, 0.2, 6, 0)
 
-; Lander Module
-lander = CreateCube()
-SetScale(lander, 1.2, 1.0, 1.2)
-SetPosition(lander, 0, 15, 0)
-SetEntityColor(lander, 220, 220, 230)
+; vehicle
+lander = CreateCube().Scale(1.2, 1.0, 1.2).Position([0, 15, 0]).Color(220, 220, 230)
 
-thruster = CreateCone(8, lander)
-SetScale(thruster, 0.6, 0.8, 0.6)
-SetPosition(thruster, 0, -0.8, 0)
-SetRotation(thruster, 180, 0, 0)
-SetEntityColor(thruster, 60, 65, 70)
+thruster = CreateCone(8, lander).Scale(0.6, 0.8, 0.6).Position([0, -0.8, 0]).Rotate(180, 0, 0).Color(60, 65, 70)
 
 CreateLanderController(lander, 1.2, 1.0, 1.2, 1200)
 
+; loop
 frames = 0
 While 1
     frames = frames + 1

@@ -22,6 +22,22 @@ static const BodyID *asID(JoltBodyID bodyID)
 	return static_cast<const BodyID *>(bodyID);
 }
 
+void JoltRemoveAndDestroyBody(JoltBodyInterface bodyInterface, JoltBodyID bodyID)
+{
+	if (bodyInterface == nullptr || bodyID == nullptr)
+	{
+		return;
+	}
+	BodyInterface *bi = static_cast<BodyInterface *>(bodyInterface);
+	const BodyID *id = asID(bodyID);
+	if (!id->IsInvalid())
+	{
+		bi->RemoveBody(*id);
+		bi->DestroyBody(*id);
+	}
+	delete id;
+}
+
 unsigned int JoltGetBodyIDValue(JoltBodyID bodyID)
 {
 	if (bodyID == nullptr)
@@ -192,6 +208,30 @@ void JoltSetGravityFactor(JoltPhysicsSystem system, JoltBodyID bodyID, float sca
 		return;
 	}
 	body.GetMotionProperties()->SetGravityFactor(scale);
+}
+
+float JoltGetInverseMass(JoltPhysicsSystem system, JoltBodyID bodyID)
+{
+	if (system == nullptr || bodyID == nullptr)
+	{
+		return 0.0f;
+	}
+	PhysicsSystem *ps = GetPhysicsSystem(static_cast<PhysicsSystemWrapper *>(system));
+	if (ps == nullptr)
+	{
+		return 0.0f;
+	}
+	BodyLockRead lock(ps->GetBodyLockInterface(), *asID(bodyID));
+	if (!lock.Succeeded())
+	{
+		return 0.0f;
+	}
+	const Body &body = lock.GetBody();
+	if (!body.IsDynamic() || body.GetMotionProperties() == nullptr)
+	{
+		return 0.0f;
+	}
+	return body.GetMotionProperties()->GetInverseMass();
 }
 
 void JoltSetRestitution(JoltBodyInterface bodyInterface, JoltBodyID bodyID, float restitution)

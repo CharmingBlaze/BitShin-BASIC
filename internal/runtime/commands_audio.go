@@ -100,14 +100,60 @@ func (w *World) audioCommands(n func(func([]value.Value) (value.Value, error)) c
 					x, y, zpos = float64(fx), float64(fy), float64(fz)
 				}
 			}
+			rangeDist := s.maxDist
+			if rangeDist <= 0 {
+				rangeDist = 40
+			}
 			lx, ly, lz, yaw := w.listenerPose()
-			vol, pan := bsaudio.DistancePan(lx, ly, lz, yaw, x, y, zpos, 40)
+			vol, pan := bsaudio.DistancePan(lx, ly, lz, yaw, x, y, zpos, rangeDist)
 			voice, err := s.clip.PlayAt(vol*s.vol, s.pitch, pan, false)
 			if err != nil {
 				fmt.Println("EmitSound:", err)
 				return z()
 			}
 			s.voice = voice
+			return z()
+		}),
+		"emitsound3d": n(func(a []value.Value) (value.Value, error) {
+			s := w.sounds[argI(a, 0, 0)]
+			if s == nil || s.clip == nil {
+				return z()
+			}
+			x, y, zpos := argN(a, 1, 0), argN(a, 2, 0), argN(a, 3, 0)
+			maxD := s.maxDist
+			if maxD <= 0 {
+				maxD = 40
+			}
+			if len(a) >= 5 {
+				maxD = argN(a, 4, maxD)
+			}
+			if len(a) == 2 {
+				if e := w.ents[argI(a, 1, 0)]; e != nil && e.node != nil {
+					p := worldPos(e.node.GetNode())
+					fx, fy, fz := fromG3N(p.X, p.Y, p.Z)
+					x, y, zpos = float64(fx), float64(fy), float64(fz)
+				}
+			}
+			lx, ly, lz, yaw := w.listenerPose()
+			vol, pan := bsaudio.DistancePan(lx, ly, lz, yaw, x, y, zpos, maxD)
+			voice, err := s.clip.PlayAt(vol*s.vol, s.pitch, pan, false)
+			if err != nil {
+				fmt.Println("EmitSound3D:", err)
+				return z()
+			}
+			s.voice = voice
+			return z()
+		}),
+		"setsoundrange": n(func(a []value.Value) (value.Value, error) {
+			s := w.sounds[argI(a, 0, 0)]
+			if s == nil {
+				return z()
+			}
+			s.minDist = argN(a, 1, 1)
+			s.maxDist = argN(a, 2, 40)
+			if s.maxDist <= s.minDist {
+				s.maxDist = s.minDist + 1
+			}
 			return z()
 		}),
 		"setlistener": n(func(a []value.Value) (value.Value, error) {
@@ -132,7 +178,7 @@ func (w *World) loadClip(a []value.Value, music bool) (value.Value, error) {
 	}
 	id := w.nextSnd
 	w.nextSnd++
-	w.sounds[id] = &sndSlot{path: path, clip: clip, vol: 1, pitch: 1, music: music}
+	w.sounds[id] = &sndSlot{path: path, clip: clip, vol: 1, pitch: 1, minDist: 1, maxDist: 40, music: music}
 	if music {
 		w.musicID = id
 	}

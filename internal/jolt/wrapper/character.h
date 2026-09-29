@@ -101,6 +101,16 @@ void JoltCharacterVirtualExtendedUpdate(JoltCharacterVirtual character,
                                         float deltaTime,
                                         float gravityX, float gravityY, float gravityZ);
 
+// ExtendedUpdate with stair stepping and floor stick, using the Go temp allocator.
+void JoltCharacterGameUpdate(JoltCharacterVirtual character,
+                             JoltPhysicsSystem system,
+                             void *allocator,
+                             float deltaTime,
+                             float gravityX, float gravityY, float gravityZ);
+
+// Heap BodyID of the kinematic inner body, or null. Caller owns the wrapper.
+JoltBodyID JoltCharacterInnerBody(JoltCharacterVirtual character);
+
 // Set the linear velocity of a virtual character
 void JoltCharacterVirtualSetLinearVelocity(JoltCharacterVirtual character,
                                            float x, float y, float z);

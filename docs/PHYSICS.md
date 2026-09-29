@@ -1,8 +1,55 @@
 # Physics (3D)
 
-Jolt on Windows / Linux amd64+arm64 / macOS ARM. `PhysicsBackend$()` / `GetPhysicsBackend$()` is `"jolt"` or `"fallback"` (`-tags nojolt` or an unsupported OS/arch).
+Three backends, one set of commands. `PhysicsBackend$()` / `GetPhysicsBackend$()` is `"jolt"` or `"fallback"`.
 
-Call `UpdateWorld` (or `Flip`, which also steps) after you move or shove bodies. Handles are the same integers as `CreateCube` / `CreateCapsule` after you attach a body.
+| Backend | When | What you actually get |
+| --- | --- | --- |
+| Windows Jolt | Windows without `-tags nojolt` | Native velocity, rotated shapes, constraints, vehicles, cloth, CCD |
+| Linux / macOS Jolt | Linux amd64/arm64, macOS ARM | Same command names. Linear velocity, bounce, joints, and rotated hulls are a software layer on jolt-go (that wrapper has no two-body constraints). `PhysicsBackend$()` is still `"jolt"` |
+| Software | `-tags nojolt`, or any other OS/arch | Sphere and box overlap. `PhysicsBackend$()` is `"fallback"` |
+
+Print `PhysicsBackend$()` when a sample depends on a native joint, vehicle, or cloth sheet.
+
+`Flip` steps the world once when you have not already called `UpdateWorld` this frame. Calling both still steps once. Handles are the same integers as `CreateCube` / `CreateSphere` after you attach a body.
+
+## Beginner path
+
+`Collide` sizes a box from the mesh (a sphere if the mesh is a sphere). `STATIC` is frozen, `KINEMATIC` is moved by you, `DYNAMIC` falls. Mass comes from the volume unless you pass one. `SetPhysicsMaterial` (or `SetMaterial` with a name) sets friction, bounce, and damping together. `CreateFPSController` / `CreateTPSController` are the person; `CreateCharacterController` is the expert capsule.
+
+`STATIC` = 0, `KINEMATIC` = 1, `DYNAMIC` = 2. Ground: `ON_GROUND` = 0, `GROUND_STEEP` = 1, `GROUND_UNSUPPORTED` = 2, `IN_AIR` = 3. Those are the same integers `CreateBodyBox` and `GetCharacterGroundState` already use. On `CreateBodyBox`, a bare `DYNAMIC` with no following mass is 2 kg, because that slot is also the mass. `Collide(mesh, DYNAMIC)` uses the volume instead. `Collide(mesh, DYNAMIC, 8)` forces 8 kg.
+
+Materials: `ice`, `glass`, `rubber`, `wood`, `metal`, `stone` (`concrete`), `plastic`, `bouncy` (`ball`), `default`.
+
+```basic
+Print PhysicsBackend$()
+Graphics3D(960, 540, 0, 2)
+cam = CreateCamera()
+SetPosition(cam, 0, 6, -14)
+CreateLight()
+
+ground = CreateCube()
+SetScale(ground, 10, 0.2, 10)
+SetPosition(ground, 0, 0, 8)
+Collide(ground, STATIC)
+
+ball = CreateSphere()
+SetPosition(ball, 0, 6, 8)
+Collide(ball)
+SetPhysicsMaterial(ball, "rubber")
+
+frames = 0
+While 1
+    frames = frames + 1
+    If KeyHit(KEY_SPACE) Then ApplyImpulse(ball, 0, 8, 0)
+    RenderWorld
+    Flip
+    If frames > 8 And KeyHit(KEY_ESCAPE) Then End
+Wend
+```
+
+`Raycast` still returns an entity id and fills `PickedX/Y/Z` plus `GetRayNormalX/Y/Z` and `GetRayFraction`. `RaycastHit` returns a `RayHit` (`entity`, `x`, `y`, `z`, `nx`, `ny`, `nz`, `fraction`, `hit`) and does not touch `Picked*`. `RaycastAll` returns an array of those hits (closest first).
+
+Experts keep `CreateBodyBox`, `CreateBodyMesh`, `CreateBodyConvex`, layers, CCD, motors, and `OptimizePhysics`. `Collide` returns the same entity id those commands use, and `SetFriction` after `SetPhysicsMaterial` overrides that one channel.
 
 Quit loops: `While Not KeyDown(1)` works after the first-frame Escape fix. Still put `Flip` in the loop. Demos use `While 1` + `Flip` + `If frames > 8 And KeyHit(KEY_ESCAPE) Then End` so a phantom Esc cannot close the window on frame 0.
 
@@ -242,15 +289,21 @@ Demos: `examples/grab_beam.bb` (Space grab, T throw, G drop, laser via `PlaceAtR
 
 ## CharacterVirtual
 
-`CreateCharacterController` builds a Jolt **CharacterVirtual** (capsule). On **Windows** it also creates a slightly smaller **inner kinematic rigid body** (`CreateCharacterVirtualWithInner`) so rays, CCD, and contact listeners can hit the player. On **Linux/macOS** jolt-go has CharacterVirtual but not that inner helper — we add a kinematic capsule on the same handle so `Raycast` still hits the player. `GetPhysicsCharacter$()` is `"jolt"` when that path is live, `"kinematic"` on fallback.
+For a walking person, use `CreateFPSController` or `CreateTPSController` ([MODERN_GAME_HELPERS.md](MODERN_GAME_HELPERS.md)). The commands below are the capsule those helpers sit on.
 
-`UpdateWorld` / `Flip` already run Jolt `CharacterVirtual::ExtendedUpdate` (stick-to-floor + walk-stairs). `ExtendedUpdate` / `CharacterExtendedUpdate` are documented no-ops you can call for other engines; they do not double-step.
+`CreateCharacterController` builds a Jolt **CharacterVirtual** (capsule). **`height` is the full height, caps included.** A call with `1.8, 0.4` is a 1.8 m person, not a 2.6 m collider. The visual `CreateCapsule(0.4, 0.9)` is close to that (cylinder 0.9 plus two 0.4 caps ≈ 1.7 m). On **Windows** it also creates a slightly smaller **inner kinematic rigid body** (`CreateCharacterVirtualWithInner`) so rays, CCD, and contact listeners can hit the player. On **Linux/macOS** jolt-go has CharacterVirtual but not that inner helper — we add a kinematic capsule on the same handle so `Raycast` still hits the player. `GetPhysicsCharacter$()` is `"jolt"` when that path is live, `"kinematic"` on fallback.
+
+`UpdateWorld` / `Flip` already run Jolt `CharacterVirtual::ExtendedUpdate` (stick-to-floor + walk-stairs) **and apply gravity**. Do not subtract gravity in the script. Two-argument `MoveCharacter e, vx, vz` keeps Y, so a jump set with `SetCharacterVelocity` survives until the next step. While the character is on the ground and not jumping, vertical speed is copied from the floor, then one gravity step is added. `ExtendedUpdate` / `CharacterExtendedUpdate` are documented no-ops you can call for other engines; they do not double-step.
+
+`CreateBodyMesh` cooks the mesh in physics space. The engine flips Z relative to the renderer, which reverses triangle winding; the cooker swaps it back so a floor’s contact normal points **up**. A mesh whose triangles faced the wrong way used to push dynamic bodies through the floor.
+
+The `-tags nojolt` fallback collides **boxes as oriented boxes**. A thin platform holds a sphere on its top face. It does not treat the platform as a sphere whose radius is the longest side.
 
 `CreateCharacter(e [, halfH, r])` is the older kinematic capsule helper (still registered). Prefer the controller for walk/slide.
 
 | Command | Meaning |
 | --- | --- |
-| `CreateCharacterController(e [, height, radius, maxSlopeDeg, maxStrength])` | Defaults 1.8, 0.4, 50, 100 |
+| `CreateCharacterController(e [, height, radius, maxSlopeDeg, maxStrength])` | Full height including caps. Defaults 1.8, 0.4, 50, 100 |
 | `MoveCharacter e, vx, vz` | Walk XZ; keeps current Y velocity (gravity / jump) |
 | `MoveCharacter e, vx, vy, vz` | Set all three |
 | `SetCharacterShape e, "capsule"\|"box", height, radius` | Swap the virtual shape |

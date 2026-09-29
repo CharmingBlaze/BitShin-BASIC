@@ -22,8 +22,9 @@ func (w *joltWorld) ApplyForceAtPosition(id int, fx, fy, fz, px, py, pz float32)
 
 func (w *joltWorld) ApplyLocalImpulse(id int, lx, ly, lz float32) {
 	id = w.resolvePhysID(id)
-	if b, ok := w.body[id]; ok {
-		w.bi.AddLocalImpulse(b, jolt.NewVec3(lx, ly, lz))
+	if b, ok := w.body[id]; ok && w.char[id] == nil {
+		s := w.deltaVScale(id)
+		w.bi.AddLocalImpulse(b, jolt.NewVec3(lx*s, ly*s, lz*s))
 		w.bi.ActivateBody(b)
 		return
 	}

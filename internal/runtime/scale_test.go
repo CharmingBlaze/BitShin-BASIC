@@ -105,6 +105,20 @@ func TestChunkEdgeVertsIdentical(t *testing.T) {
 	}
 }
 
+func TestTerrainMeshSegsKeepsCellSmall(t *testing.T) {
+	// Ocean island: chunk 11 on a 24-unit span was ~2.2 unit triangles.
+	got := terrainMeshSegs(24, 11)
+	if got < 36 || got > 72 {
+		t.Fatalf("coarse chunk should densify, got %d", got)
+	}
+	if terrainMeshSegs(5, 17) != 17 {
+		t.Fatal("an already-fine grid should stay")
+	}
+	if terrainMeshSegs(200, 9) != 72 {
+		t.Fatal("density should cap")
+	}
+}
+
 func TestSharedHeightNormalSeam(t *testing.T) {
 	sample := func(x, z float32) float32 {
 		return float32(math.Sin(float64(x)*0.2) + math.Cos(float64(z)*0.15)*2)
@@ -117,25 +131,40 @@ func TestSharedHeightNormalSeam(t *testing.T) {
 	if ay <= 0 {
 		t.Fatalf("up-facing expected, ny=%v", ay)
 	}
+	nx, ny, nz := sharedHeightNormal(func(x, z float32) float32 { return x * 0.5 }, 4, 4, 1)
+	if nx >= 0 || ny <= 0.2 || math.Abs(float64(nz)) > 0.05 {
+		t.Fatalf("central difference should tilt toward -x on a +x rise, got %v %v %v", nx, ny, nz)
+	}
+}
+
+func TestLODBorderSharesFineEdge(t *testing.T) {
+	sample := func(x, z float32) float32 {
+		return float32(math.Sin(float64(x)*0.7) + math.Cos(float64(z)*0.4))
+	}
+	fine := buildHeightMesh(sample, 0, 0, 16, 16, 8, 1, 0)
+	coarse := buildHeightMesh(sample, 0, 0, 16, 16, 8, 2, 0)
+	if fine.Items() <= coarse.Items() {
+		t.Fatalf("full step should carry more surface verts than step 2, fine=%d coarse=%d", fine.Items(), coarse.Items())
+	}
+	// Step 2 still keeps every border sample, so it is denser than a plain skipped grid.
+	plain := 5*5 + 5*4 // 5x5 lattice plus 4 skirts of 5
+	if coarse.Items() <= plain {
+		t.Fatalf("stitched step-2 border should exceed a skipped grid, verts=%d", coarse.Items())
+	}
 }
 
 func TestHeightMeshSkirtIndicesInRange(t *testing.T) {
 	for _, segs := range []int{4, 8, 17, 25} {
 		for _, step := range []int{1, 2, 4} {
-			g := buildHeightMesh(func(x, z float32) float32 { return 1 }, 0, 0, 16, 16, segs, step)
-			chunkSize := segs / step
-			if chunkSize < 1 {
-				chunkSize = 1
-			}
-			n := chunkSize + 1
-			maxV := uint32(n * (n + 4))
+			g := buildHeightMesh(func(x, z float32) float32 { return 1 }, 0, 0, 16, 16, segs, step, 0)
 			idx := g.Indices()
-			if len(idx) == 0 {
-				t.Fatalf("no indices segs=%d step=%d", segs, step)
+			maxV := uint32(g.Items())
+			if len(idx) == 0 || maxV == 0 {
+				t.Fatalf("empty mesh segs=%d step=%d", segs, step)
 			}
 			for i, v := range idx {
 				if v >= maxV {
-					t.Fatalf("skirt OOB index %d at %d (n=%d segs=%d step=%d max=%d)", v, i, n, segs, step, maxV)
+					t.Fatalf("skirt OOB index %d at %d (segs=%d step=%d max=%d)", v, i, segs, step, maxV)
 				}
 			}
 		}
@@ -158,6 +187,11 @@ func TestTerrainSplatWeights(t *testing.T) {
 	_, _, _, sn = terrainSplatWeights(12, 2.2, 1.4, 0.65, 0.9, true, 9)
 	if sn < 0.5 {
 		t.Fatalf("high snow: %v", sn)
+	}
+	_, grassLow, rockLow, _ := terrainSplatWeights(8, 2.2, 1.4, 0.1, 0.55, false, 19)
+	_, grassHigh, rockHigh, _ := terrainSplatWeights(8, 2.2, 1.4, 1, 0.55, false, 19)
+	if grassHigh <= grassLow || rockHigh >= rockLow {
+		t.Fatalf("grass coverage should climb slopes: low %v/%v high %v/%v", grassLow, rockLow, grassHigh, rockHigh)
 	}
 }
 

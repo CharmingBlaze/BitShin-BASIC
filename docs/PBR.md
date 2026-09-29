@@ -35,9 +35,11 @@ Fog (linear / exp / exp²) is the same uniforms as `mbshadow`.
 
 `EntityColor` / `EntityAlpha` / `EntityTexture` still work on a PBR entity (albedo / opacity / base-color map). RGB is 0–255 or 0–1 (if all channels ≤ 1). Shininess/specular are ignored once PBR is on.
 
+`SetNormalMap` is this PBR path. A Phong mesh keeps Blinn-Phong and uses `SetEntityNormalMap` instead (`docs/LIGHTING.md`). Point and spot falloff (`smooth`, `classic`, `physical`) is the same on both shaders.
+
 ## IBL
 
-Analytic hemisphere (sky / ground) plus **UE4 EnvBRDF split-sum** (`scale * F + bias`) so rough metals lose the old `gloss²` sparkle. Optional `SetEnvMap tex` samples a **2D** lat-long with `textureLod` (GLSL 330). No prefiltered cubemap / GPU DFG LUT texture.
+Analytic hemisphere (sky / ground) plus **UE4 EnvBRDF split-sum** (`scale * F + bias`) so rough metals lose the old `gloss²` sparkle. That hemisphere is the IBL term itself: it is not added again on top. With `SetIBL` off, one sky/ground fill remains. A prefiltered sky cubemap is sampled with `textureLod` (roughness picks the mip). The nearest light probe, once its six faces have been drawn, replaces that cubemap so nearby meshes pick up the scene. Optional `SetEnvMap tex` still samples a **2D** lat-long. Point and spot lights use the same windowed range and soft cone as `mbshadow`.
 
 - **Default:** `SetIBL True` is on for PBR.
 - Skybox faces are not a cubemap sampler. A visible skybox only tints the analytic sky color.

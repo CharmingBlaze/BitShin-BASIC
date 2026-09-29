@@ -1,6 +1,7 @@
 package lsp
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -35,6 +36,9 @@ func newCatalog() *catalog {
 	}
 	for k := range syntax.KeyConstants {
 		c.add(k, "Key scan-code constant")
+	}
+	for k, v := range syntax.PhysicsConstants {
+		c.add(k, fmt.Sprintf("Physics constant %g", v))
 	}
 	return c
 }
@@ -92,10 +96,11 @@ func keywordList() []string {
 		"If", "Then", "Else", "ElseIf", "EndIf", "While", "Wend", "EndWhile",
 		"For", "To", "Step", "Next", "Repeat", "Until", "Function", "EndFunction",
 		"End", "Return", "Dim", "ReDim", "Global", "Local", "Const", "Enum", "EndEnum",
+		"Strict", "Try", "Catch", "EndTry",
 		"Select", "Case", "Default", "EndSelect", "Data", "Read", "Restore",
 		"And", "Or", "Not", "Xor", "Mod", "Include", "Import", "Exit",
 		"Type", "EndType", "Struct", "EndStruct", "Method", "EndMethod",
-		"Namespace", "EndNamespace", "Field", "New", "As", "True", "False",
+		"Namespace", "EndNamespace", "Field", "New", "As", "In", "Each", "True", "False",
 		"Yes", "No", "Null", "Pi",
 	}
 }
@@ -107,12 +112,25 @@ func builtinList() []string {
 		"MilliSecs", "Len", "Left", "Right", "Mid", "Chr", "Asc", "Str", "Instr",
 		"Lower", "Upper", "Trim", "Hex", "Clamp", "Lerp", "InvLerp", "SmoothStep",
 		"EaseIn", "EaseOut", "Approach", "WrapAngle", "AngleDelta", "ApproachAngle",
+		"MoveWish", "Accelerate", "TurnToward", "Land", "Material",
 		"Pow", "Dist", "Distance2D", "PointDistance", "Distance3D", "Length2D", "Length3D",
 		"NormX", "NormY", "NormX3", "NormY3", "NormZ3", "DirX", "DirY", "DirZ",
 		"MovePointX", "MovePointY", "MovePointZ", "PointYaw", "PointPitch",
 		"Dot2D", "Dot3D", "CrossX", "CrossY", "CrossZ", "ReflectX", "ReflectY",
 		"BounceX", "BounceY", "RotatedX", "RotatedY", "CreateList", "ListAdd",
 		"ListGet", "ListSet", "ListCount", "ListRemove", "ArraySize",
+		"CreateMap", "MapSet", "MapGet", "MapHas", "MapDelete", "MapCount", "Copy", "Callback",
+		"CreateStateMachine", "AddState", "GoState", "StateName", "UpdateState",
+		"GraphicsApp", "ReadText", "WriteText", "ListDir", "DroppedFile", "DropCount",
+		"BindAction", "UnbindAction", "ActionDown", "ActionHit", "SaveBinds", "LoadBinds",
+		"TableCreate", "TableInsert", "TableGet", "TableCount", "TableSave", "TableLoad",
+		"SaveSlot", "LoadSlot", "SavePrefab", "SpawnPrefab",
+		"CreateAnimGraph", "AnimState", "AnimGo", "AnimUpdate", "ReloadScripts",
+		"SolveTwoBone", "IKBend", "GuiPickFile",
+		"GuiBeginMenuBar", "GuiEndMenuBar", "GuiMenu", "GuiEndMenu", "GuiMenuItem",
+		"GuiBeginTabBar", "GuiEndTabBar", "GuiTabItem", "GuiEndTabItem",
+		"GuiTree", "GuiTreePop", "GuiBeginChild", "GuiEndChild",
+		"GuiOpenPopup", "GuiBeginPopup", "GuiEndPopup", "GuiSelectable",
 		"BackBuffer", "FrontBuffer", "SetBuffer",
 	}
 }

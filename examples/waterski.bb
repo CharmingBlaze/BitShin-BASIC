@@ -1,5 +1,8 @@
-; DarkBASIC-style waterski: tow boat, choppy Gerstner, carve on the edge.
+; Waterski — tow boat, choppy Gerstner, carve on the edge.
+; W pull, A/D carve, S sit back, mouse look (arrows pan).
+; Esc quits after a few frames.
 
+; window
 SetWindowTitle("BitShin BASIC — Waterski")
 Graphics3D(1280, 720, 0, 2)
 SetBuffer(BackBuffer())
@@ -8,6 +11,7 @@ SetAmbientLight(78, 92, 118)
 HidePointer()
 MoveMouse(640, 360)
 
+; camera
 cam = CreateCamera()
 SetCameraRange(cam, 0.2, 2800)
 sky = CreateSkyBox()
@@ -21,6 +25,7 @@ sun = CreateDirectionalLight()
 SetLightDirection(sun, 52, 38, 0)
 SetLightColor(sun, 255, 236, 198)
 
+; world
 water = CreateWater(480, 480, 160)
 SetWaterStyle("ocean")
 SetWaterColor(8, 52, 78)
@@ -38,84 +43,33 @@ SetWaterCaustics(water, True)
 
 ; Marker buoys so the chop reads in third person.
 For i = 0 To 5
-    b = CreateSphere(8)
-    SetScale(b, 0.55, 0.55, 0.55)
-    SetPosition(b, -18 + i * 8, 0.8, 14 + (i Mod 2) * 10)
-    SetEntityColor(b, 220, 70 - i * 8, 48)
+    b = CreateSphere(8).Scale(0.55, 0.55, 0.55).Position([-18 + i * 8, 0.8, 14 + (i Mod 2) * 10]).Color(220, 70 - i * 8, 48)
     CreateBuoy(b)
 Next
 
+; vehicle
 ; Tow boat (player skis behind this).
-boat = CreatePivot()
-SetPosition(boat, 0, 1.15, 16)
+boat = CreatePivot().Position([0, 1.15, 16])
 
-hull = CreateCube(boat)
-SetScale(hull, 1.35, 0.38, 3.1)
-SetPosition(hull, 0, 0, 0)
-SetEntityColor(hull, 28, 92, 168)
-
-bow = CreateCone(8, boat)
-SetScale(bow, 1.2, 1.1, 0.55)
-SetPosition(bow, 0, 0.05, 2.55)
-SetRotation(bow, 90, 0, 0)
-SetEntityColor(bow, 24, 82, 152)
-
-cabin = CreateCube(boat)
-SetScale(cabin, 0.7, 0.45, 0.85)
-SetPosition(cabin, 0, 0.62, -0.35)
-SetEntityColor(cabin, 236, 236, 242)
-
-wind = CreateCube(boat)
-SetScale(wind, 0.68, 0.28, 0.06)
-SetPosition(wind, 0, 0.95, 0.4)
-SetEntityColor(wind, 120, 190, 230)
-SetEntityAlpha(wind, 0.45)
+hull = CreateCube(boat).Scale(1.35, 0.38, 3.1).Position([0, 0, 0]).Color(28, 92, 168)
+bow = CreateCone(8, boat).Scale(1.2, 1.1, 0.55).Position([0, 0.05, 2.55]).Rotate(90, 0, 0).Color(24, 82, 152)
+cabin = CreateCube(boat).Scale(0.7, 0.45, 0.85).Position([0, 0.62, -0.35]).Color(236, 236, 242)
+wind = CreateCube(boat).Scale(0.68, 0.28, 0.06).Position([0, 0.95, 0.4]).Color(120, 190, 230).Alpha(0.45)
 
 CreateBoatController(boat)
 SetLinearDamping(boat, 1.5)
-stern = CreatePivot(boat)
-SetPosition(stern, 0, 0.2, -2.8)
+stern = CreatePivot(boat).Position([0, 0.2, -2.8])
 
 ; Skier + two boards. Physics lives on the pivot.
-skier = CreatePivot()
-SetPosition(skier, 0, 0.55, 2)
+skier = CreatePivot().Position([0, 0.55, 2])
 
-skiL = CreateCube(skier)
-SetScale(skiL, 0.11, 0.045, 0.95)
-SetPosition(skiL, -0.22, -0.02, 0.1)
-SetEntityColor(skiL, 240, 236, 220)
-
-skiR = CreateCube(skier)
-SetScale(skiR, 0.11, 0.045, 0.95)
-SetPosition(skiR, 0.22, -0.02, 0.1)
-SetEntityColor(skiR, 240, 236, 220)
-
-torso = CreateCylinder(10, skier)
-SetScale(torso, 0.22, 0.42, 0.18)
-SetPosition(torso, 0, 0.72, -0.05)
-SetEntityColor(torso, 210, 48, 42)
-
-head = CreateSphere(9, skier)
-SetScale(head, 0.18, 0.18, 0.18)
-SetPosition(head, 0, 1.28, -0.02)
-SetEntityColor(head, 255, 198, 148)
-
-armL = CreateCube(skier)
-SetScale(armL, 0.06, 0.06, 0.38)
-SetPosition(armL, -0.28, 0.95, 0.28)
-SetRotation(armL, -18, 12, 0)
-SetEntityColor(armL, 255, 198, 148)
-
-armR = CreateCube(skier)
-SetScale(armR, 0.06, 0.06, 0.38)
-SetPosition(armR, 0.28, 0.95, 0.28)
-SetRotation(armR, -18, -12, 0)
-SetEntityColor(armR, 255, 198, 148)
-
-handle = CreateCube(skier)
-SetScale(handle, 0.42, 0.035, 0.035)
-SetPosition(handle, 0, 0.92, 0.58)
-SetEntityColor(handle, 40, 40, 44)
+skiL = CreateCube(skier).Scale(0.11, 0.045, 0.95).Position([-0.22, -0.02, 0.1]).Color(240, 236, 220)
+skiR = CreateCube(skier).Scale(0.11, 0.045, 0.95).Position([0.22, -0.02, 0.1]).Color(240, 236, 220)
+torso = CreateCylinder(10, skier).Scale(0.22, 0.42, 0.18).Position([0, 0.72, -0.05]).Color(210, 48, 42)
+head = CreateSphere(9, skier).Scale(0.18, 0.18, 0.18).Position([0, 1.28, -0.02]).Color(255, 198, 148)
+armL = CreateCube(skier).Scale(0.06, 0.06, 0.38).Position([-0.28, 0.95, 0.28]).Rotate(-18, 12, 0).Color(255, 198, 148)
+armR = CreateCube(skier).Scale(0.06, 0.06, 0.38).Position([0.28, 0.95, 0.28]).Rotate(-18, -12, 0).Color(255, 198, 148)
+handle = CreateCube(skier).Scale(0.42, 0.035, 0.035).Position([0, 0.92, 0.58]).Color(40, 40, 44)
 
 CreateWaterSkiController(skier)
 SetLinearDamping(skier, 0.45)
@@ -127,6 +81,7 @@ SetRopeMass(towRope, 0.09)
 SetRopeDamping(towRope, 0.24)
 SetRopeStrength(towRope, 4000, 500, 3500)
 
+; loop
 camYaw# = 0
 camPitch# = 16
 edgeSmo# = 0

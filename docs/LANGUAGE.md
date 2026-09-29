@@ -13,7 +13,7 @@ BitShin BASIC is case-insensitive BASIC, close to Blitz3D.
 - Vec3: `[0, 2.2, -8]` — expands to `x, y, z` on Position / Scale / Rotate / wind
 - `Hex("FFECc8")` / `$FFECc8` unpack to `r, g, b` on Color commands
 - Color channels are **0–255**, or **0–1 if every channel is ≤ 1** (`Color(0.5, 0, 0)` is mid-red)
-- Suffixes `$` `#` `%` on names are stripped (`yaw#` and `yaw` are the same)
+- Suffixes `$` `#` `%` on names are the same variable (`yaw#` and `yaw`). `#` does not change the value. `%` truncates to an integer. `$` forces a string. Prefer plain names.
 - Undefined names are `0`
 - `0` and `""` are false; anything else is true
 - `True` / `Yes` are 1 (true). `False` / `No` / `Null` are 0 (false, empty)
@@ -98,7 +98,7 @@ End
 
 ## Struct / Type
 
-`Struct` and `Type` are the same. Fields, a constructor, `.field`, and value copy. Methods use `Self` (or `This`, or a leading `.x`).
+`Struct` and `Type` are the same. Fields, a constructor, and `.field`. Methods use `Self` (or `This`, or a leading `.x`). Assignment shares the object; `Copy` makes another one.
 
 ```basic
 Struct Vec
@@ -120,7 +120,47 @@ Print v.x
 
 `Method Vec.Add(n)` after the type is allowed.
 
-Assignment copies the struct. Changing `w.x` does not change `v`.
+Assignment shares the struct. Changing `w.x` also changes `v`. `Copy(v)` is a separate object.
+
+Several fields can sit on one line: `Field x, y, z`.
+
+## Arrays of types
+
+`Dim pads(8) As Pad` makes a Blitz array (indexes `0` through `8`). Empty slots stay `0` until you write a field or store a value. `pads(i).y = 1` creates a `Pad` in that slot and sets the field. `For p In pads` and `For Each p In pads` visit slots that hold a value and skip the empty ones. Field writes on the loop variable change the array element.
+
+```basic
+Type Pad
+    Field x, y, z, w, d
+End Type
+Dim pads(8) As Pad
+pads(1).x = 10
+pads(1).y = 2
+For p In pads
+    Print p.x
+Next
+```
+
+`CreateList()` values work with `For item In list` as well. Numbers in a `For` loop are still `For i = 1 To n`.
+
+## Defaults, locals, and several results
+
+Parameters can have defaults, and a default may use an earlier parameter. Inside a `Function`, a new name is local. `Global n` (with no value) keeps assigning the existing global and does not reset it. `Strict` rejects a bare assignment in a function unless the name is a parameter, a `Local`, or a `Global`.
+
+`Return a, b` and `a, b = 1, 2` pack and unpack a list of values. One function still returns one value; that value may be a vector of several numbers.
+
+```basic
+Function Add(a, b = 10)
+    Return a + b
+End Function
+
+n = 1
+Function Bump()
+    Global n
+    n = n + 1
+End Function
+```
+
+`Read coin.x, coin.y` stores DATA into fields. `coin` must already be a struct.
 
 ## Import / Namespace
 

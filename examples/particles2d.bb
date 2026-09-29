@@ -1,10 +1,12 @@
-; 2D particle fountain — Esc quits
+; Particles 2D — fountain emitter plus Space burst
+; Space = burst. Esc quits.
 
 Graphics(800, 600)
 SetBuffer(BackBuffer())
 SetClsColor(12, 16, 28)
 SetWindowTitle("BitShin BASIC — 2D particles")
 
+; Continuous fountain
 em = CreateEmitter2D()
 PositionEmitter2D(em, 400, 420)
 Particle2DRate(em, 70)
@@ -18,6 +20,7 @@ Particle2DGravity(em, 0, 280, 0)
 Particle2DCone(em, 55)
 Particle2DDrag(em, 0.4)
 
+; One-shot burst (rate 0; Emit2D on Space)
 burst = CreateEmitter2D()
 PositionEmitter2D(burst, 400, 200)
 Particle2DRate(burst, 0)
@@ -29,6 +32,7 @@ Particle2DColor(burst, 80, 200, 255, 1, 20, 40, 80, 0)
 Particle2DCone(burst, 360)
 Particle2DGravity(burst, 0, 40, 0)
 
+; Loop — Space emits burst particles
 While Not KeyDown(KEY_ESCAPE)
     If KeyHit(KEY_SPACE) Then Emit2D(burst, 40)
     Cls

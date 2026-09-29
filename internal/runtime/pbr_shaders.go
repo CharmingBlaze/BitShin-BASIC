@@ -107,6 +107,9 @@ uniform int UseIBL;
 uniform float IBLIntensity;
 uniform vec3 IBLSky;
 uniform vec3 IBLGround;
+uniform samplerCube uEnvCube;
+uniform int HasEnvCube;
+uniform vec3 CamWorldPos;
 uniform float uAO;
 uniform float uOcclusionStrength;
 uniform sampler2D WaterCaustic;
@@ -206,7 +209,7 @@ vec3 pbrDirect(PBRInfo pbrInputs, vec3 n, vec3 v, vec3 lightColor, vec3 lightDir
     float G = geometricOcclusion(pbrInputs, pbrLight);
     float D = microfacetDistribution(pbrInputs, pbrLight);
     vec3 diffuseContrib = (1.0 - F) * diffuseBRDF(pbrInputs);
-    vec3 specContrib = F * G * D / (4.0 * NdotL * NdotV);
+    vec3 specContrib = min(F * G * D / (4.0 * NdotL * NdotV), vec3(6.0));
     return NdotL * lightColor * (diffuseContrib + specContrib);
 }
 
@@ -232,6 +235,16 @@ vec3 iblTerm(PBRInfo pbrInputs, vec3 n, vec3 v) {
     irr = mix(irr, envN, 0.85);
     specEnv = mix(specEnv, envR, 0.85);
 #endif
+    if (HasEnvCube != 0) {
+        vec3 wn = normalize(WorldNormal);
+        vec3 wv = normalize(CamWorldPos - WorldPos);
+        vec3 wr = reflect(-wv, wn);
+        float cubeLod = pbrInputs.perceptualRoughness * 5.0;
+        vec3 cubeN = textureLod(uEnvCube, wn, 5.0).rgb;
+        vec3 cubeR = textureLod(uEnvCube, wr, cubeLod).rgb;
+        irr = mix(irr, cubeN, 0.85);
+        specEnv = mix(specEnv, cubeR, 0.85);
+    }
     float nv = abs(dot(n, v)) + 0.001;
     vec3 Fs = pbrInputs.reflectance0 + (vec3(1.0) - pbrInputs.reflectance0) * pow(1.0 - nv, 5.0);
     vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
@@ -245,8 +258,14 @@ vec3 iblTerm(PBRInfo pbrInputs, vec3 n, vec3 v) {
 }
 `
 
-const mbphysicalFragmentTail = `
+const mbphysicalFragmentTail = shadeLightGLSL + `
+uniform vec4 WaterClipPlane;
 void main() {
+    if (dot(WaterClipPlane.xyz, WaterClipPlane.xyz) > 1e-8) {
+        if (dot(WorldPos, WaterClipPlane.xyz) + WaterClipPlane.w < 0.0) {
+            discard;
+        }
+    }
     float perceptualRoughness = uRoughnessFactor;
     float metallic = uMetallicFactor;
 #ifdef HAS_METALROUGHNESSMAP
@@ -292,17 +311,22 @@ void main() {
 #endif
 
     vec3 wN = normalize(WorldNormal);
-    float skyH = clamp(wN.y * 0.5 + 0.5, 0.0, 1.0);
-    vec3 hemi = mix(vec3(0.16, 0.12, 0.09), vec3(0.22, 0.28, 0.40), skyH) * pbrInputs.diffuseColor;
-    ambient += hemi * 0.45;
     if (UseIBL != 0) {
         ambient += iblTerm(pbrInputs, n, v);
+    } else {
+        float skyH = clamp(wN.y * 0.5 + 0.5, 0.0, 1.0);
+        ambient += mix(IBLGround, IBLSky, skyH) * pbrInputs.diffuseColor * 0.55;
     }
 
+    float sunOcc = 1.0;
 #if DIR_LIGHTS>0
     for (int i = 0; i < DIR_LIGHTS; i++) {
         vec3 lightDirection = normalize(DirLightPosition(i));
-        float sh = (i == 0) ? sunShadowFactor(WorldPos, wN, ShadowSunDir) : 1.0;
+        float sh = 1.0;
+        if (i == 0) {
+            sh = sunShadowFactor(WorldPos, wN, ShadowSunDir);
+            sunOcc = sh;
+        }
         direct += pbrDirect(pbrInputs, n, v, DirLightColor(i), lightDirection) * sh;
     }
 #endif
@@ -312,8 +336,7 @@ void main() {
         vec3 lightDirection = PointLightPosition(i) - vec3(Position);
         float lightDistance = length(lightDirection);
         lightDirection = lightDirection / max(lightDistance, 0.0001);
-        float attenuation = 1.0 / (1.0 + PointLightLinearDecay(i) * lightDistance +
-            PointLightQuadraticDecay(i) * lightDistance * lightDistance);
+        float attenuation = shadeAttenuation(lightDistance, PointLightLinearDecay(i), PointLightQuadraticDecay(i), PointLightConstant(i));
         float psh = pointShadowFactor(i, WorldPos, n);
         direct += pbrDirect(pbrInputs, n, v, PointLightColor(i) * attenuation, lightDirection) * psh;
     }
@@ -324,14 +347,12 @@ void main() {
         vec3 lightDirection = SpotLightPosition(i) - vec3(Position);
         float lightDistance = length(lightDirection);
         lightDirection = lightDirection / max(lightDistance, 0.0001);
-        float attenuation = 1.0 / (1.0 + SpotLightLinearDecay(i) * lightDistance +
-            SpotLightQuadraticDecay(i) * lightDistance * lightDistance);
-        float angle = acos(dot(-lightDirection, SpotLightDirection(i)));
-        float cutoff = radians(clamp(SpotLightCutoffAngle(i), 0.0, 90.0));
-        if (angle < cutoff) {
-            float spotFactor = pow(dot(-lightDirection, SpotLightDirection(i)), max(SpotLightAngularDecay(i), 1.0));
+        float attenuation = shadeAttenuation(lightDistance, SpotLightLinearDecay(i), SpotLightQuadraticDecay(i), SpotLightConstant(i));
+        attenuation *= shadeSpot(lightDirection, SpotLightDirection(i), SpotLightCutoffAngle(i), SpotLightAngularDecay(i), SpotLightConstant(i));
+        attenuation *= shadeCookie(i, -lightDirection * lightDistance, SpotLightDirection(i), SpotLightCutoffAngle(i));
+        if (attenuation > 0.001) {
             float ssh = spotShadowFactor(i, WorldPos, n);
-            direct += pbrDirect(pbrInputs, n, v, SpotLightColor(i) * attenuation * spotFactor, lightDirection) * ssh;
+            direct += pbrDirect(pbrInputs, n, v, SpotLightColor(i) * attenuation, lightDirection) * ssh;
         }
     }
 #endif
@@ -348,8 +369,7 @@ void main() {
     vec3 emissive = vec3(uEmissiveColor);
 #endif
 
-    vec3 shadowAmbient = ambient + ShadowColor * (0.35 * pbrInputs.diffuseColor);
-    vec3 color = shadowAmbient * ao + direct + emissive;
+    vec3 color = ambient * ao + direct + emissive + ShadowColor * ((1.0 - sunOcc) * pbrInputs.diffuseColor * 0.35);
     color = pow(max(color, vec3(0.0)), vec3(1.0 / 2.2));
     FragColor = vec4(color, baseColor.a);
     if (Wetness > 0.001) {

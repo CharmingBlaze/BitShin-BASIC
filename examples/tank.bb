@@ -1,27 +1,27 @@
-; Tracked tank via Jolt TrackedVehicleController. Esc after a few frames.
+; Tank — tracked drive via Jolt TrackedVehicleController.
+; WASD or arrows throttle / steer, Space brake.
+; Esc quits after a few frames.
 
+; window
 SetWindowTitle("BitShin BASIC — Tank")
 Graphics3D(960, 540, 0, 2)
 SetCameraClsColor(36, 40, 32)
 SetAmbientLight(80, 90, 80)
 CreateLight()
 
-cam = CreateCamera()
-SetPosition(cam, 0, 10, -18)
+; camera
+cam = CreateCamera().Position([0, 10, -18])
 
-ground = CreateCube()
-SetScale(ground, 40, 0.25, 40)
-SetPosition(ground, 0, 0, 10)
-SetEntityColor(ground, 70, 78, 58)
+; world
+ground = CreateCube().Scale(40, 0.25, 40).Position([0, 0, 10]).Color(70, 78, 58)
 CreateRigidBodyBox(ground, 40, 0.25, 40, 0)
 
-tank = CreateCube()
-SetScale(tank, 1.3, 0.45, 2.4)
-SetPosition(tank, 0, 1.1, 10)
-SetEntityColor(tank, 90, 140, 70)
+; vehicle
+tank = CreateCube().Scale(1.3, 0.45, 2.4).Position([0, 1.1, 10]).Color(90, 140, 70)
 CreateTankController(tank)
-PointEntity(cam, tank)
+cam.Point(tank)
 
+; loop
 frames = 0
 While 1
     frames = frames + 1
@@ -35,7 +35,7 @@ While 1
     If KeyDown(KEY_SPACE) Then brake = 1
     UpdateTank(tank, steer, throttle, brake)
     UpdateWorld
-    PointEntity(cam, tank)
+    CameraFollow(cam, tank, 16, 5, 7, EntityYaw(tank), 16)
     RenderWorld
     Text(12, 12, "BitShin BASIC — Tank  |  WASD / arrows  Space brake  |  Esc quit")
     Flip

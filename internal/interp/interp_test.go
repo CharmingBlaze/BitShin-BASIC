@@ -182,6 +182,21 @@ If True = Yes Then Print "same"
 	}
 }
 
+func TestPhysicsMotionConstants(t *testing.T) {
+	out := run(t, `
+If STATIC = 0 Then Print "static"
+If KINEMATIC = 1 Then Print "kinematic"
+If DYNAMIC = 2 Then Print "dynamic"
+If ON_GROUND = 0 Then Print "ground"
+If IN_AIR = 3 Then Print "air"
+`)
+	for _, want := range []string{"static", "kinematic", "dynamic", "ground", "air"} {
+		if !strings.Contains(out, want) {
+			t.Fatalf("missing %q in %q", want, out)
+		}
+	}
+}
+
 func TestStructMethodImport(t *testing.T) {
 	lib := `
 Function Double(n)
@@ -237,7 +252,7 @@ Print p.x
 		t.Fatal(err)
 	}
 	got := strings.Fields(buf.String())
-	want := []string{"5", "3", "5", "12", "5", "9"}
+	want := []string{"5", "0", "2", "12", "5", "9"}
 	if len(got) != len(want) {
 		t.Fatalf("got %q want %v", buf.String(), want)
 	}
@@ -569,5 +584,252 @@ func TestPrintAlsoCallsHud(t *testing.T) {
 	}
 	if len(host.lines) != 1 || host.lines[0] != "Game loop started. Use ESC to quit." {
 		t.Fatalf("on-screen Print missing: %#v", host.lines)
+	}
+}
+
+func TestStrictMapsTryHandlesAndFast(t *testing.T) {
+	src := `
+Strict
+Local hp% = 3.9
+Local name$ = 12
+Local m = CreateMap()
+MapSet m, "hp", hp%
+m("name") = name$
+Print MapGet(m, "hp")
+Print m("name")
+Print hp%
+
+Struct P
+    Field x
+End Struct
+Local a = P(1)
+Local b = a
+b.x = 4
+Local c = Copy(a)
+c.x = 9
+Print a.x
+Print c.x
+
+Function Double(n#)
+    Return n# * 2
+End Function
+Print Double(4)
+Print Callback(Double)
+
+Try
+    Boom
+Catch err$
+    Print "caught"
+End Try
+
+Local sm = CreateStateMachine()
+AddState sm, "idle", "IdleTick"
+Function IdleTick()
+    Print "idle"
+End Function
+UpdateState sm
+`
+	out := run(t, src)
+	fields := strings.Fields(out)
+	want := []string{"3", "12", "3", "4", "9", "8", "double", "caught", "idle"}
+	if len(fields) != len(want) {
+		t.Fatalf("got %q want %v", out, want)
+	}
+	for i, w := range want {
+		if fields[i] != w {
+			t.Fatalf("item %d got %q want %q in %q", i, fields[i], w, out)
+		}
+	}
+}
+
+func TestFlipInsideCalledFunction(t *testing.T) {
+	prog, err := parse.Parse(`
+Function Tick()
+    Print "a"
+    Flip
+    Print "b"
+End Function
+Tick
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var buf bytes.Buffer
+	in := New(prog, flipBoomHost{})
+	in.Out = &buf
+	if err := in.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(buf.String()) != "a" {
+		t.Fatalf("before flip: %q", buf.String())
+	}
+	if err := in.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if strings.TrimSpace(buf.String()) != "a b" && strings.TrimSpace(buf.String()) != "a\nb" {
+		got := strings.Fields(buf.String())
+		if len(got) != 2 || got[0] != "a" || got[1] != "b" {
+			t.Fatalf("after resume: %q", buf.String())
+		}
+	}
+}
+
+func TestFastPathUsed(t *testing.T) {
+	prog, err := parse.Parse(`
+Function Double(n#)
+    Return n# * 2
+End Function
+Print Double(3)
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := New(prog, nopHost{})
+	var buf bytes.Buffer
+	in.Out = &buf
+	if err := in.Run(); err != nil {
+		t.Fatal(err)
+	}
+	if in.fastHits == 0 {
+		t.Fatal("numeric function should run on the bytecode path")
+	}
+	if strings.TrimSpace(buf.String()) != "6" {
+		t.Fatalf("got %q", buf.String())
+	}
+}
+
+func TestCollectionsDefaultsAndMotion(t *testing.T) {
+	out := run(t, `
+Type Pad
+    Field x, y, z, w, d
+End Type
+Type Coin
+    Field x, y
+End Type
+Dim pads(4) As Pad
+pads(1).x = 0
+pads(1).y = 1
+pads(1).z = 0
+pads(1).w = 2
+pads(1).d = 2
+pads(2) = Pad(4, 5, 0, 1, 1)
+sum = 0
+For p In pads
+    p.x = p.x + 1
+    sum = sum + p.x
+Next
+Print pads(1).x
+Print pads(1).y
+Print sum
+
+Function Add(a, b = 10, c = b + 1)
+    Return a + b + c
+End Function
+Print Add(1)
+Print Add(1, 2, 3)
+
+n = 1
+i = 7
+Function Bump()
+    n = n + 1
+    Return n
+End Function
+Function Inc()
+    Global n
+    n = n + 1
+End Function
+Function Loop()
+    For i = 1 To 3
+    Next
+    Return i
+End Function
+Print Bump()
+Print n
+Inc()
+Print n
+Print Loop()
+Print i
+
+Data 10, 2
+c = Coin()
+Read c.x, c.y
+Print c.x
+Print c.y
+
+Function Pair()
+    Return 3, 4
+End Function
+a, b = Pair()
+Print a
+Print b
+x, y = 8, 9
+Print x
+Print y
+
+py, vy, g = Land(0, 1.2, 0, -1, pads)
+Print py
+Print vy
+Print g
+vx, vz = Accelerate(0, 0, 0, 1, 2, 0, 10, 1, 1)
+Print vx
+Print vz
+Print TurnToward(0, 1, 0, 10)
+wishX, wishZ = MoveWish(0)
+Print wishX
+Print wishZ
+
+m = Material($C8A046, 3, 0.11)
+Print m.r
+Print m.g
+Print m.b
+Print m.tex
+Print m.shine
+
+lst = CreateList()
+ListAdd lst, Coin(3, 4)
+For item In lst
+    item.x = item.x + 1
+Next
+Print ListGet(lst, 0).x
+`)
+	want := []string{
+		"1", "1", "6",
+		"22", "6",
+		"2", "1", "2", "4", "7",
+		"10", "2",
+		"3", "4", "8", "9",
+		"1", "0", "1",
+		"0", "2", "10",
+		"0", "0",
+		"200", "160", "70", "3", "0.11",
+		"4",
+	}
+	got := strings.Fields(out)
+	if len(got) != len(want) {
+		t.Fatalf("got %q\nwant %v", out, want)
+	}
+	for i, w := range want {
+		if got[i] != w {
+			t.Fatalf("item %d got %q want %q in %q", i, got[i], w, out)
+		}
+	}
+}
+
+func TestStrictFunctionLocal(t *testing.T) {
+	prog, err := parse.Parse(`
+Strict
+x = 1
+Function F()
+    x = 2
+End Function
+F()
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := New(prog, nopHost{})
+	err = in.Run()
+	if err == nil || !strings.Contains(err.Error(), "undefined") {
+		t.Fatalf("got %v", err)
 	}
 }

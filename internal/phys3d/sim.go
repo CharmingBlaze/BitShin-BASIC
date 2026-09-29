@@ -1,5 +1,7 @@
 package phys3d
 
+import "sort"
+
 // Software rigid bodies used when native Jolt is not linked:
 // go build -tags nojolt, or an OS/arch with no prebuilt (not Windows,
 // not Linux amd64/arm64, not macOS ARM). PhysicsBackend$() returns "fallback".
@@ -154,8 +156,12 @@ func (w *fallback) Step(dt float32) {
 			b.y += dy
 			b.z += dz
 		}
-		if b.y < b.r {
-			b.y = b.r
+		floorY := b.r
+		if b.box && b.hy > 0 {
+			floorY = b.hy
+		}
+		if b.y < floorY {
+			b.y = floorY
 			if b.vy < 0 {
 				b.vy = -b.vy * b.restitution
 			}
@@ -178,6 +184,10 @@ func (w *fallback) Step(dt float32) {
 				continue
 			}
 			if w.layerOff[a.layer][b.layer] {
+				continue
+			}
+			if a.box || b.box {
+				w.separateBoxes(ids[i], ids[j], a, b)
 				continue
 			}
 			dx, dy, dz := a.x-b.x, a.y-b.y, a.z-b.z
@@ -222,6 +232,86 @@ func (w *fallback) Step(dt float32) {
 	w.solveJoints(dt)
 	w.stepCloths(dt)
 	clear(w.posed)
+}
+
+func bodyHalf(b *body) (float32, float32, float32) {
+	if b.box {
+		hx, hy, hz := b.hx, b.hy, b.hz
+		if hx < 0.01 {
+			hx = 0.01
+		}
+		if hy < 0.01 {
+			hy = 0.01
+		}
+		if hz < 0.01 {
+			hz = 0.01
+		}
+		return hx, hy, hz
+	}
+	r := b.r
+	if r < 0.01 {
+		r = 0.01
+	}
+	return r, r, r
+}
+
+func (w *fallback) separateBoxes(ia, ib int, a, b *body) {
+	ahx, ahy, ahz := bodyHalf(a)
+	bhx, bhy, bhz := bodyHalf(b)
+	aqx, aqy, aqz, aqw := bodyQuat(a.qx, a.qy, a.qz, a.qw)
+	bqx, bqy, bqz, bqw := bodyQuat(b.qx, b.qy, b.qz, b.qw)
+	nx, ny, nz, pen, hit := BoxOverlapMTV(
+		a.x, a.y, a.z, ahx, ahy, ahz, aqx, aqy, aqz, aqw,
+		b.x, b.y, b.z, bhx, bhy, bhz, bqx, bqy, bqz, bqw,
+	)
+	if !hit || pen <= 0 {
+		return
+	}
+	w.contacts = append(w.contacts, ContactEvent{
+		Kind: ContactPersisted,
+		A:    ia, B: ib,
+		X: (a.x + b.x) * 0.5, Y: (a.y + b.y) * 0.5, Z: (a.z + b.z) * 0.5,
+		NX: nx, NY: ny, NZ: nz,
+	})
+	if a.sensor || b.sensor {
+		return
+	}
+	// n points from a toward b. Push a backward and b forward.
+	aMove := (a.dynamic && !a.kinematic) || a.character
+	bMove := (b.dynamic && !b.kinematic) || b.character
+	switch {
+	case aMove && bMove:
+		a.x -= nx * pen * 0.5
+		a.y -= ny * pen * 0.5
+		a.z -= nz * pen * 0.5
+		b.x += nx * pen * 0.5
+		b.y += ny * pen * 0.5
+		b.z += nz * pen * 0.5
+	case aMove:
+		a.x -= nx * pen
+		a.y -= ny * pen
+		a.z -= nz * pen
+	case bMove:
+		b.x += nx * pen
+		b.y += ny * pen
+		b.z += nz * pen
+	}
+	if aMove {
+		vn := a.vx*nx + a.vy*ny + a.vz*nz
+		if vn > 0 {
+			a.vx -= nx * vn
+			a.vy -= ny * vn
+			a.vz -= nz * vn
+		}
+	}
+	if bMove {
+		vn := b.vx*nx + b.vy*ny + b.vz*nz
+		if vn < 0 {
+			b.vx -= nx * vn
+			b.vy -= ny * vn
+			b.vz -= nz * vn
+		}
+	}
 }
 
 func (w *fallback) stepCharacter(b *body, dt float32) {
@@ -310,8 +400,7 @@ func (w *fallback) AddCharacter(id int, x, y, z, halfH, r float32) {
 func (w *fallback) AddCharacterController(id int, x, y, z, height, radius, maxSlopeDeg, maxStrength float32) {
 	_ = maxSlopeDeg
 	_ = maxStrength
-	halfH := height * 0.5
-	rad := radius + halfH
+	rad := height * 0.5
 	if rad < 0.4 {
 		rad = 0.4
 	}
@@ -479,6 +568,71 @@ func (w *fallback) GetMass(id int) float32 {
 
 func (w *fallback) Raycast(ox, oy, oz, dx, dy, dz float32) (int, float32, float32, float32, bool) {
 	return w.raycastExcept(0, ox, oy, oz, dx, dy, dz)
+}
+
+func (w *fallback) RaycastDetail(ox, oy, oz, dx, dy, dz float32) (RayHit, bool) {
+	hits := w.RaycastAll(ox, oy, oz, dx, dy, dz, 1)
+	if len(hits) == 0 {
+		return RayHit{}, false
+	}
+	return hits[0], true
+}
+
+func (w *fallback) RaycastAll(ox, oy, oz, dx, dy, dz float32, max int) []RayHit {
+	if max <= 0 {
+		max = 16
+	}
+	hits := make([]RayHit, 0, 4)
+	for id, b := range w.bodies {
+		var t float32
+		var ok bool
+		var nx, ny, nz float32
+		if b.box {
+			t, ok = rayAABB(ox, oy, oz, dx, dy, dz, b.x-b.hx, b.y-b.hy, b.z-b.hz, b.x+b.hx, b.y+b.hy, b.z+b.hz)
+			if ok {
+				nx, ny, nz = boxFaceNormal(ox+dx*t-b.x, oy+dy*t-b.y, oz+dz*t-b.z, b.hx, b.hy, b.hz)
+			}
+		} else {
+			t, ok = raySphere(ox, oy, oz, dx, dy, dz, b.x, b.y, b.z, b.r)
+			if ok {
+				nx, ny, nz, _ = unit3(ox+dx*t-b.x, oy+dy*t-b.y, oz+dz*t-b.z)
+			}
+		}
+		if !ok {
+			continue
+		}
+		hits = append(hits, RayHit{
+			ID: id, X: ox + dx*t, Y: oy + dy*t, Z: oz + dz*t,
+			NX: nx, NY: ny, NZ: nz, Fraction: t,
+		})
+	}
+	sort.Slice(hits, func(i, j int) bool { return hits[i].Fraction < hits[j].Fraction })
+	if len(hits) > max {
+		hits = hits[:max]
+	}
+	return hits
+}
+
+func boxFaceNormal(lx, ly, lz, hx, hy, hz float32) (float32, float32, float32) {
+	dx := abs32(abs32(lx) - hx)
+	dy := abs32(abs32(ly) - hy)
+	dz := abs32(abs32(lz) - hz)
+	if dx <= dy && dx <= dz {
+		if lx < 0 {
+			return -1, 0, 0
+		}
+		return 1, 0, 0
+	}
+	if dy <= dz {
+		if ly < 0 {
+			return 0, -1, 0
+		}
+		return 0, 1, 0
+	}
+	if lz < 0 {
+		return 0, 0, -1
+	}
+	return 0, 0, 1
 }
 
 func (w *fallback) raycastExcept(skip int, ox, oy, oz, dx, dy, dz float32) (int, float32, float32, float32, bool) {

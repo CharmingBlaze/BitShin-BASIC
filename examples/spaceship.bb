@@ -1,21 +1,22 @@
-; Zero-g spaceship: torque + local impulse. Esc after a few frames.
+; Spaceship — zero-g torque and local impulse.
+; WASD / QE attitude, Space boost, R yaw pulse.
+; Esc quits after a few frames.
 
+; window
 SetWindowTitle("BitShin BASIC — Spaceship")
 Graphics3D(960, 540, 0, 2)
 SetCameraClsColor(6, 8, 16)
 CreateLight()
 
-cam = CreateCamera()
-SetPosition(cam, 0, 6, -18)
-SetRotation(cam, 10, 0, 0)
+; camera
+cam = CreateCamera().Position([0, 6, -18]).Rotate(10, 0, 0)
 
-ship = CreateCube()
-SetScale(ship, 1.4, 0.45, 2.2)
-SetPosition(ship, 0, 4, 8)
-SetEntityColor(ship, 120, 200, 255)
+; vehicle
+ship = CreateCube().Scale(1.4, 0.45, 2.2).Position([0, 4, 8]).Color(120, 200, 255)
 CreateSpaceshipController(ship)
 SetGravityScale(ship, 0)
 
+; loop
 frames = 0
 While 1
     frames = frames + 1
@@ -35,6 +36,7 @@ While 1
     If KeyHit(KEY_SPACE) Then ApplyLocalImpulse(ship, 0, 0, 12)
     If KeyHit(KEY_R) Then ApplyTorque(ship, 0, 800, 0)
     UpdateWorld
+    CameraFollow(cam, ship, 16, 4, 6, EntityYaw(ship), 12)
     RenderWorld
     Text(12, 12, "Spaceship  WASD/QE  Space boost  R yaw pulse")
     Flip

@@ -46,14 +46,17 @@ func runBuild(args []string) error {
 			}
 		}
 	}
-	if targetOS != "windows" && targetOS != "linux" && targetOS != "darwin" {
-		return fmt.Errorf("bs build: unknown -os %s (windows, linux, darwin)", targetOS)
+	if targetOS != "windows" && targetOS != "linux" && targetOS != "darwin" && targetOS != "wasm" {
+		return fmt.Errorf("bs build: unknown -os %s (windows, linux, darwin, wasm)", targetOS)
 	}
 	if _, err := os.Stat(src); err != nil {
 		return fmt.Errorf("bs build: %w", err)
 	}
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return err
+	}
+	if targetOS == "wasm" {
+		return buildWasmBundle(src, outDir)
 	}
 	binName := "bs"
 	if targetOS == "windows" {
@@ -113,9 +116,15 @@ func normalizeOS(s string) string {
 		return "linux"
 	case "mac", "macos", "osx", "darwin":
 		return "darwin"
+	case "wasm", "web", "html5", "js":
+		return "wasm"
 	default:
 		return strings.ToLower(s)
 	}
+}
+
+func buildWasmBundle(src, outDir string) error {
+	return fmt.Errorf("bs: HTML5/WASM is not a runnable game target (%s -> %s). The runtime needs a desktop OpenGL window. Use bs compile or bs build for windows, linux, or darwin", src, outDir)
 }
 
 func collectAssets(bb, base, dest string, seen map[string]bool) error {

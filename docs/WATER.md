@@ -38,7 +38,7 @@ Vertex phase is `Time * WaveSpeed`. `SetWaterSpeed` only scrolls DuDv (`WaterMov
 
 ## Gerstner (vertex, GL 3.3)
 
-Sum of up to 4 waves on a **camera-centered LOD grid** (sinh warp: dense near the camera, coarse toward a far radius so the horizon stays filled). `CreateWater` `segs` is inner density (24–160), not a 128 world-size cap. `SetWaterFollow(False)` rebuilds a uniform pond mesh of `w`×`d`.
+Sum of up to 4 waves on a **camera-centered LOD grid**. With `SetWaterFollow(True)` the mesh is rebuilt in bands so the water under the camera stays about **0.5 m** per cell out to 40 m, then 1.2 m, 4 m, and 28 m out to the horizon. That is what stops the ocean reading as huge flat triangles. `CreateWater` `segs` is a density hint, not a hard vertex cap. `SetWaterFollow(False)` rebuilds a uniform pond mesh of `w`×`d`.
 
 - Phase clock is `t = Time * WaveSpeed` (per-wave `ω` still comes from `WaveLen.y`)
 - Horizontal chop `Q * A * D * cos(k·xz − ωt)` and height `A * sin(...)`
@@ -49,15 +49,20 @@ Sum of up to 4 waves on a **camera-centered LOD grid** (sinh warp: dense near th
 
 ## Scenic (fragment + two cameras)
 
-- Reflection: mirrored camera, hide fully-underwater meshes, color FBO
-- Refraction: same camera, hide fully-above-water meshes, color + **depth** texture
-- Projective UVs (clip → NDC → 0..1)
-- DuDv scroll (`SetWaterSpeed` / `SetWaterWaveStrength`); default maps are generated
-- Fresnel: glancing → reflection, looking down → refraction
-- Specular from the directional light + water normal map
-- Depth coloring from the refraction depth texture (soft deep-blue tint)
+The surface is **opaque**. `SetWaterColor` is the deep-water color. Looking across the waves shows the reflection; looking down shows refraction, then the body color. You should not see the beach through the ocean.
 
-Skybox uses G3N’s default shader (no `gl_ClipDistance`), so clip is **visibility hide**, not a hardware clip plane.
+- Reflection FBO: the world **above** the plane (sky included). Refraction FBO: the world **below** it.
+- Clip is a fragment discard (`WaterClipPlane`), not `gl_ClipDistance`. The skybox shader does not write a clip distance, so a hardware clip would delete the sky.
+- Terrain is one mesh that crosses the plane, so it is **not** hidden for the water pass. The clip splits it: sand above stays in the reflection, the seabed stays in the refraction.
+- Projective UVs (clip → NDC → 0..1). Reflection V is flipped (`1 - ndc.y`).
+- DuDv scroll (`SetWaterSpeed` / `SetWaterWaveStrength`), scaled down at the shore and again with camera distance so the far mirror stays readable. Default maps are generated.
+- Fresnel is Schlick (F0 0.02): glancing → reflection, looking down → the body color. The shore mix stays mostly refraction so a cube’s reflection does not ghost onto the sand.
+- Refraction only replaces the body color when the seabed is actually close (about a quarter-metre to a few tens of metres). Sky and the far plane stay the deep color.
+- Specular is a broad sun path plus a tight sparkle (`WaterShine` and a 512 lobe) on the ripple normal, not a flat face normal. Face normals are only a fallback if the analytic normal is broken. `examples/canal.bb` is the low-camera, dark-green, hazy look.
+- Above the water, back faces are discarded so a wave underside is not a dark wedge in the corner.
+- Alpha is 1, so a reflection does not fade onto the shore.
+
+`SetWaterColor(6, 48, 72)` with `SetWaterStyle("ocean")` and `SetWaterFollow(True)` is the ocean demo.
 
 Terrain-OpenGL’s water plane (reflection + refraction FBOs, DUDV) is this same `CreateWater` system — not a second ocean.
 
@@ -103,6 +108,6 @@ Aliases: `GetWaterHeight`, `SetWaterReflection`, `SetWaterRefraction`, `SetWater
 | Shoreline wetness | Terrain darken + spec near `WaterLevel` using the `Wetness` term |
 | SSR | **Partial** — lite screen march in the planar reflection FBO, fades to planar if off-screen / unstable. Not deferred SSR |
 | FFT / compute ocean | **Never required** (needs GL 4.3+) |
-| Tessellation LOD | **Not required** — sinh LOD grid on 3.3 |
+| Tessellation LOD | **Not required** — banded LOD grid on 3.3 (0.5 m cells near the camera) |
 
 Also: `examples/largeworld.bb`.

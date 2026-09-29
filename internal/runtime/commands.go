@@ -31,6 +31,14 @@ func (w *World) commandTable() map[string]cmd {
 		"graphics3d": n(func(a []value.Value) (value.Value, error) {
 			return w.graphics3D(argI(a, 0, 800), argI(a, 1, 600), argI(a, 2, 0), argI(a, 3, 2))
 		}),
+		"graphicsapp": n(func(a []value.Value) (value.Value, error) {
+			v, err := w.graphics3D(argI(a, 0, 960), argI(a, 1, 640), argI(a, 2, 0), argI(a, 3, 2))
+			if err != nil {
+				return v, err
+			}
+			w.spawnCamera(0)
+			return v, nil
+		}),
 		"apptitle": n(func(a []value.Value) (value.Value, error) {
 			w.title = argS(a, 0)
 			if w.app != nil {
@@ -41,7 +49,7 @@ func (w *World) commandTable() map[string]cmd {
 			return z()
 		}),
 		"endgraphics": n(func(a []value.Value) (value.Value, error) {
-			w.quit = true
+			w.requestQuit()
 			return z()
 		}),
 		"createcamera": need(func(a []value.Value) (value.Value, error) {
@@ -430,11 +438,21 @@ func (w *World) commandTable() map[string]cmd {
 			return value.Num(0), nil
 		}),
 		"updateworld": n(func(a []value.Value) (value.Value, error) {
+			w.physStepped = true
 			w.updateWorld()
 			return z()
 		}),
 		"renderworld": n(func(a []value.Value) (value.Value, error) { return z() }),
 		"flip": n(func(a []value.Value) (value.Value, error) {
+			defer func() { w.physStepped = false }()
+			if w.playing && w.onHost && w.app != nil && !w.mode2D {
+				w.tickDelta(0)
+				w.stepWorldIfIdle()
+				w.markFlip()
+				w.present3DRest()
+				return z()
+			}
+			w.stepWorldIfIdle()
 			w.markFlip()
 			return z()
 		}),
@@ -499,7 +517,39 @@ func (w *World) commandTable() map[string]cmd {
 			r, g, b := argN(a, 0, 255), argN(a, 1, 255), argN(a, 2, 255)
 			w.textRGB = *rgb(r, g, b)
 			w.drawRGB = rgbBytes(r, g, b)
+			if len(a) >= 4 {
+				al := argN(a, 3, 255)
+				if al <= 1.0 && al >= 0.0 && a[3].Kind == value.KindNum {
+					al = al * 255.0
+				}
+				if al < 0 {
+					al = 0
+				}
+				if al > 255 {
+					al = 255
+				}
+				w.drawAlpha = uint8(al)
+			} else {
+				w.drawAlpha = 255
+			}
 			return z()
+		}),
+		"setalpha": n(func(a []value.Value) (value.Value, error) {
+			al := argN(a, 0, 1.0)
+			if al <= 1.0 && al >= 0.0 {
+				al = al * 255.0
+			}
+			if al < 0 {
+				al = 0
+			}
+			if al > 255 {
+				al = 255
+			}
+			w.drawAlpha = uint8(al)
+			return value.Num(float64(w.drawAlpha) / 255.0), nil
+		}),
+		"getalpha": n(func(a []value.Value) (value.Value, error) {
+			return value.Num(float64(w.drawAlpha) / 255.0), nil
 		}),
 		"text": n(func(a []value.Value) (value.Value, error) {
 			if w.mode2D {
@@ -531,6 +581,9 @@ func (w *World) commandTable() map[string]cmd {
 		m[k] = v
 	}
 	for k, v := range w.physCommands(n, z, need) {
+		m[k] = v
+	}
+	for k, v := range w.easyPhysCommands(n, z, need) {
 		m[k] = v
 	}
 	for k, v := range w.vehicleCommands(n, z, need) {
@@ -610,6 +663,9 @@ func (w *World) commandTable() map[string]cmd {
 	for k, v := range w.guiCommands(n, z) {
 		m[k] = v
 	}
+	for k, v := range w.appCommands(n, z, need) {
+		m[k] = v
+	}
 	for k, v := range w.g3nGuiCommands(n, z, need) {
 		m[k] = v
 	}
@@ -631,6 +687,9 @@ func (w *World) commandTable() map[string]cmd {
 	for k, v := range w.streamCommands(n, z, need) {
 		m[k] = v
 	}
+	for k, v := range w.bubbleCommands(n, z) {
+		m[k] = v
+	}
 	for k, v := range w.instanceCommands(n, z, need) {
 		m[k] = v
 	}
@@ -638,6 +697,9 @@ func (w *World) commandTable() map[string]cmd {
 		m[k] = v
 	}
 	for k, v := range w.terrainCommands(n, z, need) {
+		m[k] = v
+	}
+	for k, v := range w.playCommands(n, z, need) {
 		m[k] = v
 	}
 	for k, v := range w.heightmapCommands(n, z, need) {
@@ -872,7 +934,6 @@ func (w *World) setEntityRGB(e *Entity, r, g, b float32) {
 	e.tint.R, e.tint.G, e.tint.B = c.R, c.G, c.B
 	if e.mat != nil {
 		e.mat.SetColor(c)
-		e.mat.SetEmissiveColor(&math32.Color{0, 0, 0})
 	}
 	if e.pbr != nil {
 		e.pbr.SetBaseColorFactor(&e.tint)

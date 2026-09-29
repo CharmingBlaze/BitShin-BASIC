@@ -1,18 +1,22 @@
-; GPU Gems-style Gerstner ocean (swell + chop + wind). Esc quits.
+; Gerstner ocean — swell + chop + wind with buoys and shoreline props.
+; WASD orbit, Q/E pitch. Esc quits (after a short startup delay).
 
 Graphics3D(1100, 700)
 SetWindowTitle("BitShin BASIC — Gerstner ocean")
 SetCameraClsColor(46, 88, 132)
 SetAmbientLight(30, 40, 54)
 
+; Camera / sky
 cam = CreateCamera()
 SetCameraRange(cam, 0.45, 4000)
 CreateSkyBox("default")
 
+; Light
 sun = CreateDirectionalLight()
 SetLightDirection(sun, 30, 34, 6)
 SetLightColor(sun, 255, 232, 196)
 
+; Water
 water = CreateWater(500, 500, 96)
 SetWaterStyle("gerstner")
 SetWaterColor(5, 44, 68)
@@ -27,22 +31,15 @@ SetWaterLevel(0)
 EnableWaterReflection(True)
 EnableWaterRefraction(True)
 
-buoy = CreateSphere(10)
-SetScale(buoy, 0.7, 0.7, 0.7)
-SetPosition(buoy, 3, 1, 4)
-SetEntityColor(buoy, 220, 70, 50)
+; Props
+buoy = CreateSphere(10).Scale(0.7, 0.7, 0.7).Position([3, 1, 4]).Color(220, 70, 50)
 CreateBuoy(buoy)
 
-crate = CreateCube()
-SetScale(crate, 1.1, 1.1, 1.1)
-SetPosition(crate, -6, 1.2, 7)
-SetEntityColor(crate, 180, 140, 70)
+crate = CreateCube().Scale(1.1, 1.1, 1.1).Position([-6, 1.2, 7]).Color(180, 140, 70)
 
-pole = CreateCylinder()
-SetScale(pole, 0.25, 3.2, 0.25)
-SetPosition(pole, 8, 1.6, -4)
-SetEntityColor(pole, 90, 90, 95)
+pole = CreateCylinder().Scale(0.25, 3.2, 0.25).Position([8, 1.6, -4]).Color(90, 90, 95)
 
+; Loop
 yaw# = 32
 pitch# = 11
 dist# = 40
@@ -63,7 +60,7 @@ While 1
     cx# = Sin(yaw) * Cos(pitch) * dist
     cz# = Cos(yaw) * Cos(pitch) * dist
     cy# = 3.4 + Sin(pitch) * dist
-    SetPosition(cam, cx, cy, cz)
+    cam.Position(cx, cy, cz)
     wh# = WaterHeight(0, 0)
     CameraLookAt(cam, 0, wh + 0.15, 22)
     Text(12, 12, "OCEAN Gerstner  WASD orbit  QE pitch  y=" + Str(wh))

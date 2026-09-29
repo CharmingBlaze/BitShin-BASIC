@@ -77,11 +77,23 @@ vec2 tileUV(int tile, vec2 proj) {
     return vec2((float(col) + proj.x) / float(cols), (float(row) + proj.y) / float(rows));
 }
 
+vec2 clampTile(vec2 center, vec2 uv) {
+    int cols = AtlasCols;
+    int rows = AtlasRows;
+    if (cols < 1) { cols = 1; }
+    if (rows < 1) { rows = 1; }
+    vec2 tile = vec2(1.0 / float(cols), 1.0 / float(rows));
+    vec2 local = mod(center, tile);
+    vec2 base = center - local;
+    vec2 inset = max(tile * 0.02, vec2(1.0) / vec2(textureSize(ShadowMap, 0)));
+    return clamp(uv, base + inset, base + tile - inset);
+}
+
 float pcf3x3(sampler2D map, vec2 uv, float z, float bias, vec2 texel) {
     float s = 0.0;
     for (int x = -1; x <= 1; x++) {
         for (int y = -1; y <= 1; y++) {
-            float d = sampleDepth(map, uv + vec2(float(x), float(y)) * texel);
+            float d = sampleDepth(map, clampTile(uv, uv + vec2(float(x), float(y)) * texel));
             if (emptyDepth(d)) {
                 s += 1.0;
                 continue;
@@ -100,7 +112,7 @@ float pcfAt(sampler2D map, vec2 uv, float z, float bias, int k, vec2 texel) {
     float s = 0.0;
     for (int i = 0; i < 16; i++) {
         vec2 offset = rotateDisk(POISSON_DISK[i], angle) * texel * radius;
-        float d = sampleDepth(map, uv + offset);
+        float d = sampleDepth(map, clampTile(uv, uv + offset));
         if (emptyDepth(d)) {
             s += 1.0;
             continue;
@@ -119,7 +131,7 @@ float pcssAt(sampler2D map, vec2 uv, float z, float bias, vec2 texel) {
     float angle = gradientNoise(gl_FragCoord.xy) * 6.2831853;
     for (int i = 0; i < 16; i++) {
         vec2 offset = rotateDisk(POISSON_DISK[i], angle) * search;
-        float d = sampleDepth(map, uv + offset);
+        float d = sampleDepth(map, clampTile(uv, uv + offset));
         if (!emptyDepth(d) && d < z - bias) {
             blk += d;
             cnt += 1.0;
@@ -202,15 +214,43 @@ float calcDynamicBias(vec3 n, vec3 ldir, float baseBias) {
 
 float receiverDepthBias(vec3 proj, vec3 n, vec3 ldir, float baseBias) {
     float dz = max(abs(dFdx(proj.z)), abs(dFdy(proj.z)));
-    return calcDynamicBias(n, ldir, baseBias) + clamp(dz * 2.0, 0.0, 0.04);
+    return calcDynamicBias(n, ldir, baseBias) + clamp(dz * 0.35, 0.0, baseBias);
 }
 
 float contactAt(vec2 uv, float z, vec2 texel) {
-    return 1.0;
+    float occ = 0.0;
+    const float nearGap = 0.0004;
+    const float farGap = 0.006;
+    for (int i = 0; i < 8; i++) {
+        vec2 o = POISSON_DISK[i] * texel * 2.5;
+        float d = sampleDepth(ShadowMap, clamp(uv + o, vec2(0.001), vec2(0.999)));
+        if (emptyDepth(d)) { continue; }
+        float diff = z - d;
+        if (diff > nearGap && diff < farGap) {
+            occ += 1.0 - (diff - nearGap) / (farGap - nearGap);
+        }
+    }
+    return mix(1.0, 0.42, clamp(occ / 8.0, 0.0, 1.0));
 }
 
 float sssAt(vec2 uv, float z, vec2 texel) {
-    return 1.0;
+    float q = float(ShadowSSS);
+    if (q < 1.0) { return 1.0; }
+    if (q > 4.0) { q = 4.0; }
+    float occ = 0.0;
+    float nearGap = 0.0005;
+    float farGap = 0.01 * q;
+    float radius = 4.0 + q * 5.0;
+    for (int i = 0; i < 12; i++) {
+        vec2 o = POISSON_DISK[i] * texel * radius;
+        float d = sampleDepth(ShadowMap, clamp(uv + o, vec2(0.001), vec2(0.999)));
+        if (emptyDepth(d)) { continue; }
+        float diff = z - d;
+        if (diff > nearGap && diff < farGap) {
+            occ += 1.0 - diff / farGap;
+        }
+    }
+    return mix(1.0, 0.30, clamp(occ / 8.0, 0.0, 1.0));
 }
 
 float casAt(int cas, vec3 wp, vec3 n, vec3 ldir, float bias, out float inside) {
@@ -222,7 +262,9 @@ float casAt(int cas, vec3 wp, vec3 n, vec3 ldir, float bias, out float inside) {
     vec2 texel = 1.0 / vec2(textureSize(ShadowMap, 0));
     float nb = ShadowNormalBias;
     if (nb < 0.15) { nb = 1.0; }
-    vec3 offsetWP = wp + n * (nb * tw) + ldir * (tw * 0.75);
+    float ndl = clamp(dot(normalize(n), normalize(ldir)), 0.0, 1.0);
+    float grazing = 1.0 - ndl;
+    vec3 offsetWP = wp + n * (nb * tw * grazing);
     vec4 lsp = LightVP[cas] * vec4(offsetWP, 1.0);
     vec3 proj = lsp.xyz / max(lsp.w, 0.0001);
     proj = proj * 0.5 + 0.5;

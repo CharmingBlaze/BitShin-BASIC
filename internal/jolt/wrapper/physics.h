@@ -35,6 +35,9 @@ void JoltOptimizeBroadPhase(JoltPhysicsSystem system);
 
 void JoltSetJobThreads(int n);
 
+// More solver iterations so stacks and fast contacts settle instead of jittering.
+void JoltConfigureStablePhysics(JoltPhysicsSystem system);
+
 #ifdef __cplusplus
 }
 

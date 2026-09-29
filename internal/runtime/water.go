@@ -37,57 +37,58 @@ type waterFBO struct {
 }
 
 type waterBody struct {
-	ent         int
-	y           float32
-	w, d        float32
-	color       math32.Color
-	reflectOn   bool
-	refractOn   bool
-	follow      bool
-	waves       [4]gerstnerWave
-	nWaves      int
-	time        float32
-	speed       float32
-	move        float32
-	waveStr     float32
-	shine       float32
+	ent          int
+	y            float32
+	w, d         float32
+	color        math32.Color
+	reflectOn    bool
+	refractOn    bool
+	follow       bool
+	followSet    bool
+	waves        [4]gerstnerWave
+	nWaves       int
+	time         float32
+	speed        float32
+	move         float32
+	waveStr      float32
+	shine        float32
 	reflectivity float32
-	normalTex   int
-	dudvTex     int
-	buoys       map[int]bool
-	wasIn       map[int]bool
-	splash      int
-	reflect     waterFBO
-	refract     waterFBO
-	dudvGL      uint32
-	normGL      uint32
-	windX       float32
-	windZ       float32
-	windStr     float32
-	flowX       float32
-	flowY       float32
-	flowZ       float32
-	style       string
-	underFog    math32.Color
-	underDen    float32
-	savedFog    bool
-	fogMode     int
-	fogRGB      math32.Color
-	fogDen      float32
-	mat         *WaterMaterial
-	caustics    bool
-	ssr         bool
-	causticGL   uint32
-	wakeGL      uint32
-	wakeH       []float32
-	wakeV       []float32
-	wakePix     []uint8
-	wakeSpan    float32
-	ambSnd      int
-	ambVol      float64
-	segs        int
-	lod         bool
-	farR        float32
+	normalTex    int
+	dudvTex      int
+	buoys        map[int]bool
+	wasIn        map[int]bool
+	splash       int
+	reflect      waterFBO
+	refract      waterFBO
+	dudvGL       uint32
+	normGL       uint32
+	windX        float32
+	windZ        float32
+	windStr      float32
+	flowX        float32
+	flowY        float32
+	flowZ        float32
+	style        string
+	underFog     math32.Color
+	underDen     float32
+	savedFog     bool
+	fogMode      int
+	fogRGB       math32.Color
+	fogDen       float32
+	mat          *WaterMaterial
+	caustics     bool
+	ssr          bool
+	causticGL    uint32
+	wakeGL       uint32
+	wakeH        []float32
+	wakeV        []float32
+	wakePix      []uint8
+	wakeSpan     float32
+	ambSnd       int
+	ambVol       float64
+	segs         int
+	lod          bool
+	farR         float32
 }
 
 func bindWaterMaterial(mat *material.Standard) {
@@ -261,36 +262,97 @@ func newWaterGrid(width, depth float32, segs int) *geometry.Geometry {
 	return g
 }
 
-// newWaterLODGrid is a camera-centered sinh-warped mesh: dense near the
-// origin (follow puts that under the camera) and coarse toward a far radius
-// so the horizon stays filled without a 128-segment cap.
-func newWaterLODGrid(radius float32, segs int) *geometry.Geometry {
-	if segs < 24 {
-		segs = 24
-	}
-	if segs > 160 {
-		segs = 160
-	}
+// waterLODCoords is a symmetric axis: half-unit cells across the near
+// water (the mesh is recentered on the camera), then a geometric stretch
+// out to radius so the horizon stays covered.
+func waterLODCoords(radius float32, segs int) ([]float32, int) {
 	if radius < 16 {
 		radius = 16
 	}
-	k := 3.45
-	sk := math.Sinh(k)
-	map1 := func(i int) float32 {
-		u := float64(i)/float64(segs)*2 - 1
-		return float32(math.Sinh(u*k)/sk) * radius
+	type band struct{ end, cell float32 }
+	bands := []band{
+		{40, 0.5},
+		{110, 1.2},
+		{280, 4},
+		{radius, 28},
 	}
-	n := segs + 1
+	if radius <= 40 {
+		bands = []band{{radius, radius / 48}}
+	}
+	pos := []float32{0}
+	prev := float32(0)
+	for _, b := range bands {
+		end := b.end
+		if end > radius {
+			end = radius
+		}
+		if end <= prev+0.05 {
+			continue
+		}
+		cell := b.cell
+		if cell < 0.35 {
+			cell = 0.35
+		}
+		span := end - prev
+		n := int(span/cell + 0.5)
+		if n < 1 {
+			n = 1
+		}
+		step := span / float32(n)
+		for i := 1; i <= n; i++ {
+			pos = append(pos, prev+step*float32(i))
+		}
+		prev = end
+		if prev >= radius-0.05 {
+			break
+		}
+	}
+	half := len(pos) - 1
+	if half < 2 {
+		half = 2
+	}
+	if half > 220 {
+		half = 220
+	}
+	segs = half * 2
+	coords := make([]float32, segs+1)
+	mid := half
+	// Resample the positive axis onto `half` slots so a huge radius stays bounded,
+	// keeping the near samples and pinning the outer edge.
+	if len(pos)-1 == half {
+		for i := 1; i <= half; i++ {
+			coords[mid+i] = pos[i]
+			coords[mid-i] = -pos[i]
+		}
+	} else {
+		for i := 1; i <= half; i++ {
+			t := float32(i) / float32(half)
+			src := t * float32(len(pos)-1)
+			i0 := int(src)
+			if i0 >= len(pos)-1 {
+				i0 = len(pos) - 2
+			}
+			f := src - float32(i0)
+			v := pos[i0]*(1-f) + pos[i0+1]*f
+			coords[mid+i] = v
+			coords[mid-i] = -v
+		}
+	}
+	coords[0] = -radius
+	coords[len(coords)-1] = radius
+	return coords, segs
+}
+
+// newWaterLODGrid is a camera-centered mesh: dense under the camera and
+// coarse toward a far radius so the horizon stays filled.
+func newWaterLODGrid(radius float32, segs int) *geometry.Geometry {
+	xs, segs := waterLODCoords(radius, segs)
+	n := len(xs)
 	pos := math32.NewArrayF32(0, n*n*3)
 	nor := math32.NewArrayF32(0, n*n*3)
 	uvs := math32.NewArrayF32(0, n*n*2)
 	idx := math32.NewArrayU32(0, segs*segs*6)
-	xs := make([]float32, n)
-	zs := make([]float32, n)
-	for i := 0; i < n; i++ {
-		xs[i] = map1(i)
-		zs[i] = map1(i)
-	}
+	zs := xs
 	for iz := 0; iz < n; iz++ {
 		for ix := 0; ix < n; ix++ {
 			x, z := xs[ix], zs[iz]
@@ -769,26 +831,32 @@ func genWaterDuDv(n int) *image.RGBA {
 	return img
 }
 
+func waterNormalHeight(fx, fy float64, cells int) float64 {
+	h := waterValueNoise(fx, fy, cells)
+	h += 0.45 * waterValueNoise(fx*2.7, fy*2.7, cells*3)
+	return h
+}
+
 func genWaterNormal(n int) *image.RGBA {
 	img := image.NewRGBA(image.Rect(0, 0, n, n))
-	cells := 10
+	cells := 16
 	for y := 0; y < n; y++ {
 		for x := 0; x < n; x++ {
 			fx := float64(x) / float64(n) * float64(cells)
 			fy := float64(y) / float64(n) * float64(cells)
-			hL := waterValueNoise(fx-0.08, fy, cells)
-			hR := waterValueNoise(fx+0.08, fy, cells)
-			hD := waterValueNoise(fx, fy-0.08, cells)
-			hU := waterValueNoise(fx, fy+0.08, cells)
-			nx := (hL - hR) * 2.4
-			nz := (hD - hU) * 2.4
+			hL := waterNormalHeight(fx-0.08, fy, cells)
+			hR := waterNormalHeight(fx+0.08, fy, cells)
+			hD := waterNormalHeight(fx, fy-0.08, cells)
+			hU := waterNormalHeight(fx, fy+0.08, cells)
+			nx := (hL - hR) * 2.6
+			nz := (hD - hU) * 2.6
 			ny := 1.0
 			len := math.Sqrt(nx*nx + ny*ny + nz*nz)
 			nx, ny, nz = nx/len, ny/len, nz/len
 			img.SetRGBA(x, y, color.RGBA{
 				uint8((nx*0.5 + 0.5) * 255),
-				uint8((nz*0.5 + 0.5) * 255),
 				uint8((ny*0.5 + 0.5) * 255),
+				uint8((nz*0.5 + 0.5) * 255),
 				255,
 			})
 		}
@@ -960,21 +1028,25 @@ func (w *World) renderWaterReflection(rend *renderer.Renderer, cam *camera.Camer
 	}()
 	w.ensureWaterMaps(wb)
 	if wb.reflectOn {
-		ensureWaterFBO(&wb.reflect, 512, 512)
+		ensureWaterFBO(&wb.reflect, 1024, 1024)
 	}
 	if wb.refractOn {
-		ensureWaterFBO(&wb.refract, 512, 512)
+		ensureWaterFBO(&wb.refract, 1024, 1024)
 	}
 	sky := math32.Color{wb.color.R * 0.45, wb.color.G * 0.55, wb.color.B * 0.7}
 	if wb.reflectOn && wb.reflect.fbo != 0 {
 		restore := w.hideForWaterPass(wb, true)
+		w.waterClip = [4]float32{0, 1, 0, -(wb.y - 0.2)}
 		mirror := w.reflectionCamera(cam, wb.y)
 		w.renderWaterFBO(rend, mirror, &wb.reflect, sky)
+		w.waterClip = [4]float32{}
 		restore()
 	}
 	if wb.refractOn && wb.refract.fbo != 0 {
 		restore := w.hideForWaterPass(wb, false)
-		w.renderWaterFBO(rend, cam, &wb.refract, math32.Color{wb.color.R * 0.2, wb.color.G * 0.35, wb.color.B * 0.4})
+		w.waterClip = [4]float32{0, -1, 0, wb.y + 0.2}
+		w.renderWaterFBO(rend, cam, &wb.refract, math32.Color{wb.color.R * 0.25, wb.color.G * 0.45, wb.color.B * 0.55})
+		w.waterClip = [4]float32{}
 		restore()
 	}
 }
@@ -999,8 +1071,8 @@ func (w *World) waterCommands(n func(func([]value.Value) (value.Value, error)) c
 			}
 			wb := &waterBody{
 				y: 0, w: ww, d: dd,
-				color:        math32.Color{0.02, 0.12, 0.28},
-				waves:        defaultWaves(), nWaves: 4,
+				color: math32.Color{0.02, 0.12, 0.28},
+				waves: defaultWaves(), nWaves: 4,
 				speed:        0.035,
 				waveStr:      0.04,
 				shine:        52,
@@ -1010,11 +1082,11 @@ func (w *World) waterCommands(n func(func([]value.Value) (value.Value, error)) c
 				windStr:      0,
 				style:        "ocean",
 				buoys:        map[int]bool{}, wasIn: map[int]bool{},
-				follow:       true,
-				segs:         segs,
-				lod:          true,
-				wakeSpan:     140,
-				ambVol:       -1,
+				follow:   true,
+				segs:     segs,
+				lod:      true,
+				wakeSpan: 140,
+				ambVol:   -1,
 			}
 			g := w.buildWaterGeom(wb)
 			wm := NewWaterMaterial(w, wb)
@@ -1205,6 +1277,7 @@ func (w *World) waterCommands(n func(func([]value.Value) (value.Value, error)) c
 		"setwaterfollow": n(func(a []value.Value) (value.Value, error) {
 			if wb := w.currentWater(); wb != nil {
 				on := argI(a, 0, 1) != 0
+				wb.followSet = true
 				if wb.follow != on {
 					wb.follow = on
 					wb.lod = on

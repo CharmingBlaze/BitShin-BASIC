@@ -1,4 +1,5 @@
-; Original 64-style 3D platformer — no trademarked names or assets.
+; Platform 64 — 3D pads, coins, and free-cam platforming (no trademarked names).
+; WASD move, Space jump, mouse / arrows look. Weather 1–5. Esc quits after a few frames.
 
 SetWindowTitle("BitShin BASIC — Platform 64")
 Graphics3D(1280, 720, 0, 2)
@@ -8,6 +9,7 @@ SetAmbientLight(92, 108, 138)
 HidePointer()
 MoveMouse(640, 360)
 
+; Camera + sky
 cam = CreateCamera()
 SetCameraRange(cam, 0.1, 4000)
 sky = CreateSkyBox()
@@ -17,6 +19,7 @@ CameraFogRange(cam, 45, 220)
 SetWeather("clear")
 SetWeatherIntensity(0.85)
 
+; Shadows + sun
 EnableShadows True
 SetShadowQuality "high"
 SetShadowBias 0.0018
@@ -26,6 +29,7 @@ SetLightDirection sun, 55, 40, 0
 SetLightColor sun, 255, 235, 200
 SetLightShadow sun, True
 
+; Assets
 texGrass = LoadTexture("assets/grass.png")
 texStone = LoadTexture("assets/stone.png")
 texCoin = LoadTexture("assets/coin.png")
@@ -33,20 +37,16 @@ ScaleTexture(texGrass, 8, 8)
 ScaleTexture(texStone, 2, 2)
 sndCoin = LoadSound("assets/coin.wav")
 
+; Player mesh
 player = CreatePivot()
-body = CreateCylinder(10, player)
-SetScale(body, 0.45, 0.55, 0.45)
-SetPosition(body, 0, 0.7, 0)
-SetEntityColor(body, 40, 170, 150)
+body = CreateCylinder(10, player).Scale(0.45, 0.55, 0.45).Position([0, 0.7, 0]).Color(40, 170, 150)
 EntityShininess(body, 0.08)
 EntitySpecular(body, 36, 48, 42)
-head = CreateSphere(10, player)
-SetScale(head, 0.38, 0.38, 0.38)
-SetPosition(head, 0, 1.45, 0)
-SetEntityColor(head, 255, 196, 140)
+head = CreateSphere(10, player).Scale(0.38, 0.38, 0.38).Position([0, 1.45, 0]).Color(255, 196, 140)
 EntityShininess(head, 0.1)
 EntitySpecular(head, 40, 32, 28)
 
+; Pad bookkeeping
 Dim padX(20)
 Dim padZ(20)
 Dim padW(20)
@@ -55,21 +55,20 @@ Dim padY(20)
 nPad = 0
 
 Function AddPad(x#, y#, z#, hx#, hz#, r, g, b, tex, shine#, sr, sg, sb)
+    Global nPad
     nPad = nPad + 1
     padX(nPad) = x
     padZ(nPad) = z
     padW(nPad) = hx
     padD(nPad) = hz
     padY(nPad) = y + 0.25
-    block = CreateCube()
-    SetScale(block, hx, 0.25, hz)
-    SetPosition(block, x, y, z)
-    SetEntityColor(block, r, g, b)
+    block = CreateCube().Scale(hx, 0.25, hz).Position([x, y, z]).Color(r, g, b)
     If tex Then EntityTexture(block, tex)
     EntityShininess(block, shine)
     EntitySpecular(block, sr, sg, sb)
 End Function
 
+; Level pads
 AddPad(0, 0, 0, 18, 18, 46, 130, 70, texGrass, 0.03, 16, 22, 14)
 AddPad(10, 1.2, 8, 3, 3, 200, 160, 70, texStone, 0.11, 48, 40, 28)
 AddPad(16, 2.6, 12, 2.4, 2.4, 80, 150, 200, texStone, 0.11, 48, 40, 28)
@@ -80,23 +79,18 @@ For i = 0 To 4
 Next
 AddPad(4, 4.4, 20, 4, 3, 50, 160, 120, texStone, 0.11, 48, 40, 28)
 
-ring = CreateTorus(1.6, 0.18, 16, 24)
-SetPosition(ring, -16, 3.2, -10)
-SetEntityColor(ring, 220, 170, 70)
+; Landmarks
+ring = CreateTorus(1.6, 0.18, 16, 24).Position([-16, 3.2, -10]).Color(220, 170, 70)
 EntityShininess(ring, 0.22)
 EntitySpecular(ring, 70, 58, 36)
-spire = CreateCone(8, 0)
-SetScale(spire, 0.7, 2.2, 0.7)
-SetPosition(spire, 20, 2.2, -6)
-SetEntityColor(spire, 90, 140, 170)
+spire = CreateCone(8, 0).Scale(0.7, 2.2, 0.7).Position([20, 2.2, -6]).Color(90, 140, 170)
 EntityShininess(spire, 0.08)
 EntitySpecular(spire, 30, 34, 40)
-marker = CreateCapsule(0.28, 0.9, 10)
-SetPosition(marker, -14, 1.4, 8)
-SetEntityColor(marker, 200, 90, 80)
+marker = CreateCapsule(0.28, 0.9, 10).Position([-14, 1.4, 8]).Color(200, 90, 80)
 EntityShininess(marker, 0.1)
 EntitySpecular(marker, 44, 28, 24)
 
+; Coins
 Dim coinX(8)
 Dim coinY(8)
 Dim coinZ(8)
@@ -111,16 +105,14 @@ coinX(6) = -10 : coinY(6) = 2.2 : coinZ(6) = 5
 coinX(7) = 2 : coinY(7) = 1.2 : coinZ(7) = 6
 coinX(8) = 0 : coinY(8) = 1.2 : coinZ(8) = -6
 For i = 1 To 8
-    coinE(i) = CreateSphere(8)
-    SetScale(coinE(i), 0.28, 0.28, 0.28)
-    SetPosition(coinE(i), coinX(i), coinY(i), coinZ(i))
-    SetEntityColor(coinE(i), 255, 220, 50)
+    coinE(i) = CreateSphere(8).Scale(0.28, 0.28, 0.28).Position([coinX(i), coinY(i), coinZ(i)]).Color(255, 220, 50)
     EntityTexture(coinE(i), texCoin)
     EntityShininess(coinE(i), 0.28)
     EntitySpecular(coinE(i), 80, 70, 36)
     coinOn(i) = 1
 Next
 
+; Player state
 px# = 0
 py# = 0.5
 pz# = -4
@@ -132,8 +124,8 @@ camYaw# = 0
 camPitch# = 12
 coins = 0
 grounded = 1
-SetPosition(player, px, py, pz)
-SetPosition(cam, px, py + 4.2, pz - 8)
+player.Position([px, py, pz])
+cam.Position([px, py + 4.2, pz - 8])
 
 Function AngWrap#(a#)
     While a > 180

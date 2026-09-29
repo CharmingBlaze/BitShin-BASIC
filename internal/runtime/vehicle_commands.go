@@ -43,18 +43,24 @@ func (w *World) physAxes(id int) (fx, fy, fz, ux, uy, uz, rx, ry, rz float32) {
 
 func (w *World) hullOf(id int, dx, dy, dz float32) (float32, float32, float32) {
 	e := w.ents[id]
-	if e == nil || e.node == nil {
+	if e == nil || e.mesh == nil || e.mesh.GetGeometry() == nil {
+		// Pivots have no mesh. Keep the controller's hull instead of
+		// treating a scale of 1 as a two-metre cube.
 		return dx, dy, dz
 	}
 	s := e.node.GetNode().Scale()
-	if s.X > 0.05 {
-		dx = s.X
+	bb := e.mesh.GetGeometry().BoundingBox()
+	hx := (bb.Max.X - bb.Min.X) * 0.5 * absf(s.X)
+	hy := (bb.Max.Y - bb.Min.Y) * 0.5 * absf(s.Y)
+	hz := (bb.Max.Z - bb.Min.Z) * 0.5 * absf(s.Z)
+	if hx > 0.05 {
+		dx = hx
 	}
-	if s.Y > 0.05 {
-		dy = s.Y
+	if hy > 0.05 {
+		dy = hy
 	}
-	if s.Z > 0.05 {
-		dz = s.Z
+	if hz > 0.05 {
+		dz = hz
 	}
 	return dx, dy, dz
 }
@@ -106,9 +112,13 @@ func (w *World) bindCtrl(kind string, a []value.Value, hx, hy, hz, mass float32)
 		}
 	}
 	w.ensureCtrlBody(id, hx, boxHy, hz, mass)
-	if kind == "car" || kind == "moto" || kind == "tank" || kind == "boat" || kind == "jetski" || kind == "ski" {
+	if kind == "car" || kind == "moto" || kind == "tank" || kind == "boat" || kind == "jetski" || kind == "ski" || kind == "waterski" {
 		w.phys3.OffsetCenterOfMass(id, 0, -boxHy*0.45, 0)
 	}
+	// OffsetCenterOfMass replaces the shape and Jolt rebuilds mass from
+	// volume. Put the gameplay mass back or thrust sized for a few hundred
+	// kilograms cannot move a hull that weighs as much as its displaced water.
+	w.phys3.SetMass(id, mass)
 	if kind == "car" || kind == "moto" || kind == "tank" {
 		w.phys3.SetFriction(id, 0.35)
 	}
@@ -128,6 +138,16 @@ func (w *World) applyAero(c *vehCtrl, throttle, pitch, roll, yaw, thrustScale, l
 		cl *= speed / c.stall
 	}
 	lift := q * c.area * cl * liftScale
+	// Wing lift is nothing at a standstill, so a little throttle also holds
+	// the nose up. Otherwise the demo planes lawn-dart before they reach
+	// flying speed.
+	if (c.kind == "plane" || c.kind == "jet" || c.kind == "glider") && throttle > 0 {
+		lift += throttle * c.mass * 9.81 * 1.05
+	}
+	maxLift := c.mass * 9.81 * 1.8
+	if lift > maxLift {
+		lift = maxLift
+	}
 	drag := q * c.area * c.dragCd
 	thrust := throttle * c.thrustMax * thrustScale
 
@@ -172,14 +192,33 @@ func (w *World) applyBoatForces(c *vehCtrl, throttle, steer float32) {
 		return
 	}
 	fx, fy, fz, ux, uy, uz, rx, ry, rz := w.physAxes(c.id)
-	w.phys3.SetLinearDamping(c.id, 1.2)
+	damp := float32(1.15)
+	if throttle > 0.15 || throttle < -0.15 {
+		damp = 0.48
+	}
+	w.phys3.SetLinearDamping(c.id, damp)
 	w.phys3.SetAngularDamping(c.id, 2.5)
 
 	vx, vy, vz, _ := w.phys3.GetVelocity(c.id)
 	angVx, angVy, angVz, _ := w.phys3.GetAngularVelocity(c.id)
-	w.applyWaterBuoyancy(c.id, 1.15)
 
 	wh := w.waterHeight(x, z)
+	// Push up only while the hull is in the water. Equilibrium is about
+	// 40% submerged, so the deck stays above the surface and a wave does
+	// not launch the boat.
+	bottom := y - c.hy
+	draft := wh - bottom
+	if draft > 0 {
+		frac := draft / (c.hy * 2)
+		if frac > 1 {
+			frac = 1
+		}
+		lift := c.mass*9.81*frac*2.4 - vy*c.mass*5.5*frac
+		if lift < -c.mass*8 {
+			lift = -c.mass * 8
+		}
+		w.phys3.ApplyForce(c.id, 0, lift, 0)
+	}
 	depth := wh - (y - c.hy)
 	subRatio := depth / (c.hy * 2)
 	if subRatio < 0 {
@@ -255,7 +294,7 @@ func (w *World) applyJetSkiForces(c *vehCtrl, throttle, steer float32) {
 	}
 	nPts := float32(len(points))
 	wet := float32(0)
-	w.applyWaterBuoyancy(c.id, 1.1)
+	w.applyWaterBuoyancy(c.id, 3.4)
 
 	for _, pt := range points {
 		px := x + rx*pt.lx + ux*pt.ly + fx*pt.lz
@@ -337,7 +376,7 @@ func (w *World) applyWaterSkiForces(c *vehCtrl, throttle, edge float32, towID in
 	nPts := float32(len(pts))
 	wet := float32(0)
 	tipY, tailY := float32(0), float32(0)
-	w.applyWaterBuoyancy(c.id, 1.05)
+	w.applyWaterBuoyancy(c.id, 3.0)
 	plane := fwd / 11.0
 	if plane < 0 {
 		plane = 0
@@ -611,19 +650,16 @@ func (w *World) vehicleCommands(n func(func([]value.Value) (value.Value, error))
 		}),
 		"createplanecontroller": n(func(a []value.Value) (value.Value, error) {
 			c := w.bindCtrl("plane", a, 4, 0.4, 3, 900)
-			c.thrustMax, c.liftCl, c.dragCd, c.stall = 18000, 0.9, 0.08, 12
+			c.thrustMax, c.liftCl, c.dragCd, c.stall = 18000, 1.7, 0.14, 9
 			w.phys3.CreatePlaneController(c.id)
 			return value.Num(float64(c.id)), nil
 		}),
 		"updateplane": n(func(a []value.Value) (value.Value, error) {
-			w.ensurePhys3()
-			id := argI(a, 0, 0)
-			w.phys3.UpdatePlane(id, float32(argN(a, 1, 0)), float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0)))
-			return z()
+			return w.updateAero("plane", a, 1, 1)
 		}),
 		"createjetcontroller": n(func(a []value.Value) (value.Value, error) {
 			c := w.bindCtrl("jet", a, 3.2, 0.35, 4.5, 1100)
-			c.thrustMax, c.liftCl, c.dragCd, c.stall = 42000, 0.55, 0.05, 28
+			c.thrustMax, c.liftCl, c.dragCd, c.stall = 42000, 1.15, 0.07, 16
 			return value.Num(float64(c.id)), nil
 		}),
 		"updatejet": n(func(a []value.Value) (value.Value, error) {

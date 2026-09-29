@@ -1,13 +1,17 @@
-; BitShin BASIC — Modern Top-Down / Twin-Stick Controller Demo
+; Top-down twin-stick — WASD move, mouse aim, Space dash.
+; Esc quits after a few frames.
+
 SetWindowTitle("BitShin BASIC — Modern Top-Down Action Controller")
 Graphics3D(1280, 720, 0, 2)
 SetBuffer(BackBuffer())
 SetCameraClsColor(30, 35, 45)
 SetAmbientLight(65, 70, 80)
 
+; Camera
 cam = CreateCamera()
 SetCameraRange(cam, 0.1, 1000)
 
+; Sun + shadows
 sun = CreateDirectionalLight()
 SetLightDirection(sun, 60, 30, 0)
 SetLightColor(sun, 255, 230, 200)
@@ -15,25 +19,16 @@ SetLightShadow(sun, True)
 EnableShadows(True)
 
 ; Arena
-ground = CreateCube()
-SetScale(ground, 40, 0.25, 40)
-SetPosition(ground, 0, 0, 0)
-SetEntityColor(ground, 45, 55, 65)
+ground = CreateCube().Scale(40, 0.25, 40).Position([0, 0, 0]).Color(45, 55, 65)
 CreateRigidBodyBox(ground, 40, 0.25, 40, 0)
 
-; Player
+; Player (body + turret)
 player = CreatePivot()
-SetPosition(player, 0, 1, 0)
+player.Position([0, 1, 0])
 
-body = CreateBox(0.8, 0.8, 1.2, player)
-SetPosition(body, 0, 0.5, 0)
-SetEntityColor(body, 70, 180, 240)
+body = CreateBox(0.8, 0.8, 1.2, player).Position([0, 0.5, 0]).Color(70, 180, 240)
 
-turret = CreateCylinder(8, player)
-SetScale(turret, 0.15, 0.8, 0.15)
-SetPosition(turret, 0, 0.6, 0.6)
-SetRotation(turret, 90, 0, 0)
-SetEntityColor(turret, 255, 200, 50)
+turret = CreateCylinder(8, player).Scale(0.15, 0.8, 0.15).Position([0, 0.6, 0.6]).Rotate(90, 0, 0).Color(255, 200, 50)
 
 CreateTopDownController(player, 8.5, 20.0)
 

@@ -49,7 +49,9 @@ func (w *joltWorld) UpdatePlane(id int, throttle, pitch, roll, yaw float32) {
 	halfLift := lift * 0.5
 	w.ApplyForceAtPosition(id, ux*halfLift, uy*halfLift, uz*halfLift, px+rx*wing, py+ry*wing, pz+rz*wing)
 	w.ApplyForceAtPosition(id, ux*halfLift, uy*halfLift, uz*halfLift, px-rx*wing, py-ry*wing, pz-rz*wing)
-	w.ApplyLocalImpulse(id, 0, 0, throttle*a.thrust*0.016)
+	// Thrust is a force. ApplyLocalImpulse is a velocity change, so the old
+	// throttle*thrust*dt path added hundreds of metres per second every frame.
+	w.ApplyForce(id, fx*throttle*a.thrust, fy*throttle*a.thrust, fz*throttle*a.thrust)
 	if speed > 0.5 {
 		inv := drag / speed
 		w.ApplyForce(id, -vx*inv, -vy*inv, -vz*inv)

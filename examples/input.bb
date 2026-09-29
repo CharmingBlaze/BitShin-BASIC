@@ -1,37 +1,36 @@
-; Keys, KeyHit, mouse, mouse look, gamepad + deadzone.
+; Input — keys, KeyHit, mouse look, and gamepad with deadzone.
+; WASD + mouse look, Space counts hits, left-click spins the cube. Close window to quit.
 
 Graphics3D(800, 600)
 SetWindowTitle("BitShin BASIC — Input")
-cam = CreateCamera()
-SetPosition(cam, 0, 1.6, 0)
+
+; Camera
+cam = CreateCamera().Position([0, 1.6, 0])
 HidePointer()
 SetCursorMode(2)
 SetRawMouse(True)
 SetGamepadDeadzone(0.2)
 
-light = CreateLight()
-SetRotation(light, 55, 20, 0)
-ground = CreatePlane()
-SetPosition(ground, 0, 0, 12)
-SetEntityColor(ground, 42, 48, 58)
-cube = CreateCube()
-SetPosition(cube, 0, 0.5, 8)
-SetEntityColor(cube, 80, 170, 255)
+; Light / world
+light = CreateLight().Rotate(55, 20, 0)
+ground = CreatePlane().Position([0, 0, 12]).Color(42, 48, 58)
+cube = CreateCube().Position([0, 0.5, 8]).Color(80, 170, 255)
 
 hits = 0
 
+; Loop
 While Not WindowShouldClose()
     MouseLook(cam, 0.12, -85, 85)
-    If KeyDown(KEY_W) Then MoveEntity(cam, 0, 0, 0.12)
-    If KeyDown(KEY_S) Then MoveEntity(cam, 0, 0, -0.12)
-    If KeyDown(KEY_A) Then MoveEntity(cam, -0.12, 0, 0)
-    If KeyDown(KEY_D) Then MoveEntity(cam, 0.12, 0, 0)
+    If KeyDown(KEY_W) Then cam.Move(0, 0, 0.12)
+    If KeyDown(KEY_S) Then cam.Move(0, 0, -0.12)
+    If KeyDown(KEY_A) Then cam.Move(-0.12, 0, 0)
+    If KeyDown(KEY_D) Then cam.Move(0.12, 0, 0)
     If KeyHit(KEY_SPACE) Then hits = hits + 1
-    If MouseHit(1) Then TurnEntity(cube, 0, 25, 0)
+    If MouseHit(1) Then cube.Turn(0, 25, 0)
     lx# = GamepadAxis(0, 0)
     ly# = GamepadAxis(0, 1)
     If lx# <> 0 Or ly# <> 0 Then
-        MoveEntity(cam, lx# * 0.12, 0, -ly# * 0.12)
+        cam.Move(lx# * 0.12, 0, -ly# * 0.12)
     EndIf
     RenderWorld
     Text(12, 12, "WASD + mouse look  Space hits=" + Str(hits))

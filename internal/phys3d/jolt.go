@@ -164,18 +164,21 @@ func (w *joltWorld) Step(dt float32) {
 			m = 70
 		}
 		if kc.virtual != nil {
-			if f[0] != 0 || f[1] != 0 || f[2] != 0 {
-				lv := kc.virtual.GetLinearVelocity()
-				kc.virtual.SetLinearVelocity(jolt.Vec3{
-					X: lv.X + f[0]/m*dt,
-					Y: lv.Y + f[1]/m*dt,
-					Z: lv.Z + f[2]/m*dt,
-				})
+			lv := kc.virtual.GetLinearVelocity()
+			if kc.virtual.GetGroundState() == jolt.GroundStateOnGround {
+				gv := kc.virtual.GetGroundVelocity()
+				if lv.Y-gv.Y < 0.1 {
+					lv.Y = gv.Y
+				}
 			}
+			lv.X += (g.X + f[0]/m) * dt
+			lv.Y += (g.Y + f[1]/m) * dt
+			lv.Z += (g.Z + f[2]/m) * dt
+			kc.virtual.SetLinearVelocity(lv)
 			kc.virtual.ExtendedUpdate(dt, g)
 			p := kc.virtual.GetPosition()
 			kc.x, kc.y, kc.z = p.X, p.Y, p.Z
-			lv := kc.virtual.GetLinearVelocity()
+			lv = kc.virtual.GetLinearVelocity()
 			w.vel[id] = [3]float32{lv.X, lv.Y, lv.Z}
 			kc.onGround = kc.virtual.GetGroundState() == jolt.GroundStateOnGround
 			if b, ok := w.body[id]; ok {
@@ -397,6 +400,43 @@ func (w *joltWorld) Raycast(ox, oy, oz, dx, dy, dz float32) (int, float32, float
 		id = w.entityNear(hit.HitPoint.X, hit.HitPoint.Y, hit.HitPoint.Z)
 	}
 	return id, hit.HitPoint.X, hit.HitPoint.Y, hit.HitPoint.Z, true
+}
+
+func (w *joltWorld) RaycastDetail(ox, oy, oz, dx, dy, dz float32) (RayHit, bool) {
+	id, x, y, z, ok := w.Raycast(ox, oy, oz, dx, dy, dz)
+	if !ok {
+		return RayHit{}, false
+	}
+	h := RayHit{ID: id, X: x, Y: y, Z: z}
+	llen := sqrt32(dx*dx + dy*dy + dz*dz)
+	if llen > 1e-8 {
+		dist := sqrt32((x-ox)*(x-ox) + (y-oy)*(y-oy) + (z-oz)*(z-oz))
+		h.Fraction = dist / llen
+		if h.Fraction > 1 {
+			h.Fraction = 1
+		}
+	}
+	if px, py, pz, okp := w.GetPosition(id); okp {
+		h.NX, h.NY, h.NZ, _ = unit3(x-px, y-py, z-pz)
+		return h, true
+	}
+	if llen > 1e-8 {
+		h.NX, h.NY, h.NZ = -dx/llen, -dy/llen, -dz/llen
+	} else {
+		h.NY = 1
+	}
+	return h, true
+}
+
+func (w *joltWorld) RaycastAll(ox, oy, oz, dx, dy, dz float32, max int) []RayHit {
+	if max < 0 {
+		return nil
+	}
+	h, ok := w.RaycastDetail(ox, oy, oz, dx, dy, dz)
+	if !ok {
+		return nil
+	}
+	return []RayHit{h}
 }
 
 func (w *joltWorld) entityNear(x, y, z float32) int {

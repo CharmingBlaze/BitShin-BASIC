@@ -1,48 +1,34 @@
-; Extra GLFW window sharing the G3N context.
-; Main view + a second camera in another window (security-cam style).
-;
-; Esc          quit (main window)
-; H            hide / show the extra window
-; F            focus the extra window
-; C            recreate the extra window if you closed it
-; Extra window X button closes only that window, not the program.
+; Windows — main view plus a second camera in an extra GLFW window.
+; Esc quits (main). H hide/show, F focus, C recreate the extra window.
+; Extra window X closes only that window, not the program.
 
 Graphics3D(800, 600)
 SetBuffer(BackBuffer())
 SetWindowTitle("BitShin BASIC — main view")
 
-cam = CreateCamera()
-SetPosition(cam, 0, 2.2, -8)
+; Cameras
+cam = CreateCamera().Position([0, 2.2, -8])
+side = CreateCamera().Position([9, 3.5, 2])
+side.Point(0, 0.5, 4)
 
-side = CreateCamera()
-SetPosition(side, 9, 3.5, 2)
-PointEntity(side, 0, 0.5, 4)
+; Light / world
+light = CreateLight().Rotate(50, 30, 0)
+ground = CreatePlane().Scale(20, 1, 20).Color(42, 48, 58)
+cube = CreateCube().Position([0, 0.6, 4]).Color(70, 160, 255)
+ball = CreateSphere().Position([3, 0.6, 5]).Color(255, 110, 90)
 
-light = CreateLight()
-SetRotation(light, 50, 30, 0)
-
-ground = CreatePlane()
-SetScale(ground, 20, 1, 20)
-SetEntityColor(ground, 42, 48, 58)
-
-cube = CreateCube()
-SetPosition(cube, 0, 0.6, 4)
-SetEntityColor(cube, 70, 160, 255)
-
-ball = CreateSphere()
-SetPosition(ball, 3, 0.6, 5)
-SetEntityColor(ball, 255, 110, 90)
-
+; Extra window
 win = CreateWindow(480, 360, "Security cam")
 SetWindowCamera(win, side)
 SetWindowTitle(win, "Security cam")
 
 Print "Extra window handle=" + win + "  Esc=quit  H=hide  F=focus  C=recreate"
 
+; Loop
 While Not KeyDown(KEY_ESCAPE)
     dt# = DeltaTime() * 60
-    TurnEntity(cube, 0.4 * dt, 0.9 * dt, 0)
-    TurnEntity(ball, 0, -0.6 * dt, 0)
+    cube.Turn(0.4 * dt, 0.9 * dt, 0)
+    ball.Turn(0, -0.6 * dt, 0)
 
     If KeyHit(KEY_H) Then
         If WindowClosed(win) Then

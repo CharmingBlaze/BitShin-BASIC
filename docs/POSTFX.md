@@ -6,14 +6,14 @@ OpenGL **3.3** fullscreen blit. After the G3N scene (and water FBO / shadows), t
 
 | Pass | What it is | What it is not |
 | --- | --- | --- |
-| Tonemap | Reinhard `c/(c+1)` after exposure | ACES filmic LUT |
-| Bloom | 9-tap bright extract in the same shader | Separate half-res mip chain / compute |
+| Tonemap | After exposure: `reinhard` (default, `c/(c+1)`), `neutral` (Khronos PBR Neutral), `aces` (fitted), `none` (clamp) | A separate filmic LUT texture |
+| Bloom | Half-resolution chain (bright extract, then four smaller passes) added before tonemap. The 9-tap extract remains if the chain cannot be built | Separate compute bloom |
 | FXAA | Neighbor luma blend | SMAA / TAA |
 | Grade | Contrast, saturation, RGB tint | Lift/gamma/gain wheels |
 
 ImGui draws **after** the blit so editor panels stay unprocessed.
 
-Commands: `EnablePostFX`, `SetExposure`, `SetBloom`, `SetFXAA`, `SetColorGrade`. See `docs/COMMANDS.md` for ranges and getters.
+Commands: `EnablePostFX`, `SetExposure`, `SetTonemap`, `SetBloom`, `SetFXAA`, `SetColorGrade`. Outdoor and indoor lighting presets store an exposure and the neutral tonemap; they do not enable this stack. See `docs/LIGHTING.md` and `docs/COMMANDS.md`.
 
 ```powershell
 .\bs.exe examples\postfx.bb

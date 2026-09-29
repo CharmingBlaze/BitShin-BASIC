@@ -1,29 +1,27 @@
-; Two cameras, two viewports. Click to CameraPick. Esc quits.
+; Splitscreen — two cameras, two viewports; click left view to CameraPick.
+; Esc quits.
 
 Graphics3D(800, 600)
 SetBuffer(BackBuffer())
 SetWindowTitle("BitShin BASIC — splitscreen")
 
+; Left / right cameras
 camL = CreateCamera()
-SetPosition(camL, -3, 2, -6)
+camL.Position([-3, 2, -6])
 SetCameraViewport(camL, 0, 0, 400, 600)
 
 camR = CreateCamera()
-SetPosition(camR, 3, 2, -6)
+camR.Position([3, 2, -6])
 SetCameraViewport(camR, 400, 0, 400, 600)
 
+; Scene
 light = CreateLight()
-ground = CreatePlane()
-SetEntityColor(ground, 40, 48, 58)
+ground = CreatePlane().Color(40, 48, 58)
 
-a = CreateCube()
-SetPosition(a, -2, 0.5, 4)
-SetEntityColor(a, 255, 90, 90)
+a = CreateCube().Position([-2, 0.5, 4]).Color(255, 90, 90)
 SetEntityRadius(a, 1)
 
-b = CreateSphere()
-SetPosition(b, 2, 0.5, 4)
-SetEntityColor(b, 80, 180, 255)
+b = CreateSphere().Position([2, 0.5, 4]).Color(80, 180, 255)
 SetEntityRadius(b, 1)
 
 While Not KeyDown(KEY_ESCAPE)

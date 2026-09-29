@@ -15,6 +15,7 @@ const KEYWORDS = [
   'include', 'import', 'as',
   'and', 'or', 'not', 'xor', 'mod', 'shl', 'shr', 'sar',
   'end', 'exit', 'goto', 'gosub',
+  'strict', 'try', 'catch', 'endtry', 'local', 'global', 'struct', 'method',
   'new', 'delete', 'first', 'last', 'after', 'before', 'insert', 'each'
 ];
 

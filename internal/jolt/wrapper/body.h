@@ -57,8 +57,11 @@ void JoltSetBodyShape(JoltBodyInterface bodyInterface,
                      JoltShape shape,
                      int updateMassProperties);
 
-// Destroy a body ID
+// Destroy a body ID wrapper only (does not remove the body from the world).
 void JoltDestroyBodyID(JoltBodyID bodyID);
+
+// Remove the body from the world, destroy it, and free the ID wrapper.
+void JoltRemoveAndDestroyBody(JoltBodyInterface bodyInterface, JoltBodyID bodyID);
 
 // Packed BodyID index+sequence (stable across heap copies of the same ID)
 unsigned int JoltGetBodyIDValue(JoltBodyID bodyID);
@@ -100,6 +103,7 @@ void JoltSetBodyMotionQuality(JoltBodyInterface bodyInterface, JoltBodyID bodyID
 
 // Inverse mass (dynamic bodies only)
 void JoltSetBodyMass(JoltPhysicsSystem system, JoltBodyID bodyID, float mass);
+float JoltGetInverseMass(JoltPhysicsSystem system, JoltBodyID bodyID);
 
 void JoltAddForceAtPosition(JoltBodyInterface bodyInterface, JoltBodyID bodyID,
                            float fx, float fy, float fz,

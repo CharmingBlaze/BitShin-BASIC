@@ -20,10 +20,10 @@
 
   <div class="ide-status-group">
     {#if editorStore.isRunning}
-      <span style="color: var(--warn);">Running</span>
+      <span class="is-warn">Running</span>
       <span class="ide-status-sep"></span>
     {:else if editorStore.exitCode === 0}
-      <span style="color: var(--ok-text);">Ready</span>
+      <span class="is-ok">Ready</span>
       <span class="ide-status-sep"></span>
     {/if}
     <span class="ide-lsp" title={editorStore.lspConnected ? 'Language server connected' : 'Language server disconnected'}>

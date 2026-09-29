@@ -64,6 +64,20 @@ export const AppAPI = {
     return null;
   },
 
+  async setBreakpoints(lines: string) {
+    if (window.go?.main?.App?.SetBreakpoints) {
+      return await window.go.main.App.SetBreakpoints(lines);
+    }
+    return null;
+  },
+
+  async debugCommand(line: string) {
+    if (window.go?.main?.App?.DebugCommand) {
+      return await window.go.main.App.DebugCommand(line);
+    }
+    return null;
+  },
+
   async runProgram(code: string, filePath: string, debug: boolean) {
     if (window.go?.main?.App?.RunProgram) {
       return await window.go.main.App.RunProgram(code, filePath, debug);

@@ -1,9 +1,10 @@
-; Flecs stress: thousands of Position+Velocity entities. Progress integrates.
+; ECS Crowd — thousands of Position+Velocity entities (console)
 
 EcsWorld()
 pos = EcsComponent("Position")
 vel = EcsComponent("Velocity")
 
+; Spawn a crowd with random positions and velocities
 n = 2000
 For i = 1 To n
     e = EcsEntity()
@@ -14,6 +15,7 @@ Next
 q = EcsQuery("Position, Velocity")
 Print("BitShin BASIC ecs crowd", EcsQueryCount(q), "Flecs", EcsVersion$())
 
+; Advance simulation for 30 frames
 For f = 1 To 30
     EcsProgress(0.016)
 Next

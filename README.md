@@ -83,6 +83,9 @@ A bouncing oval and a rectangle. Esc quits.
 .\bs.exe examples\splitscreen.bb
 .\bs.exe examples\scenes.bb
 .\bs.exe examples\gui_demo.bb
+.\bs.exe examples\hud_demo.bb
+.\bs.exe examples\ssao_demo.bb
+.\bs.exe examples\trigger_zone_demo.bb
 .\bs.exe examples\ecs.bb
 .\bs.exe examples\terrain.bb
 .\bs.exe examples\terrain_gl.bb
@@ -95,7 +98,24 @@ A bouncing oval and a rectangle. Esc quits.
 .\bs.exe examples\largeworld.bb
 ```
 
-Package a zip-ready folder with `bs build examples\scenes.bb -o dist`. That writes the binary, the `.bb`, assets, and natives from `third_party/windows|linux|darwin` next to it. Run from that folder.
+### Standalone Ahead-of-Time (AOT) Native Compiler
+
+Modern Blitz includes its own native compiler. You can compile any `.bb` script directly into a standalone machine-code binary with zero interpreter overhead:
+
+```powershell
+# Compile directly to a standalone native binary (.exe on Windows, ELF/Mach-O on Linux/macOS)
+.\bs.exe compile examples\hud_demo.bb -o dist\game.exe
+
+# Transpile BlitzBasic code into clean, formatted native Go source code
+.\bs.exe transpile examples\hud_demo.bb -o game.go
+
+# Export standalone HTML5 Web Player bundle (WASM)
+.\bs.exe build examples\hud_demo.bb -o dist\web -os wasm
+```
+
+You can also package a portable folder using `bs build examples\scenes.bb -o dist`. That writes the binary, assets, and natives from `third_party/windows|linux|darwin` next to it. Run from that folder.
+
+The built game keeps its window until the script ends, you press Escape (after the first frames; a focus ghost does not quit on frame 0), or you close the window. `Flip` presents the frame. Shaders, water, shadows, particles, and physics live in this runtime, so an exe you already compiled does not pick up a newer `bs.exe` until you compile that game again.
 
 **Windows:** MinGW `gcc` on `PATH`. Dist copies `libc++.dll` and `libunwind.dll` (ImGui). Audio is Oto — no OpenAL DLL.  
 **Linux / macOS:** a C compiler and an OpenGL driver. Audio is Oto — no OpenAL package.
@@ -145,18 +165,22 @@ Do not mix `Graphics3D` and `Graphics2D` in one program.
 | `examples/net_host.bb` | `CreateNetworkHost` / `PollNetwork` |
 | `examples/anim.bb` | `LoadAnimation` (needs `hero.glb`) |
 | `examples/tiles.bb` | Tilemap |
-| `examples/particles.bb` | 3D `CreateEmitter` |
+| `examples/particles.bb` | 3D particles: `SetEmitterShape` `"soft"` or `"cube"` |
 | `examples/particles2d.bb` | 2D `CreateEmitter2D` |
 | `examples/splitscreen.bb` | `SetCameraViewport` / `CameraPick` |
 | `examples/struct.bb` | Struct / Method / Import / Namespace |
 | `examples/scenes.bb` | `ClearWorld` / `LoadScene` |
 | `examples/gui_demo.bb` | ImGui on the G3N window |
+| `examples/hud_demo.bb` | 2D HUD / canvas overlay on 3D (`Rect`, `Oval`, `Line`, `Text`) |
+| `examples/ssao_demo.bb` | Screen-Space Ambient Occlusion (SSAO) post-processing |
+| `examples/trigger_zone_demo.bb` | Physics trigger sensor zones + 3D audio |
 | `examples/ecs.bb` | Flecs (console) |
 | `examples/ecs_crowd.bb` | 2000 Flecs Position+Velocity |
 | `examples/nav.bb` | Detour (mesh bake) + grid A* |
 | `examples/crowd.bb` | Crowd separation + Detour agents |
 | `examples/stream.bb` | World chunk stream (WASD) |
 | `examples/terrain.bb` | Proc terrain + splat + height snap |
+| `examples/outdoor.bb` | Grass, trees, props, time of day, rooms, use, save (`docs/PLAY.md`) |
 | `examples/terrain_gl.bb` | Terrain-OpenGL port (splat, water, sky, clouds) |
 | `examples/heightmap.bb` | Generate / erode / save PNG / mesh |
 | `examples/geo.bb` | GeoJSON path + geo-bounded heightmap (WASD) |
@@ -193,11 +217,13 @@ This workspace maps `*.bb` → language id `bitshinbasic` (`.vscode/settings.jso
 - [docs/RELEASE.md](docs/RELEASE.md) — portable `bs build` folders
 - [docs/COMPAT.md](docs/COMPAT.md) — OpenGL 3.3 required / 4.x optional
 - [docs/GRAPHICS.md](docs/GRAPHICS.md) — optional compute / SSBO / tess / GPU instances
+- [docs/LIGHTING.md](docs/LIGHTING.md) — Phong lights, falloff, indoor / outdoor, time of day
 - [docs/PBR.md](docs/PBR.md) — metallic-roughness (`mbphysical`)
 - [docs/TERRAIN.md](docs/TERRAIN.md) — heightmap, proc, LOD, stream (GL 3.3)
+- [docs/PLAY.md](docs/PLAY.md) — grass, trees, props, time of day, rooms, use, save
 - [docs/GEO.md](docs/GEO.md) — lon/lat origin, tiles, GeoJSON (go-geo subset)
 - [docs/WATER.md](docs/WATER.md) — Gerstner + scenic dual-FBO water (no FFT)
-- [docs/STREAM.md](docs/STREAM.md) — chunk stream, GL upload on Flip
+- [docs/STREAM.md](docs/STREAM.md) — old chunk stream, and the `SetPlayer` bubble
 - [docs/POSTFX.md](docs/POSTFX.md) — fullscreen blit stack
 - [docs/SHADERS.md](docs/SHADERS.md) — GLSL 330 programs + PBR
 - [docs/ASSETS.md](docs/ASSETS.md) — formats (`LoadMesh`, no FBX)

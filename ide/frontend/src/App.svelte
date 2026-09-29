@@ -7,6 +7,8 @@
   import CommandRef from './lib/components/CommandRef.svelte';
   import SymbolOutline from './lib/components/SymbolOutline.svelte';
   import ExamplesGallery from './lib/components/ExamplesGallery.svelte';
+  import AssetBrowser from './lib/components/AssetBrowser.svelte';
+  import ScenePanel from './lib/components/ScenePanel.svelte';
   import OutputPanel from './lib/components/OutputPanel.svelte';
   import Editor from './lib/editor/Editor.svelte';
   import NewFileModal from './lib/components/NewFileModal.svelte';
@@ -112,6 +114,10 @@
           <SymbolOutline />
         {:else if editorStore.activeSidebarTab === 'examples'}
           <ExamplesGallery />
+        {:else if editorStore.activeSidebarTab === 'assets'}
+          <AssetBrowser />
+        {:else if editorStore.activeSidebarTab === 'scene'}
+          <ScenePanel />
         {/if}
       </div>
     {/if}

@@ -1,5 +1,8 @@
-; BitShin BASIC — classic arcade JetSki demo on modern water + Jolt physics.
+; JetSki — arcade ride on Gerstner ocean with Jolt buoyancy.
+; W/Up throttle, S reverse, A/D or arrows steer, mouse look.
+; Esc quits after a few frames.
 
+; window
 SetWindowTitle("BitShin BASIC — JetSki")
 Graphics3D(1280, 720, 0, 2)
 SetBuffer(BackBuffer())
@@ -8,6 +11,7 @@ SetAmbientLight(82, 94, 112)
 HidePointer()
 MoveMouse(640, 360)
 
+; camera
 cam = CreateCamera()
 SetCameraRange(cam, 0.2, 2600)
 CreateSkyBox("default")
@@ -22,6 +26,7 @@ SetLightColor(sun, 255, 237, 202)
 SetLightShadow(sun, True)
 EnableShadows(True)
 
+; world
 ; Rolling ocean: enough chop to launch from a crest without hammering the hull.
 water = CreateWater(520, 520, 160)
 SetWaterStyle("ocean")
@@ -40,90 +45,42 @@ SetWaterCaustics(water, True)
 
 ; Slalom markers give the open water a classic arcade course.
 For i = 0 To 11
-    marker = CreateSphere(10)
-    SetScale(marker, 0.48, 0.48, 0.48)
+    marker = CreateSphere(10).Scale(0.48, 0.48, 0.48)
     mx# = -7
     If i Mod 2 = 1 Then mx = 7
     mz# = 18 + i * 14
-    SetPosition(marker, mx, WaterHeight(mx, mz) + 0.55, mz)
+    marker.Position([mx, WaterHeight(mx, mz) + 0.55, mz])
     If i Mod 2 = 0
-        SetEntityColor(marker, 255, 92, 34)
+        marker.Color(255, 92, 34)
     Else
-        SetEntityColor(marker, 255, 218, 52)
+        marker.Color(255, 218, 52)
     EndIf
     CreateBuoy(marker)
 Next
 
+; vehicle
 ; The physics body is the pivot; all visible parts are children.
-jetski = CreatePivot()
-SetPosition(jetski, 0, 1.35, 0)
+jetski = CreatePivot().Position([0, 1.35, 0])
 
-hull = CreateCube(jetski)
-SetScale(hull, 0.58, 0.25, 1.52)
-SetPosition(hull, 0, -0.02, 0)
-SetEntityColor(hull, 236, 48, 34)
-
-deck = CreateCube(jetski)
-SetScale(deck, 0.49, 0.13, 1.04)
-SetPosition(deck, 0, 0.28, -0.10)
-SetEntityColor(deck, 248, 82, 38)
-
-nose = CreateCone(10, jetski)
-SetScale(nose, 0.56, 0.72, 0.42)
-SetPosition(nose, 0, 0.06, 1.30)
-SetRotation(nose, 90, 0, 0)
-SetEntityColor(nose, 248, 88, 38)
-
-seat = CreateCube(jetski)
-SetScale(seat, 0.35, 0.12, 0.52)
-SetPosition(seat, 0, 0.48, -0.55)
-SetEntityColor(seat, 28, 32, 38)
-
-column = CreateCylinder(8, jetski)
-SetScale(column, 0.08, 0.42, 0.08)
-SetPosition(column, 0, 0.62, 0.38)
-SetRotation(column, -16, 0, 0)
-SetEntityColor(column, 42, 46, 50)
-
-bars = CreateCube(jetski)
-SetScale(bars, 0.48, 0.035, 0.035)
-SetPosition(bars, 0, 0.98, 0.30)
-SetEntityColor(bars, 28, 30, 34)
+hull = CreateCube(jetski).Scale(0.58, 0.25, 1.52).Position([0, -0.02, 0]).Color(236, 48, 34)
+deck = CreateCube(jetski).Scale(0.49, 0.13, 1.04).Position([0, 0.28, -0.10]).Color(248, 82, 38)
+nose = CreateCone(10, jetski).Scale(0.56, 0.72, 0.42).Position([0, 0.06, 1.30]).Rotate(90, 0, 0).Color(248, 88, 38)
+seat = CreateCube(jetski).Scale(0.35, 0.12, 0.52).Position([0, 0.48, -0.55]).Color(28, 32, 38)
+column = CreateCylinder(8, jetski).Scale(0.08, 0.42, 0.08).Position([0, 0.62, 0.38]).Rotate(-16, 0, 0).Color(42, 46, 50)
+bars = CreateCube(jetski).Scale(0.48, 0.035, 0.035).Position([0, 0.98, 0.30]).Color(28, 30, 34)
 
 ; Simple rider silhouette, leaning visually with the steering input.
-rider = CreatePivot(jetski)
-SetPosition(rider, 0, 0.52, -0.48)
+rider = CreatePivot(jetski).Position([0, 0.52, -0.48])
 
-body = CreateCylinder(10, rider)
-SetScale(body, 0.25, 0.46, 0.21)
-SetPosition(body, 0, 0.52, 0)
-SetEntityColor(body, 28, 68, 172)
-
-head = CreateSphere(10, rider)
-SetScale(head, 0.19, 0.19, 0.19)
-SetPosition(head, 0, 1.15, 0.06)
-SetEntityColor(head, 255, 194, 142)
-
-helmet = CreateSphere(10, rider)
-SetScale(helmet, 0.205, 0.14, 0.205)
-SetPosition(helmet, 0, 1.24, 0.04)
-SetEntityColor(helmet, 244, 238, 224)
-
-armL = CreateCube(rider)
-SetScale(armL, 0.055, 0.055, 0.40)
-SetPosition(armL, -0.24, 0.70, 0.40)
-SetRotation(armL, -22, 9, 0)
-SetEntityColor(armL, 255, 194, 142)
-
-armR = CreateCube(rider)
-SetScale(armR, 0.055, 0.055, 0.40)
-SetPosition(armR, 0.24, 0.70, 0.40)
-SetRotation(armR, -22, -9, 0)
-SetEntityColor(armR, 255, 194, 142)
+body = CreateCylinder(10, rider).Scale(0.25, 0.46, 0.21).Position([0, 0.52, 0]).Color(28, 68, 172)
+head = CreateSphere(10, rider).Scale(0.19, 0.19, 0.19).Position([0, 1.15, 0.06]).Color(255, 194, 142)
+helmet = CreateSphere(10, rider).Scale(0.205, 0.14, 0.205).Position([0, 1.24, 0.04]).Color(244, 238, 224)
+armL = CreateCube(rider).Scale(0.055, 0.055, 0.40).Position([-0.24, 0.70, 0.40]).Rotate(-22, 9, 0).Color(255, 194, 142)
+armR = CreateCube(rider).Scale(0.055, 0.055, 0.40).Position([0.24, 0.70, 0.40]).Rotate(-22, -9, 0).Color(255, 194, 142)
 
 ; White stern spray. Its rate follows speed.
 spray = CreateEmitter(jetski)
-SetPosition(spray, 0, -0.18, -1.48)
+spray.Position([0, -0.18, -1.48])
 SetEmitterRate(spray, 0)
 SetEmitterMax(spray, 90)
 SetEmitterLife(spray, 0.55)
@@ -137,6 +94,7 @@ SetEmitterGravity(spray, 0, -5.5, 0)
 CreateJetSkiController(jetski, 0.60, 0.35, 1.55, 380)
 SetCCD(jetski, True)
 
+; loop
 camYaw# = 0
 camPitch# = 13
 steerSmooth# = 0

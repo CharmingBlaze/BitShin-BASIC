@@ -26,7 +26,7 @@
     </div>
     <div class="ide-modal-body space-y-4 text-xs">
       <div>
-        <label for="theme-select" style="display:block;margin-bottom:6px;color:var(--text-secondary);">Editor theme</label>
+        <label for="theme-select" class="ide-label">Editor theme</label>
         <select id="theme-select" class="ide-field" bind:value={editorStore.settings.theme}>
           {#each themes as t}
             <option value={t.id}>{t.name}</option>
@@ -35,11 +35,11 @@
       </div>
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label for="font-size-input" style="display:block;margin-bottom:6px;color:var(--text-secondary);">Font size</label>
+          <label for="font-size-input" class="ide-label">Font size</label>
           <input id="font-size-input" class="ide-field" type="number" min="10" max="32" bind:value={editorStore.settings.fontSize} />
         </div>
         <div>
-          <label for="tab-size-select" style="display:block;margin-bottom:6px;color:var(--text-secondary);">Tab size</label>
+          <label for="tab-size-select" class="ide-label">Tab size</label>
           <select id="tab-size-select" class="ide-field" bind:value={editorStore.settings.tabSize}>
             <option value={2}>2</option>
             <option value={4}>4</option>
@@ -47,12 +47,12 @@
           </select>
         </div>
       </div>
-      <label class="flex items-center justify-between" style="padding:8px;border:1px solid var(--border);">
+      <label class="ide-check">
         <span>Show minimap</span>
         <input type="checkbox" bind:checked={editorStore.settings.minimap} />
       </label>
       <div>
-        <label for="wrap-select" style="display:block;margin-bottom:6px;color:var(--text-secondary);">Word wrap</label>
+        <label for="wrap-select" class="ide-label">Word wrap</label>
         <select id="wrap-select" class="ide-field" bind:value={editorStore.settings.wordWrap}>
           <option value="off">Off</option>
           <option value="on">On</option>

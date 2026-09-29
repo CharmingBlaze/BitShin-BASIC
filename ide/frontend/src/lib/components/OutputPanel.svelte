@@ -43,7 +43,12 @@
         >Problems{problems.length ? ` (${problems.length})` : ''}</button>
       </div>
 
-      {#if editorStore.isRunning}
+      {#if editorStore.debugPaused}
+        <span class="ide-badge err">Paused</span>
+        <button class="ide-iconbtn" title="Continue" onclick={() => editorStore.sendDebug('c')}>C</button>
+        <button class="ide-iconbtn" title="Step" onclick={() => editorStore.sendDebug('s')}>S</button>
+        <button class="ide-iconbtn" title="Quit" onclick={() => editorStore.sendDebug('q')}>Q</button>
+      {:else if editorStore.isRunning}
         <span class="ide-badge run">Running</span>
       {:else if editorStore.exitCode !== null}
         {#if editorStore.exitCode === 0}
@@ -56,8 +61,7 @@
 
     <div class="flex items-center gap-1" onclick={(e) => e.stopPropagation()}>
       <button
-        class="ide-iconbtn"
-        style={autoScroll ? 'color: var(--accent);' : ''}
+        class="ide-iconbtn {autoScroll ? 'is-on' : ''}"
         onclick={() => autoScroll = !autoScroll}
         title="Auto-scroll"
       >
@@ -79,7 +83,7 @@
   {#if !editorStore.isOutputCollapsed}
     <div bind:this={logContainer} class="ide-log">
       {#if visibleLogs.length === 0}
-        <div style="color: var(--text-dim);">
+        <div class="ide-quiet" style="padding:12px;text-align:left;">
           {#if editorStore.panelTab === 'problems'}
             No problems reported.
           {:else}
@@ -90,7 +94,7 @@
         {#each visibleLogs as log}
           <div class="ide-log-row">
             <span class="ide-log-time">[{log.time}]</span>
-            <div class="ide-log-{log.type}" style="flex:1;word-break:break-all;">
+            <div class="ide-log-{log.type} ide-log-body">
               {log.text}
               {#if log.line}
                 <button class="ide-jump" onclick={() => jumpToLocation(log.line)}>line {log.line}</button>

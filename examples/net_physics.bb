@@ -1,30 +1,28 @@
-; Hinged door + optional network host. Esc after Flip (frames>8).
-; CreateNetworkHost uses UDP unless built with -tags enet.
+; Net physics — hinged door; Space (or a net "kick") applies impulse.
+; Optional UDP host on 27015. Esc quits after a few frames.
 
 SetWindowTitle("BitShin BASIC — Net physics")
 Graphics3D(960, 600, 0, 2)
 SetCameraClsColor(18, 20, 28)
 
+; Camera
 cam = CreateCamera()
-SetPosition(cam, 0, 6, -14)
-SetRotation(cam, 18, 0, 0)
+cam.Position([0, 6, -14])
+cam.Rotate(18, 0, 0)
 CreateLight()
 
-ground = CreateCube()
-ScaleEntity(ground, 10, 0.2, 10)
-PositionEntity(ground, 0, 0, 8)
-SetEntityColor(ground, 50, 56, 70)
+; Static ground
+ground = CreateCube().Scale(10, 0.2, 10).Position([0, 0, 8]).Color(50, 56, 70)
 CreateBodyBox(ground, 10, 0.2, 10, 0)
 
-door = CreateCube()
-ScaleEntity(door, 0.08, 1.6, 0.9)
-PositionEntity(door, 0, 2, 8)
-SetEntityColor(door, 210, 140, 70)
+; Hinged door
+door = CreateCube().Scale(0.08, 1.6, 0.9).Position([0, 2, 8]).Color(210, 140, 70)
 doorBody = CreateBodyBox(door, 0.08, 1.6, 0.9, 2)
 
-; 0 = world/static
+; 0 = world/static hinge
 doorHinge = CreateHingeJoint(0, doorBody, -1, 2, 8, 0, 1, 0)
 
+; Optional network host (UDP unless built with -tags enet)
 host = CreateNetworkHost(27015, 32)
 If host
     Print("Server running on port 27015  backend=" + GetNetBackend())

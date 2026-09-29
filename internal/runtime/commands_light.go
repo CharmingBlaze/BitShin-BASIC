@@ -17,9 +17,13 @@ func (w *World) makeLight(kind, parent int) int {
 	case 0:
 		return w.finishLight(light.NewAmbient(col, 0.8), 0, parent)
 	case 2:
-		return w.finishLight(light.NewPoint(col, 8), 2, parent)
+		pt := light.NewPoint(col, 2.6)
+		tuneLocalLight(pt)
+		return w.finishLight(pt, 2, parent)
 	case 3:
-		return w.finishLight(light.NewSpot(col, 8), 3, parent)
+		sp := light.NewSpot(col, 3.4)
+		tuneLocalLight(sp)
+		return w.finishLight(sp, 3, parent)
 	default:
 		id := w.finishLight(light.NewDirectional(col, 1.15), 1, parent)
 		w.setLightDir(w.ents[id], 40, 30, 0)
@@ -385,7 +389,200 @@ func (w *World) lightCommands(n func(func([]value.Value) (value.Value, error)) c
 			if err != nil {
 				return value.Value{}, err
 			}
-			_ = e
+			e.lgtSpec = *rgb(argN(a, 1, 255), argN(a, 2, 255), argN(a, 3, 255))
+			e.lgtSpecOn = true
+			return z()
+		}),
+		"setlightambient": need(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			e.lgtAmb = *rgb(argN(a, 1, 0), argN(a, 2, 0), argN(a, 3, 0))
+			e.lgtAmbOn = true
+			return z()
+		}),
+		"setlightattenuation": need(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			w.setLightAttenuation(e, float32(argN(a, 1, 1)), float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0)))
+			return z()
+		}),
+		"outdoorlighting": need(func(a []value.Value) (value.Value, error) {
+			return value.Num(float64(w.applyLightEnvironment("outdoor"))), nil
+		}),
+		"indoorlighting": need(func(a []value.Value) (value.Value, error) {
+			return value.Num(float64(w.applyLightEnvironment("indoor"))), nil
+		}),
+		"setlighttemperature": need(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			w.setLightTemperature(e, argN(a, 1, 6500))
+			return z()
+		}),
+		"setlightenabled": need(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			w.setLightEnabled(e, argI(a, 1, 1) != 0)
+			return z()
+		}),
+		"getlightintensity": need(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			cur, _ := lightIntensityOf(e)
+			return value.Num(float64(cur)), nil
+		}),
+		"getlightrange": need(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			return value.Num(float64(entityLightRange(e))), nil
+		}),
+		"getlighttype": need(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			return value.Num(float64(e.lgtKind)), nil
+		}),
+		"getlightred": need(func(a []value.Value) (value.Value, error) {
+			return lightChan(w, a, 0)
+		}),
+		"getlightgreen": need(func(a []value.Value) (value.Value, error) {
+			return lightChan(w, a, 1)
+		}),
+		"getlightblue": need(func(a []value.Value) (value.Value, error) {
+			return lightChan(w, a, 2)
+		}),
+		"settimeofday": need(func(a []value.Value) (value.Value, error) {
+			w.setTimeOfDay(argN(a, 0, 12))
+			return value.Num(w.timeOfDay), nil
+		}),
+		"gettimeofday": n(func(a []value.Value) (value.Value, error) {
+			return value.Num(w.timeOfDay), nil
+		}),
+		"createthreepoint": need(func(a []value.Value) (value.Value, error) {
+			return value.Num(float64(w.createThreePoint())), nil
+		}),
+		"setlightcookie": need(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			if t := w.texs[argI(a, 1, 0)]; t != nil {
+				e.lgtCookie = t.tex
+			}
+			return z()
+		}),
+		"setentitynormalmap": need(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			if t := w.texs[argI(a, 1, 0)]; t != nil {
+				w.setPhongNormal(e, t.tex)
+			}
+			return z()
+		}),
+		"setgammacorrection": n(func(a []value.Value) (value.Value, error) {
+			on := float32(0)
+			if argI(a, 0, 1) != 0 {
+				on = 1
+			}
+			if w.shaderUnis == nil {
+				w.shaderUnis = map[string]shaderUni{}
+			}
+			w.shaderUnis["GammaOut"] = shaderUni{n: 1, v: [4]float32{on}}
+			return value.Num(float64(on)), nil
+		}),
+		"setlighting": need(func(a []value.Value) (value.Value, error) {
+			mode := strings.ToLower(strings.TrimSpace(argS(a, 0)))
+			if mode == "" {
+				switch argI(a, 0, 0) {
+				case 1:
+					mode = "outdoor"
+				case 2:
+					mode = "indoor"
+				}
+			}
+			return value.Num(float64(w.applyLightEnvironment(mode))), nil
+		}),
+		"getlighting": n(func(a []value.Value) (value.Value, error) {
+			return value.Num(float64(w.lightEnv)), nil
+		}),
+		"setlightfalloff": need(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			mode := strings.ToLower(strings.TrimSpace(argS(a, 1)))
+			if mode == "" {
+				switch argI(a, 1, 0) {
+				case 1:
+					mode = "classic"
+				case 2:
+					mode = "physical"
+				default:
+					mode = "smooth"
+				}
+			}
+			w.setLightFalloff(e, mode)
+			return z()
+		}),
+		"entityambient": need(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			if e.mat != nil {
+				e.mat.SetAmbientColor(rgb(argN(a, 1, 255), argN(a, 2, 255), argN(a, 3, 255)))
+			}
+			return z()
+		}),
+		"entityemissive": need(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			c := rgb(argN(a, 1, 0), argN(a, 2, 0), argN(a, 3, 0))
+			if e.mat != nil {
+				e.mat.SetEmissiveColor(c)
+			}
+			if e.pbrWrap != nil {
+				e.pbrWrap.emissive = *c
+				e.pbrWrap.applyFactors()
+			} else if e.pbr != nil {
+				e.pbr.SetEmissiveFactor(c)
+			}
+			return z()
+		}),
+		"setspecularmap": need(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			if t := w.texs[argI(a, 1, 0)]; t != nil {
+				w.setPhongMap(e, t.tex, true)
+			}
+			return z()
+		}),
+		"setemissionmap": need(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			if t := w.texs[argI(a, 1, 0)]; t != nil {
+				w.setPhongMap(e, t.tex, false)
+			}
 			return z()
 		}),
 		"entitycastshadow": need(func(a []value.Value) (value.Value, error) {
@@ -419,4 +616,20 @@ func (w *World) lightCommands(n func(func([]value.Value) (value.Value, error)) c
 			return z()
 		}),
 	}
+}
+
+func lightChan(w *World, a []value.Value, ch int) (value.Value, error) {
+	e, err := w.ent(argI(a, 0, 0))
+	if err != nil {
+		return value.Value{}, err
+	}
+	col, _ := lightRadiance(e.node)
+	v := col.R
+	if ch == 1 {
+		v = col.G
+	}
+	if ch == 2 {
+		v = col.B
+	}
+	return value.Num(float64(v) * 255), nil
 }

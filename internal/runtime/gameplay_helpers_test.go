@@ -150,3 +150,21 @@ func TestFollowPathAndExplode(t *testing.T) {
 		t.Fatalf("explode hit count %v", n.Num)
 	}
 }
+
+func TestEntityMaterial(t *testing.T) {
+	w := New(".")
+	w.ready = true
+	e := &Entity{node: core.NewNode(), mat: w.newMat()}
+	id := w.addEntity(e, 0)
+	mat := value.StructOf("material", []string{"r", "g", "b", "tex", "shine", "spec"})
+	mat.SetField("r", value.Num(10))
+	mat.SetField("g", value.Num(20))
+	mat.SetField("b", value.Num(30))
+	mat.SetField("shine", value.Num(0.25))
+	if _, err := w.Call("entitymaterial", []value.Value{value.Num(float64(id)), mat}); err != nil {
+		t.Fatal(err)
+	}
+	if e.tint.R < 0.03 || e.tint.R > 0.05 {
+		t.Fatalf("tint R %v", e.tint.R)
+	}
+}

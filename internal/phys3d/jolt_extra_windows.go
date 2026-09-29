@@ -65,6 +65,7 @@ func (w *joltWorld) registerBody(id int, b *jolt.BodyID, r float32, motion int) 
 	}
 	w.rad[id] = r
 	w.pendingAdds++
+	w.tuneBody(id)
 }
 
 func (w *joltWorld) AddMesh(id int, verts [][3]float32, indices []int32, motion int) {

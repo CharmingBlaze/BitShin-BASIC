@@ -1,30 +1,27 @@
-; Native Jolt contacts feed EntityCollided / CollisionX.
+; Contact demo — ball drops onto a red hazard cube.
+; Esc quits after a few frames.
 
 SetWindowTitle("BitShin BASIC — Physics contacts")
 Graphics3D(960, 600, 0, 2)
 SetCameraClsColor(18, 20, 28)
 
+; Camera
 cam = CreateCamera()
-SetPosition(cam, 0, 8, -14)
-SetRotation(cam, 20, 0, 0)
+cam.Position([0, 8, -14])
+cam.Rotate(20, 0, 0)
 CreateLight()
 
-ground = CreateCube()
-SetScale(ground, 10, 0.2, 10)
-SetPosition(ground, 0, 0, 8)
-SetEntityColor(ground, 50, 56, 70)
+; Static ground
+ground = CreateCube().Scale(10, 0.2, 10).Position([0, 0, 8]).Color(50, 56, 70)
 CreateBodyBox(ground, 10, 0.2, 10, 0)
 
-hazard = CreateCube()
-SetScale(hazard, 1, 1, 1)
-SetPosition(hazard, 2, 1.2, 8)
-SetEntityColor(hazard, 220, 70, 70)
+; Hazard (collision type 2)
+hazard = CreateCube().Scale(1, 1, 1).Position([2, 1.2, 8]).Color(220, 70, 70)
 SetEntityType(hazard, 2)
 CreateBodyBox(hazard, 1, 1, 1, 0)
 
-ball = CreateSphere(12)
-SetPosition(ball, -2, 6, 8)
-SetEntityColor(ball, 80, 190, 255)
+; Ball (collision type 1)
+ball = CreateSphere(12).Position([-2, 6, 8]).Color(80, 190, 255)
 SetEntityType(ball, 1)
 CreateBodySphere(ball, 1, 1)
 

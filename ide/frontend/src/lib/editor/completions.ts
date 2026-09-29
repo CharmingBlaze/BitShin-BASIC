@@ -65,7 +65,8 @@ export function registerCompletions() {
         'While', 'Wend', 'For', 'To', 'Step', 'Next',
         'Repeat', 'Until', 'Forever', 'Select', 'Case', 'Default',
         'Function', 'End Function', 'Return',
-        'Type', 'Field', 'End Type', 'Const', 'Dim',
+        'Type', 'Field', 'End Type', 'Const', 'Dim', 'Local', 'Global',
+        'Strict', 'Try', 'Catch', 'End Try',
         'Include', 'Import', 'True', 'False', 'Null', 'End'
       ];
 

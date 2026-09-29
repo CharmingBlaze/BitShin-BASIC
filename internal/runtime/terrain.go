@@ -59,6 +59,13 @@ type terrain struct {
 	rock       math32.Color
 	snowOn     bool
 	snowH      float32
+	blendTex   int
+	detailPx   float32
+	scatters   []scatterLayer
+	scatterIDs map[chunkKey][]int
+	built      map[chunkKey]int
+	simOn      map[chunkKey]bool
+	morphOff   bool
 }
 
 func (hf *heightField) sample(x, z float32) float32 {
@@ -154,53 +161,25 @@ func loadHeightImage(path string, worldW, worldD, hscale float32) (heightField, 
 	return heightField{gw: gw, gd: gd, worldW: worldW, worldD: worldD, hscale: hscale, h: h}, nil
 }
 
-// sharedHeightNormal is world-space (same stencil at a given XZ) so
-// neighboring chunks / LOD steps share the edge normal. Halo samples
-// (N+1) let edge verts use the same neighbor heights as the next chunk.
+// sharedHeightNormal is the central-difference normal used by heightmap
+// terrains (Fayaz CDM / CosmicLearn): N = normalize(hL-hR, 2·cell, hD-hU).
+// The same stencil at a given XZ means neighboring chunks and LOD steps
+// share the edge normal. Z is flipped to match toG3N vertex positions.
 func sharedHeightNormal(sample func(x, z float32) float32, x, z, cell float32) (nx, ny, nz float32) {
 	eps := cell
-	if eps < 0.35 {
-		eps = 0.35
+	if eps < 0.2 {
+		eps = 0.2
 	}
-	if eps > 2 {
-		eps = 2
+	if eps > 8 {
+		eps = 8
 	}
-	// 3×3 halo around the vertex; accumulate 4 quad face normals.
-	h := [3][3]float32{}
-	for jz := 0; jz < 3; jz++ {
-		for jx := 0; jx < 3; jx++ {
-			h[jz][jx] = sample(x+float32(jx-1)*eps, z+float32(jz-1)*eps)
-		}
-	}
-	add := func(ax, ay, az, bx, by, bz, cx, cy, cz float32) {
-		e1x, e1y, e1z := bx-ax, by-ay, bz-az
-		e2x, e2y, e2z := cx-ax, cy-ay, cz-az
-		nx += e1y*e2z - e1z*e2y
-		ny += e1z*e2x - e1x*e2z
-		nz += e1x*e2y - e1y*e2x
-	}
-	// G3N positions for the 3×3 (Z flipped).
-	var p [3][3][3]float32
-	for jz := 0; jz < 3; jz++ {
-		for jx := 0; jx < 3; jx++ {
-			wx := x + float32(jx-1)*eps
-			wz := z + float32(jz-1)*eps
-			p[jz][jx][0], p[jz][jx][1], p[jz][jx][2] = toG3N(wx, h[jz][jx], wz)
-		}
-	}
-	// Four quads around the center vertex (1,1), two tris each, matching mesh winding.
-	quad := func(i00, j00, i10, j10, i01, j01, i11, j11 int) {
-		a := p[j00][i00]
-		b := p[j00][i10]
-		c := p[j01][i00]
-		d := p[j01][i11]
-		add(a[0], a[1], a[2], b[0], b[1], b[2], d[0], d[1], d[2])
-		add(a[0], a[1], a[2], d[0], d[1], d[2], c[0], c[1], c[2])
-	}
-	quad(0, 0, 1, 0, 0, 1, 1, 1)
-	quad(1, 0, 2, 0, 1, 1, 2, 1)
-	quad(0, 1, 1, 1, 0, 2, 1, 2)
-	quad(1, 1, 2, 1, 1, 2, 2, 2)
+	hl := sample(x-eps, z)
+	hr := sample(x+eps, z)
+	hd := sample(x, z-eps)
+	hu := sample(x, z+eps)
+	nx = hl - hr
+	ny = 2 * eps
+	nz = -(hd - hu)
 	lenN := float32(math.Sqrt(float64(nx*nx + ny*ny + nz*nz)))
 	if lenN < 1e-5 {
 		return 0, 1, 0
@@ -221,101 +200,209 @@ func gridCoord(a, b float32, i, nQuads int) float32 {
 	return a + (b-a)*float32(i)/float32(nQuads)
 }
 
-func buildHeightMesh(sample func(x, z float32) float32, x0, z0, x1, z1 float32, segs, step int) *geometry.Geometry {
+// terrainMeshSegs raises a coarse chunk so a cell stays near 0.4 world
+// units. Far LOD still thins that count with step inside buildHeightMesh.
+func terrainMeshSegs(span float32, segs int) int {
+	if segs < 2 {
+		segs = 2
+	}
+	const maxCell = float32(0.4)
+	if span > maxCell {
+		need := int(math.Ceil(float64(span / maxCell)))
+		if need > segs {
+			segs = need
+		}
+	}
+	if segs > 72 {
+		segs = 72
+	}
+	return segs
+}
+
+func buildHeightMesh(sample func(x, z float32) float32, x0, z0, x1, z1 float32, segs, step int, morph float32) *geometry.Geometry {
 	if segs < 2 {
 		segs = 2
 	}
 	if step < 1 {
 		step = 1
 	}
-	chunkSize := segs / step // quads along a side
-	if chunkSize < 1 {
-		chunkSize = 1
+	if step > segs {
+		step = segs
 	}
-	n := chunkSize + 1 // vertsPerSide; overlap 1 row with the neighbor's first row
-	pos := math32.NewArrayF32(0, n*n*3+n*4*3)
-	nor := math32.NewArrayF32(0, n*n*3+n*4*3)
-	uvs := math32.NewArrayF32(0, n*n*2+n*4*2)
-	idx := math32.NewArrayU32(0, (n-1)*(n-1)*6+n*4*6)
-	const normCell = float32(0.85)
+	full := segs
+	span := x1 - x0
+	if span < 0.001 {
+		span = 0.001
+	}
+	raw := sample
+	sample = func(x, z float32) float32 {
+		return coarseY(raw, x, z, x0, z0, x1, z1, full, step, morph)
+	}
+	normCell := span / float32(full)
+	if normCell < 0.2 {
+		normCell = 0.2
+	}
 	const skirtDrop = float32(8)
+	n := full + 1
+	ids := make([]int, n*n)
+	for i := range ids {
+		ids[i] = -1
+	}
+	keep := func(ix, iz int) bool {
+		if ix == 0 || iz == 0 || ix == full || iz == full {
+			return true
+		}
+		return ix%step == 0 && iz%step == 0
+	}
+	pos := math32.NewArrayF32(0, 0)
+	nor := math32.NewArrayF32(0, 0)
+	uvs := math32.NewArrayF32(0, 0)
+	idx := math32.NewArrayU32(0, 0)
 	nverts := 0
-	vert := func(x, z, yoff float32) {
+	vert := func(x, z, yoff float32) int {
 		y := sample(x, z) - yoff
 		gx, gy, gz := toG3N(x, y, z)
 		pos.Append(gx, gy, gz)
 		nx, ny, nz := sharedHeightNormal(sample, x, z, normCell)
 		nor.Append(nx, ny, nz)
-		uvs.Append((x-x0)/max32(x1-x0, 1)*4, (z-z0)/max32(z1-z0, 1)*4)
+		uvs.Append((x-x0)/max32(span, 1)*4, (z-z0)/max32(z1-z0, 1)*4)
+		id := nverts
 		nverts++
+		return id
 	}
 	for iz := 0; iz < n; iz++ {
 		for ix := 0; ix < n; ix++ {
-			x := gridCoord(x0, x1, ix, chunkSize)
-			z := gridCoord(z0, z1, iz, chunkSize)
-			vert(x, z, 0)
+			if !keep(ix, iz) {
+				continue
+			}
+			ids[iz*n+ix] = vert(gridCoord(x0, x1, ix, full), gridCoord(z0, z1, iz, full), 0)
 		}
 	}
-	for iz := 0; iz < n-1; iz++ {
-		for ix := 0; ix < n-1; ix++ {
-			a := uint32(iz*n + ix)
-			b := a + 1
-			c := a + uint32(n)
-			d := c + 1
-			idx.Append(a, b, d, a, d, c)
+	at := func(ix, iz int) uint32 {
+		id := ids[iz*n+ix]
+		if id < 0 {
+			return 0
 		}
+		return uint32(id)
 	}
-	// Vertical skirts so LOD T-junctions don't flash the sky (white horizon slits).
-	base := uint32(n * n)
-	addSkirt := func(s0, s1, k0, k1 uint32) {
-		if nverts < 1 {
+	// Coarse interior quads. Border edges stay at full resolution so a
+	// step-2/4 chunk shares vertices with a step-1 neighbor (the same job
+	// tessellation outer-levels do on GL 4).
+	for iz := 0; iz < full; {
+		nz := iz + step
+		if nz > full {
+			nz = full
+		}
+		for ix := 0; ix < full; {
+			nx := ix + step
+			if nx > full {
+				nx = full
+			}
+			segsOf := func(a, b, c, d int) int {
+				if (a == 0 && c == 0) || (a == full && c == full) || (b == 0 && d == 0) || (b == full && d == full) {
+					if c-a < 0 {
+						return a - c
+					}
+					if d-b < 0 {
+						return b - d
+					}
+					if c != a {
+						return c - a
+					}
+					return d - b
+				}
+				return 1
+			}
+			sb := segsOf(ix, iz, nx, iz)
+			sr := segsOf(nx, iz, nx, nz)
+			st := segsOf(nx, nz, ix, nz)
+			sl := segsOf(ix, nz, ix, iz)
+			if sb == 1 && sr == 1 && st == 1 && sl == 1 {
+				a := at(ix, iz)
+				b := at(nx, iz)
+				c := at(ix, nz)
+				d := at(nx, nz)
+				idx.Append(a, b, d, a, d, c)
+			} else {
+				cx := gridCoord(x0, x1, ix, full) + (gridCoord(x0, x1, nx, full)-gridCoord(x0, x1, ix, full))*0.5
+				cz := gridCoord(z0, z1, iz, full) + (gridCoord(z0, z1, nz, full)-gridCoord(z0, z1, iz, full))*0.5
+				center := uint32(vert(cx, cz, 0))
+				pts := make([][2]int, 0, 16)
+				push := func(x, z int) {
+					if len(pts) > 0 && pts[len(pts)-1][0] == x && pts[len(pts)-1][1] == z {
+						return
+					}
+					pts = append(pts, [2]int{x, z})
+				}
+				walk := func(x0, z0, x1, z1, nseg int) {
+					if nseg < 1 {
+						nseg = 1
+					}
+					for k := 0; k <= nseg; k++ {
+						push(x0+(x1-x0)*k/nseg, z0+(z1-z0)*k/nseg)
+					}
+				}
+				walk(ix, iz, nx, iz, sb)
+				walk(nx, iz, nx, nz, sr)
+				walk(nx, nz, ix, nz, st)
+				walk(ix, nz, ix, iz, sl)
+				if len(pts) > 1 && pts[0] == pts[len(pts)-1] {
+					pts = pts[:len(pts)-1]
+				}
+				for i := 0; i < len(pts); i++ {
+					p0 := pts[i]
+					p1 := pts[(i+1)%len(pts)]
+					idx.Append(at(p0[0], p0[1]), at(p1[0], p1[1]), center)
+				}
+			}
+			ix = nx
+		}
+		iz = nz
+	}
+	// Skirts drop the full-resolution border so a missed sample cannot show sky.
+	surface := nverts
+	addSkirtEdge := func(points [][2]int, flip bool) {
+		if len(points) < 2 {
 			return
 		}
-		last := uint32(nverts - 1)
-		if s0 > last || s1 > last || k0 > last || k1 > last {
-			return
+		base := nverts
+		for _, p := range points {
+			x := gridCoord(x0, x1, p[0], full)
+			z := gridCoord(z0, z1, p[1], full)
+			vert(x, z, skirtDrop)
 		}
-		idx.Append(s0, s1, k1, s0, k1, k0)
+		for i := 0; i < len(points)-1; i++ {
+			s0 := at(points[i][0], points[i][1])
+			s1 := at(points[i+1][0], points[i+1][1])
+			k0 := uint32(base + i)
+			k1 := uint32(base + i + 1)
+			if k0 >= uint32(nverts) || k1 >= uint32(nverts) {
+				continue
+			}
+			if flip {
+				idx.Append(s1, s0, k0, s1, k0, k1)
+			} else {
+				idx.Append(s0, s1, k1, s0, k1, k0)
+			}
+		}
 	}
-	// min-z edge
+	minZ := make([][2]int, 0, n)
+	maxZ := make([][2]int, 0, n)
+	minX := make([][2]int, 0, n)
+	maxX := make([][2]int, 0, n)
 	for ix := 0; ix < n; ix++ {
-		x := gridCoord(x0, x1, ix, chunkSize)
-		vert(x, z0, skirtDrop)
+		minZ = append(minZ, [2]int{ix, 0})
+		maxZ = append(maxZ, [2]int{ix, full})
 	}
-	for ix := 0; ix < n-1; ix++ {
-		s0 := uint32(ix)
-		addSkirt(s0, s0+1, base+uint32(ix), base+uint32(ix+1))
-	}
-	// max-z edge
-	k0 := base + uint32(n)
-	for ix := 0; ix < n; ix++ {
-		x := gridCoord(x0, x1, ix, chunkSize)
-		vert(x, z1, skirtDrop)
-	}
-	for ix := 0; ix < n-1; ix++ {
-		s0 := uint32((n-1)*n + ix)
-		addSkirt(s0+1, s0, k0+uint32(ix+1), k0+uint32(ix))
-	}
-	// min-x edge
-	k1 := k0 + uint32(n)
 	for iz := 0; iz < n; iz++ {
-		z := gridCoord(z0, z1, iz, chunkSize)
-		vert(x0, z, skirtDrop)
+		minX = append(minX, [2]int{0, iz})
+		maxX = append(maxX, [2]int{full, iz})
 	}
-	for iz := 0; iz < n-1; iz++ {
-		s0 := uint32(iz * n)
-		addSkirt(s0+uint32(n), s0, k1+uint32(iz+1), k1+uint32(iz))
-	}
-	// max-x edge
-	k2 := k1 + uint32(n)
-	for iz := 0; iz < n; iz++ {
-		z := gridCoord(z0, z1, iz, chunkSize)
-		vert(x1, z, skirtDrop)
-	}
-	for iz := 0; iz < n-1; iz++ {
-		s0 := uint32(iz*n + (n - 1))
-		addSkirt(s0, s0+uint32(n), k2+uint32(iz), k2+uint32(iz+1))
-	}
+	_ = surface
+	addSkirtEdge(minZ, false)
+	addSkirtEdge(maxZ, true)
+	addSkirtEdge(minX, true)
+	addSkirtEdge(maxX, false)
 	g := geometry.NewGeometry()
 	g.SetIndices(idx)
 	g.AddVBO(gls.NewVBO(pos).AddAttrib(gls.VertexPosition))
@@ -333,14 +420,22 @@ func (w *World) ensureTerrain(id int) *terrain {
 
 func (w *World) terrainHeight(x, z float32) float32 {
 	if t := w.terrains[w.curTerrain]; t != nil {
-		return t.hf.atWorld(x, z)
+		return w.sampleHeight(&t.hf, x, z)
 	}
 	for _, t := range w.terrains {
 		if t != nil {
-			return t.hf.atWorld(x, z)
+			return w.sampleHeight(&t.hf, x, z)
 		}
 	}
 	return 0
+}
+
+func (w *World) sampleHeight(hf *heightField, x, z float32) float32 {
+	if hf == nil {
+		return 0
+	}
+	ox, oz := w.worldOrigin()
+	return hf.atWorld(x+ox, z+oz)
 }
 
 func (w *World) tickTerrain() {
@@ -371,33 +466,35 @@ func (w *World) tickTerrain() {
 	}
 	for k, id := range t.ents {
 		if !need[k] {
-			w.freeEntityID(id)
-			delete(t.ents, k)
+			w.releaseTerrainChunk(t, k, id)
 		}
 	}
 	for k := range need {
-		if t.ents[k] != 0 || t.pending[k] {
+		dx := float32(k.X-c.X) * float32(k.X-c.X)
+		dz := float32(k.Z-c.Z) * float32(k.Z-c.Z)
+		step, morph := t.lodBuild(dx + dz)
+		if morph >= 0.5 {
+			morph = 1
+		} else {
+			morph = 0
+		}
+		code := lodCode(step, morph)
+		x0 := float32(k.X) * cw
+		z0 := float32(k.Z) * cw
+		if id := t.ents[k]; id != 0 && t.built != nil && t.built[k] == code {
+			w.syncChunkSim(t, k, id, x0, z0, cw)
 			continue
 		}
-		if t.pending == nil {
-			t.pending = map[chunkKey]bool{}
+		if t.pending[k] {
+			continue
+		}
+		if id := t.ents[k]; id != 0 {
+			w.releaseTerrainChunk(t, k, id)
 		}
 		t.pending[k] = true
 		key := k
 		size := cw
-		step := 1
-		dx := float32(key.X-c.X) * float32(key.X-c.X)
-		dz := float32(key.Z-c.Z) * float32(key.Z-c.Z)
-		if t.lod > 0 && dx+dz > 2 {
-			step = 2
-		}
-		if t.lod > 0 && dx+dz > 8 {
-			step = 4
-		}
-		if t.lod > 1 && dx+dz > 4 {
-			step = 4
-		}
-		hf := t.hf
+		tid := t.id
 		segs := t.chunkVerts
 		if t.tessMul > 1 {
 			segs = int(float32(segs) * t.tessMul)
@@ -405,19 +502,25 @@ func (w *World) tickTerrain() {
 		if segs < 4 {
 			segs = 17
 		}
-		tid := t.id
+		segs = terrainMeshSegs(size, segs)
 		w.ensureJobs().submit(func() {
 			// Heights only on the worker. Geometry / VBOs stay on the GL thread.
-			x0 := float32(key.X) * size
-			z0 := float32(key.Z) * size
 			w.ensureJobs().enqueueGL(func() {
 				tt := w.terrains[tid]
 				if tt == nil {
 					return
 				}
-				g := buildHeightMesh(hf.atWorld, x0, z0, x0+size, z0+size, segs, step)
+				g := buildHeightMesh(func(x, z float32) float32 {
+					return w.sampleHeight(&tt.hf, x, z)
+				}, x0, z0, x0+size, z0+size, segs, step, morph)
 				id := w.terrainChunkEnt(g, tt)
 				tt.ents[key] = id
+				if tt.built == nil {
+					tt.built = map[chunkKey]int{}
+				}
+				tt.built[key] = code
+				w.placeScatter(tt, key, x0, z0, size, step)
+				w.syncChunkSim(tt, key, id, x0, z0, size)
 				delete(tt.pending, key)
 			})
 		})
@@ -853,6 +956,9 @@ func (w *World) addTerrain(hf heightField, chunkVerts, radius int) int {
 		fogFalloff: 0, tessMul: 1, splat: true,
 		rock: math32.Color{0.55, 0.48, 0.40}, snowH: 19,
 	}
+	if w.bubble != nil && w.bubble.morphOff {
+		w.terrains[id].morphOff = true
+	}
 	w.curTerrain = id
 	w.ensureSplatTextures(w.terrains[id])
 	// Origin ring on the GL thread so the first Flip is not an empty plane.
@@ -893,6 +999,7 @@ func (w *World) seedTerrainChunks(t *terrain) {
 	if segs < 4 {
 		segs = 17
 	}
+	segs = terrainMeshSegs(cw, segs)
 	for z := -ring; z <= ring; z++ {
 		for x := -ring; x <= ring; x++ {
 			k := chunkKey{x, z}
@@ -901,8 +1008,15 @@ func (w *World) seedTerrainChunks(t *terrain) {
 			}
 			x0 := float32(x) * cw
 			z0 := float32(z) * cw
-			g := buildHeightMesh(t.hf.atWorld, x0, z0, x0+cw, z0+cw, segs, 1)
+			g := buildHeightMesh(func(x, z float32) float32 {
+				return w.sampleHeight(&t.hf, x, z)
+			}, x0, z0, x0+cw, z0+cw, segs, 1, 0)
 			t.ents[k] = w.terrainChunkEnt(g, t)
+			if t.built == nil {
+				t.built = map[chunkKey]int{}
+			}
+			t.built[k] = lodCode(1, 0)
+			w.placeScatter(t, k, x0, z0, cw, 1)
 		}
 	}
 }
@@ -963,6 +1077,7 @@ func (w *World) dirtyTerrain(t *terrain) {
 	}
 	for k, id := range t.ents {
 		w.freeEntityID(id)
+		w.freeScatter(t, k)
 		delete(t.ents, k)
 	}
 	t.pending = map[chunkKey]bool{}
@@ -1073,4 +1188,9 @@ func (m *terrainMat) RenderSetup(gs *gls.GLS) {
 	bind(t.rockTex, 11, "TerrainRock", "TerrainHasRock")
 	bind(t.snowTex, 12, "TerrainSnow", "TerrainHasSnow")
 	bind(t.rockNrm, 13, "TerrainRockN", "TerrainHasRockN")
+	bind(t.blendTex, 14, "TerrainBlendMap", "TerrainHasBlend")
+	setUni1f(gs, "TerrainWorldW", t.hf.worldW)
+	setUni1f(gs, "TerrainWorldD", t.hf.worldD)
+	setUni1f(gs, "TerrainOriginX", t.hf.ox)
+	setUni1f(gs, "TerrainOriginZ", t.hf.oz)
 }

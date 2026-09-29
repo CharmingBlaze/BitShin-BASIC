@@ -102,6 +102,14 @@ func (ps *PhysicsSystem) SetMass(bodyID *BodyID, mass float32) {
 	C.JoltSetBodyMass(ps.handle, bodyID.handle, C.float(mass))
 }
 
+// InverseMass is 1/mass for a dynamic body, or 0 when the body cannot move.
+func (ps *PhysicsSystem) InverseMass(bodyID *BodyID) float32 {
+	if ps == nil || bodyID == nil || bodyID.handle == nil {
+		return 0
+	}
+	return float32(C.JoltGetInverseMass(ps.handle, bodyID.handle))
+}
+
 // AddForceAtPosition applies a world-space force at a world-space point.
 func (bi *BodyInterface) AddForceAtPosition(bodyID *BodyID, force, position Vec3) {
 	if bodyID == nil {

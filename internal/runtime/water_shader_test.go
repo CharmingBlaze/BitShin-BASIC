@@ -22,6 +22,7 @@ func TestWaterShaderIsGLSL330Scenic(t *testing.T) {
 		"512.0", "sunGlint", "foamStart", "foamNoise", "6.0", "depthMix", "finalRGB",
 		"Time", "WaveSpeed", "0.90", "detail * 0.15", "tex * 1.5",
 		"WaterSSROn", "WaterWake", "WakeSpan",
+		"texture(WaterRefract", "PointLightPosition", "SpotLightPosition", "WaterReflectivity",
 	}
 	for _, s := range need {
 		if !containsStr(mbwaterFragment, s) && !containsStr(mbwaterVertex, s) {
@@ -112,6 +113,11 @@ func TestWaterLODGridFillsHorizon(t *testing.T) {
 	}
 	if maxX-minX < 4000 {
 		t.Fatalf("lod span too small: %v .. %v (128-cap grids cannot fill horizon)", minX, maxX)
+	}
+	xs, _ := waterLODCoords(2200, 64)
+	mid := len(xs) / 2
+	if mid < 1 || xs[mid+1]-xs[mid] > 0.75 {
+		t.Fatalf("camera cell too coarse: %v", xs[mid+1]-xs[mid])
 	}
 }
 

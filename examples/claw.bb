@@ -1,5 +1,5 @@
-; Carriage is the parent. Pivots hang from it; Space rolls them shut.
-; Prong bodies are kinematic and follow the parented meshes.
+; Claw machine — carriage + hinged prongs grab falling prizes.
+; WASD move, Up/Down raise/lower, hold Space to close. Esc quits.
 
 SetWindowTitle("BitShin BASIC — Jolt Claw Machine")
 Graphics3D(1280, 720, 0, 2)
@@ -7,11 +7,13 @@ SetBuffer(BackBuffer())
 SetCameraClsColor(30, 35, 45)
 SetAmbientLight(70, 82, 100)
 
+; Camera
 cam = CreateCamera()
-SetPosition(cam, 0, 7.2, -13)
+cam.Position([0, 7.2, -13])
 CameraRange(cam, 0.15, 4000)
-PointEntity(cam, 0, 3.2, 0)
+cam.Point(0, 3.2, 0)
 
+; Sun + shadows
 sun = CreateDirectionalLight()
 SetLightDirection(sun, 40, 35, 0)
 SetLightColor(sun, 255, 236, 200)
@@ -22,48 +24,31 @@ SetShadowQuality(0, 4)
 SetShadowBias(0.0018)
 SetAmbientColor(61, 71, 92)
 
-floor = CreateCube()
-ScaleEntity(floor, 5.0, 0.5, 5.0)
-SetPosition(floor, 0, 0, 0)
-SetEntityColor(floor, 40, 45, 55)
+; Cabinet floor + glass walls
+floor = CreateCube().Scale(5.0, 0.5, 5.0).Position([0, 0, 0]).Color(40, 45, 55)
 CreateBodyBox(floor, 5.0, 0.5, 5.0, 0)
 
-wallL = CreateCube()
-ScaleEntity(wallL, 0.2, 4.0, 5.0)
-SetPosition(wallL, -5.2, 4.0, 0)
-SetEntityColor(wallL, 100, 150, 255)
-SetEntityAlpha(wallL, 0.3)
+wallL = CreateCube().Scale(0.2, 4.0, 5.0).Position([-5.2, 4.0, 0]).Color(100, 150, 255).Alpha(0.3)
 CreateBodyBox(wallL, 0.2, 4.0, 5.0, 0)
 
-wallR = CreateCube()
-ScaleEntity(wallR, 0.2, 4.0, 5.0)
-SetPosition(wallR, 5.2, 4.0, 0)
-SetEntityColor(wallR, 100, 150, 255)
-SetEntityAlpha(wallR, 0.3)
+wallR = CreateCube().Scale(0.2, 4.0, 5.0).Position([5.2, 4.0, 0]).Color(100, 150, 255).Alpha(0.3)
 CreateBodyBox(wallR, 0.2, 4.0, 5.0, 0)
 
-wallB = CreateCube()
-ScaleEntity(wallB, 5.0, 4.0, 0.2)
-SetPosition(wallB, 0, 4.0, 5.2)
-SetEntityColor(wallB, 100, 150, 255)
-SetEntityAlpha(wallB, 0.3)
+wallB = CreateCube().Scale(5.0, 4.0, 0.2).Position([0, 4.0, 5.2]).Color(100, 150, 255).Alpha(0.3)
 CreateBodyBox(wallB, 5.0, 4.0, 0.2, 0)
 
-wallF = CreateCube()
-ScaleEntity(wallF, 5.0, 4.0, 0.2)
-SetPosition(wallF, 0, 4.0, -5.2)
-SetEntityColor(wallF, 100, 150, 255)
-SetEntityAlpha(wallF, 0.22)
+wallF = CreateCube().Scale(5.0, 4.0, 0.2).Position([0, 4.0, -5.2]).Color(100, 150, 255).Alpha(0.22)
 CreateBodyBox(wallF, 5.0, 4.0, 0.2, 0)
 
+; Prizes
 For i = 1 To 18
     prize = CreateCube()
     px# = Rnd(6.4) - 3.2
     py# = 1.2 + Rnd(3.6)
     pz# = Rnd(6.4) - 3.2
-    ScaleEntity(prize, 0.30, 0.30, 0.30)
-    SetPosition(prize, px, py, pz)
-    SetEntityColor(prize, 50 + Rand(0, 205), 50 + Rand(0, 205), 50 + Rand(0, 205))
+    prize.Scale(0.30, 0.30, 0.30)
+    prize.Position([px, py, pz])
+    prize.Color(50 + Rand(0, 205), 50 + Rand(0, 205), 50 + Rand(0, 205))
     prizeBody = CreateBodyBox(prize, 0.30, 0.30, 0.30, 2, 0.10)
     SetRestitution(prizeBody, 0.02)
     SetFriction(prizeBody, 2.4)
@@ -72,6 +57,7 @@ For i = 1 To 18
     SetBodyCCD(prizeBody, 1)
 Next
 
+; Carriage + prong layout
 carHX# = 0.42
 carHY# = 0.16
 carHZ# = 0.42
@@ -84,29 +70,31 @@ prongLX# = -(carHX + gap + prongHX)
 prongRX# = carHX + gap + prongHX
 
 carriage = CreateBox(carHX * 2, carHY * 2, carHZ * 2)
-SetPosition(carriage, 0, carY, 0)
-SetEntityColor(carriage, 200, 50, 50)
+carriage.Position([0, carY, 0])
+carriage.Color(200, 50, 50)
 carriageBody = CreateBodyBox(carriage, carHX, carHY, carHZ, 1)
 SetFriction(carriageBody, 3.2)
 SetRestitution(carriageBody, 0)
 
+; Left prong (pivot hangs from carriage; body follows parented mesh)
 pivotL = CreatePivot(carriage)
-SetPosition(pivotL, prongLX, -carHY, 0)
+pivotL.Position([prongLX, -carHY, 0])
 prongL = CreateBox(prongHX * 2, prongHY * 2, prongHZ * 2)
-EntityParent(prongL, pivotL)
-SetPosition(prongL, 0, -prongHY, 0)
-SetEntityColor(prongL, 180, 180, 180)
+prongL.Parent(pivotL)
+prongL.Position([0, -prongHY, 0])
+prongL.Color(180, 180, 180)
 prongLBody = CreateBodyBox(prongL, prongHX, prongHY, prongHZ, 1)
 SetFriction(prongLBody, 3.2)
 SetRestitution(prongLBody, 0)
 SetBodyCCD(prongLBody, 1)
 
+; Right prong
 pivotR = CreatePivot(carriage)
-SetPosition(pivotR, prongRX, -carHY, 0)
+pivotR.Position([prongRX, -carHY, 0])
 prongR = CreateBox(prongHX * 2, prongHY * 2, prongHZ * 2)
-EntityParent(prongR, pivotR)
-SetPosition(prongR, 0, -prongHY, 0)
-SetEntityColor(prongR, 180, 180, 180)
+prongR.Parent(pivotR)
+prongR.Position([0, -prongHY, 0])
+prongR.Color(180, 180, 180)
 prongRBody = CreateBodyBox(prongR, prongHX, prongHY, prongHZ, 1)
 SetFriction(prongRBody, 3.2)
 SetRestitution(prongRBody, 0)
@@ -118,6 +106,7 @@ DisableBodyCollision(prongLBody, prongRBody)
 
 Print "Physics backend:", GetPhysicsBackend()
 
+; Travel limits
 minX# = -3.7
 maxX# = 3.7
 minZ# = -3.7

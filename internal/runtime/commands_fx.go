@@ -102,6 +102,10 @@ func (w *World) fxCommands(n func(func([]value.Value) (value.Value, error)) cmd,
 			e.cone = argN(a, 1, 30)
 			return z()
 		}),
+		"emittershape": emCmd(func(e *emitter, a []value.Value) (value.Value, error) {
+			applyEmitterShape(e, argS(a, 1))
+			return z()
+		}),
 		"emitterdrag": emCmd(func(e *emitter, a []value.Value) (value.Value, error) {
 			e.drag = argN(a, 1, 0)
 			return z()

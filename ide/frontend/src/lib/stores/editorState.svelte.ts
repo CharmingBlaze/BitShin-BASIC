@@ -16,7 +16,7 @@ CameraClsColor(22, 28, 42)
 AmbientLight(72, 82, 102)
 
 light = CreateLight(1)
-SetLightDirection(light, -45, 30, 0)
+SetLightDirection(light, 50, 35, 0)
 SetLightColor(light, 255, 240, 220)
 
 ; Create central rotating mesh
@@ -62,7 +62,9 @@ class EditorStore {
   isRunning = $state<boolean>(false);
   executionTime = $state<number>(0);
   exitCode = $state<number | null>(null);
-  activeSidebarTab = $state<'files' | 'commands' | 'outline' | 'examples'>('files');
+  activeSidebarTab = $state<'files' | 'commands' | 'outline' | 'examples' | 'assets' | 'scene'>('files');
+  breakpoints = $state<number[]>([]);
+  debugPaused = $state(false);
   sidebarCollapsed = $state<boolean>(false);
   cursorPos = $state<{ line: number; col: number }>({ line: 1, col: 1 });
   lspConnected = $state<boolean>(false);
@@ -213,6 +215,17 @@ class EditorStore {
       });
 
       window.runtime.EventsOn('run:stderr', (line: string) => {
+        if (line.startsWith('break ')) {
+          this.debugPaused = true;
+          const n = parseInt(line.slice(6), 10);
+          if (n > 0) {
+            const editor = (window as any).__monacoEditor;
+            if (editor) {
+              editor.revealLineInCenter(n);
+              editor.setPosition({ lineNumber: n, column: 1 });
+            }
+          }
+        }
         // Try parsing file and line info from error
         const lineMatch = line.match(/(?:at\s+|line\s+|:)(\d+)(?::(\d+))?/i);
         const lineNum = lineMatch ? parseInt(lineMatch[1]) : undefined;
@@ -230,6 +243,7 @@ class EditorStore {
 
       window.runtime.EventsOn('run:exit', (data: any) => {
         this.isRunning = false;
+        this.debugPaused = false;
         this.exitCode = data.code;
         this.executionTime = data.elapsed;
         this.addLog({
@@ -379,7 +393,32 @@ class EditorStore {
     }
   }
 
-  async runActiveProgram() {
+  toggleBreakpoint(line: number) {
+    if (line < 1) return;
+    if (this.breakpoints.includes(line)) {
+      this.breakpoints = this.breakpoints.filter((n) => n !== line);
+    } else {
+      this.breakpoints = [...this.breakpoints, line].sort((a, b) => a - b);
+    }
+  }
+
+  async sendDebug(cmd: string) {
+    try {
+      await AppAPI.debugCommand(cmd);
+      if (cmd === 'c' || cmd === 's' || cmd === 'q') {
+        this.debugPaused = false;
+      }
+    } catch (err: any) {
+      this.addLog({
+        id: Math.random().toString(36).substring(7),
+        type: 'error',
+        text: `Debug: ${err.message || err}`,
+        time: new Date().toLocaleTimeString()
+      });
+    }
+  }
+
+  async runActiveProgram(debug = false) {
     if (!this.activeTab) return;
     this.isOutputCollapsed = false;
     this.addLog({
@@ -406,7 +445,10 @@ class EditorStore {
           // run the buffer we already have
         }
       }
-      await AppAPI.runProgram(this.activeTab.content, this.activeTab.path, false);
+      if (debug) {
+        await AppAPI.setBreakpoints(this.breakpoints.join(','));
+      }
+      await AppAPI.runProgram(this.activeTab.content, this.activeTab.path, debug);
     } catch (err: any) {
       this.addLog({
         id: Math.random().toString(36).substring(7),

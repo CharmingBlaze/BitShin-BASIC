@@ -75,15 +75,18 @@ func procTexPixel(kind string, ns *noise2, u, v float64, x, y, n int) color.RGBA
 		g := 0.72 + 0.18*n1 + 0.08*n3
 		return rgb8(g*1.05, g*0.92, g*0.62)
 	case "grass":
-		g := 0.28 + 0.42*n1 + 0.12*n2
-		return rgb8(0.12+0.10*n2, g, 0.10+0.08*n3)
+		blade := math.Abs(math.Sin((u*46 + n2*3) * math.Pi))
+		g := 0.18 + 0.28*n1 + 0.22*blade*n3
+		return rgb8(0.10+0.08*n2, g, 0.07+0.06*n3)
 	case "grass2":
-		g := 0.22 + 0.38*n1
-		return rgb8(0.18+0.16*n2, g, 0.08+0.06*n1)
+		tuft := math.Abs(math.Sin((v*38 + n1*2) * math.Pi))
+		g := 0.16 + 0.30*n1 + 0.16*tuft
+		return rgb8(0.14+0.12*n2, g, 0.06+0.05*n1)
 	case "rock":
-		g := 0.28 + 0.22*n1 + 0.10*n3
-		band := 0.06 * math.Sin(v*40+n2*4)
-		return rgb8(g*1.15+band, g*0.95, g*0.72)
+		g := 0.26 + 0.24*n1 + 0.14*n3
+		strata := 0.07 * math.Sin(v*52+n2*6)
+		crack := 1.0 - 0.18*math.Pow(n3, 3)
+		return rgb8((g*1.12+strata)*crack, (g*0.92)*crack, (g*0.70)*crack)
 	case "snow":
 		g := 0.86 + 0.12*n1
 		return rgb8(g, g+0.02, g+0.04)

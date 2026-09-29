@@ -15,7 +15,7 @@
       title: '3D scene starter',
       desc: 'Viewport with camera, light, cube, and ground.',
       icon: Box,
-      code: `; BitShin BASIC — 3D Scene Starter\nGraphics3D(1280, 720, 0, 2)\nSetWindowTitle("BitShin 3D Starter")\n\ncam = CreateCamera()\nPositionEntity(cam, 0, 3, -8)\nRotateEntity(cam, 15, 0, 0)\n\nsun = CreateLight(1)\nSetLightDirection(sun, -45, 30, 0)\n\nbox = CreateCube()\nEntityColor(box, 56, 189, 248)\n\nground = CreatePlane(50, 50)\nPositionEntity(ground, 0, -1, 0)\nEntityColor(ground, 30, 41, 59)\n\nWhile Not KeyDown(1)\n    dt# = DeltaTime() * 60\n    TurnEntity(box, 0.5 * dt, 0.8 * dt, 0)\n    RenderWorld\n    Flip\nWend\nEnd\n`
+      code: `; BitShin BASIC — 3D Scene Starter\nGraphics3D(1280, 720, 0, 2)\nSetWindowTitle("BitShin 3D Starter")\n\ncam = CreateCamera()\nPositionEntity(cam, 0, 3, -8)\nRotateEntity(cam, 15, 0, 0)\n\nsun = CreateLight(1)\nSetLightDirection(sun, 50, 35, 0)\n\nbox = CreateCube()\nEntityColor(box, 56, 189, 248)\n\nground = CreatePlane(50, 50)\nPositionEntity(ground, 0, -1, 0)\nEntityColor(ground, 30, 41, 59)\n\nWhile Not KeyDown(1)\n    dt# = DeltaTime() * 60\n    TurnEntity(box, 0.5 * dt, 0.8 * dt, 0)\n    RenderWorld\n    Flip\nWend\nEnd\n`
     },
     {
       id: '2d_starter',
@@ -36,7 +36,7 @@
       title: 'First-person free look',
       desc: 'WASD + mouse navigation.',
       icon: Compass,
-      code: `; BitShin BASIC — Free Look Camera\nGraphics3D(1280, 720, 0, 2)\nSetWindowTitle("BitShin FreeLook Demo")\n\ncam = CreateFreeCamera()\nPositionEntity(cam, 0, 2, -10)\n\nsun = CreateLight(1)\nSetLightDirection(sun, -45, 30, 0)\n\n; Scatter demo columns\nFor x = -15 To 15 Step 5\n    For z = -15 To 15 Step 5\n        col = CreateCylinder(0.8, 4, 16)\n        PositionEntity(col, x, 2, z)\n        EntityColor(col, 100, 116, 139)\n    Next\nNext\n\nWhile Not KeyDown(1)\n    UpdateFreeLook(cam, 10)\n    RenderWorld\n    Flip\nWend\nEnd\n`
+      code: `; BitShin BASIC — Free Look Camera\nGraphics3D(1280, 720, 0, 2)\nSetWindowTitle("BitShin FreeLook Demo")\n\ncam = CreateFreeCamera()\nPositionEntity(cam, 0, 2, -10)\n\nsun = CreateLight(1)\nSetLightDirection(sun, 50, 35, 0)\n\n; Scatter demo columns\nFor x = -15 To 15 Step 5\n    For z = -15 To 15 Step 5\n        col = CreateCylinder(0.8, 4, 16)\n        PositionEntity(col, x, 2, z)\n        EntityColor(col, 100, 116, 139)\n    Next\nNext\n\nWhile Not KeyDown(1)\n    UpdateFreeLook(cam, 10)\n    RenderWorld\n    Flip\nWend\nEnd\n`
     }
   ];
 

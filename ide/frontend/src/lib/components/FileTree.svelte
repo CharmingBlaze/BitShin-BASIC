@@ -65,7 +65,7 @@
 
   <div class="flex-1 overflow-y-auto py-1">
     {#if !editorStore.projectTree}
-      <div class="p-6 text-center text-xs" style="color: var(--text-muted);">Loading workspace…</div>
+      <div class="ide-quiet">Loading workspace</div>
     {:else}
       {#snippet renderNode(node: FileNode, depth: number)}
         {@const fileMeta = getFileIcon(node.name)}

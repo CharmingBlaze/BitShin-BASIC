@@ -73,6 +73,11 @@ func (w *World) tickStream() {
 			s.ox, s.oz = x, z
 		}
 	}
+	// SetPlayer creates an empty stream so terrain can follow.
+	// CreateWorldStream is what turns the demo prop filler on.
+	if !s.fill {
+		return
+	}
 	need := s.needed(s.ox, s.oz)
 	for k, ch := range s.chunks {
 		if !need[k] && ch.loaded && !ch.pending {
@@ -196,6 +201,7 @@ func (w *World) streamCommands(n func(func([]value.Value) (value.Value, error)) 
 	return map[string]cmd{
 		"createworldstream": n(func(a []value.Value) (value.Value, error) {
 			s := w.ensureStream()
+			s.fill = true
 			if len(a) > 0 {
 				s.size = float32(argN(a, 0, 24))
 			}
@@ -222,11 +228,18 @@ func (w *World) streamCommands(n func(func([]value.Value) (value.Value, error)) 
 			if len(a) >= 3 {
 				s.oz = float32(argN(a, 2, 0))
 			}
+			s.follow = 0
+			if b := w.bubble; b != nil {
+				b.followLocked = true
+			}
 			return z()
 		}),
 		"setstreamfollow": n(func(a []value.Value) (value.Value, error) {
 			s := w.ensureStream()
 			s.follow = argI(a, 0, 0)
+			if b := w.bubble; b != nil {
+				b.followLocked = true
+			}
 			return z()
 		}),
 		"loadchunk": n(func(a []value.Value) (value.Value, error) {

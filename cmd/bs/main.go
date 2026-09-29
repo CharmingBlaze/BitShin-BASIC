@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"bitshinbasic/internal/glslang"
 	"bitshinbasic/internal/interp"
@@ -20,11 +21,15 @@ func main() {
 		fmt.Print(`BitShin BASIC — Blitz3D-style BASIC (G3N 3D, Ebiten 2D)
 
 Usage:
-  bs <program.bb>              Run a program
+  bs <program.bb> [-debug] [-break 10,20]
+                               Run a program. -debug pauses on -break lines (c, s, p name, q)
   bs run <program.bb>          Same
+  bs compile <program.bb> [-o app.exe] [-os windows|linux|darwin] [-arch amd64|arm64] [-tags tags]
+                               Compile to a standalone game binary (Flip presents frames)
+  bs transpile <program.bb> [-o out.go]
+                               Translate BlitzBasic source code to native Go code
   bs build <program.bb> [-o dist] [-os windows|linux|darwin] [-arch amd64|arm64] [-tags tags]
-                               Portable folder: binary + .bb + assets + natives.
-                               Build on the target OS (CGO). Do not zip the git tree.
+                               Portable package folder: interpreter binary + assets + natives
   bs lsp                       Language server (stdio JSON-RPC); same as bsls
   bs version                   Print version
   bs shader <file.glsl> [stage]  Validate GLSL (optional SPIR-V)
@@ -51,6 +56,20 @@ Examples live in the examples/ folder.
 		}
 		return
 	}
+	if args[0] == "compile" {
+		if err := runCompile(args[1:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+	if args[0] == "transpile" {
+		if err := runTranspile(args[1:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if args[0] == "build" {
 		if err := runBuild(args[1:]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -65,13 +84,48 @@ Examples live in the examples/ folder.
 		}
 		args = args[1:]
 	}
-	if err := runFile(args[0]); err != nil {
+	path, debug, breaks := splitRunArgs(args)
+	if path == "" {
+		fmt.Fprintln(os.Stderr, "bs: missing file")
+		os.Exit(2)
+	}
+	if err := runFile(path, debug, breaks); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func runFile(path string) error {
+func splitRunArgs(args []string) (path string, debug bool, breaks []int) {
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "-debug":
+			debug = true
+		case "-break":
+			if i+1 < len(args) {
+				i++
+				debug = true
+				for _, part := range strings.Split(args[i], ",") {
+					part = strings.TrimSpace(part)
+					if part == "" {
+						continue
+					}
+					n := 0
+					fmt.Sscanf(part, "%d", &n)
+					if n > 0 {
+						breaks = append(breaks, n)
+					}
+				}
+			}
+		default:
+			if path == "" && !strings.HasPrefix(args[i], "-") {
+				path = args[i]
+			}
+		}
+	}
+	return path, debug, breaks
+}
+
+func runFile(path string, debug bool, breaks []int) error {
 	prog, err := parse.ParseFile(path)
 	if err != nil {
 		return err
@@ -81,7 +135,11 @@ func runFile(path string) error {
 		return err
 	}
 	world := runtime.New(filepath.Dir(path))
+	world.SetScript(path)
 	in := interp.New(prog, world)
+	if debug {
+		in.SetDebug(breaks, os.Stdin, os.Stderr)
+	}
 	world.Bind(in)
 	if err := in.Run(); err != nil {
 		return err

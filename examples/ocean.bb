@@ -1,18 +1,22 @@
-; Combined ocean: Gerstner swell + chop + Fresnel / planar reflect. Esc quits.
+; Ocean — Gerstner swell + chop with Fresnel / planar reflect and buoys.
+; WASD orbit, Q/E pitch. Esc quits (after a short startup delay).
 
 Graphics3D(1100, 700)
 SetWindowTitle("BitShin BASIC — Ocean")
 SetCameraClsColor(48, 92, 138)
 SetAmbientLight(32, 42, 55)
 
+; Camera / sky
 cam = CreateCamera()
 SetCameraRange(cam, 0.45, 4000)
 CreateSkyBox("default")
 
+; Light
 sun = CreateDirectionalLight()
 SetLightDirection(sun, 28, 36, 8)
 SetLightColor(sun, 255, 236, 200)
 
+; Water
 water = CreateWater(520, 520, 96)
 SetWaterStyle("ocean")
 SetWaterColor(6, 48, 72)
@@ -32,27 +36,20 @@ SetWaterCaustics(water, True)
 SetWaterSSR(water, True)
 SetWaterAmbientSound(water, "examples/assets/ocean.ogg", GetWeatherIntensity())
 
+; Isle / buoys
 isle = CreateProcTerrain(4, 11, 4, 4.5, 24)
 SetTerrainStreamRadius(isle, 1)
 
-red = CreateCube()
-SetScale(red, 1.3, 1.8, 1.3)
-SetPosition(red, 7, 1.2, 6)
-SetEntityColor(red, 210, 65, 50)
+red = CreateCube().Scale(1.3, 1.8, 1.3).Position([7, 1.2, 6]).Color(210, 65, 50)
 CreateBuoy(red)
 
-ball = CreateSphere(12)
-SetScale(ball, 1.2, 1.2, 1.2)
-SetPosition(ball, -5, 1.3, 4)
-SetEntityColor(ball, 240, 200, 60)
+ball = CreateSphere(12).Scale(1.2, 1.2, 1.2).Position([-5, 1.3, 4]).Color(240, 200, 60)
 CreateBuoy(ball)
 
-boat = CreateCube()
-SetScale(boat, 1.6, 0.3, 0.7)
-SetPosition(boat, 1, 0.5, -2)
-SetEntityColor(boat, 185, 95, 48)
+boat = CreateCube().Scale(1.6, 0.3, 0.7).Position([1, 0.5, -2]).Color(185, 95, 48)
 CreateBuoy(boat)
 
+; Loop
 yaw# = 28
 pitch# = 10
 dist# = 38
@@ -73,7 +70,7 @@ While 1
     cx# = Sin(yaw) * Cos(pitch) * dist
     cz# = Cos(yaw) * Cos(pitch) * dist
     cy# = 3.2 + Sin(pitch) * dist
-    SetPosition(cam, cx, cy, cz)
+    cam.Position(cx, cy, cz)
     CameraLookAt(cam, 0, WaterHeight(0, 0) + 0.2, 18)
     Text(12, 12, "OCEAN  WASD orbit  QE pitch  Esc quit")
     RenderWorld

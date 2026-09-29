@@ -96,6 +96,19 @@ func (a *g3nHost) Run(update func(rend *renderer.Renderer, dt time.Duration)) {
 	a.Destroy()
 }
 
+// swapOnce presents one frame. Compiled games call this from Flip instead of Run.
+func (a *g3nHost) swapOnce() {
+	if a == nil || a.IWindow == nil {
+		return
+	}
+	gw, ok := a.IWindow.(*window.GlfwWindow)
+	if !ok {
+		return
+	}
+	gw.SwapBuffers()
+	gw.PollEvents()
+}
+
 func (a *g3nHost) Exit() {
 	a.stop = true
 	if gw, ok := a.IWindow.(*window.GlfwWindow); ok {

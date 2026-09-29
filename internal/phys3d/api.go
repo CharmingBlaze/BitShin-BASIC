@@ -39,6 +39,25 @@ func motionFromDynamic(dynamic bool) int {
 	return MotionTypeStatic
 }
 
+// capsuleCylinderHalf is the shaft half-height Jolt's capsule wants.
+// height is the full character (hemispheres included). Passing height/2
+// as the shaft makes the collider height+2*radius and the mesh floats.
+func capsuleCylinderHalf(height, radius float32) float32 {
+	half := height*0.5 - radius
+	if half < 0.02 {
+		half = 0.02
+	}
+	return half
+}
+
+// RayHit is one physics ray result. Fraction is 0 at the origin and 1 at origin+direction.
+type RayHit struct {
+	ID         int
+	X, Y, Z    float32
+	NX, NY, NZ float32
+	Fraction   float32
+}
+
 // ContactEvent is a drained Jolt (or fallback) collision pair.
 type ContactEvent struct {
 	Kind       int
@@ -69,6 +88,8 @@ type World interface {
 	AddCapsule(id int, x, y, z, halfH, r float32, dynamic bool)
 	AddGround(id int, y float32)
 	Raycast(ox, oy, oz, dx, dy, dz float32) (id int, x, y, z float32, ok bool)
+	RaycastDetail(ox, oy, oz, dx, dy, dz float32) (RayHit, bool)
+	RaycastAll(ox, oy, oz, dx, dy, dz float32, max int) []RayHit
 	SetGravity(x, y, z float32)
 	GetGravity() (x, y, z float32)
 	Remove(id int)

@@ -1,60 +1,44 @@
-; Extra controllers: bike, heli, hover, sub, tank, drone. Esc after a few frames.
+; More vehicles — bike, heli, hover, sub, tank, and drone together.
+; WASD drives shared throttle / steer inputs.
+; Esc quits after a few frames.
 
+; window
 SetWindowTitle("BitShin BASIC — More vehicles")
 Graphics3D(1100, 640, 0, 2)
 SetCameraClsColor(30, 40, 52)
 CreateLight()
 
-cam = CreateCamera()
-SetPosition(cam, 0, 14, -28)
-SetRotation(cam, 22, 0, 0)
+; camera
+cam = CreateCamera().Position([0, 14, -28]).Rotate(22, 0, 0)
 
-ground = CreateCube()
-SetScale(ground, 50, 0.25, 50)
-SetPosition(ground, 0, 0, 12)
-SetEntityColor(ground, 52, 64, 58)
+; world
+ground = CreateCube().Scale(50, 0.25, 50).Position([0, 0, 12]).Color(52, 64, 58)
 CreateRigidBodyBox(ground, 50, 0.25, 50, 0)
 
 water = CreateWater(80, 80, 24)
 SetWaterLevel(-1.2)
-SetPosition(water, 18, -1.2, 12)
+water.Position([18, -1.2, 12])
 
-bike = CreateCube()
-SetScale(bike, 0.28, 0.5, 1.2)
-SetPosition(bike, -10, 1.2, 8)
-SetEntityColor(bike, 240, 200, 40)
+; vehicle
+bike = CreateCube().Scale(0.28, 0.5, 1.2).Position([-10, 1.2, 8]).Color(240, 200, 40)
 CreateMotorcycleController(bike)
 
-heli = CreateCube()
-SetScale(heli, 1.4, 0.4, 2.2)
-SetPosition(heli, -4, 6, 8)
-SetEntityColor(heli, 70, 170, 90)
+heli = CreateCube().Scale(1.4, 0.4, 2.2).Position([-4, 6, 8]).Color(70, 170, 90)
 CreateHelicopterController(heli)
 
-hover = CreateCube()
-SetScale(hover, 1.8, 0.22, 2.2)
-SetPosition(hover, 2, 1.0, 8)
-SetEntityColor(hover, 90, 180, 220)
+hover = CreateCube().Scale(1.8, 0.22, 2.2).Position([2, 1.0, 8]).Color(90, 180, 220)
 CreateHovercraftController(hover)
 
-sub = CreateCube()
-SetScale(sub, 1.0, 0.55, 3.4)
-SetPosition(sub, 16, 0.2, 12)
-SetEntityColor(sub, 40, 90, 110)
+sub = CreateCube().Scale(1.0, 0.55, 3.4).Position([16, 0.2, 12]).Color(40, 90, 110)
 CreateSubmarineController(sub)
 
-tank = CreateCube()
-SetScale(tank, 1.3, 0.45, 2.4)
-SetPosition(tank, 8, 1.1, 6)
-SetEntityColor(tank, 90, 100, 70)
+tank = CreateCube().Scale(1.3, 0.45, 2.4).Position([8, 1.1, 6]).Color(90, 100, 70)
 CreateTankController(tank)
 
-drone = CreateCube()
-SetScale(drone, 0.5, 0.12, 0.5)
-SetPosition(drone, 0, 5, 4)
-SetEntityColor(drone, 200, 80, 220)
+drone = CreateCube().Scale(0.5, 0.12, 0.5).Position([0, 5, 4]).Color(200, 80, 220)
 CreateDroneController(drone)
 
+; loop
 frames = 0
 While 1
     frames = frames + 1

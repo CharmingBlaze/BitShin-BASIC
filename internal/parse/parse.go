@@ -161,6 +161,11 @@ func (p *Parser) statement() (ast.Stmt, error) {
 		return p.parseConsts()
 	case "enum":
 		return p.parseEnum()
+	case "strict":
+		p.next()
+		return &ast.StrictStmt{Src: pos}, nil
+	case "try":
+		return p.parseTry()
 	case "redim":
 		return p.parseRedim()
 	case "data":
@@ -173,7 +178,7 @@ func (p *Parser) statement() (ast.Stmt, error) {
 	case "return":
 		p.next()
 		if startsExpr(p.tok) {
-			e, err := p.expr()
+			e, err := p.exprList()
 			if err != nil {
 				return nil, err
 			}
@@ -205,7 +210,7 @@ func (p *Parser) statement() (ast.Stmt, error) {
 	case "end":
 		n := p.lx.Peek()
 		nk := lex.IdentKey(n.Lit)
-		if nk == "if" || nk == "function" || nk == "while" || nk == "select" || nk == "type" || nk == "struct" || nk == "method" || nk == "namespace" || nk == "enum" {
+		if nk == "if" || nk == "function" || nk == "while" || nk == "select" || nk == "type" || nk == "struct" || nk == "method" || nk == "namespace" || nk == "enum" || nk == "try" {
 			return nil, p.errorf("unexpected End %s", n.Lit)
 		}
 		p.next()
@@ -219,6 +224,27 @@ func (p *Parser) statement() (ast.Stmt, error) {
 	name := p.tok.Lit
 	p.next()
 
+	if p.tok.Kind == lex.Comma {
+		names := []string{name}
+		for p.tok.Kind == lex.Comma {
+			p.next()
+			if p.tok.Kind != lex.Ident {
+				return nil, p.errorf("expected name")
+			}
+			names = append(names, p.tok.Lit)
+			p.next()
+		}
+		if p.tok.Kind != lex.Eq {
+			return nil, p.errorf("expected =")
+		}
+		p.next()
+		e, err := p.exprList()
+		if err != nil {
+			return nil, err
+		}
+		return &ast.AssignStmt{Src: pos, Name: names[0], Names: names, Value: e}, nil
+	}
+
 	if p.tok.Kind == lex.Dot {
 		return p.parseDottedStmt(pos, name)
 	}
@@ -226,7 +252,7 @@ func (p *Parser) statement() (ast.Stmt, error) {
 	// assignment: name = expr  OR name(i) = expr OR name[i] = expr
 	if p.tok.Kind == lex.Eq {
 		p.next()
-		e, err := p.expr()
+		e, err := p.exprList()
 		if err != nil {
 			return nil, err
 		}
@@ -245,13 +271,25 @@ func (p *Parser) statement() (ast.Stmt, error) {
 		if err != nil {
 			return nil, err
 		}
+		var fields []string
+		for p.tok.Kind == lex.Dot {
+			p.next()
+			if p.tok.Kind != lex.Ident {
+				return nil, p.errorf("expected field name")
+			}
+			fields = append(fields, p.tok.Lit)
+			p.next()
+		}
 		if p.tok.Kind == lex.Eq {
 			p.next()
 			e, err := p.expr()
 			if err != nil {
 				return nil, err
 			}
-			return &ast.AssignStmt{Src: pos, Name: name, Index: args, Value: e}, nil
+			return &ast.AssignStmt{Src: pos, Name: name, Index: args, Fields: fields, Value: e}, nil
+		}
+		if len(fields) > 0 {
+			return nil, p.errorf("expected =")
 		}
 		// function call with parens — allow CreateCube().Scale().Position()
 		call := &ast.CallExpr{Src: pos, Name: name, Args: args}
@@ -377,13 +415,31 @@ func (p *Parser) parseWhile() (ast.Stmt, error) {
 func (p *Parser) parseFor() (ast.Stmt, error) {
 	pos := astPos(p.tok)
 	p.next()
+	p.eatIdent("each")
 	if p.tok.Kind != lex.Ident {
 		return nil, p.errorf("For expects a variable")
 	}
 	name := p.tok.Lit
 	p.next()
+	if p.eatIdent("in") {
+		seq, err := p.expr()
+		if err != nil {
+			return nil, err
+		}
+		body, err := p.statements(endFor)
+		if err != nil {
+			return nil, err
+		}
+		if !p.eatIdent("next") {
+			return nil, p.errorf("expected Next")
+		}
+		if p.tok.Kind == lex.Ident && !isKeyword(identKey(p.tok)) {
+			p.next()
+		}
+		return &ast.ForStmt{Src: pos, Var: name, In: seq, Body: body}, nil
+	}
 	if p.tok.Kind != lex.Eq {
-		return nil, p.errorf("For expects =")
+		return nil, p.errorf("For expects = or In")
 	}
 	p.next()
 	start, err := p.expr()
@@ -442,35 +498,21 @@ func (p *Parser) parseFunc() (ast.Stmt, error) {
 	}
 	name := p.tok.Lit
 	p.next()
-	var params []string
-	if p.tok.Kind == lex.LParen {
-		p.next()
-		for p.tok.Kind != lex.RParen && p.tok.Kind != lex.EOF {
-			if p.tok.Kind != lex.Ident {
-				return nil, p.errorf("expected parameter name")
-			}
-			params = append(params, p.tok.Lit)
-			p.next()
-			if p.tok.Kind == lex.Comma {
-				p.next()
-			}
-		}
-		if p.tok.Kind != lex.RParen {
-			return nil, p.errorf("expected )")
-		}
-		p.next()
+	params, defaults, err := p.parseParamList()
+	if err != nil {
+		return nil, err
 	}
 	body, err := p.statements(endFunc)
 	if err != nil {
 		return nil, err
 	}
 	if p.eatIdent("endfunction") {
-		return &ast.FuncDecl{Src: pos, Name: name, Params: params, Body: body}, nil
+		return &ast.FuncDecl{Src: pos, Name: name, Params: params, Defaults: defaults, Body: body}, nil
 	}
 	if p.is("end") && lex.IdentKey(p.lx.Peek().Lit) == "function" {
 		p.next()
 		p.next()
-		return &ast.FuncDecl{Src: pos, Name: name, Params: params, Body: body}, nil
+		return &ast.FuncDecl{Src: pos, Name: name, Params: params, Defaults: defaults, Body: body}, nil
 	}
 	return nil, p.errorf("expected End Function")
 }
@@ -495,7 +537,52 @@ func (p *Parser) parseDim() (ast.Stmt, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ast.DimStmt{Src: pos, Name: name, Sizes: sizes}, nil
+	typeName := ""
+	if p.eatIdent("as") {
+		if p.tok.Kind != lex.Ident {
+			return nil, p.errorf("Dim As expects a type name")
+		}
+		typeName = p.tok.Lit
+		p.next()
+	}
+	return &ast.DimStmt{Src: pos, Name: name, Sizes: sizes, TypeName: typeName}, nil
+}
+
+func (p *Parser) parseParamList() (params []string, defaults []ast.Expr, err error) {
+	if p.tok.Kind != lex.LParen {
+		return nil, nil, nil
+	}
+	p.next()
+	seenDef := false
+	for p.tok.Kind != lex.RParen && p.tok.Kind != lex.EOF {
+		if p.tok.Kind != lex.Ident {
+			return nil, nil, p.errorf("expected parameter name")
+		}
+		params = append(params, p.tok.Lit)
+		p.next()
+		if p.tok.Kind == lex.Eq {
+			p.next()
+			e, err := p.expr()
+			if err != nil {
+				return nil, nil, err
+			}
+			defaults = append(defaults, e)
+			seenDef = true
+		} else {
+			if seenDef {
+				return nil, nil, p.errorf("default parameters must come last")
+			}
+			defaults = append(defaults, nil)
+		}
+		if p.tok.Kind == lex.Comma {
+			p.next()
+		}
+	}
+	if p.tok.Kind != lex.RParen {
+		return nil, nil, p.errorf("expected )")
+	}
+	p.next()
+	return params, defaults, nil
 }
 
 func (p *Parser) parseDeclNames(global bool) (ast.Stmt, error) {
@@ -526,6 +613,42 @@ func (p *Parser) parseDeclNames(global bool) (ast.Stmt, error) {
 		return &ast.GlobalStmt{Src: pos, Names: names, Values: values}, nil
 	}
 	return &ast.LocalStmt{Src: pos, Names: names, Values: values}, nil
+}
+
+func (p *Parser) parseTry() (ast.Stmt, error) {
+	pos := astPos(p.tok)
+	p.next()
+	stopTry := func(p *Parser) bool {
+		return p.is("catch") || p.is("endtry") || (p.is("end") && lex.IdentKey(p.lx.Peek().Lit) == "try")
+	}
+	body, err := p.statements(stopTry)
+	if err != nil {
+		return nil, err
+	}
+	st := &ast.TryStmt{Src: pos, Body: body}
+	if p.is("catch") {
+		p.next()
+		if p.tok.Kind == lex.Ident {
+			st.ErrVar = p.tok.Lit
+			p.next()
+		}
+		catch, err := p.statements(func(p *Parser) bool {
+			return p.is("endtry") || (p.is("end") && lex.IdentKey(p.lx.Peek().Lit) == "try")
+		})
+		if err != nil {
+			return nil, err
+		}
+		st.Catch = catch
+	}
+	if p.eatIdent("endtry") {
+		return st, nil
+	}
+	if p.is("end") && lex.IdentKey(p.lx.Peek().Lit) == "try" {
+		p.next()
+		p.next()
+		return st, nil
+	}
+	return nil, p.errorf("expected End Try")
 }
 
 func (p *Parser) parseEnum() (ast.Stmt, error) {
@@ -689,6 +812,16 @@ func (p *Parser) parseRead() (ast.Stmt, error) {
 	for p.tok.Kind == lex.Ident {
 		s.Names = append(s.Names, p.tok.Lit)
 		p.next()
+		var qual []string
+		for p.tok.Kind == lex.Dot {
+			p.next()
+			if p.tok.Kind != lex.Ident {
+				return nil, p.errorf("expected field name")
+			}
+			qual = append(qual, p.tok.Lit)
+			p.next()
+		}
+		s.Quals = append(s.Quals, qual)
 		if p.tok.Kind == lex.Comma {
 			p.next()
 			continue
@@ -696,6 +829,27 @@ func (p *Parser) parseRead() (ast.Stmt, error) {
 		break
 	}
 	return s, nil
+}
+
+func (p *Parser) exprList() (ast.Expr, error) {
+	e, err := p.expr()
+	if err != nil {
+		return nil, err
+	}
+	if p.tok.Kind != lex.Comma {
+		return e, nil
+	}
+	line, col := e.Pos()
+	elems := []ast.Expr{e}
+	for p.tok.Kind == lex.Comma {
+		p.next()
+		n, err := p.expr()
+		if err != nil {
+			return nil, err
+		}
+		elems = append(elems, n)
+	}
+	return &ast.VecExpr{Src: ast.Src{Line: line, Col: col}, Elems: elems}, nil
 }
 
 func endType(p *Parser) bool {
@@ -784,7 +938,7 @@ func (p *Parser) parseType() (ast.Stmt, error) {
 			case *ast.FuncDecl:
 				st.Methods = append(st.Methods, t)
 			case *ast.MethodDecl:
-				st.Methods = append(st.Methods, &ast.FuncDecl{Src: t.Src, Name: t.Name, Params: t.Params, Body: t.Body})
+				st.Methods = append(st.Methods, &ast.FuncDecl{Src: t.Src, Name: t.Name, Params: t.Params, Defaults: t.Defaults, Body: t.Body})
 			}
 			continue
 		}
@@ -834,23 +988,9 @@ func (p *Parser) parseMethod(recv string) (ast.Stmt, error) {
 		name = p.tok.Lit
 		p.next()
 	}
-	var params []string
-	if p.tok.Kind == lex.LParen {
-		p.next()
-		for p.tok.Kind != lex.RParen && p.tok.Kind != lex.EOF {
-			if p.tok.Kind != lex.Ident {
-				return nil, p.errorf("expected parameter name")
-			}
-			params = append(params, p.tok.Lit)
-			p.next()
-			if p.tok.Kind == lex.Comma {
-				p.next()
-			}
-		}
-		if p.tok.Kind != lex.RParen {
-			return nil, p.errorf("expected )")
-		}
-		p.next()
+	params, defaults, err := p.parseParamList()
+	if err != nil {
+		return nil, err
 	}
 	body, err := p.statements(endMethod)
 	if err != nil {
@@ -862,7 +1002,7 @@ func (p *Parser) parseMethod(recv string) (ast.Stmt, error) {
 	if recv == "" {
 		return nil, p.errorf("Method needs a type: Method Type.Name()")
 	}
-	return &ast.MethodDecl{Src: pos, Recv: recv, Name: name, Params: params, Body: body}, nil
+	return &ast.MethodDecl{Src: pos, Recv: recv, Name: name, Params: params, Defaults: defaults, Body: body}, nil
 }
 
 func (p *Parser) parseNamespace() (ast.Stmt, error) {

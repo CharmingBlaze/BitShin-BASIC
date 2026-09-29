@@ -11,17 +11,17 @@ What is wired and what is not. Classic command names still work; 2026 `Set*` / `
 | Pillar | Status | Notes |
 | --- | --- | --- |
 | Language | Real | If / While / For / Repeat / Select, Const, Dim, Function, Include, Data/Read, Yes/No/Null, degree math, `Type`/`Struct`, `Method`, `Import [As]`, `Namespace` |
-| G3N 3D | Real | Window, mesh primitives, lights, cameras, textures, glTF/OBJ/DAE, animation, pick, fog, cubemap skyboxes, weather, 3D particles. Shadows: CSM + PCF/PCSS/EVSM/MSM (`docs/SHADOWS.md`). **GL 3.3** |
+| G3N 3D | Real | Window, mesh primitives, lights, cameras, textures, glTF/OBJ/DAE, animation, pick, fog, cubemap skyboxes, weather, 3D particles (`SetEmitterShape` soft / cube / streak / flake). Lighting guide: `docs/LIGHTING.md`. Shadows: CSM + PCF/PCSS/EVSM/MSM (`docs/SHADOWS.md`). **GL 3.3** |
 | Weather | Real (sky Partial) | Rain/snow/fog/storm particles, wetness, height fog, wind sway, lightning bolts. Atmosphere = Bruneton-style LUT + single scatter (`docs/WEATHER.md`). Not full 4D precompute / 3D clouds |
-| Terrain | Real | Heightmap PNG/JPEG, FBM proc, **CPU generator** (`GenerateHeightmap` / erosion / PNG), **Terrain-OpenGL** value-noise + `mbterrain` splat (`CreateTerrainGL`), chunk stream + CPU LOD (tess/compute not required), `TerrainHeight` / `TerrainSlope`, 3.3 cloud raymarch. `docs/TERRAIN.md` |
+| Terrain | Real | Heightmap PNG/JPEG, FBM proc, **CPU generator** (`GenerateHeightmap` / erosion / PNG), **Terrain-OpenGL** value-noise + `mbterrain` splat (`CreateTerrainGL`), chunk stream + CPU LOD (`SetTerrainDetail` is the CPU step, not GL tess), `TerrainFoliage` / `TerrainTrees` / `TerrainProps`, `SetTerrainBlendMap`, `TerrainHeight` / `TerrainSlope`, 3.3 cloud raymarch. `docs/TERRAIN.md`, `docs/PLAY.md` |
 | Geo | Real | Thin Web Mercator subset (`internal/geo`): `SetGeoOrigin`, `GeoProject` / `GeoUnproject`, XYZ/TMS tiles, `LoadGeoJSON`, DEM bounds → existing `CreateTerrain`. **Not** full flywave/go-geo (PROJ/GEOS/CGO). `docs/GEO.md` |
 | Water | Real | Gerstner (vertex + wind + `WaterHeight`) and scenic dual-FBO / DuDv / Fresnel / depth tint / texture foam / dual normals; combo `ocean`. Camera-centered LOD grid. Caustics, wakes, shoreline wetness. Auto Jolt buoyancy + `SetWaterFlow`. **SSR Partial** (lite planar-FBO march). Not FFT. `docs/WATER.md` |
-| Streaming | Real | `CreateWorldStream` grid load/unload around origin/follow. Jobs plan; GL upload on Flip |
+| Streaming | Real | `SetPlayer` follows terrain, water, and props. Near chunks collide. Shift past 4 km. `SetWorldBubble(0)` leaves it manual. |
 | Instancing | Real | GPU `glDrawElementsInstanced` on 3.3 (`EnableGPUInstances`); CPU-merged mesh fallback. `SetInstanceData` = `SetInstanceTransform` |
 | Modern GL | Partial | **3.3 Real:** UBO, GPU instancing, geometry billboards, caps query. **4.x optional:** compute / SSBO / tess — Real if the driver has them, else return 0 + one skip line. Never crash. `docs/GRAPHICS.md` |
 | glslang | Real (validate) | `internal/glslang` + `CompileShader` / `bs shader`. SPIR-V **optional** (`glslangValidator` on PATH). No Vulkan. Native C++ glslang **not shipped** (`-tags glslang` reserved) |
 | Gonum | Real | `internal/mathx` for FBM, IBL SH, crowd separation, `JobXform`. G3N scene graph stays `math32` |
-| GI probes | Real | `CreateLightProbe` / `SetProbeGrid` drive hemi + ambient. Optional lightmap multiply. No RTX |
+| GI probes | Real | `CreateLightProbe` / `SetProbeGrid` drive hemi + ambient. The nearest probe also captures a small cubemap (one face per frame) for PBR. Optional lightmap multiply. No RTX |
 | Jobs | Real | Go worker pool. Workers must not touch GL |
 | ECS (Flecs) | Real | 4.1.6. `EcsProgress` + Go-side `Position += Velocity * dt`. OOP entity handles still wrap G3N |
 | Crowd | Partial | Detour paths + local separation + time-to-collision sidestep + yaw toward travel. **go-detour v0.1.3 has no DetourCrowd** |
@@ -36,9 +36,9 @@ What is wired and what is not. Classic command names still work; 2026 `Set*` / `
 | ImGui | Real | `cimgui-go` v1.6.0 on the G3N GLFW + OpenGL 3.3 window |
 | G3N widgets | Real | `CreatePanel` / `CreateButton` / `CreateSlider` / `SetOnClick` (scene-graph UI; names do not clash with `Gui*`) |
 | GLFW window / input | Real | Primary + extra shared-context windows |
-| PBR | Real | Opt-in metallic-roughness on `mbphysical` (GLSL 330). Shadows × direct only. IBL: analytic hemi + UE4 EnvBRDF split-sum + optional 2D `SetEnvMap` lod. No prefiltered cubemap. `docs/PBR.md` |
+| PBR | Real | Opt-in metallic-roughness on `mbphysical` (GLSL 330). Shadows × direct only. IBL: analytic hemi + UE4 EnvBRDF split-sum + prefiltered sky cubemap (`textureLod`) + optional 2D `SetEnvMap`. `docs/PBR.md` |
 | Assets | Partial | `LoadMesh` already accepts `.glb` / `.gltf` / `.obj` / `.dae`. PNG/JPEG textures. **No meshopt, no Basis/KTX2** (no extra C++ tree) |
-| PostFX | Real | GL 3.3 FBO blit: tonemap, exposure, cheap bloom, FXAA, color grade. Not deferred MRT |
+| PostFX | Real | GL 3.3 FBO blit: tonemap, exposure, half-res bloom chain, FXAA, color grade. Not deferred MRT |
 | Shader programs | Real | `CreateShader` / `LoadShader` / `SetShaderUniform` — GLSL 330 + PBR nodes. Not an Unreal graph |
 | Input | Real | Keys, `KeyHit`, mouse, `MouseLook`, gamepad + deadzone |
 | Serialization | Real | JSON/YAML/MessagePack. `SaveScene` writes `kind`/`src`/parent/transform/tint/`visible`; lights dump as `kind: light`; cameras dump `fov`/`near`/`far`. `SceneLoad` rebuilds primitives, remeshes, lights, and cameras. Old dumps without `kind` still become cubes. `.bb` `LoadScene` still works |
@@ -47,14 +47,14 @@ What is wired and what is not. Classic command names still work; 2026 `Set*` / `
 
 | System | Status | Leftover Partial |
 | --- | --- | --- |
-| 1 World streaming | Real | — |
+| 1 World streaming | Real | `SetPlayer` bubble. `SetWorldBubble(0)` is the manual path |
 | 2 ECS (Flecs) | Real | G3N entities are a separate world |
 | 3 Animation | Real | Clip play/stop/time, `AttachToBone`, `SetAnimBlend` dual-pose nlerp. Not two-bone IK / additive layers |
 | 4 Input | Real | — |
 | 5 Physics extensions | Real (Windows) | Sleep/wake, 3D joints (incl. fixed/cone/swing-twist), 6DOF `Grab` at hit/anchor, compound collider, CharacterVirtual + inner body, vehicles, `SetCCD` LinearCast, Chipmunk 2D joints, collision layers, debug overlay. Linux/macOS ARM: CharacterVirtual + kinematic inner capsule + Verlet cloth + software position joints **including sliders, cone clamp, hinge limits/motor/friction, swing-twist** + mesh/convex/heightfield + cylinder hull + CollideShape queries + synthesized contacts + compound hull + software pose (rotation/torque/buoyancy) + query layers + COM torque + ray-sweep CCD. Fallback integrates software rotation too. Native `VehicleConstraint` / 6DOF grab / LinearCast stay Windows-only. |
 | 6 Navigation + AI | Partial | Detour bake + grid A* Real. No DetourCrowd C API |
 | 7 Material / shader graph | Partial | PBR + Phong + `CreateShader` Real. No Unreal node graph |
-| 8 Post-processing | Real | Cheap one-pass bloom/FXAA, not a film stack |
+| 8 Post-processing | Real | Half-res bloom chain, tonemap, FXAA. Not a film stack |
 | 9 Sky / atmosphere | Real | Cubemap + preset + analytic dome + 3.3 clouds + Bruneton-style 2D LUT / single scatter. Not full 4D inscatter |
 | 10 Audio (Oto) | Real | — |
 | 11 Editor tools | Real | ImGui + G3N widgets + stats |
@@ -88,6 +88,7 @@ go build -o bs.exe ./cmd/bs
 .\bs.exe examples\water.bb
 .\bs.exe examples\weather.bb
 .\bs.exe examples\terrain.bb
+.\bs.exe examples\outdoor.bb
 .\bs.exe examples\terrain_gl.bb
 .\bs.exe examples\heightmap.bb
 .\bs.exe examples\geo.bb

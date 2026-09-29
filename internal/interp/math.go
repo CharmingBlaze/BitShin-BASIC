@@ -3,6 +3,7 @@ package interp
 import (
 	"math"
 
+	"bitshinbasic/internal/syntax"
 	"bitshinbasic/internal/value"
 )
 
@@ -151,6 +152,199 @@ func (in *Interp) installMath(n func(string, func([]value.Value) value.Value)) {
 		x, y, c, s := num(a, 0), num(a, 1), math.Cos(deg(a, 2)), math.Sin(deg(a, 2))
 		return value.Num(x*s + y*c)
 	})
+
+	n("movewish", func(a []value.Value) value.Value { return in.moveWish(num(a, 0)) })
+	n("accelerate", func(a []value.Value) value.Value {
+		vx, vz := accelerate(
+			num(a, 0), num(a, 1), num(a, 2), num(a, 3),
+			num(a, 4), num(a, 5), num(a, 6), num(a, 7), num(a, 8),
+		)
+		return value.Vec([]value.Value{value.Num(vx), value.Num(vz)})
+	})
+	n("turntoward", func(a []value.Value) value.Value {
+		return value.Num(turnToward(num(a, 0), num(a, 1), num(a, 2), num(a, 3), num(a, 4)))
+	})
+	n("land", func(a []value.Value) value.Value {
+		pads := value.Value{}
+		if len(a) > 4 {
+			pads = a[4]
+		}
+		return in.landOn(num(a, 0), num(a, 1), num(a, 2), num(a, 3), pads)
+	})
+	n("material", func(a []value.Value) value.Value { return materialValue(a) })
+}
+
+func (in *Interp) keyHeld(name string) bool {
+	if in.host == nil {
+		return false
+	}
+	code, ok := syntax.KeyConstants[name]
+	if !ok {
+		return false
+	}
+	v, err := in.host.Call("keydown", []value.Value{value.Num(code)})
+	if err != nil {
+		return false
+	}
+	return v.IsTrue()
+}
+
+func (in *Interp) moveWish(yaw float64) value.Value {
+	wx, wz := 0.0, 0.0
+	add := func(dir float64) {
+		wx += math.Sin(dir * math.Pi / 180)
+		wz += math.Cos(dir * math.Pi / 180)
+	}
+	if in.keyHeld("key_w") {
+		add(yaw)
+	}
+	if in.keyHeld("key_s") {
+		add(yaw + 180)
+	}
+	if in.keyHeld("key_a") {
+		add(yaw - 90)
+	}
+	if in.keyHeld("key_d") {
+		add(yaw + 90)
+	}
+	if l := math.Hypot(wx, wz); l > 0.001 {
+		wx /= l
+		wz /= l
+	}
+	return value.Vec([]value.Value{value.Num(wx), value.Num(wz)})
+}
+
+func accelerate(vx, vz, wx, wz, acc, fric, maxSpd, grounded, dt float64) (float64, float64) {
+	if spd := math.Hypot(vx, vz); spd > 0.001 {
+		nspd := spd - fric*dt
+		if nspd < 0 {
+			nspd = 0
+		}
+		vx *= nspd / spd
+		vz *= nspd / spd
+	}
+	if math.Hypot(wx, wz) > 0.001 {
+		vx += wx * acc * dt
+		vz += wz * acc * dt
+		hsp := math.Hypot(vx, vz)
+		cap := maxSpd
+		if grounded == 0 && hsp > maxSpd {
+			cap = hsp
+		}
+		if grounded != 0 && hsp > maxSpd {
+			vx *= maxSpd / hsp
+			vz *= maxSpd / hsp
+		} else if grounded == 0 && hsp > cap {
+			vx *= cap / hsp
+			vz *= cap / hsp
+		}
+	}
+	return vx, vz
+}
+
+func turnToward(yaw, vx, vz, rate, minSpd float64) float64 {
+	if minSpd == 0 {
+		minSpd = 0.45
+	}
+	if math.Hypot(vx, vz) <= minSpd {
+		return yaw
+	}
+	want := math.Atan2(vx, vz) * 180 / math.Pi
+	diff := wrap180(want - yaw)
+	if math.Abs(diff) <= rate {
+		return want
+	}
+	if diff > 0 {
+		return yaw + rate
+	}
+	return yaw - rate
+}
+
+func (in *Interp) landOn(px, py, pz, vy float64, pads value.Value) value.Value {
+	none := value.Vec([]value.Value{value.Num(py), value.Num(vy), value.Num(0)})
+	elems, err := in.iterElems(pads)
+	if err != nil {
+		return none
+	}
+	best := -999.0
+	hit := false
+	for _, el := range elems {
+		if el.Kind != value.KindStruct && el.Kind != value.KindMap {
+			continue
+		}
+		x, y, z := fld(el, "x"), fld(el, "y"), fld(el, "z")
+		w := fld(el, "w")
+		if _, ok := el.Field("w"); !ok {
+			w = fld(el, "hx")
+		}
+		d := fld(el, "d")
+		if _, ok := el.Field("d"); !ok {
+			d = fld(el, "hz")
+		}
+		if math.Abs(px-x) < w && math.Abs(pz-z) < d && py <= y+0.45 && py >= y-0.85 && vy <= 0.35 {
+			if !hit || y > best {
+				best = y
+				hit = true
+			}
+		}
+	}
+	if !hit {
+		return none
+	}
+	return value.Vec([]value.Value{value.Num(best), value.Num(0), value.Num(1)})
+}
+
+func fld(v value.Value, name string) float64 {
+	f, ok := v.Field(name)
+	if !ok {
+		return 0
+	}
+	return f.Number()
+}
+
+func materialValue(a []value.Value) value.Value {
+	r, g, b := 255.0, 255.0, 255.0
+	tex, shine := 0.0, 0.0
+	sr, sg, sb := 0.0, 0.0, 0.0
+	spec := 0.0
+	if len(a) > 0 && (a[0].Kind == value.KindVec || a[0].Number() > 255) {
+		if x, y, z, ok := a[0].XYZ(); ok {
+			r, g, b = x, y, z
+		} else {
+			r, g, b = syntax.PackedRGB(a[0].Int())
+		}
+		tex, shine = num(a, 1), num(a, 2)
+		if len(a) >= 6 {
+			sr, sg, sb = num(a, 3), num(a, 4), num(a, 5)
+			spec = 1
+		}
+	} else {
+		if len(a) > 0 {
+			r = num(a, 0)
+		}
+		if len(a) > 1 {
+			g = num(a, 1)
+		}
+		if len(a) > 2 {
+			b = num(a, 2)
+		}
+		tex, shine = num(a, 3), num(a, 4)
+		if len(a) >= 8 {
+			sr, sg, sb = num(a, 5), num(a, 6), num(a, 7)
+			spec = 1
+		}
+	}
+	m := value.StructOf("material", []string{"r", "g", "b", "tex", "shine", "sr", "sg", "sb", "spec"})
+	m.SetField("r", value.Num(r))
+	m.SetField("g", value.Num(g))
+	m.SetField("b", value.Num(b))
+	m.SetField("tex", value.Num(tex))
+	m.SetField("shine", value.Num(shine))
+	m.SetField("sr", value.Num(sr))
+	m.SetField("sg", value.Num(sg))
+	m.SetField("sb", value.Num(sb))
+	m.SetField("spec", value.Num(spec))
+	return m
 }
 
 func clamp01(t float64) float64 {

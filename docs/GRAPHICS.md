@@ -6,7 +6,7 @@ BitShin BASIC stays on **G3N + go-gl OpenGL**. There is no bgfx, Vulkan, or wgpu
 
 The ship path is **OpenGL 3.3 core**. Everything needed to run a game must work here:
 
-- G3N window, Phong / `mbshadow`, directional CSM + point/spot maps
+- G3N window, Phong / `mbshadow` ([docs/LIGHTING.md](LIGHTING.md)), directional CSM + point/spot maps
 - Particles, skybox, weather (atmosphere LUT + clouds + lightning), fog
 - PBR (`mbphysical`) as GLSL that G3N compiles on 3.3
 - Terrain and water on **regular meshes** (Gerstner in the vertex shader)

@@ -2,6 +2,25 @@ package runtime
 
 import "testing"
 
+func TestEmitterShapeNames(t *testing.T) {
+	e := defaultEmitter(false)
+	if e.style != 0 {
+		t.Fatalf("gameplay emitter should start as a soft sprite, style %d", e.style)
+	}
+	applyEmitterShape(e, "Cube")
+	if e.style != 3 {
+		t.Fatalf("cube style %d", e.style)
+	}
+	applyEmitterShape(e, "streak")
+	if e.style != 1 {
+		t.Fatalf("streak style %d", e.style)
+	}
+	applyEmitterShape(e, "soft")
+	if e.style != 0 {
+		t.Fatalf("soft style %d", e.style)
+	}
+}
+
 func TestEmitterSpawnAndTick2D(t *testing.T) {
 	w := New(".")
 	w.mode2D = true

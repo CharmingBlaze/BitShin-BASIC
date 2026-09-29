@@ -26,7 +26,8 @@ func (p Src) Pos() (int, int) { return p.Line, p.Col }
 type AssignStmt struct {
 	Src
 	Name   string
-	Fields []string // p.x = 1
+	Names  []string // len > 1: a, b = expr
+	Fields []string // p.x = 1, or pads(i).x = 1 together with Index
 	Index  []Expr
 	Value  Expr
 }
@@ -61,6 +62,7 @@ type ForStmt struct {
 	Var        string
 	Start, End Expr
 	Step       Expr
+	In         Expr // For v In xs  (Each is optional)
 	Body       []Stmt
 }
 
@@ -77,16 +79,18 @@ type ReturnStmt struct {
 
 type FuncDecl struct {
 	Src
-	Name   string
-	Params []string
-	Body   []Stmt
+	Name     string
+	Params   []string
+	Defaults []Expr // same length as Params; nil means required
+	Body     []Stmt
 }
 
 type DimStmt struct {
 	Src
-	Name  string
-	Sizes []Expr
-	Redim bool
+	Name     string
+	Sizes    []Expr
+	TypeName string // Dim pads(8) As Pad
+	Redim    bool
 }
 
 type LocalStmt struct {
@@ -131,10 +135,11 @@ type TypeDecl struct {
 
 type MethodDecl struct {
 	Src
-	Recv   string
-	Name   string
-	Params []string
-	Body   []Stmt
+	Recv     string
+	Name     string
+	Params   []string
+	Defaults []Expr
+	Body     []Stmt
 }
 
 type NamespaceDecl struct {
@@ -189,6 +194,7 @@ type DataStmt struct {
 type ReadStmt struct {
 	Src
 	Names []string
+	Quals [][]string // parallel to Names; coin.x stores fields on coin
 }
 
 type RestoreStmt struct{ Src }
@@ -198,6 +204,15 @@ type EnumStmt struct {
 	Name   string
 	Names  []string
 	Values []Expr // nil = auto
+}
+
+type StrictStmt struct{ Src }
+
+type TryStmt struct {
+	Src
+	Body   []Stmt
+	ErrVar string
+	Catch  []Stmt
 }
 
 func (AssignStmt) stmt()    {}
@@ -226,6 +241,8 @@ func (DataStmt) stmt()      {}
 func (ReadStmt) stmt()      {}
 func (RestoreStmt) stmt()   {}
 func (EnumStmt) stmt()      {}
+func (StrictStmt) stmt()    {}
+func (TryStmt) stmt()       {}
 
 type BinaryExpr struct {
 	Src

@@ -59,12 +59,39 @@ extern "C" void JoltPhysicsSystemUpdateWithAllocator(JoltPhysicsSystem system, f
 	{
 		deltaTime = 1.0f / 20.0f;
 	}
-	int collisionSteps = 1;
-	if (deltaTime > 1.0f / 45.0f)
+	// Two collision steps at 60 Hz keep stacks and character pushes from tunneling
+	// through a single contact solve. Larger frames take more slices.
+	int collisionSteps = 2;
+	if (deltaTime > 1.0f / 50.0f)
 	{
-		collisionSteps = 2;
+		collisionSteps = 3;
+	}
+	if (deltaTime > 1.0f / 30.0f)
+	{
+		collisionSteps = 4;
 	}
 	ps->Update(deltaTime, collisionSteps, static_cast<TempAllocator *>(allocator), gJobSystem.get());
+}
+
+extern "C" void JoltConfigureStablePhysics(JoltPhysicsSystem system)
+{
+	if (system == nullptr)
+	{
+		return;
+	}
+	PhysicsSystem *ps = GetPhysicsSystem(static_cast<PhysicsSystemWrapper *>(system));
+	if (ps == nullptr)
+	{
+		return;
+	}
+	PhysicsSettings settings = ps->GetPhysicsSettings();
+	settings.mNumVelocitySteps = 14;
+	settings.mNumPositionSteps = 3;
+	settings.mBaumgarte = 0.25f;
+	settings.mSpeculativeContactDistance = 0.04f;
+	settings.mPenetrationSlop = 0.015f;
+	settings.mMinVelocityForRestitution = 0.8f;
+	ps->SetPhysicsSettings(settings);
 }
 
 extern "C" void JoltOptimizeBroadPhase(JoltPhysicsSystem system)

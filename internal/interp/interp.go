@@ -2,6 +2,7 @@
 package interp
 
 import (
+	"bufio"
 	cryptorand "crypto/rand"
 	"encoding/binary"
 	"fmt"
@@ -45,24 +46,34 @@ const (
 	frameFor
 	frameRepeat
 	frameFunc
+	frameTry
 )
 
 type frame struct {
-	kind   frameKind
-	stmts  []ast.Stmt
-	pc     int
-	cond   ast.Expr
-	forVar string
-	end    ast.Expr
-	step   ast.Expr
-	until  ast.Expr
-	env    *env
-	ret    value.Value
+	kind    frameKind
+	stmts   []ast.Stmt
+	pc      int
+	cond    ast.Expr
+	forVar  string
+	end     ast.Expr
+	step    ast.Expr
+	forEach []value.Value
+	forAt   int
+	until   ast.Expr
+	env     *env
+	ret     value.Value
+	catch   []ast.Stmt
+	errName string
 }
 
 type env struct {
-	parent *env
-	vars   map[string]value.Value
+	parent      *env
+	vars        map[string]value.Value
+	declared    map[string]bool
+	kinds       map[string]value.Kind
+	ints        map[string]bool
+	funcScope   bool
+	globalAlias map[string]bool // Global name inside a function: assign the global
 }
 
 func newEnv(parent *env) *env {
@@ -82,21 +93,140 @@ func (e *env) get(name string) (value.Value, bool) {
 
 func (e *env) set(name string, v value.Value) {
 	k := lex.IdentKey(name)
+	v = e.coerce(k, v)
+	if _, ok := e.vars[k]; ok {
+		e.vars[k] = v
+		return
+	}
+	if e.globalAlias != nil && e.globalAlias[k] {
+		g := e
+		for g.parent != nil {
+			g = g.parent
+		}
+		g.set(name, v)
+		return
+	}
+	if e.funcScope {
+		e.define(name, v)
+		return
+	}
+	if e.parent != nil {
+		if _, ok := e.parent.get(k); ok {
+			e.parent.set(name, v)
+			return
+		}
+	}
+	e.mark(name)
+	e.vars[k] = v
+}
+
+// storeExisting writes an array or struct root back without creating a function local.
+func (e *env) storeExisting(name string, v value.Value) {
+	k := lex.IdentKey(name)
+	v = e.coerce(k, v)
 	if _, ok := e.vars[k]; ok {
 		e.vars[k] = v
 		return
 	}
 	if e.parent != nil {
 		if _, ok := e.parent.get(k); ok {
-			e.parent.set(k, v)
+			e.parent.storeExisting(name, v)
 			return
 		}
 	}
+	e.mark(name)
 	e.vars[k] = v
 }
 
+func (e *env) markGlobal(name string) {
+	if e.globalAlias == nil {
+		e.globalAlias = map[string]bool{}
+	}
+	e.globalAlias[lex.IdentKey(name)] = true
+}
+
+func (e *env) writableHere(name string) bool {
+	k := lex.IdentKey(name)
+	if _, ok := e.vars[k]; ok {
+		return true
+	}
+	return e.globalAlias != nil && e.globalAlias[k]
+}
+
 func (e *env) define(name string, v value.Value) {
-	e.vars[lex.IdentKey(name)] = v
+	e.mark(name)
+	k := lex.IdentKey(name)
+	v = e.coerce(k, v)
+	e.vars[k] = v
+}
+
+func (e *env) mark(name string) {
+	k := lex.IdentKey(name)
+	if e.declared == nil {
+		e.declared = map[string]bool{}
+	}
+	e.declared[k] = true
+	if kind, asInt, ok := suffixKind(name); ok {
+		if e.kinds == nil {
+			e.kinds = map[string]value.Kind{}
+		}
+		e.kinds[k] = kind
+		if asInt {
+			if e.ints == nil {
+				e.ints = map[string]bool{}
+			}
+			e.ints[k] = true
+		}
+	}
+}
+
+func suffixKind(name string) (value.Kind, bool, bool) {
+	switch {
+	case strings.HasSuffix(name, "$"):
+		return value.KindStr, false, true
+	case strings.HasSuffix(name, "%"):
+		return value.KindNum, true, true
+	case strings.HasSuffix(name, "#"):
+		return value.KindNum, false, true
+	default:
+		return 0, false, false
+	}
+}
+
+func (e *env) coerce(k string, v value.Value) value.Value {
+	for cur := e; cur != nil; cur = cur.parent {
+		kind, ok := cur.kinds[k]
+		if !ok {
+			continue
+		}
+		switch kind {
+		case value.KindStr:
+			if v.Kind != value.KindStr {
+				v = value.Str(v.String())
+			}
+		case value.KindNum:
+			n := v.Number()
+			if cur.ints != nil && cur.ints[k] {
+				n = float64(int(n))
+			}
+			v = value.Num(n)
+		}
+		return v
+	}
+	return v
+}
+
+func (e *env) known(name string) bool {
+	k := lex.IdentKey(name)
+	for cur := e; cur != nil; cur = cur.parent {
+		if cur.declared != nil && cur.declared[k] {
+			return true
+		}
+		if _, ok := cur.vars[k]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 type Interp struct {
@@ -118,9 +248,20 @@ type Interp struct {
 	dataPC     int
 	lists      map[int][]value.Value
 	nextList   int
+	machines   map[int]*stateMachine
+	nextMach   int
+	strict     bool
+	fastHits   int
+	fastCache  map[string]fastCode
+	debug      bool
+	breaks     map[int]bool
+	stepNext   bool
+	debugIn    *bufio.Reader
+	debugOut   io.Writer
 	types      map[string]*ast.TypeDecl
 	methods    map[string]*ast.FuncDecl
 	namespaces map[string]bool
+	bindEnv    *env // parameter defaults evaluate here
 }
 
 func New(prog *ast.Program, host Host) *Interp {
@@ -133,6 +274,9 @@ func New(prog *ast.Program, host Host) *Interp {
 		start:      time.Now(),
 		lists:      map[int][]value.Value{},
 		nextList:   1,
+		machines:   map[int]*stateMachine{},
+		nextMach:   1,
+		fastCache:  map[string]fastCode{},
 		types:      map[string]*ast.TypeDecl{},
 		methods:    map[string]*ast.FuncDecl{},
 		namespaces: map[string]bool{},
@@ -187,7 +331,7 @@ func (in *Interp) collectFuncsPrefixed(stmts []ast.Stmt, prefix string) {
 			}
 		case *ast.MethodDecl:
 			in.methods[lex.IdentKey(qual(t.Recv))+"."+lex.IdentKey(t.Name)] = &ast.FuncDecl{
-				Src: t.Src, Name: t.Name, Params: t.Params, Body: t.Body,
+				Src: t.Src, Name: t.Name, Params: t.Params, Defaults: t.Defaults, Body: t.Body,
 			}
 		case *ast.NamespaceDecl:
 			p := qual(t.Name)
@@ -327,6 +471,9 @@ func (in *Interp) Step() Status {
 			continue
 		}
 		s := f.stmts[f.pc]
+		if in.debug {
+			in.maybeBreak(s)
+		}
 		f.pc++
 		st := in.exec(s)
 		if st == StatusWaitYield {
@@ -381,6 +528,15 @@ func (in *Interp) finishFrame(f *frame) bool {
 			return true
 		}
 	case frameFor:
+		if f.forEach != nil {
+			f.forAt++
+			if f.forAt < len(f.forEach) {
+				in.env().set(f.forVar, f.forEach[f.forAt])
+				f.pc = 0
+				return true
+			}
+			break
+		}
 		cur, _ := in.env().get(f.forVar)
 		step := 1.0
 		if f.step != nil {
@@ -413,6 +569,8 @@ func (in *Interp) finishFrame(f *frame) bool {
 		}
 	case frameFunc:
 		in.ret = value.Num(0)
+	case frameTry:
+		// body finished without error; skip Catch
 	}
 	in.stack = in.stack[:len(in.stack)-1]
 	return len(in.stack) > 0
@@ -443,6 +601,14 @@ func (in *Interp) unwindExit() {
 }
 
 func (in *Interp) env() *env {
+	if in.bindEnv != nil {
+		for i := len(in.stack) - 1; i >= 0; i-- {
+			if in.stack[i].env != nil {
+				return in.stack[i].env
+			}
+		}
+		return in.bindEnv
+	}
 	for i := len(in.stack) - 1; i >= 0; i-- {
 		if in.stack[i].env != nil {
 			return in.stack[i].env
@@ -458,9 +624,18 @@ func (in *Interp) exec(s ast.Stmt) Status {
 		if err != nil {
 			return in.cmdFail(t, err)
 		}
-		v = v.Clone()
+		if len(t.Names) > 1 {
+			if err := in.assignUnpack(t.Names, v); err != nil {
+				return in.cmdFail(t, err)
+			}
+			return StatusOK
+		}
+		bare := len(t.Index) == 0 && len(t.Fields) == 0
+		if err := in.assignAllowed(t.Name, bare); err != nil {
+			return in.cmdFail(t, err)
+		}
 		if len(t.Index) > 0 {
-			if err := in.setIndex(t.Name, t.Index, v); err != nil {
+			if err := in.setIndex(t.Name, t.Index, t.Fields, v); err != nil {
 				return in.cmdFail(t, err)
 			}
 			return StatusOK
@@ -489,6 +664,18 @@ func (in *Interp) exec(s ast.Stmt) Status {
 		args, err := in.evalArgs(t.Args)
 		if err != nil {
 			return in.cmdFail(t, err)
+		}
+		if fn, ok := in.funcs[name]; ok {
+			local, args, err := in.prepareCall(fn, args)
+			if err != nil {
+				return in.cmdFail(t, err)
+			}
+			if code, ok := in.compiled(fn); ok {
+				in.ret = in.runFast(fn, code, args)
+				return StatusOK
+			}
+			in.push(frame{kind: frameFunc, stmts: filterTop(fn.Body), env: local})
+			return StatusOK
 		}
 		if in.host != nil && in.host.Yields(name) {
 			if _, err := in.host.Call(name, args); err != nil {
@@ -537,11 +724,27 @@ func (in *Interp) exec(s ast.Stmt) Status {
 			in.push(frame{kind: frameWhile, stmts: t.Body, cond: t.Cond, env: in.env()})
 		}
 	case *ast.ForStmt:
+		if t.In != nil {
+			seq, err := in.eval(t.In)
+			if err != nil {
+				return in.cmdFail(t, err)
+			}
+			elems, err := in.iterElems(seq)
+			if err != nil {
+				return in.cmdFail(t, err)
+			}
+			if len(elems) == 0 {
+				break
+			}
+			in.env().define(t.Var, elems[0])
+			in.push(frame{kind: frameFor, stmts: t.Body, forVar: t.Var, forEach: elems, env: in.env()})
+			break
+		}
 		start, err := in.eval(t.Start)
 		if err != nil {
 			return in.cmdFail(t, err)
 		}
-		in.env().set(t.Var, start)
+		in.env().define(t.Var, start)
 		endv, err := in.eval(t.End)
 		if err != nil {
 			return in.cmdFail(t, err)
@@ -582,6 +785,12 @@ func (in *Interp) exec(s ast.Stmt) Status {
 			sizes[i] = v.Int()
 		}
 		arr := value.Array(sizes)
+		if t.TypeName != "" {
+			if _, ok := in.types[lex.IdentKey(t.TypeName)]; !ok {
+				return in.cmdFail(t, fmt.Errorf("unknown type %s", t.TypeName))
+			}
+			arr.TypeName = lex.IdentKey(t.TypeName)
+		}
 		if t.Redim {
 			if old, ok := in.env().get(t.Name); ok && old.Kind == value.KindArray {
 				n := len(old.Elems)
@@ -589,18 +798,32 @@ func (in *Interp) exec(s ast.Stmt) Status {
 					n = len(arr.Elems)
 				}
 				copy(arr.Elems, old.Elems[:n])
+				if arr.TypeName == "" {
+					arr.TypeName = old.TypeName
+				}
 			}
 		}
 		in.env().define(t.Name, arr)
 	case *ast.GlobalStmt:
+		e := in.env()
 		for i, n := range t.Names {
+			hasVal := i < len(t.Values) && t.Values[i] != nil
 			v := value.Num(0)
-			if i < len(t.Values) && t.Values[i] != nil {
+			if hasVal {
 				ev, err := in.eval(t.Values[i])
 				if err != nil {
 					return in.cmdFail(t, err)
 				}
 				v = ev
+			}
+			if e.funcScope {
+				e.markGlobal(n)
+				if hasVal {
+					in.global.define(n, v)
+				} else if _, ok := in.global.get(n); !ok {
+					in.global.define(n, value.Num(0))
+				}
+				continue
 			}
 			in.global.define(n, v)
 		}
@@ -667,11 +890,15 @@ func (in *Interp) exec(s ast.Stmt) Status {
 	case *ast.DataStmt:
 		// collected at load
 	case *ast.ReadStmt:
-		if err := in.readNames(t.Names); err != nil {
+		if err := in.readNames(t.Names, t.Quals); err != nil {
 			return in.cmdFail(t, err)
 		}
 	case *ast.RestoreStmt:
 		in.dataPC = 0
+	case *ast.StrictStmt:
+		in.strict = true
+	case *ast.TryStmt:
+		in.push(frame{kind: frameTry, stmts: t.Body, catch: t.Catch, errName: t.ErrVar, env: in.env()})
 	case *ast.EndStmt:
 		return StatusEnd
 	case *ast.ExitStmt:
@@ -695,12 +922,37 @@ func (in *Interp) wrap(n ast.Node, err error) error {
 
 func (in *Interp) cmdFail(n ast.Node, err error) Status {
 	werr := in.wrap(n, err)
+	if in.raise(werr) {
+		return StatusOK
+	}
 	if in.live {
 		fmt.Fprintln(in.Out, werr)
 		return StatusOK
 	}
 	in.err = werr
 	return StatusEnd
+}
+
+func (in *Interp) raise(err error) bool {
+	for i := len(in.stack) - 1; i >= 0; i-- {
+		f := in.stack[i]
+		if f.kind != frameTry {
+			continue
+		}
+		env := f.env
+		if env == nil {
+			env = in.global
+		}
+		if f.errName != "" {
+			env.define(f.errName, value.Str(err.Error()))
+		}
+		in.stack = in.stack[:i]
+		in.err = nil
+		in.status = StatusOK
+		in.push(frame{kind: frameBlock, stmts: f.catch, env: env})
+		return true
+	}
+	return false
 }
 
 func (in *Interp) evalBool(e ast.Expr) (bool, error) {
@@ -861,9 +1113,15 @@ func (in *Interp) eval(e ast.Expr) (value.Value, error) {
 		if v, ok := in.env().get(t.Name); ok {
 			return v, nil
 		}
+		if fn, ok := in.funcs[lex.IdentKey(t.Name)]; ok && len(fn.Params) > 0 {
+			return value.Func(fn.Name), nil
+		}
 		// zero-arg builtin / function
 		if v, err, ok := in.tryCall(lex.IdentKey(t.Name), nil); ok {
 			return v, err
+		}
+		if in.strict {
+			return value.Value{}, fmt.Errorf("undefined %s", t.Name)
 		}
 		return value.Num(0), nil
 	case *ast.CallExpr:
@@ -874,6 +1132,16 @@ func (in *Interp) eval(e ast.Expr) (value.Value, error) {
 		// array index via ()
 		if v, ok := in.env().get(t.Name); ok && v.Kind == value.KindArray {
 			return in.indexOf(v, args)
+		}
+		if v, ok := in.env().get(t.Name); ok && v.Kind == value.KindMap {
+			if len(args) == 0 {
+				return value.Num(0), nil
+			}
+			got, ok := v.Field(args[0].String())
+			if !ok {
+				return value.Num(0), nil
+			}
+			return got, nil
 		}
 		if td, ok := in.types[lex.IdentKey(t.Name)]; ok {
 			return in.construct(td, args), nil
@@ -1064,9 +1332,41 @@ func (in *Interp) indexOf(arr value.Value, idx []value.Value) (value.Value, erro
 	return arr.Elems[i], nil
 }
 
-func (in *Interp) setIndex(name string, idx []ast.Expr, v value.Value) error {
+func (in *Interp) setIndex(name string, idx []ast.Expr, fields []string, v value.Value) error {
 	arr, ok := in.env().get(name)
-	if !ok || arr.Kind != value.KindArray {
+	if !ok {
+		return fmt.Errorf("not an array: %s", name)
+	}
+	if arr.Kind == value.KindMap {
+		args, err := in.evalArgs(idx)
+		if err != nil {
+			return err
+		}
+		key := ""
+		if len(args) > 0 {
+			key = args[0].String()
+		}
+		if len(fields) == 0 {
+			if !arr.SetField(key, v) {
+				return fmt.Errorf("not a map: %s", name)
+			}
+			in.env().storeExisting(name, arr)
+			return nil
+		}
+		el, ok := arr.Field(key)
+		if !ok || (el.Kind != value.KindStruct && el.Kind != value.KindMap) {
+			el = value.Map()
+		}
+		if err := assignFields(&el, fields, v); err != nil {
+			return err
+		}
+		if !arr.SetField(key, el) {
+			return fmt.Errorf("not a map: %s", name)
+		}
+		in.env().storeExisting(name, arr)
+		return nil
+	}
+	if arr.Kind != value.KindArray {
 		return fmt.Errorf("not an array: %s", name)
 	}
 	args, err := in.evalArgs(idx)
@@ -1077,8 +1377,65 @@ func (in *Interp) setIndex(name string, idx []ast.Expr, v value.Value) error {
 	if !ok {
 		return fmt.Errorf("array index out of range")
 	}
-	arr.Elems[i] = v
-	in.env().set(name, arr)
+	if len(fields) == 0 {
+		arr.Elems[i] = v
+		in.env().storeExisting(name, arr)
+		return nil
+	}
+	el, err := in.promoteFieldTarget(arr, arr.Elems[i])
+	if err != nil {
+		return err
+	}
+	if err := assignFields(&el, fields, v); err != nil {
+		return err
+	}
+	arr.Elems[i] = el
+	in.env().storeExisting(name, arr)
+	return nil
+}
+
+func (in *Interp) promoteFieldTarget(arr, el value.Value) (value.Value, error) {
+	if el.Kind == value.KindStruct || el.Kind == value.KindMap {
+		return el, nil
+	}
+	if el.Kind != value.KindNum || el.Num != 0 {
+		return value.Value{}, fmt.Errorf("not a struct")
+	}
+	if arr.TypeName != "" {
+		td, ok := in.types[lex.IdentKey(arr.TypeName)]
+		if !ok {
+			return value.Value{}, fmt.Errorf("unknown type %s", arr.TypeName)
+		}
+		names := make([]string, len(td.Fields))
+		for i, f := range td.Fields {
+			names[i] = f.Name
+		}
+		return value.StructOf(td.Name, names), nil
+	}
+	return value.Map(), nil
+}
+
+func assignFields(root *value.Value, fields []string, val value.Value) error {
+	if root.Kind != value.KindStruct && root.Kind != value.KindMap {
+		return fmt.Errorf("not a struct")
+	}
+	cur := *root
+	for i, f := range fields {
+		if i == len(fields)-1 {
+			if !cur.SetField(f, val) {
+				return fmt.Errorf("cannot set .%s", f)
+			}
+			if i == 0 {
+				*root = cur
+			}
+			return nil
+		}
+		next, ok := cur.Field(f)
+		if !ok || (next.Kind != value.KindStruct && next.Kind != value.KindMap) {
+			return fmt.Errorf(".%s is not a struct", f)
+		}
+		cur = next
+	}
 	return nil
 }
 
@@ -1120,17 +1477,95 @@ func (in *Interp) ensureData() {
 	}
 }
 
-func (in *Interp) readNames(names []string) error {
+func (in *Interp) readNames(names []string, quals [][]string) error {
 	in.ensureData()
-	for _, n := range names {
+	for i, n := range names {
 		var v value.Value
 		if in.dataPC < len(in.data) {
 			v = in.data[in.dataPC]
 			in.dataPC++
 		}
+		if i < len(quals) && len(quals[i]) > 0 {
+			if err := in.setFields(n, quals[i], v); err != nil {
+				return err
+			}
+			continue
+		}
 		in.env().set(n, v)
 	}
 	return nil
+}
+
+func (in *Interp) assignAllowed(name string, bare bool) error {
+	if !in.strict {
+		return nil
+	}
+	e := in.env()
+	if bare && e.funcScope {
+		if !e.writableHere(name) {
+			return fmt.Errorf("undefined %s", name)
+		}
+		return nil
+	}
+	if !e.known(name) {
+		return fmt.Errorf("undefined %s", name)
+	}
+	return nil
+}
+
+func (in *Interp) assignUnpack(names []string, v value.Value) error {
+	elems := unpackList(v, len(names))
+	for i, n := range names {
+		if err := in.assignAllowed(n, true); err != nil {
+			return err
+		}
+		in.env().set(n, elems[i])
+	}
+	return nil
+}
+
+func unpackList(v value.Value, n int) []value.Value {
+	out := make([]value.Value, n)
+	if (v.Kind == value.KindVec || v.Kind == value.KindArray) && len(v.Elems) > 0 {
+		for i := 0; i < n; i++ {
+			if i < len(v.Elems) {
+				out[i] = v.Elems[i]
+			} else {
+				out[i] = value.Num(0)
+			}
+		}
+		return out
+	}
+	if n > 0 {
+		out[0] = v
+	}
+	for i := 1; i < n; i++ {
+		out[i] = value.Num(0)
+	}
+	return out
+}
+
+func (in *Interp) iterElems(v value.Value) ([]value.Value, error) {
+	switch {
+	case v.Kind == value.KindNum && v.TypeName == "list":
+		return append([]value.Value(nil), in.lists[v.Int()]...), nil
+	case v.Kind == value.KindVec:
+		return append([]value.Value(nil), v.Elems...), nil
+	case v.Kind == value.KindArray:
+		if v.TypeName == "" {
+			return append([]value.Value(nil), v.Elems...), nil
+		}
+		out := make([]value.Value, 0, len(v.Elems))
+		for _, el := range v.Elems {
+			if el.Kind == value.KindNum && el.Num == 0 && el.TypeName == "" {
+				continue
+			}
+			out = append(out, el)
+		}
+		return out, nil
+	default:
+		return nil, fmt.Errorf("For In expects an array, list, or vector")
+	}
 }
 
 func (in *Interp) tryCall(name string, args []value.Value) (value.Value, error, bool) {
@@ -1171,34 +1606,68 @@ func (in *Interp) call(name string, args []value.Value) (value.Value, error) {
 	return value.Value{}, fmt.Errorf("unknown command %s", name)
 }
 
-func (in *Interp) callUser(fn *ast.FuncDecl, args []value.Value) (value.Value, error) {
+func (in *Interp) prepareCall(fn *ast.FuncDecl, args []value.Value) (*env, []value.Value, error) {
 	local := newEnv(in.global)
+	local.funcScope = true
+	savedStack := in.stack
+	savedBind := in.bindEnv
+	in.stack = nil
+	in.bindEnv = local
+	defer func() {
+		in.stack = savedStack
+		in.bindEnv = savedBind
+	}()
+	full := make([]value.Value, len(fn.Params))
 	for i, p := range fn.Params {
 		var v value.Value
-		if i < len(args) {
+		switch {
+		case i < len(args):
 			v = args[i]
+		case i < len(fn.Defaults) && fn.Defaults[i] != nil:
+			ev, err := in.eval(fn.Defaults[i])
+			if err != nil {
+				return nil, nil, err
+			}
+			v = ev
 		}
 		local.define(p, v)
+		full[i] = v
+	}
+	return local, full, nil
+}
+
+func (in *Interp) callUser(fn *ast.FuncDecl, args []value.Value) (value.Value, error) {
+	local, args, err := in.prepareCall(fn, args)
+	if err != nil {
+		return value.Value{}, err
+	}
+	if code, ok := in.compiled(fn); ok {
+		return in.runFast(fn, code, args), nil
 	}
 	saved := in.stack
+	savedStatus := in.status
 	in.stack = []frame{{kind: frameFunc, stmts: filterTop(fn.Body), env: local}}
 	in.ret = value.Num(0)
+	var yieldErr error
 	for {
 		st := in.Step()
 		if st == StatusYield {
-			in.err = fmt.Errorf("Flip, WaitTimer, WaitKey, and Delay are not allowed inside a Function")
-			in.stack = saved
-			return value.Value{}, in.err
+			yieldErr = fmt.Errorf("Flip, WaitTimer, WaitKey, and Delay are not allowed inside a Function used as an expression")
+			break
 		}
 		if st == StatusEnd || len(in.stack) == 0 {
 			break
 		}
 	}
 	ret := in.ret
+	err = in.err
 	in.stack = saved
-	in.status = StatusOK
+	in.status = savedStatus
 	in.err = nil
-	return ret, nil
+	if yieldErr != nil {
+		return value.Value{}, yieldErr
+	}
+	return ret, err
 }
 
 func (in *Interp) construct(td *ast.TypeDecl, args []value.Value) value.Value {
@@ -1217,7 +1686,7 @@ func (in *Interp) construct(td *ast.TypeDecl, args []value.Value) value.Value {
 
 func (in *Interp) setFields(name string, fields []string, val value.Value) error {
 	root, ok := in.env().get(name)
-	if !ok || root.Kind != value.KindStruct {
+	if !ok || (root.Kind != value.KindStruct && root.Kind != value.KindMap) {
 		return fmt.Errorf("%s is not a struct", name)
 	}
 	cur := root
@@ -1226,7 +1695,7 @@ func (in *Interp) setFields(name string, fields []string, val value.Value) error
 			if !cur.SetField(f, val) {
 				return fmt.Errorf("cannot set %s.%s", name, f)
 			}
-			in.env().set(name, root)
+			in.env().storeExisting(name, root)
 			return nil
 		}
 		next, ok := cur.Field(f)
@@ -1477,11 +1946,17 @@ func (in *Interp) installBuiltins() {
 		kind := kind
 		n(name, func(a []value.Value) value.Value { return value.Num(float64(kind)) })
 	}
+	for name, nconst := range syntax.PhysicsConstants {
+		nconst := nconst
+		n(name, func(a []value.Value) value.Value { return value.Num(nconst) })
+	}
 	n("createlist", func(a []value.Value) value.Value {
 		id := in.nextList
 		in.nextList++
 		in.lists[id] = []value.Value{}
-		return value.Num(float64(id))
+		v := value.Num(float64(id))
+		v.TypeName = "list"
+		return v
 	})
 	n("listadd", func(a []value.Value) value.Value {
 		id := int(num(a, 0))
@@ -1520,6 +1995,99 @@ func (in *Interp) installBuiltins() {
 		in.lists[id] = append(lst[:i], lst[i+1:]...)
 		return value.Num(1)
 	})
+	n("createmap", func(a []value.Value) value.Value { return value.Map() })
+	n("mapset", func(a []value.Value) value.Value {
+		m := aValue(a, 0)
+		if m.Kind != value.KindMap || m.Fields == nil {
+			return value.Num(0)
+		}
+		m.SetField(str(a, 1), aValue(a, 2))
+		return value.Num(1)
+	})
+	n("mapget", func(a []value.Value) value.Value {
+		m := aValue(a, 0)
+		if m.Kind != value.KindMap {
+			return value.Num(0)
+		}
+		if v, ok := m.Field(str(a, 1)); ok {
+			return v
+		}
+		return value.Num(0)
+	})
+	n("maphas", func(a []value.Value) value.Value {
+		m := aValue(a, 0)
+		if m.Kind != value.KindMap {
+			return value.Num(0)
+		}
+		if _, ok := m.Field(str(a, 1)); ok {
+			return value.Num(1)
+		}
+		return value.Num(0)
+	})
+	n("mapdelete", func(a []value.Value) value.Value {
+		m := aValue(a, 0)
+		if m.Kind != value.KindMap || m.Fields == nil {
+			return value.Num(0)
+		}
+		delete(m.Fields, strings.ToLower(strings.TrimRight(str(a, 1), "$%#")))
+		return value.Num(1)
+	})
+	n("mapcount", func(a []value.Value) value.Value {
+		m := aValue(a, 0)
+		if m.Kind != value.KindMap {
+			return value.Num(0)
+		}
+		return value.Num(float64(len(m.Fields)))
+	})
+	n("copy", func(a []value.Value) value.Value { return aValue(a, 0).DeepCopy() })
+	n("callback", func(a []value.Value) value.Value { return value.Func(str(a, 0)) })
+	n("createstatemachine", func(a []value.Value) value.Value {
+		id := in.nextMach
+		in.nextMach++
+		in.machines[id] = &stateMachine{fn: map[string]string{}}
+		return value.Num(float64(id))
+	})
+	n("addstate", func(a []value.Value) value.Value {
+		m := in.machines[int(num(a, 0))]
+		if m == nil {
+			return value.Num(0)
+		}
+		name := strings.ToLower(str(a, 1))
+		m.fn[name] = lex.IdentKey(str(a, 2))
+		if m.cur == "" {
+			m.cur = name
+		}
+		return value.Num(1)
+	})
+	n("gostate", func(a []value.Value) value.Value {
+		m := in.machines[int(num(a, 0))]
+		if m == nil {
+			return value.Num(0)
+		}
+		m.cur = strings.ToLower(str(a, 1))
+		return value.Num(1)
+	})
+	n("statename", func(a []value.Value) value.Value {
+		m := in.machines[int(num(a, 0))]
+		if m == nil {
+			return value.Str("")
+		}
+		return value.Str(m.cur)
+	})
+	n("updatestate", func(a []value.Value) value.Value {
+		m := in.machines[int(num(a, 0))]
+		if m == nil {
+			return value.Num(0)
+		}
+		fn := m.fn[m.cur]
+		if fn == "" {
+			return value.Num(0)
+		}
+		if _, err := in.call(fn, nil); err != nil {
+			return value.Num(0)
+		}
+		return value.Num(1)
+	})
 	n("arraysize", func(a []value.Value) value.Value {
 		if len(a) < 1 || a[0].Kind != value.KindArray {
 			return value.Num(0)
@@ -1547,6 +2115,15 @@ func aValue(a []value.Value, i int) value.Value {
 
 func (in *Interp) CallNamed(name string, args []value.Value) (value.Value, error) {
 	return in.call(lex.IdentKey(name), args)
+}
+
+// Reload replaces function and type declarations from a reparsed program.
+func (in *Interp) Reload(prog *ast.Program) {
+	if prog == nil {
+		return
+	}
+	in.collectFuncs(prog.Stmts)
+	in.fastCache = map[string]fastCode{}
 }
 
 func num(a []value.Value, i int) float64 {

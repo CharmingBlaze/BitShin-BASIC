@@ -17,11 +17,11 @@ import (
 const version = "1.0.0"
 
 type server struct {
-	out     io.Writer
-	mu      sync.Mutex
-	docs    map[string]*document
-	cat     *catalog
-	exit    bool
+	out  io.Writer
+	mu   sync.Mutex
+	docs map[string]*document
+	cat  *catalog
+	exit bool
 }
 
 // Serve runs a stdio JSON-RPC language server until an `exit` notification.
@@ -134,6 +134,7 @@ func (s *server) handle(body []byte) error {
 				CompletionProvider:     completionOpts{TriggerCharacters: []string{"."}},
 				DefinitionProvider:     true,
 				DocumentSymbolProvider: true,
+				RenameProvider:         true,
 			},
 			ServerInfo: serverInfo{Name: "bsls", Version: version},
 		})
@@ -191,7 +192,15 @@ func (s *server) handle(body []byte) error {
 		if doc == nil {
 			return s.reply(msg.ID, []location{})
 		}
-		return s.reply(msg.ID, definitionAt(doc, p.Position))
+		return s.reply(msg.ID, definitionAcross(s.allDocs(), doc, p.Position))
+	case "textDocument/rename":
+		p := renameParams{}
+		_ = json.Unmarshal(msg.Params, &p)
+		doc := s.get(p.TextDocument.URI)
+		if doc == nil {
+			return s.reply(msg.ID, nil)
+		}
+		return s.reply(msg.ID, renameFunc(s.allDocs(), doc, p.Position, p.NewName))
 	case "textDocument/documentSymbol":
 		p := didCloseParams{}
 		_ = json.Unmarshal(msg.Params, &p)
@@ -226,10 +235,24 @@ func (s *server) publish(uri string) error {
 	if doc == nil {
 		return nil
 	}
+	diags := parseDiagnostics(doc.text)
+	if len(diags) == 0 {
+		diags = semanticDiags(s.cat, doc)
+	}
 	return s.notify("textDocument/publishDiagnostics", publishDiagnostics{
 		URI:         uri,
-		Diagnostics: parseDiagnostics(doc.text),
+		Diagnostics: diags,
 	})
+}
+
+func (s *server) allDocs() []*document {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	out := make([]*document, 0, len(s.docs))
+	for _, d := range s.docs {
+		out = append(out, d)
+	}
+	return out
 }
 
 func uriToPath(uri string) string {

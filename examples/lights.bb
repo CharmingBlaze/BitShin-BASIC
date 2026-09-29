@@ -1,41 +1,67 @@
-; Lights — directional + point, SetEntityColor, SetAmbientLight
+; Lights — outdoor sun/sky look, then Space toggles an indoor room lighting set.
+; Space (KeyHit 57) switches outdoor ↔ indoor. Esc quits.
 
 Graphics3D(640, 480)
 SetBuffer(BackBuffer())
 SetWindowTitle("BitShin BASIC — Lights")
-SetCameraClsColor(8, 10, 16)
-SetAmbientLight(20, 20, 28)
-SetCameraFogMode(1)
-SetCameraFogColor(8, 10, 16)
-SetCameraFogRange(8, 40)
 
-cam = CreateCamera()
-SetPosition(cam, 0, 2, -6)
+; Camera
+cam = CreateCamera().Position([0, 2, -6])
 
+; Shadows
 EnableShadows True
 ShadowCascades 2
 SetShadowFilter "pcf"
 EnableShadowAtlas True
 
-sun = CreateLight(1)
-SetRotation(sun, 50, 30, 0)
+; Lights
+sun = CreateLight(1).Rotate(50, 30, 0)
 SetLightColor(sun, 255, 230, 180)
+SetLightSpecular(sun, 255, 244, 220)
 SetLightShadow sun, True
 
-lamp = CreateLight(2)
-SetPosition(lamp, 2, 2, 4)
+lamp = CreateLight(2).Position([2, 2, 4])
 SetLightColor(lamp, 80, 160, 255)
 SetLightRange(lamp, 12)
+SetLightSpecular(lamp, 140, 190, 255)
 SetLightShadow lamp, True
 
-cube = CreateCube()
-SetPosition(cube, 0, 0, 5)
-SetEntityColor(cube, 255, 255, 255)
-SetMaterialShininess(cube, 0.6)
+spot = CreateSpotLight().Position([-2.2, 3.2, 2])
+SetLightDirection(spot, -50, 24, 0)
+SetLightCone(spot, 16, 34)
+SetLightColor(spot, 255, 170, 70)
+SetLightRange(spot, 12)
+SetLightAmbient(spot, 24, 12, 4)
 
+; World
+cube = CreateCube().Position([0, 0, 5]).Color(230, 226, 218)
+SetEntityAmbient(cube, 36, 34, 32)
+cube.Specular(255, 255, 255)
+cube.Shininess(48)
+
+box = CreateCube().Position([-1.7, 0, 6.2]).Color(40, 90, 190)
+box.Specular(180, 210, 255)
+box.Shininess(64)
+
+bulb = CreatePointLight().Position([-1.7, 1.5, 6.2])
+SetLightColor(bulb, 255, 214, 150)
+SetLightAttenuation(bulb, 1, 0.22, 0.20)
+
+; Loop — Space toggles outdoor / indoor
+SetLighting("outdoor")
+env = 1
 While Not KeyDown(1)
     dt# = DeltaTime() * 60
-    TurnEntity(cube, 0.3 * dt, 0.5 * dt, 0)
+    cube.Turn(0.3 * dt, 0.5 * dt, 0)
+    If KeyHit(57)
+        If env = 1
+            IndoorLighting()
+            env = 2
+        Else
+            OutdoorLighting()
+            env = 1
+        EndIf
+    EndIf
     RenderWorld
     Flip
 Wend

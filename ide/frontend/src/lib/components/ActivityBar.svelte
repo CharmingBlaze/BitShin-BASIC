@@ -1,9 +1,11 @@
 <script lang="ts">
-  import { FolderTree, BookOpen, ListTree, Library, Settings } from 'lucide-svelte';
+  import { FolderTree, BookOpen, ListTree, Library, FolderArchive, Box, Settings } from 'lucide-svelte';
   import { editorStore } from '../stores/editorState.svelte';
 
   const items = [
     { id: 'files' as const, icon: FolderTree, title: 'Explorer' },
+    { id: 'assets' as const, icon: FolderArchive, title: 'Asset browser' },
+    { id: 'scene' as const, icon: Box, title: 'Scene' },
     { id: 'commands' as const, icon: BookOpen, title: 'Command reference' },
     { id: 'outline' as const, icon: ListTree, title: 'Outline' },
     { id: 'examples' as const, icon: Library, title: 'Examples' }

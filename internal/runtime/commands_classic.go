@@ -67,13 +67,7 @@ func (w *World) classic3DCommands(n func(func([]value.Value) (value.Value, error
 			if err != nil {
 				return value.Value{}, err
 			}
-			rng := float32(argN(a, 1, 10))
-			if rng < 0.1 {
-				rng = 0.1
-			}
-			if p, ok := e.node.(interface{ SetLinearDecay(float32) }); ok {
-				p.SetLinearDecay(1 / rng)
-			}
+			w.setLightRange(e, float32(argN(a, 1, 10)))
 			return z()
 		}),
 		"camerarange": need(func(a []value.Value) (value.Value, error) {
@@ -149,13 +143,45 @@ func (w *World) classic3DCommands(n func(func([]value.Value) (value.Value, error
 			}
 			return value.Num(0), nil
 		}),
+		"entitymaterial": need(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			if len(a) < 2 {
+				return z()
+			}
+			mat := a[1]
+			w.setEntityRGB(e, float32(matNum(mat, "r", 255)), float32(matNum(mat, "g", 255)), float32(matNum(mat, "b", 255)))
+			if id := int(matNum(mat, "tex", 0)); id != 0 {
+				if t := w.texs[id]; t != nil && e.mat != nil {
+					e.mat.AddTexture(t.tex)
+					e.albedoTex = t.tex
+				}
+				if t := w.texs[id]; t != nil && e.pbr != nil {
+					e.pbr.SetBaseColorMap(t.tex)
+				}
+			}
+			if e.mat != nil {
+				e.mat.SetShininess(float32(matNum(mat, "shine", 0)) * 128)
+				if matNum(mat, "spec", 0) != 0 {
+					e.mat.SetSpecularColor(rgb(matNum(mat, "sr", 0), matNum(mat, "sg", 0), matNum(mat, "sb", 0)))
+				}
+			}
+			return z()
+		}),
 		"entityshininess": need(func(a []value.Value) (value.Value, error) {
 			e, err := w.ent(argI(a, 0, 0))
 			if err != nil {
 				return value.Value{}, err
 			}
 			if e.mat != nil {
-				e.mat.SetShininess(float32(argN(a, 1, 0)) * 128)
+				n := argN(a, 1, 0)
+				sh := float32(n)
+				if n <= 1 {
+					sh = float32(n) * 128
+				}
+				e.mat.SetShininess(sh)
 			}
 			return z()
 		}),
@@ -317,4 +343,12 @@ func wrap180(d float64) float64 {
 		d += 360
 	}
 	return d
+}
+
+func matNum(v value.Value, name string, def float64) float64 {
+	f, ok := v.Field(name)
+	if !ok {
+		return def
+	}
+	return f.Number()
 }

@@ -4,6 +4,8 @@ import {main} from '../models';
 
 export function BuildExecutable(arg1:string,arg2:string,arg3:string):Promise<string>;
 
+export function DebugCommand(arg1:string):Promise<void>;
+
 export function GetProjectTree(arg1:string):Promise<main.FileNode>;
 
 export function GetRepoRoot():Promise<string>;
@@ -27,5 +29,7 @@ export function SelectProjectDirectory():Promise<string>;
 export function SelectSaveFile(arg1:string,arg2:string):Promise<string>;
 
 export function SendLSP(arg1:string):Promise<void>;
+
+export function SetBreakpoints(arg1:string):Promise<void>;
 
 export function StopProgram():Promise<void>;

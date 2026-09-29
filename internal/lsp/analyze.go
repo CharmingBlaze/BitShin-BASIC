@@ -205,6 +205,208 @@ func definitionAt(doc *document, pos position) []location {
 	return []location{{URI: doc.uri, Range: r}}
 }
 
+func definitionAcross(docs []*document, doc *document, pos position) []location {
+	if loc := definitionAt(doc, pos); len(loc) > 0 {
+		return loc
+	}
+	t, ok := tokenAt(doc.text, pos)
+	if !ok || t.Kind != lex.Ident {
+		return nil
+	}
+	key := lex.IdentKey(t.Lit)
+	for _, other := range docs {
+		if other == nil || other.uri == doc.uri {
+			continue
+		}
+		prog, err := parse.Parse(other.text)
+		if err != nil {
+			continue
+		}
+		fn, ok := findFunc(prog.Stmts, key)
+		if !ok {
+			continue
+		}
+		r := rangeFromSrc(fn.Src, fn.Name)
+		return []location{{URI: other.uri, Range: r}}
+	}
+	return nil
+}
+
+func semanticDiags(cat *catalog, doc *document) []diagnostic {
+	prog, err := parse.Parse(doc.text)
+	if err != nil {
+		return nil
+	}
+	funcs := map[string]int{}
+	var out []diagnostic
+	var walk func([]ast.Stmt)
+	walk = func(stmts []ast.Stmt) {
+		for _, s := range stmts {
+			switch t := s.(type) {
+			case *ast.FuncDecl:
+				k := lex.IdentKey(t.Name)
+				if prev, ok := funcs[k]; ok {
+					out = append(out, diagnostic{
+						Range:    rangeFromSrc(t.Src, t.Name),
+						Severity: severityWarning,
+						Source:   "bitshin",
+						Message:  fmt.Sprintf("function %s is already declared (line %d)", t.Name, prev),
+					})
+				} else {
+					funcs[k] = t.Src.Line
+				}
+				walk(t.Body)
+			case *ast.IfStmt:
+				walk(t.Then)
+				for _, e := range t.ElseIf {
+					walk(e.Body)
+				}
+				walk(t.Else)
+			case *ast.WhileStmt:
+				walk(t.Body)
+			case *ast.ForStmt:
+				walk(t.Body)
+			case *ast.RepeatStmt:
+				walk(t.Body)
+			case *ast.SelectStmt:
+				for _, c := range t.Cases {
+					walk(c.Body)
+				}
+				walk(t.Default)
+			case *ast.TryStmt:
+				walk(t.Body)
+				walk(t.Catch)
+			case *ast.NamespaceDecl:
+				walk(t.Stmts)
+			case *ast.TypeDecl:
+				for _, m := range t.Methods {
+					walk(m.Body)
+				}
+			}
+		}
+	}
+	walk(prog.Stmts)
+	var calls func(ast.Expr)
+	calls = func(e ast.Expr) {
+		if e == nil {
+			return
+		}
+		switch t := e.(type) {
+		case *ast.CallExpr:
+			k := lex.IdentKey(t.Name)
+			if _, ok := funcs[k]; ok {
+				return
+			}
+			if cat != nil {
+				if _, ok := cat.hover[k]; ok {
+					return
+				}
+			}
+			if k == "" {
+				return
+			}
+			out = append(out, diagnostic{
+				Range:    rangeFromSrc(t.Src, t.Name),
+				Severity: severityWarning,
+				Source:   "bitshin",
+				Message:  "unknown function " + t.Name,
+			})
+		case *ast.BinaryExpr:
+			calls(t.Left)
+			calls(t.Right)
+		case *ast.UnaryExpr:
+			calls(t.X)
+		}
+	}
+	var walkExprStmt func([]ast.Stmt)
+	walkExprStmt = func(stmts []ast.Stmt) {
+		for _, s := range stmts {
+			switch t := s.(type) {
+			case *ast.CallStmt:
+				calls(&ast.CallExpr{Src: t.Src, Name: t.Name, Args: t.Args})
+			case *ast.AssignStmt:
+				calls(t.Value)
+			case *ast.ExprStmt:
+				calls(t.Value)
+			case *ast.IfStmt:
+				calls(t.Cond)
+				walkExprStmt(t.Then)
+				walkExprStmt(t.Else)
+			case *ast.WhileStmt:
+				calls(t.Cond)
+				walkExprStmt(t.Body)
+			case *ast.ForStmt:
+				walkExprStmt(t.Body)
+			case *ast.FuncDecl:
+				walkExprStmt(t.Body)
+			case *ast.TryStmt:
+				walkExprStmt(t.Body)
+				walkExprStmt(t.Catch)
+			}
+		}
+	}
+	walkExprStmt(prog.Stmts)
+	return out
+}
+
+func renameFunc(docs []*document, doc *document, pos position, newName string) *workspaceEdit {
+	t, ok := tokenAt(doc.text, pos)
+	if !ok || t.Kind != lex.Ident || newName == "" {
+		return nil
+	}
+	key := lex.IdentKey(t.Lit)
+	found := false
+	for _, d := range docs {
+		if d == nil {
+			continue
+		}
+		prog, err := parse.Parse(d.text)
+		if err != nil {
+			continue
+		}
+		if _, ok := findFunc(prog.Stmts, key); ok {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return nil
+	}
+	changes := map[string][]textEdit{}
+	for _, d := range docs {
+		if d == nil {
+			continue
+		}
+		edits := renameIdents(d.text, key, newName)
+		if len(edits) > 0 {
+			changes[d.uri] = edits
+		}
+	}
+	if len(changes) == 0 {
+		return nil
+	}
+	return &workspaceEdit{Changes: changes}
+}
+
+func renameIdents(text, key, newName string) []textEdit {
+	lx := lex.New(text)
+	var out []textEdit
+	for {
+		t := lx.Next()
+		if t.Kind == lex.EOF {
+			break
+		}
+		if t.Kind == lex.Ident && lex.IdentKey(t.Lit) == key {
+			start := position{Line: t.Line - 1, Character: t.Col - 1}
+			out = append(out, textEdit{
+				Range:   lspRange{Start: start, End: position{Line: start.Line, Character: start.Character + len(t.Lit)}},
+				NewText: newName,
+			})
+		}
+	}
+	return out
+}
+
 func documentSymbols(doc *document) []docSymbol {
 	prog, err := parse.Parse(doc.text)
 	if err != nil {

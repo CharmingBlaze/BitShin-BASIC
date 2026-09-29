@@ -130,7 +130,7 @@ JoltConstraint JoltCreateVehicle(JoltPhysicsSystem system, JoltBodyID bodyID, co
 		controller->mDifferentials.resize(1);
 		controller->mDifferentials[0].mLeftWheel = 1;
 		controller->mDifferentials[0].mRightWheel = -1;
-		controller->mEngine.mMaxTorque = 280.0f;
+		controller->mEngine.mMaxTorque = 420.0f;
 		controller->mMaxLeanAngle = DegreesToRadians(45.0f);
 		controller->mLeanSpringConstant = 5000.0f;
 		controller->mLeanSpringDamping = 1000.0f;
@@ -161,7 +161,7 @@ JoltConstraint JoltCreateVehicle(JoltPhysicsSystem system, JoltBodyID bodyID, co
 		controller->mTracks[(int)ETrackSide::Left].mWheels = {0, 2};
 		controller->mTracks[(int)ETrackSide::Right].mDrivenWheel = 3;
 		controller->mTracks[(int)ETrackSide::Right].mWheels = {1, 3};
-		controller->mEngine.mMaxTorque = 1200.0f;
+		controller->mEngine.mMaxTorque = 2800.0f;
 		vehicle.mController = controller;
 	}
 	else
@@ -188,7 +188,7 @@ JoltConstraint JoltCreateVehicle(JoltPhysicsSystem system, JoltBodyID bodyID, co
 		controller->mDifferentials.resize(1);
 		controller->mDifferentials[0].mLeftWheel = 2;
 		controller->mDifferentials[0].mRightWheel = 3;
-		controller->mEngine.mMaxTorque = 1600.0f;
+		controller->mEngine.mMaxTorque = 3600.0f;
 		controller->mEngine.mMinRPM = 1000.0f;
 		controller->mEngine.mMaxRPM = 6000.0f;
 		vehicle.mController = controller;

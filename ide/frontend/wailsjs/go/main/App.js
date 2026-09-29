@@ -6,6 +6,10 @@ export function BuildExecutable(arg1, arg2, arg3) {
   return window['go']['main']['App']['BuildExecutable'](arg1, arg2, arg3);
 }
 
+export function DebugCommand(arg1) {
+  return window['go']['main']['App']['DebugCommand'](arg1);
+}
+
 export function GetProjectTree(arg1) {
   return window['go']['main']['App']['GetProjectTree'](arg1);
 }
@@ -52,6 +56,10 @@ export function SelectSaveFile(arg1, arg2) {
 
 export function SendLSP(arg1) {
   return window['go']['main']['App']['SendLSP'](arg1);
+}
+
+export function SetBreakpoints(arg1) {
+  return window['go']['main']['App']['SetBreakpoints'](arg1);
 }
 
 export function StopProgram() {

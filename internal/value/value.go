@@ -15,6 +15,8 @@ const (
 	KindArray
 	KindStruct
 	KindVec
+	KindMap
+	KindFunc
 )
 
 type Value struct {
@@ -63,19 +65,38 @@ func StructOf(typeName string, fields []string) Value {
 	return Value{Kind: KindStruct, TypeName: strings.ToLower(typeName), Fields: m}
 }
 
-func (v Value) Clone() Value {
-	if v.Kind != KindStruct {
+func (v Value) Clone() Value { return v.DeepCopy() }
+
+// DeepCopy clones structs, maps, arrays, and vecs. Structs assigned with = share the original; Copy uses this.
+func (v Value) DeepCopy() Value {
+	switch v.Kind {
+	case KindStruct, KindMap:
+		f := make(map[string]Value, len(v.Fields))
+		for k, x := range v.Fields {
+			f[k] = x.DeepCopy()
+		}
+		return Value{Kind: v.Kind, TypeName: v.TypeName, Fields: f, Num: v.Num, Str: v.Str}
+	case KindArray, KindVec:
+		el := make([]Value, len(v.Elems))
+		for i, x := range v.Elems {
+			el[i] = x.DeepCopy()
+		}
+		return Value{Kind: v.Kind, TypeName: v.TypeName, Elems: el, Dims: append([]int(nil), v.Dims...), Num: v.Num, Str: v.Str}
+	default:
 		return v
 	}
-	f := make(map[string]Value, len(v.Fields))
-	for k, x := range v.Fields {
-		f[k] = x.Clone()
-	}
-	return Value{Kind: KindStruct, TypeName: v.TypeName, Fields: f}
+}
+
+func Map() Value {
+	return Value{Kind: KindMap, Fields: map[string]Value{}}
+}
+
+func Func(name string) Value {
+	return Value{Kind: KindFunc, TypeName: strings.ToLower(strings.TrimSpace(name))}
 }
 
 func (v Value) Field(name string) (Value, bool) {
-	if v.Kind != KindStruct || v.Fields == nil {
+	if (v.Kind != KindStruct && v.Kind != KindMap) || v.Fields == nil {
 		return Value{}, false
 	}
 	x, ok := v.Fields[strings.ToLower(strings.TrimRight(name, "$%#"))]
@@ -83,7 +104,7 @@ func (v Value) Field(name string) (Value, bool) {
 }
 
 func (v Value) SetField(name string, x Value) bool {
-	if v.Kind != KindStruct || v.Fields == nil {
+	if (v.Kind != KindStruct && v.Kind != KindMap) || v.Fields == nil {
 		return false
 	}
 	v.Fields[strings.ToLower(strings.TrimRight(name, "$%#"))] = x
@@ -159,7 +180,7 @@ func (v Value) IsTrue() bool {
 		return v.Str != "" && v.Str != "0"
 	case KindArray:
 		return len(v.Elems) > 0
-	case KindStruct:
+	case KindStruct, KindMap, KindFunc:
 		return true
 	case KindVec:
 		return len(v.Elems) > 0
@@ -186,6 +207,13 @@ func (v Value) String() string {
 		return fmt.Sprintf("Array(%d)", len(v.Elems))
 	case KindStruct:
 		return v.TypeName
+	case KindMap:
+		return "Map"
+	case KindFunc:
+		if v.TypeName != "" {
+			return v.TypeName
+		}
+		return v.Str
 	case KindVec:
 		parts := make([]string, len(v.Elems))
 		for i, e := range v.Elems {

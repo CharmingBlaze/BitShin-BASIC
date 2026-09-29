@@ -17,20 +17,21 @@ func (w *joltWorld) AddCharacterController(id int, x, y, z, height, radius, maxS
 	if maxStrength <= 0 {
 		maxStrength = 100
 	}
-	shape := jolt.CreateCapsule(height*0.5, radius)
+	shaft := capsuleCylinderHalf(height, radius)
+	shape := jolt.CreateCapsule(shaft, radius)
 	settings := jolt.NewCharacterVirtualSettings(shape)
 	settings.MaxSlopeAngle = jolt.DegreesToRadians(maxSlopeDeg)
 	settings.MaxStrength = maxStrength
 	cv := w.ps.CreateCharacterVirtual(settings, jolt.Vec3{X: x, Y: y, Z: z})
-	inner := jolt.CreateCapsule(height*0.46, radius*0.92)
-	w.add(id, inner, x, y, z, radius+height*0.5, MotionTypeKinematic)
+	inner := jolt.CreateCapsule(shaft, radius*0.85)
+	w.add(id, inner, x, y, z, height*0.5, MotionTypeKinematic)
 	w.char[id] = &kinChar{
 		x: x, y: y, z: z,
-		radius:  radius + height*0.5,
+		radius:  height * 0.5,
 		height:  height,
 		virtual: cv,
 	}
-	w.rad[id] = radius + height*0.5
+	w.rad[id] = height * 0.5
 	w.mass[id] = 70
 }
 
@@ -45,13 +46,13 @@ func (w *joltWorld) SetCharacterShape(id int, shapeType string, height, radius f
 	if radius <= 0 {
 		radius = 0.4
 	}
-	newShape := jolt.CreateCapsule(height*0.5, radius)
+	newShape := jolt.CreateCapsule(capsuleCylinderHalf(height, radius), radius)
 	if shapeType == "box" || shapeType == "Box" || shapeType == "BOX" {
 		newShape = jolt.CreateBox(jolt.Vec3{X: radius, Y: height * 0.5, Z: radius})
 	}
 	kc.virtual.SetShape(newShape, 0.1)
 	kc.height = height
-	kc.radius = radius + height*0.5
+	kc.radius = height * 0.5
 	w.rad[id] = kc.radius
 }
 

@@ -1,28 +1,24 @@
-; Many one-at-a-time bodies make Jolt's broadphase tree deep.
-; OptimizePhysics rebuilds it after a spawn burst (coins, debris, piles).
-; Space kicks the pile. Esc after a few frames, or X.
+; Physics pile — 80 spheres spawn, then OptimizePhysics rebuilds the broadphase.
+; Space kicks the first ball. Esc or X quits after a few frames.
 
 SetWindowTitle("BitShin BASIC — Physics pile")
 Graphics3D(960, 600, 0, 2)
 SetCameraClsColor(18, 20, 28)
 
+; Camera
 cam = CreateCamera()
-SetPosition(cam, 0, 10, -16)
-SetRotation(cam, 22, 0, 0)
+cam.Position([0, 10, -16])
+cam.Rotate(22, 0, 0)
 CreateLight()
 
-ground = CreateCube()
-SetScale(ground, 10, 0.2, 10)
-SetPosition(ground, 0, 0, 8)
-SetEntityColor(ground, 50, 56, 70)
+; Static ground
+ground = CreateCube().Scale(10, 0.2, 10).Position([0, 0, 8]).Color(50, 56, 70)
 CreateRigidBodyBox(ground, 10, 0.2, 10, 0)
 
+; Spawn burst (one-at-a-time bodies deepen Jolt's tree — OptimizePhysics rebuilds it)
 first = 0
 For i = 0 To 79
-    b = CreateSphere(8)
-    SetScale(b, 0.28, 0.28, 0.28)
-    SetPosition(b, Rnd(6) - 3, 3 + i * 0.22, 8 + Rnd(6) - 3)
-    SetEntityColor(b, 70 + Rand(120), 140 + Rand(80), 220)
+    b = CreateSphere(8).Scale(0.28, 0.28, 0.28).Position([Rnd(6) - 3, 3 + i * 0.22, 8 + Rnd(6) - 3]).Color(70 + Rand(120), 140 + Rand(80), 220)
     CreateBodySphere(b, 0.28, 1)
     If i = 0 Then first = b
 Next

@@ -10,6 +10,8 @@ Shadows are **on by default** (World construction and `Graphics3D`), like Blitz3
 
 `examples/platform64.bb` uses `SetShadowQuality "high"`. `examples/claw.bb` uses PCF (`SetShadowQuality 0, 4`). `SetShadowEVSM` / `SetShadowFilter "evsm"` still work.
 
+PCF taps stay inside the cascade tile they started in, and the sample is lifted along the normal only on grazing faces, so shadows stay solid under feet and platform edges. If a contact looks detached from the mesh, lower `SetShadowBias` before raising the map size. `"high"` is PCF.
+
 | Command | What you see |
 | --- | --- |
 | `EnableShadows [on]` | Depth pass + `mbshadow` / `mbphysical` / `mbterrain` receive. Shadow multiplies **direct sun (and local lights)** only — never ambient, IBL, or emissive. |
@@ -48,8 +50,8 @@ SetAmbientLight 40, 50, 65
 | `SetShadowLightSize n` | PCSS light size (penumbra scale). Default `0.04`. |
 | `EnableShadowCache` / `SetShadowCache` / `EnableShadowCaching` | Two maps: **static** vs **dynamic**. |
 | `EnableShadowAtlas` / `SetShadowAtlas` | Pack directional cascades + point faces + spot maps into a square-ish atlas. |
-| `EnableContactShadows` / `SetContactShadows` | Stub (returns lit). |
-| `EnableScreenSpaceShadows` / `SetScreenSpaceShadows` | Stub (returns lit). |
+| `EnableContactShadows` / `SetContactShadows` | Tight shadow-map search. Darkens receivers whose neighbor texels are only slightly closer (feet, props on the ground). |
+| `EnableScreenSpaceShadows` / `SetScreenSpaceShadows` | Wider search. The integer is quality 1–4 (radius and depth window). `0` is off. |
 
 ## Implementation notes
 

@@ -50,6 +50,7 @@ type serverCaps struct {
 	CompletionProvider     completionOpts `json:"completionProvider"`
 	DefinitionProvider     bool           `json:"definitionProvider"`
 	DocumentSymbolProvider bool           `json:"documentSymbolProvider"`
+	RenameProvider         bool           `json:"renameProvider"`
 }
 
 type completionOpts struct {
@@ -147,6 +148,23 @@ type location struct {
 	Range lspRange `json:"range"`
 }
 
+type textEdit struct {
+	Range   lspRange `json:"range"`
+	NewText string   `json:"newText"`
+}
+
+type workspaceEdit struct {
+	Changes map[string][]textEdit `json:"changes"`
+}
+
+type renameParams struct {
+	TextDocument struct {
+		URI string `json:"uri"`
+	} `json:"textDocument"`
+	Position position `json:"position"`
+	NewName  string   `json:"newName"`
+}
+
 type docSymbol struct {
 	Name           string      `json:"name"`
 	Kind           int         `json:"kind"`
@@ -156,16 +174,17 @@ type docSymbol struct {
 }
 
 const (
-	severityError = 1
-	syncFull      = 1
-	kindFunction  = 3
-	kindConstant  = 21
-	kindKeyword   = 14
-	kindMethod    = 2
-	symFunction   = 12
-	symClass      = 5
-	symConstant   = 14
-	symNamespace  = 3
-	symMethod     = 6
-	symEnum       = 10
+	severityError   = 1
+	severityWarning = 2
+	syncFull        = 1
+	kindFunction    = 3
+	kindConstant    = 21
+	kindKeyword     = 14
+	kindMethod      = 2
+	symFunction     = 12
+	symClass        = 5
+	symConstant     = 14
+	symNamespace    = 3
+	symMethod       = 6
+	symEnum         = 10
 )

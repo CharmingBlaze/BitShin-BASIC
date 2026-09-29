@@ -1,4 +1,4 @@
-; Language-only program (no window)
+; Hello Console — functions, For loops, and Print (no window)
 
 Print("BitShin BASIC console")
 

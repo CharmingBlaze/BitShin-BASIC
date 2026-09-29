@@ -22,6 +22,8 @@ type App struct {
 	ctx        context.Context
 	cmdMutex   sync.Mutex
 	runningCmd *exec.Cmd
+	debugIn    io.WriteCloser
+	breaks     string
 	repoRoot   string
 	lspMu      sync.Mutex
 	lspCmd     *exec.Cmd
@@ -160,8 +162,8 @@ func (a *App) SelectOpenFile() (FileResult, error) {
 // SelectSaveFile opens a save file dialog
 func (a *App) SelectSaveFile(defaultName string, content string) (string, error) {
 	chosen, err := wailsruntime.SaveFileDialog(a.ctx, wailsruntime.SaveDialogOptions{
-		Title:            "Save BitShin BASIC File",
-		DefaultFilename:  defaultName,
+		Title:           "Save BitShin BASIC File",
+		DefaultFilename: defaultName,
 		Filters: []wailsruntime.FileFilter{
 			{DisplayName: "BitShin BASIC (*.bb)", Pattern: "*.bb"},
 			{DisplayName: "All Files (*.*)", Pattern: "*.*"},
@@ -241,6 +243,28 @@ func (a *App) GetProjectTree(rootPath string) (*FileNode, error) {
 }
 
 // RunProgram runs code or a file with bs.exe
+// SetBreakpoints stores comma-separated source lines for the next debug run.
+func (a *App) SetBreakpoints(lines string) {
+	a.cmdMutex.Lock()
+	a.breaks = lines
+	a.cmdMutex.Unlock()
+}
+
+// DebugCommand sends c, s, p name, or q to a paused debug session.
+func (a *App) DebugCommand(line string) error {
+	a.cmdMutex.Lock()
+	w := a.debugIn
+	a.cmdMutex.Unlock()
+	if w == nil {
+		return fmt.Errorf("program is not paused in the debugger")
+	}
+	if !strings.HasSuffix(line, "\n") {
+		line += "\n"
+	}
+	_, err := io.WriteString(w, line)
+	return err
+}
+
 func (a *App) RunProgram(code string, filePath string, debug bool) error {
 	a.StopProgram()
 
@@ -277,8 +301,27 @@ func (a *App) RunProgram(code string, filePath string, debug bool) error {
 		workDir = a.repoRoot
 	}
 
-	cmd := exec.Command(bsExe, runPath)
+	runArgs := []string{runPath}
+	if debug {
+		runArgs = append(runArgs, "-debug")
+		a.cmdMutex.Lock()
+		br := strings.TrimSpace(a.breaks)
+		a.cmdMutex.Unlock()
+		if br != "" {
+			runArgs = append(runArgs, "-break", br)
+		}
+	}
+	cmd := exec.Command(bsExe, runArgs...)
 	cmd.Dir = workDir
+	if debug {
+		stdin, err := cmd.StdinPipe()
+		if err != nil {
+			return err
+		}
+		a.cmdMutex.Lock()
+		a.debugIn = stdin
+		a.cmdMutex.Unlock()
+	}
 
 	stdout, err := cmd.StdoutPipe()
 	if err != nil {
@@ -339,6 +382,10 @@ func (a *App) RunProgram(code string, filePath string, debug bool) error {
 
 		a.cmdMutex.Lock()
 		a.runningCmd = nil
+		if a.debugIn != nil {
+			_ = a.debugIn.Close()
+			a.debugIn = nil
+		}
 		a.cmdMutex.Unlock()
 
 		exitCode := 0
@@ -373,7 +420,7 @@ func (a *App) StopProgram() error {
 	return nil
 }
 
-// BuildExecutable runs bs build
+// BuildExecutable runs bs compile or bs build
 func (a *App) BuildExecutable(filePath string, outputDir string, targetOS string) (string, error) {
 	bsExe := a.findBsExecutable()
 	if bsExe == "" {
@@ -382,9 +429,30 @@ func (a *App) BuildExecutable(filePath string, outputDir string, targetOS string
 	if outputDir == "" {
 		outputDir = filepath.Join(filepath.Dir(filePath), "dist")
 	}
-	args := []string{"build", filePath, "-o", outputDir}
-	if targetOS != "" {
-		args = append(args, "-os", targetOS)
+
+	subcmd := "compile"
+	if targetOS == "bundle" {
+		subcmd = "build"
+		targetOS = runtime.GOOS
+	}
+
+	var args []string
+	if subcmd == "compile" {
+		baseName := strings.TrimSuffix(filepath.Base(filePath), filepath.Ext(filePath))
+		exeName := baseName
+		if targetOS == "windows" || (targetOS == "" && runtime.GOOS == "windows") {
+			exeName += ".exe"
+		}
+		outBin := filepath.Join(outputDir, exeName)
+		args = []string{"compile", filePath, "-o", outBin}
+		if targetOS != "" {
+			args = append(args, "-os", targetOS)
+		}
+	} else {
+		args = []string{"build", filePath, "-o", outputDir}
+		if targetOS != "" {
+			args = append(args, "-os", targetOS)
+		}
 	}
 
 	cmd := exec.Command(bsExe, args...)
@@ -428,15 +496,15 @@ func (a *App) GetRepoRoot() string {
 
 // UserSettings represents IDE preferences
 type UserSettings struct {
-	Theme         string `json:"theme"`
-	FontSize      int    `json:"fontSize"`
-	TabSize       int    `json:"tabSize"`
-	Minimap       bool   `json:"minimap"`
-	WordWrap      string `json:"wordWrap"`
-	AutoSave      bool   `json:"autoSave"`
-	TargetOS      string `json:"targetOS"`
-	OutputHeight  int    `json:"outputHeight"`
-	SidebarWidth  int    `json:"sidebarWidth"`
+	Theme        string `json:"theme"`
+	FontSize     int    `json:"fontSize"`
+	TabSize      int    `json:"tabSize"`
+	Minimap      bool   `json:"minimap"`
+	WordWrap     string `json:"wordWrap"`
+	AutoSave     bool   `json:"autoSave"`
+	TargetOS     string `json:"targetOS"`
+	OutputHeight int    `json:"outputHeight"`
+	SidebarWidth int    `json:"sidebarWidth"`
 }
 
 func (a *App) GetSettings() UserSettings {

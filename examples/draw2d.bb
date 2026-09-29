@@ -1,13 +1,16 @@
-; 2D draw + RectsOverlap — Esc quits
+; Draw 2D — bouncing oval, RectsOverlap, and DeltaTime
+; Esc quits.
 
 Graphics(640, 480)
 SetBuffer(BackBuffer())
 SetClsColor(18, 22, 34)
 SetWindowTitle("BitShin BASIC — 2D")
 
+; Moving oval state
 x# = 40
 vx# = 3.2
 
+; Loop — bounce, draw Rect + Oval, highlight on overlap
 While Not KeyDown(1)
     dt# = DeltaTime() * 60
     x = x + vx * dt

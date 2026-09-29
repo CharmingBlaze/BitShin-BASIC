@@ -1,21 +1,21 @@
-; In-engine ImGui: scene list, transform, material, profiler.
+; Editor — ImGui scene list, transform sliders, material, and profiler stats.
+; Esc quits.
 
 Graphics3D(1100, 700)
 SetWindowTitle("BitShin BASIC — Editor")
-cam = CreateCamera()
-SetPosition(cam, 0, 3, -8)
-sun = CreateLight()
-SetRotation(sun, 60, 20, 0)
 
-cube = CreateCube()
-SetPosition(cube, 0, 0, 4)
-SetEntityColor(cube, 70, 160, 255)
-NameEntity(cube, "cube")
+; Camera / light
+cam = CreateCamera().Position([0, 3, -8])
+sun = CreateLight().Rotate(60, 20, 0)
+
+; World
+cube = CreateCube().Position([0, 0, 4]).Color(70, 160, 255).Name("cube")
 
 sel = cube
 amb# = 80
 shine# = 8
 
+; Loop
 While Not KeyDown(1)
     GuiBegin("Scene")
     GuiText("entities " + Str(EntityCount()) + "  fps " + Str(Int(StatsFPS())))
@@ -35,16 +35,16 @@ While Not KeyDown(1)
     px# = GuiSlider("X", -10, 10, EntityX(sel))
     py# = GuiSlider("Y", -5, 8, EntityY(sel))
     pz# = GuiSlider("Z", -4, 16, EntityZ(sel))
-    SetPosition(sel, px#, py#, pz#)
+    sel.Position(px#, py#, pz#)
     GuiSeparator()
     amb# = GuiSlider("Ambient", 0, 255, amb#)
     shine# = GuiSlider("Shininess", 0, 64, shine#)
-    EntityShininess(sel, shine#)
-    EntityColor(sel, amb#, 160, 255)
-    If GuiButton("Spin") Then TurnEntity(sel, 0, 15, 0)
+    sel.Shininess(shine#)
+    sel.Color(amb#, 160, 255)
+    If GuiButton("Spin") Then sel.Turn(0, 15, 0)
     GuiEnd()
 
-    TurnEntity(cube, 0, 0.3, 0)
+    cube.Turn(0, 0.3, 0)
     RenderWorld
     Flip
 Wend

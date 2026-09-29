@@ -1,21 +1,26 @@
-; ENet host — `go build -tags enet`, otherwise UDP.
-; CreateNetworkHost / PollNetwork / NET_CONNECT. Esc after a few frames.
+; Net Host — CreateNetworkHost + PollNetwork with a spinning cube
+; Esc quits after a few frames. ENet with -tags enet; else UDP.
 
 Graphics3D(800, 600)
 SetWindowTitle("BitShin BASIC — Net host")
 SetBuffer(BackBuffer())
 
+; Camera and light
 cam = CreateCamera()
 light = CreateLight()
 SetRotation(light, 90, 0, 0)
+
+; Scene — classic SetPosition / SetEntityColor
 cube = CreateCube()
 SetPosition(cube, 0, 0, 5)
 SetEntityColor(cube, 70, 160, 255)
 
+; Network host
 host = CreateNetworkHost(27015, 32)
 Print("CreateNetworkHost on 27015 backend=" + GetNetBackend())
 Print("NET_CONNECT=", NET_CONNECT, " DISCONNECT=", NET_DISCONNECT, " RECEIVE=", NET_RECEIVE)
 
+; Loop — poll net events, spin cube, Esc after frame 8
 frames = 0
 While 1
     frames = frames + 1

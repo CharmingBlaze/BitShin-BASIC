@@ -56,7 +56,7 @@ void main() {
             d = normalize(mix(d, wind, mk));
             amp *= 1.0 + wstr * 0.35 * max(dot(d, wind), 0.0);
         }
-        float f = k * dot(d, p.xz) - WaveLen[i].y * t;
+        float f = k * dot(d, VertexPosition.xz) - WaveLen[i].y * t;
         float cf = cos(f);
         float sf = sin(f);
         p.x += steep * amp * d.x * cf;
@@ -64,7 +64,7 @@ void main() {
         p.y += amp * sf;
         n.x -= d.x * k * amp * cf;
         n.z -= d.y * k * amp * cf;
-        n.y += 1.0 - steep * k * amp * sf;
+        n.y -= steep * k * amp * sf;
     }
     if (WaterHasWake != 0) {
         vec2 wuv = VertexPosition.xz / max(WakeSpan, 8.0) + 0.5;
@@ -161,51 +161,62 @@ float waterShadow(vec3 worldPos, vec3 fragNormal, vec3 lightDir) {
     float lit = (proj.z - dynamicBias > d) ? 0.0 : 1.0;
     return mix(0.55, 1.0, lit);
 }
+` + shadeLightGLSL + `
 void main() {
+    vec3 analytic = normalize(WorldNormal);
     vec3 dx_pos = dFdx(WorldPos);
     vec3 dy_pos = dFdy(WorldPos);
-    vec3 waveNormal;
-    if (dot(dx_pos, dx_pos) < 1e-6 || dot(dy_pos, dy_pos) < 1e-6) {
-        waveNormal = normalize(WorldNormal);
-    } else {
-        waveNormal = normalize(cross(dx_pos, dy_pos));
+    vec3 faceN = analytic;
+    if (dot(dx_pos, dx_pos) > 1e-6 && dot(dy_pos, dy_pos) > 1e-6) {
+        faceN = normalize(cross(dx_pos, dy_pos));
     }
     if (!gl_FrontFacing) {
-        waveNormal = -waveNormal;
+        analytic = -analytic;
+        faceN = -faceN;
     }
-    if (any(isnan(waveNormal)) || dot(waveNormal, waveNormal) < 1e-8) {
-        waveNormal = normalize(WorldNormal);
-        if (!gl_FrontFacing) {
-            waveNormal = -waveNormal;
-        }
+    if (any(isnan(faceN)) || dot(faceN, faceN) < 1e-8) {
+        faceN = analytic;
+    }
+    vec3 waveNormal = analytic;
+    if (any(isnan(waveNormal)) || dot(waveNormal, waveNormal) < 1e-6) {
+        waveNormal = faceN;
+    }
+    if (!gl_FrontFacing && CamWorldPos.y > WaterLevel + 0.35) {
+        discard;
     }
 
     vec2 ndc = (ClipSpace.xy / max(ClipSpace.w, 0.0001)) * 0.5 + 0.5;
     vec2 reflectUV = vec2(ndc.x, 1.0 - ndc.y);
     vec2 refractUV = vec2(ndc.x, ndc.y);
     vec2 tex = FragTexcoord;
-    float contact = 0.0;
+    float meters = 12.0;
     if (WaterHasDepth != 0) {
+        float n = max(CamNear, 0.05);
+        float f = max(CamFar, n + 1.0);
+        float zWater = (2.0 * n * f) / max(f + n - (2.0 * gl_FragCoord.z - 1.0) * (f - n), 0.001);
         float sceneD = texture(WaterRefractDepth, clamp(ndc, 0.001, 0.999)).r;
-        float gap = sceneD - gl_FragCoord.z;
-        contact = 1.0 - smoothstep(0.0, 0.016, max(gap, 0.0));
+        float zScene = (2.0 * n * f) / max(f + n - (2.0 * sceneD - 1.0) * (f - n), 0.001);
+        meters = max(zScene - zWater, 0.0);
     }
+    float contact = 1.0 - smoothstep(0.15, 1.2, meters);
     vec2 distort = vec2(0.0);
     if (WaterHasDuDv != 0) {
         vec2 d1 = texture(WaterDuDv, vec2(tex.x + WaterMove, tex.y)).rg * 0.1;
         vec2 distorted = tex + vec2(d1.x, d1.y + WaterMove);
         distort = (texture(WaterDuDv, distorted).rg * 2.0 - 1.0) * WaterWaveStrength;
-        distort *= 1.0 - contact;
+        distort *= clamp(meters / 20.0, 0.0, 1.0);
+        distort *= mix(0.18, 1.0, exp(-length(CamWorldPos - WorldPos) * 0.028));
     }
     reflectUV = clamp(reflectUV + distort, 0.001, 0.999);
     refractUV = clamp(refractUV + distort, 0.001, 0.999);
     if (WaterHasNormal != 0) {
-        vec2 nUV1 = tex + vec2(WaterMove, WaterMove * 0.35);
-        vec2 nUV2 = tex * 1.5 - vec2(WaterMove * 0.5, WaterMove * 0.25);
+        vec2 nUV1 = tex * 6.0 + vec2(WaterMove * 0.7, WaterMove * 0.22);
+        vec2 nUV2 = tex * 1.5 + vec2(-WaterMove * 0.4, WaterMove * 0.18);
         vec3 n1 = texture(WaterNormal, nUV1).rgb * 2.0 - 1.0;
         vec3 n2 = texture(WaterNormal, nUV2).rgb * 2.0 - 1.0;
         vec3 detail = normalize(n1 + n2);
-        waveNormal = normalize(waveNormal + detail * 0.15);
+        vec3 rippled = vec3(waveNormal.x + detail.x * 0.95, waveNormal.y, waveNormal.z + detail.z * 0.95);
+        waveNormal = normalize(rippled + detail * 0.15);
     }
     if (WaterHasWake != 0) {
         vec2 localXZ = FragTexcoord / 0.04;
@@ -217,14 +228,29 @@ void main() {
         }
     }
 
+    float camDist = length(CamWorldPos - WorldPos);
+    float nearRipple = exp(-camDist * 0.02);
+    reflectUV = clamp(reflectUV + waveNormal.xz * (0.05 * nearRipple), 0.001, 0.999);
+    refractUV = clamp(refractUV + waveNormal.xz * (0.02 * nearRipple), 0.001, 0.999);
+
     vec3 viewDir = normalize(CamWorldPos - WorldPos);
     float NdotV = max(dot(waveNormal, viewDir), 0.0);
-    float fresnel = pow(1.0 - NdotV, 3.0);
+    float fresnel = pow(clamp(1.0 - NdotV, 0.0, 1.0), 5.0);
+    float schlick = 0.02 + 0.98 * fresnel;
     float waveHeight = WorldPos.y - WaterLevel;
-    float depthMix = clamp(fresnel + waveHeight * 0.3, 0.0, 1.0);
-    vec3 deepWaterColor = vec3(0.01, 0.08, 0.18);
-    vec3 shallowWaterColor = vec3(0.06, 0.35, 0.48);
-    vec3 base = mix(deepWaterColor, shallowWaterColor, depthMix);
+    float depthMix = smoothstep(0.4, 6.0, meters);
+    vec3 deepWaterColor = WaterColor;
+    if (dot(deepWaterColor, deepWaterColor) < 0.004) {
+        deepWaterColor = vec3(0.02, 0.16, 0.28);
+    }
+    vec3 shallowWaterColor = deepWaterColor * vec3(1.2, 1.45, 1.08);
+    vec3 refrColor = mix(shallowWaterColor, deepWaterColor, depthMix);
+    if (WaterRefractOn != 0) {
+        vec3 grabbedR = texture(WaterRefract, refractUV).rgb;
+        float bottom = smoothstep(0.25, 3.0, meters) * (1.0 - smoothstep(28.0, 70.0, meters));
+        refrColor = mix(refrColor, grabbedR, bottom * 0.8);
+    }
+    vec3 reflectCol = mix(deepWaterColor, vec3(0.65, 0.78, 0.9), 0.35);
     if (WaterReflectOn != 0) {
         vec3 grabbed = texture(WaterReflect, reflectUV).rgb;
         vec3 planar = grabbed;
@@ -251,18 +277,31 @@ void main() {
             }
             grabbed = mix(planar, hit, clamp(stable * 0.5, 0.0, 0.5));
         }
-        base = mix(base, grabbed, fresnel * 0.45);
+        reflectCol = grabbed;
     }
+    float refl = WaterReflectivity;
+    if (refl < 0.15) { refl = 0.45; }
+    float shoreFade = smoothstep(0.4, 2.8, meters);
+    float facing = mix(schlick * 0.22, schlick, shoreFade) * clamp(refl, 0.35, 1.0);
+    vec3 base = mix(refrColor, reflectCol, facing);
 
     vec3 L = WaterSunDir;
     if (dot(L, L) < 1e-6) {
         L = vec3(0.4, 0.8, 0.3);
     }
     L = normalize(L);
+    vec3 sunCol = WaterSunColor;
+#if DIR_LIGHTS>0
+    sunCol = DirLightColor(0);
+#endif
     vec3 H = normalize(L + viewDir);
     float NdotH = max(dot(waveNormal, H), 0.0);
     float NdotL = max(dot(waveNormal, L), 0.0);
-    vec3 sunGlint = vec3(1.0, 0.98, 0.9) * pow(NdotH, 512.0) * NdotL * 6.0;
+    float shine = WaterShine;
+    if (shine < 8.0) { shine = 48.0; }
+    float tight = pow(NdotH, 512.0);
+    float broad = pow(NdotH, shine);
+    vec3 sunGlint = sunCol * (broad * 3.4 + tight * 6.0) * NdotL;
     float maxWavePeak = WaterPeak;
     if (maxWavePeak < 0.2) {
         maxWavePeak = 1.2;
@@ -274,11 +313,50 @@ void main() {
     foamMask *= step(0.3, foamNoise);
     foamMask *= 1.0 - contact;
     vec3 foamColor = vec3(0.82, 0.88, 0.92);
-    vec3 waterWithFoam = mix(base, foamColor, foamMask * foamNoise * 0.85);
+    vec3 waterWithFoam = mix(base, foamColor, clamp(foamMask * foamNoise, 0.0, 0.4));
 
     float sh = waterShadow(WorldPos, waveNormal, L);
-    vec3 finalRGB = (waterWithFoam + sunGlint) * sh;
-    float alpha = clamp(0.7 + fresnel * 0.25, 0.6, 0.95);
+    vec3 lit = waterWithFoam;
+    vec3 spec = sunGlint * sh * (0.55 + 1.6 * schlick);
+    vec3 local = vec3(0.0);
+    vec3 waterN = normalize(Normal);
+    vec3 waterV = normalize(-Position.xyz);
+#if POINT_LIGHTS>0
+    for (int i = 0; i < POINT_LIGHTS; ++i) {
+        vec3 lPos = PointLightPosition(i) - Position.xyz;
+        float dist = length(lPos);
+        if (dist > 0.001) {
+            vec3 ld = lPos / dist;
+            float att = shadeAttenuation(dist, PointLightLinearDecay(i), PointLightQuadraticDecay(i), PointLightConstant(i));
+            if (att > 0.001) {
+                float ndl = max(dot(waterN, ld), 0.0);
+                vec3 h2 = normalize(ld + waterV);
+                float ndh = max(dot(waterN, h2), 0.0);
+                local += PointLightColor(i) * att * (ndl * waterWithFoam * 0.65 + pow(ndh, 180.0) * ndl * 1.6);
+            }
+        }
+    }
+#endif
+#if SPOT_LIGHTS>0
+    for (int i = 0; i < SPOT_LIGHTS; ++i) {
+        vec3 lPos = SpotLightPosition(i) - Position.xyz;
+        float dist = length(lPos);
+        if (dist > 0.001) {
+            vec3 ld = lPos / dist;
+            float att = shadeAttenuation(dist, SpotLightLinearDecay(i), SpotLightQuadraticDecay(i), SpotLightConstant(i));
+            att *= shadeSpot(ld, SpotLightDirection(i), SpotLightCutoffAngle(i), SpotLightAngularDecay(i), SpotLightConstant(i));
+            att *= shadeCookie(i, -lPos, SpotLightDirection(i), SpotLightCutoffAngle(i));
+            if (att > 0.001) {
+                float ndl = max(dot(waterN, ld), 0.0);
+                vec3 h2 = normalize(ld + waterV);
+                float ndh = max(dot(waterN, h2), 0.0);
+                local += SpotLightColor(i) * att * (ndl * waterWithFoam * 0.65 + pow(ndh, 180.0) * ndl * 1.6);
+            }
+        }
+    }
+#endif
+    vec3 finalRGB = lit + spec + local;
+    float alpha = 1.0;
     FragColor = vec4(finalRGB, alpha);
     if (FogMode != 0) {
         float dist = length(Position.xyz);

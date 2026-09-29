@@ -233,6 +233,43 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 			w.phys3.SetSensor(argI(a, 0, 0), argI(a, 1, 1) != 0)
 			return z()
 		}),
+		"checktrigger": need(func(a []value.Value) (value.Value, error) {
+			trigID := argI(a, 0, 0)
+			entID := argI(a, 1, 0)
+			trig, err := w.ent(trigID)
+			if err != nil {
+				return value.Num(0), nil
+			}
+			for _, id := range trig.collided {
+				if id == entID {
+					return value.Num(1), nil
+				}
+			}
+			if target := w.ents[entID]; target != nil {
+				for _, id := range target.collided {
+					if id == trigID {
+						return value.Num(1), nil
+					}
+				}
+			}
+			return value.Num(0), nil
+		}),
+		"gettriggerhit": need(func(a []value.Value) (value.Value, error) {
+			trigID := argI(a, 0, 0)
+			trig, err := w.ent(trigID)
+			if err != nil || len(trig.collided) == 0 {
+				return value.Num(0), nil
+			}
+			return value.Num(float64(trig.collided[0])), nil
+		}),
+		"triggeroverlaps": need(func(a []value.Value) (value.Value, error) {
+			trigID := argI(a, 0, 0)
+			trig, err := w.ent(trigID)
+			if err != nil {
+				return value.Num(0), nil
+			}
+			return value.Num(float64(len(trig.collided))), nil
+		}),
 		"offsetcenterofmass": n(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys3()
 			w.phys3.OffsetCenterOfMass(argI(a, 0, 0), float32(argN(a, 1, 0)), float32(argN(a, 2, 0)), float32(argN(a, 3, 0)))
@@ -616,16 +653,16 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 		}),
 		"raycast": need(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys3()
-			id, x, y, z, ok := w.phys3.Raycast(
+			h, ok := w.phys3.RaycastDetail(
 				float32(argN(a, 0, 0)), float32(argN(a, 1, 0)), float32(argN(a, 2, 0)),
 				float32(argN(a, 3, 0)), float32(argN(a, 4, 0)), float32(argN(a, 5, 0)),
 			)
 			if !ok {
-				w.pickID = 0
+				w.clearPick()
 				return value.Num(0), nil
 			}
-			w.pickID, w.pickX, w.pickY, w.pickZ = id, x, y, z
-			return value.Num(float64(id)), nil
+			w.notePick(h)
+			return value.Num(float64(h.ID)), nil
 		}),
 		"shapecast": need(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys3()
@@ -919,10 +956,10 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 		"joint_hinge":      n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.JointHinge)), nil }),
 		"joint_point":      n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.JointPoint)), nil }),
 		"joint_slider":     n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.JointSlider)), nil }),
-		"joint_spring":      n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.JointSpring)), nil }),
-		"joint_fixed":       n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.JointFixed)), nil }),
-		"joint_cone":        n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.JointCone)), nil }),
-		"joint_swingtwist":  n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.JointSwingTwist)), nil }),
+		"joint_spring":     n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.JointSpring)), nil }),
+		"joint_fixed":      n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.JointFixed)), nil }),
+		"joint_cone":       n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.JointCone)), nil }),
+		"joint_swingtwist": n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.JointSwingTwist)), nil }),
 		"motion_static":    n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.MotionTypeStatic)), nil }),
 		"motion_kinematic": n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.MotionTypeKinematic)), nil }),
 		"motion_dynamic":   n(func(a []value.Value) (value.Value, error) { return value.Num(float64(phys3d.MotionTypeDynamic)), nil }),
@@ -1113,7 +1150,9 @@ func (w *World) addEntityMeshBody(id int, e *Entity) bool {
 			verts = append(verts, [3]float32{x, y, z})
 		}
 		n := int32(len(verts))
-		idx = append(idx, n-3, n-2, n-1)
+		// fromG3N negates Z, which flips winding. Jolt mesh contact normals
+		// follow that winding, so an unflipped floor pushes objects through it.
+		idx = append(idx, n-3, n-1, n-2)
 	}
 	w.phys3.Remove(id)
 	w.phys3.AddMesh(id, verts, idx, phys3d.MotionTypeStatic)

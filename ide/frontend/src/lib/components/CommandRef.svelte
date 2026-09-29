@@ -42,7 +42,7 @@
 <div class="ide-sidebar">
   <div class="ide-side-head">
     <span>Commands</span>
-    <span class="font-mono" style="font-size:10px;letter-spacing:0;text-transform:none;">{filteredCommands.length}</span>
+    <span class="ide-count">{filteredCommands.length}</span>
   </div>
 
   <div class="ide-search">
@@ -59,7 +59,7 @@
 
   <div class="flex-1 overflow-y-auto min-h-0">
     {#if filteredCommands.length === 0}
-      <div class="p-6 text-center text-xs" style="color: var(--text-muted);">No matches</div>
+      <div class="ide-quiet">No commands match that filter.</div>
     {:else}
       {#each filteredCommands as cmd}
         <button
@@ -67,19 +67,19 @@
           class="ide-list-row flex-col items-start"
           class:active={selectedCommand?.name === cmd.name}
         >
-          <span class="font-mono" style="color: var(--text-primary);">{cmd.name}</span>
-          <span class="truncate font-mono" style="font-size:10px;color:var(--text-muted);">{cmd.syntax}</span>
+          <span class="font-mono ide-row-name">{cmd.name}</span>
+          <span class="truncate font-mono ide-row-meta">{cmd.syntax}</span>
         </button>
       {/each}
     {/if}
   </div>
 
   {#if selectedCommand}
-    <div style="padding:10px;border-top:1px solid var(--border);background:var(--bg-panel);">
+    <div class="ide-detail">
       <div class="flex items-center justify-between gap-2">
         <div>
           <div class="font-mono" style="font-size:12px;color:var(--accent-bright);">{selectedCommand.name}</div>
-          <div style="font-size:10px;color:var(--text-muted);">{selectedCommand.category}</div>
+          <div class="ide-row-meta">{selectedCommand.category}</div>
         </div>
         <div class="flex items-center gap-1">
           <button class="ide-iconbtn" onclick={() => copySyntax(selectedCommand?.syntax || '')} title="Copy">
@@ -90,12 +90,8 @@
           </button>
         </div>
       </div>
-      <div class="font-mono select-text" style="margin-top:8px;padding:8px;background:var(--bg-input);border:1px solid var(--border);font-size:11px;color:var(--accent);word-break:break-word;">
-        {selectedCommand.syntax}
-      </div>
-      <div class="select-text" style="margin-top:8px;font-size:12px;color:var(--text-secondary);line-height:1.45;">
-        {selectedCommand.description}
-      </div>
+      <div class="ide-codeblock">{selectedCommand.syntax}</div>
+      <div class="ide-prose">{selectedCommand.description}</div>
     </div>
   {/if}
 </div>

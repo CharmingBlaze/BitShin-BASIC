@@ -553,3 +553,41 @@ func TestFallbackSensorDoesNotPush(t *testing.T) {
 		t.Fatal("sensor should still report overlap")
 	}
 }
+
+func TestCapsuleShaftFitsRequestedHeight(t *testing.T) {
+	half := capsuleCylinderHalf(1.8, 0.4)
+	total := 2 * (half + 0.4)
+	if total < 1.75 || total > 1.85 {
+		t.Fatalf("capsule total height %v, shaft half %v", total, half)
+	}
+}
+
+func TestFallbackThinFloorSupportsSphere(t *testing.T) {
+	w := newFallback()
+	defer w.Close()
+	w.SetGravity(0, -10, 0)
+	w.AddBoxEx(1, 0, 0, 0, 8, 0.2, 8, MotionTypeStatic)
+	w.AddSphere(2, 0, 3, 0, 0.5, true)
+	for i := 0; i < 180; i++ {
+		w.Step(1.0 / 60)
+	}
+	_, y, _, _ := w.GetPosition(2)
+	if y > 1.2 || y < 0.55 {
+		t.Fatalf("sphere should rest on the thin floor, y=%v", y)
+	}
+}
+
+func TestCharacterFallsOntoFloor(t *testing.T) {
+	w := New()
+	defer w.Close()
+	w.SetGravity(0, -10, 0)
+	w.AddBoxEx(1, 0, 0, 0, 8, 0.25, 8, MotionTypeStatic)
+	w.AddCharacterController(2, 0, 4, 0, 1.8, 0.4, 50, 100)
+	for i := 0; i < 180; i++ {
+		w.Step(1.0 / 60)
+	}
+	_, y, _, _ := w.GetPosition(2)
+	if y > 2.4 || y < 0.9 {
+		t.Fatalf("character should stand on the floor, y=%v backend=%s", y, w.Backend())
+	}
+}

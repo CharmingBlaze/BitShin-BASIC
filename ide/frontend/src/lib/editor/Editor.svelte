@@ -18,7 +18,27 @@
   import { X, Plus, FileCode, FilePlus, FolderOpen, Library } from 'lucide-svelte';
 
   let editorContainer: HTMLDivElement | null = $state(null);
-  let editor: monaco.editor.IStandaloneCodeEditor | null = null;
+  let editor = $state<monaco.editor.IStandaloneCodeEditor | null>(null);
+  let breakDecos: monaco.editor.IEditorDecorationsCollection | null = null;
+
+  $effect(() => {
+    const lines = editorStore.breakpoints;
+    const ed = editor;
+    if (!ed) return;
+    const marks = lines.map((line) => ({
+      range: new monaco.Range(line, 1, line, 1),
+      options: {
+        isWholeLine: true,
+        glyphMarginClassName: 'bitshin-bp',
+        overviewRuler: {
+          color: 'rgba(196, 72, 64, 0.95)',
+          position: monaco.editor.OverviewRulerLane.Left
+        }
+      }
+    }));
+    if (!breakDecos) breakDecos = ed.createDecorationsCollection(marks);
+    else breakDecos.set(marks);
+  });
   const models = new Map<string, monaco.editor.ITextModel>();
   const modelUris = new Map<string, string>();
   let repoRoot = '';
@@ -51,10 +71,10 @@
       cursorBlinking: 'smooth',
       renderLineHighlight: 'all',
       lineNumbers: 'on',
-      glyphMargin: false,
+      glyphMargin: true,
       folding: true,
       padding: { top: 8 },
-      fontFamily: "'Cascadia Code', 'JetBrains Mono', 'Cascadia Mono', ui-monospace, Consolas, monospace",
+      fontFamily: "'Geist Mono Variable', 'Cascadia Code', ui-monospace, Consolas, monospace",
       fontLigatures: true,
       smoothScrolling: true,
       bracketPairColorization: { enabled: true }
@@ -87,7 +107,16 @@
 
     // Keyboard Shortcuts
     editor.addCommand(monaco.KeyCode.F5, () => {
-      editorStore.runActiveProgram();
+      editorStore.runActiveProgram(false);
+    });
+
+    editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.F5, () => {
+      editorStore.runActiveProgram(true);
+    });
+
+    editor.addCommand(monaco.KeyCode.F9, () => {
+      const line = editor?.getPosition()?.lineNumber ?? 0;
+      editorStore.toggleBreakpoint(line);
     });
 
     editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.F5, () => {
@@ -228,7 +257,7 @@
         onclick={() => editorStore.selectTab(tab.id)}
         class="ide-tab {tab.id === editorStore.activeTabId ? 'active' : ''}"
       >
-        <FileCode size={12} style="color: {tab.id === editorStore.activeTabId ? 'var(--accent)' : 'var(--text-dim)'}" />
+        <FileCode size={12} class="tab-icon" />
         <span class="truncate font-mono" style="font-size:11px;">{tab.name}</span>
         {#if tab.isDirty}<span class="ide-dirty" title="Unsaved"></span>{/if}
         <button
@@ -262,7 +291,13 @@
             <Library size={13} /> Examples
           </button>
         </div>
-        <div class="ide-kbd" style="margin-top:8px;">Ctrl+N · Ctrl+O · F5 to run</div>
+        <div class="ide-keys">
+          <span><kbd>Ctrl+N</kbd> New</span>
+          <span><kbd>Ctrl+O</kbd> Open</span>
+          <span><kbd>F5</kbd> Run</span>
+          <span><kbd>Ctrl+F5</kbd> Debug</span>
+          <span><kbd>F9</kbd> Breakpoint</span>
+        </div>
       </div>
     {/if}
     <div bind:this={editorContainer} class="w-full h-full" style={editorStore.activeTab ? '' : 'visibility:hidden;position:absolute;inset:0;'}></div>

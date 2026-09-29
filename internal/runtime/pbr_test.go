@@ -140,4 +140,10 @@ func TestPhysicalIBLUsesEnvBRDF(t *testing.T) {
 	if findSub(mbphysicalFragment, "dfg") == "" {
 		t.Fatal("mbphysical IBL should use the EnvBRDF scale/bias term")
 	}
+	if containsVersion45(mbphysicalFragment) {
+		t.Fatal("mbphysical must stay GLSL 330")
+	}
+	if findSub(mbphysicalFragment, "samplerCube uEnvCube") == "" || findSub(mbphysicalFragment, "textureLod(uEnvCube") == "" {
+		t.Fatal("mbphysical should sample the prefiltered cubemap with textureLod")
+	}
 }

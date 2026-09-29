@@ -35,6 +35,14 @@ func (ps *PhysicsSystem) SetGravity(g Vec3) {
 	C.JoltSetGravity(ps.handle, C.float(g.X), C.float(g.Y), C.float(g.Z))
 }
 
+// ConfigureStable raises solver iterations so piles and fast contacts settle.
+func (ps *PhysicsSystem) ConfigureStable() {
+	if ps == nil {
+		return
+	}
+	C.JoltConfigureStablePhysics(ps.handle)
+}
+
 func (ps *PhysicsSystem) OptimizeBroadPhase() {
 	if ps == nil {
 		return

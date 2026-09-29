@@ -366,6 +366,12 @@ func TestShadowShaderHasTechniques(t *testing.T) {
 	if !strings.Contains(mbshadowVertex, "wpShadow") || !strings.Contains(mbphysicalVertex, "wpShadow") {
 		t.Fatal("LightSpacePos must use normal-offset world position")
 	}
+	if !strings.Contains(mbshadowSampleGLSL, "sampleDepth(ShadowMap, clamp(uv + o") {
+		t.Fatal("contact and screen-space shadows must sample nearby shadow-map texels")
+	}
+	if strings.Contains(mbshadowSampleGLSL, "float contactAt(vec2 uv, float z, vec2 texel) {\n    return 1.0;\n}") {
+		t.Fatal("contactAt is still a fully-lit stub")
+	}
 	if strings.Contains(mbshadowFragment, "not yet") {
 		t.Fatal("shader still mentions not yet")
 	}

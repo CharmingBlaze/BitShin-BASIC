@@ -44,13 +44,42 @@ Names are case-insensitive. Optional arguments in brackets. Handles are integers
 `LoadMesh file$ [, parent]` — `.obj`, `.gltf`, `.glb`, `.dae`  
 `CopyEntity src [, parent]`, `FreeEntity`, `HideEntity`, `ShowEntity`, `EntityVisible(e)`  
 `PositionEntity e, x, y, z`, `MoveEntity`, `TranslateEntity`, `TurnEntity`, `RotateEntity`, `ScaleEntity`, `PointEntity`  
-`EntityColor e, r, g, b`, `EntityAlpha e, a`, `EntityShininess e, n`, `EntitySpecular e, r, g, b`  
+`EntityColor e, r, g, b`, `EntityAlpha e, a`, `EntityAmbient e, r, g, b`, `EntityShininess e, n`, `EntitySpecular e, r, g, b`, `EntityEmission e, r, g, b`  
+`Material(r, g, b [, tex, shine, sr, sg, sb])` or `Material($RRGGBB [, tex, shine [, sr, sg, sb]])` — reusable color, texture, and shine. `EntityMaterial e, mat` / `e.Material(mat)` applies it. Passing `sr, sg, sb` sets specular.  
 Dot methods: `cam.Position(x,y,z)`, `box.Color(r,g,b)`, chaining `CreateCube().Scale().Position().Color()`. Vec `[x,y,z]` and `$RRGGBB` / `Hex("RRGGBB")` expand on those commands. Setters return the entity handle.  
 `EntityX/Y/Z(e [, global])`, `EntityPitch/Yaw/Roll`, `EntityScaleX/Y/Z`, `EntityDistance a, b` — pass `True` for a parented entity's world position.  
 `EntityParent child, parent`, `GetParent(e)`, `NameEntity e, s$`, `EntityName$(e)` — `NameEntity` also sets the G3N node name (used by `AttachToBone`).  
-`AmbientLight r, g, b` / `SetAmbientColor r, g, b`, `LightColor` / `SetLightColor`, `LightRange` — RGB 0–255 or 0–1 (if all channels ≤ 1)  
-`CreateDirectionalLight([parent])`, `CreatePointLight`, `CreateSpotLight`, `CreateAmbientLight`  
-`SetLightDirection light, pitch, yaw [, roll]`, `SetLightIntensity`, `SetLightCone`, `SetLightShadow light, on` — directional lights **cast by default**; point/spot need `SetLightShadow True`.  
+How to light a scene, from one sun through falloff, materials, indoor / outdoor, time of day, and cookies: [LIGHTING.md](LIGHTING.md). Shadows: [SHADOWS.md](SHADOWS.md). PBR: [PBR.md](PBR.md).
+
+| Command | Meaning |
+| --- | --- |
+| `AmbientLight r, g, b` / `SetAmbientColor` | Scene fill. Final color is light × material (Phong) or light × BRDF (PBR). |
+| `CreateDirectionalLight` / `CreatePointLight` / `CreateSpotLight` / `CreateAmbientLight` | Same lights as `CreateLight` types 1, 2, 3, and an ambient node. |
+| `LightColor` / `SetLightColor light, r, g, b` | Light RGB. |
+| `SetLightIntensity light, n` | Multiplier on that color. |
+| `SetLightDirection light, pitch, yaw [, roll]` | Aim a sun or a spot. |
+| `SetLightCone light, innerDeg, outerDeg` | Spot cone. Squared (glTF) when falloff is `physical`. |
+| `LightRange light, radius` | Point/spot reach. Default falloff is a smooth window, zero at `radius`. Shadows use that distance. |
+| `SetLightFalloff light, mode$` | `smooth` (default), `classic` (LearnOpenGL polynomial), `physical` (glTF inverse-square). Physical intensity is candela for point/spot (about 80–400 in a room) and lux for a sun. |
+| `SetLightAttenuation light, constant, linear, quadratic [, range]` | `1 / (constant + linear·d + quadratic·d²)`. A 32-unit lamp is `1, 0.14, 0.07`. |
+| `SetLightSpecular light, r, g, b` | Highlight color. Defaults to the light color. First 8 lights of each kind. |
+| `SetLightAmbient light, r, g, b` | Extra ambient from that light, on top of `AmbientLight`. Defaults to none. |
+| `SetLightShadow light, on` | Directional casts by default. Point/spot need `True`. |
+| `SetLightEnabled light, 0\|1` / `EnableLight` | Off stores the intensity and zeroes it. On restores it. |
+| `SetLightTemperature light, kelvin` / `SetLightKelvin` | Black-body tint, 1000–40000 K. Intensity stays. 2000 candle, 6500 daylight. |
+| `GetLightType` / `GetLightIntensity` / `GetLightRange` | `0` ambient, `1` directional, `2` point, `3` spot. |
+| `GetLightRed` / `GetLightGreen` / `GetLightBlue` | Light color, 0–255, without intensity. |
+| `EntityShininess e, n` | `n` ≤ 1 is a 0–1 weight (×128). `n` > 1 is the Phong exponent (`32`, `64`, `128`). |
+| `EntityAmbient` / `EntitySpecular` / `EntityEmission` | Material ambient (call after `EntityColor`), highlight, and added glow. |
+| `EntityTexture` / `SetDiffuseMap` | Diffuse map. |
+| `SetSpecularMap e, tex` / `SetEmissionMap e, tex` | Specular and emission maps. |
+| `SetEntityNormalMap e, tex` | Phong normal map (derivative tangents). `SetNormalMap` is the PBR command. |
+| `SetLighting "outdoor"\|"indoor"` / `OutdoorLighting` / `IndoorLighting` | Daylight rig or a dark room with inverse-square lamps. `GetLighting()` is `1` or `2`. Create lights first. |
+| `SetTimeOfDay hours` / `GetTimeOfDay()` | Outdoor clock. Aims every directional, sky, fog, ambient. Bands in [PLAY.md](PLAY.md). |
+| `CreateThreePoint()` | Returns the key. Adds a cool fill and a rim. |
+| `SetLightCookie spot, tex` | Gobo on the first two spots. Red channel, inside the cone. |
+| `SetTonemap mode$` | `reinhard` (default), `neutral`, `aces`, `none`. Needs `EnablePostFX`. Pair with `SetExposure`. |
+| `SetGammaCorrection 0\|1` | Phong sRGB encode when post FX is off. Leave off if `EnablePostFX` is on. |  
 `CameraRange cam, near, far`, `CameraZoom cam, z`, `CameraViewport cam, x, y, w, h`  
 `CameraFollow cam, target, dist, height [, damp, yaw, pitch]` — Lakitu-style ease toward an orbit point (yaw/pitch in degrees; damp is follow stiffness)  
 `CameraFogMode([cam,] mode)` — 0 off, 1 linear, 2 exp, 3 exp². Distance fog on the lit/shadow shader; shadows stay on.  
@@ -132,11 +161,11 @@ SetIBL(True)
 | `SetAOMap e, tex` / `SetOcclusionMap e, tex` | AO in R |
 | `SetEnvMap e, tex` | Per-material 2D lat-long IBL |
 | `SetEnvMap tex` | Same map on every PBR material |
-| `SetIBL [e,] on` / `EnableIBL on` | Analytic + optional env lod. One arg = world |
+| `SetIBL [e,] on` / `EnableIBL on` | Hemisphere, prefiltered sky cubemap, optional 2D env. One arg = world |
 | `GetIBL([e])` | |
 | `SetIBLIntensity n` / `GetIBLIntensity()` | Scale (default 1) |
 
-`LoadMesh` glTF/GLB Physical materials already use `mbphysical` (shadows, fog, these commands). IBL is analytic hemi + UE4 EnvBRDF split-sum + optional 2D `textureLod` (no prefiltered cubemap).
+`LoadMesh` glTF/GLB Physical materials already use `mbphysical` (shadows, fog, these commands). IBL is an analytic hemisphere, a UE4 EnvBRDF split-sum, and a prefiltered sky cubemap (`textureLod` by roughness). The nearest light probe replaces that cubemap after its six faces have been drawn. `SetEnvMap` is still an optional 2D lat-long.
 
 ## Mesh animation (glTF)
 
@@ -225,21 +254,51 @@ Particle crossfade is a **rate ramp**: outgoing emitters scale emission to 0 ove
 
 ## Particles
 
-3D billboards (colored quads; optional texture). 2D dots or sprites. Same sim: rate, life, size, color, velocity, gravity, wind, cone, drag, burst, duration, loop. Weather uses this system.
+One simulator for 3D and 2D: rate, life, size, color, velocity, gravity, wind, cone, drag, burst, duration, loop. Weather uses the same emitters (rain streaks, snow flakes). Call `UpdateWorld` (or `Flip`, which steps the world) or particles do not move.
 
 ### 3D
 
-`CreateEmitter([parent])` / `CreateParticleEmitter([parent])` — also an entity (`PositionEntity` / `ShowEntity`)  
+`CreateEmitter([parent])` / `CreateParticleEmitter([parent])` — also an entity, so `PositionEntity` / `ShowEntity` / `HideEntity` work. Parent it to a mesh and the spray follows that mesh.
+
+`SetEmitterShape e, name$` / `EmitterShape` picks the look:
+
+| Name | What you see |
+| --- | --- |
+| `"soft"` | Default. Camera-facing soft disc. Use this for fire, sparks, smoke. |
+| `"cube"` | Lit cubes in the world. They spin and fall. Size is the cube edge. |
+| `"streak"` | Thin vertical billboard. Rain uses this. |
+| `"flake"` | Soft flake with spin. Snow uses this. |
+
+```basic
+em = CreateEmitter(cube)
+SetEmitterShape(em, "soft")
+SetEmitterRate(em, 40)
+SetEmitterMax(em, 80)
+SetEmitterLife(em, 1.4)
+SetEmitterSpeed(em, 3)
+SetEmitterSize(em, 0.22, 0.04)
+SetEmitterColor(em, 255, 180, 60, 1, 255, 40, 10, 0)
+SetEmitterVelocity(em, 0, 1, 0)
+SetEmitterCone(em, 50)
+SetEmitterGravity(em, 0, -8, 0)
+
+bits = CreateEmitter(cube)
+SetEmitterShape(bits, "cube")
+SetEmitterSize(bits, 0.12, 0.04)
+```
+
 `EmitterParticle e, tex` `EmitterRate` `EmitterMax` `EmitterLife` `EmitterSpeed`  
-`EmitterSize e, start [, end]` or `EmitterSize e, w0, h0, w1, h1`  
-`EmitterColor e, r, g, b [, a, r1, g1, b1, a1]` — RGB 0–255 or 0–1 (if all channels ≤ 1); alpha 0–1 or 0–255  
-`EmitterVelocity e, vx, vy, vz` `EmitterGravity e, x, y, z` `EmitterWind` `EmitterCone e, deg` `EmitterDrag`  
-`EmitterArea e, x, y, z` `EmitterDuration e, secs` `EmitterLoop e, on`  
+`EmitterSize e, start [, end]` or `EmitterSize e, w0, h0, w1, h1` — start size shrinks toward the end size over the particle’s life. On a cube, start/end are the edge length.  
+`EmitterColor e, r, g, b [, a, r1, g1, b1, a1]` — RGB 0–255 or 0–1 (if all channels ≤ 1); alpha 0–1 or 0–255. The second color is the color at death.  
+`EmitterVelocity e, vx, vy, vz` — spray direction, not a one-shot impulse.  
+`EmitterGravity e, x, y, z` `EmitterWind` `EmitterCone e, deg` `EmitterDrag`  
+`EmitterArea e, x, y, z` — random box around the origin.  
+`EmitterDuration e, secs` `EmitterLoop e, on`  
 `PositionEmitter e, x, y [, z]`  
 `Emit e [, count]` / `EmitterBurst e, count`  
 `FreeEmitter e`  
 
-`SetEmitter*` aliases work.
+`SetEmitter*` aliases work (`SetEmitterShape`, `SetEmitterRate`, …). Demo: `examples/particles.bb`.
 
 ### 2D (Ebiten)
 
@@ -331,6 +390,17 @@ Every angle is **degrees** (same as Blitz). `ATan2(y, x)` is the usual two-argum
 | `DeltaPitch src, dest` | Same for pitch |
 | `VectorYaw(x, y, z)` | Yaw of a direction (`ATan2(x, z)`) |
 | `VectorPitch(x, y, z)` | Pitch of a direction |
+| `MoveWish(yaw)` | WASD wish direction relative to `yaw`. Returns `wishX, wishZ` |
+| `Accelerate(vx, vz, wishX, wishZ, acc, fric, maxSpd, grounded, dt)` | Ground friction, accel, and speed cap. Returns `vx, vz` |
+| `TurnToward(yaw, vx, vz, rate [, minSpeed])` | Face horizontal velocity, at most `rate` degrees. Stays put below `minSpeed` (default 0.45) |
+| `Land(px, py, pz, vy, pads)` | Snap onto pad structs (`x,y,z,w,d`). Returns `py, vy, grounded` |
+
+```basic
+wishX, wishZ = MoveWish(camYaw)
+vx, vz = Accelerate(vx, vz, wishX, wishZ, 42, 16, 8.4, grounded, dt)
+yaw = TurnToward(yaw, vx, vz, 640 * dt)
+py, vy, grounded = Land(px, py, pz, vy, pads)
+```
 
 `DeltaYaw` / `DeltaPitch` take entity handles. For two raw angles use `AngleDelta`.
 
@@ -390,7 +460,9 @@ Playback is Oto v3. No OpenAL.
 
 ## Physics
 
-**3D (Jolt, or software `fallback`):** `PhysicsBackend$()` / `GetPhysicsBackend$()` is `"jolt"` or `"fallback"` (honest; `-tags nojolt` and unsupported OS/arch are fallback). Full walkthrough: [PHYSICS.md](PHYSICS.md). Vehicles: [VEHICLES.md](VEHICLES.md).
+**3D (Jolt, or software `fallback`):** `PhysicsBackend$()` / `GetPhysicsBackend$()` is `"jolt"` or `"fallback"` (honest; `-tags nojolt` and unsupported OS/arch are fallback). Windows Jolt is native. Linux/macOS Jolt keeps the command names, with software velocity, joints, and hull rotation. Full walkthrough: [PHYSICS.md](PHYSICS.md). Vehicles: [VEHICLES.md](VEHICLES.md).
+
+Beginner: `Collide(mesh [, STATIC|KINEMATIC|DYNAMIC [, mass]])` boxes the mesh (sphere if the mesh is a sphere). `SetPhysicsMaterial e, "ice"|"rubber"|"wood"|"metal"|"stone"|"plastic"|"bouncy"|"glass"|"default"` — `SetMaterial` with a name does the same; a numeric id is still a PBR material. `Flip` steps physics once if `UpdateWorld` was not called this frame. `RaycastHit` returns `RayHit` (`entity`, `x`, `y`, `z`, `nx`, `ny`, `nz`, `fraction`, `hit`) without writing `Picked*`. `RaycastAll` returns every hit along the ray. After `Raycast`, `GetRayNormalX/Y/Z` and `GetRayFraction`. Constants: `STATIC` `KINEMATIC` `DYNAMIC` `ON_GROUND` `GROUND_STEEP` `GROUND_UNSUPPORTED` `IN_AIR`.
 
 `SetGravity x,y,z` / `GetGravityX/Y/Z()` — stored and applied to Jolt via `SetGravity`.  
 `CreateBody` / `CreateBodySphere` / `CreateBodyBox` / `CreateBodyCapsule` / `CreateBodyCylinder` / `CreateBodyConvex` return the entity/body handle. `ActivateBody e` wakes the body.  
@@ -409,7 +481,7 @@ Playback is Oto v3. No OpenAL.
 `CreateProjectile e, speed [, gravity, life, radius, bounce, impulse, ignore]` flies along local +Z (ray hits apply impulse). `CreateBeam a, b [, width]` is a stretched cube between two entities. `PlaceAtRay src, dest [, maxDist]` parks `dest` on the first hit (or at max range). `AttachToBone child, mesh, "BoneName"` parents to a named glTF node (or a named child entity).  
 `SetWaterFlow vx, vy, vz` feeds fluid velocity into `ApplyBuoyancyImpulse`. Dynamic bodies that enter the water (not vehicles / buoys) auto-float at factor 1.1; `SetBuoyancyFactor e, n` (`<0` disables).  
 `SetBodyCCD e, on` / `SetCCD e, on` — Windows: Jolt `LinearCast`. Linux/macOS and fallback: ray sweep from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate  
-`CreateCharacterController(e [, height, radius, maxSlope, maxStrength])` — Jolt CharacterVirtual. Windows also attaches an inner kinematic body so rays hit the player; Linux/macOS adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` (or `vx,vy,vz`). `SetCharacterShape e, "capsule"|"box", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. `UpdateWorld` runs `ExtendedUpdate`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper.  
+`CreateCharacterController(e [, height, radius, maxSlope, maxStrength])` — Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). Windows also attaches a slightly smaller inner kinematic body so rays hit the player; Linux/macOS adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, "capsule"|"box", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.  
 Classic: `EntityType`, `GetEntityType`, `EntityRadius`, `EntityBox`, `Collisions`, `CountCollisions`, `EntityCollided(e [, type|other])`, `ResetEntity`, `CollisionEntity`, `CollisionX/Y/Z` — Windows Jolt `ContactListener` queues in **C++** (mutex, no `//export` from Jolt threads); Go drains in `UpdateWorld`. Linux/macOS and fallback synthesize persist contacts from overlap.
 
 See `examples/physics3d.bb`, `examples/jolt_drop.bb`, `examples/physics_joints.bb`, `examples/physics_body.bb`, `examples/physics_contacts.bb`, `examples/physics_pile.bb`, `examples/character_virt.bb`, `examples/cloth.bb`, `examples/grab_beam.bb`. Helpers: [PHYSICS.md](PHYSICS.md), [MODERN_GAME_HELPERS.md](MODERN_GAME_HELPERS.md).
@@ -611,13 +683,21 @@ Go worker pool. **Workers must never create GL objects.** Queue GPU work; Flip f
 
 ## Scene streaming
 
+`SetPlayer` turns the bubble on, and the old stream commands still work on their own. Terrain, water, and props follow that entity unless you call `SetStreamOrigin` or `SetStreamFollow` afterward. Collision is the chunks next to the player. Past 4 km the world shifts and `WorldOriginX` / `WorldOriginZ` record it. `SetWorldBubble(0)` leaves `SetPlayer` as footsteps only. See `docs/STREAM.md`.
+
 Grid of prop chunks. Load/unload by camera/player. Mesh create stays on the GL thread.
 
 | Command | Meaning | Example |
 | --- | --- | --- |
-| `CreateWorldStream([chunkSize, radius])` | Enable stream (default size 24, radius 2) | `CreateWorldStream(20, 2)` |
+| `SetPlayer(ent)` | Footsteps, chase target, and the bubble. Origin and follow still override the center | `SetPlayer(player)` |
+| `SetWorldBubble(on [, ent])` | `0` before `SetPlayer` keeps the bubble off | `SetWorldBubble(0)` |
+| `SetWorldSimRadius(n)` / `GetWorldSimRadius()` | Heightfield chunks around the player. `-1` is draw-only | `SetWorldSimRadius(1)` |
+| `SetWorldShift(on [, metres])` | Move the world when the player passes `metres` (default 4096) | `SetWorldShift(1, 4096)` |
+| `SetWorldMorph(on)` | Slide terrain verts toward the next LOD | `SetWorldMorph(1)` |
+| `WorldOriginX()` / `WorldOriginZ()` | Accumulated shift | `x# = WorldOriginX()` |
+| `CreateWorldStream([chunkSize, radius])` | Prop grid, including the demo slabs and cones | `CreateWorldStream(20, 2)` |
 | `SetStreamRadius(n)` / `GetStreamRadius()` | Chunks in each direction | `SetStreamRadius(3)` |
-| `SetStreamOrigin(x, y, z)` | Stream center (y ignored) | `SetStreamOrigin(EntityX(p), 0, EntityZ(p))` |
+| `SetStreamOrigin(x, y, z)` | Pin the center (y ignored). Wins over follow until the next `SetStreamFollow` | `SetStreamOrigin(EntityX(p), 0, EntityZ(p))` |
 | `SetStreamFollow(ent)` | Follow that entity each Flip | `SetStreamFollow(player)` |
 | `LoadChunk(cx, cz)` | Force-load one cell | `LoadChunk(0, 1)` |
 | `UnloadChunk(cx, cz)` | Free that cell’s entities | `UnloadChunk(0, 1)` |
@@ -629,7 +709,7 @@ See `examples/stream.bb`.
 
 ## Terrain
 
-See `docs/TERRAIN.md`. OpenGL **3.3** regular grids (no tessellation).
+See `docs/TERRAIN.md`. OpenGL **3.3** grids: central-difference normals, far chunks with a full border, height-blended splat, stochastic ground tiles. Grass cards, trees, and props are scatter on those chunks (`TerrainFoliage`, `TerrainTrees`, `TerrainProps`). They are not collision and not nav. `SetTerrainDetail` changes how soon a chunk goes coarse. `SetTerrainBlendMap` paints sand / grass / rock / snow.
 
 | Command | Meaning | Example |
 | --- | --- | --- |
@@ -653,6 +733,12 @@ See `docs/TERRAIN.md`. OpenGL **3.3** regular grids (no tessellation).
 | `SetTerrainGrassCoverage` / `SetTerrainRockColor` / `SetTerrainFogFalloff` | Splat + fog | `SetTerrainGrassCoverage(t, 0.65)` |
 | `SetTerrainWaterHeight` / `SetTerrainBlend` / `SetTerrainSnow(on [, y])` | Sand line + optional snow | `SetTerrainSnow(True, 8.5)` |
 | `SetTerrainTessMultiplier(m)` | CPU vertex density (not GL tess) | `SetTerrainTessMultiplier(t, 1.4)` |
+| `SetTerrainDetail(t, pixels)` | Screen-space size as a CPU step. `8` is the old LOD. Smaller stays fine longer. `0` clears it | `SetTerrainDetail(t, 6)` |
+| `SetTerrainBlendMap(t, tex)` | R sand, G grass, B rock, A snow. Empty texels keep slope/height | `SetTerrainBlendMap(t, paint)` |
+| `TerrainFoliage(t [, density])` | Crossed grass cards. `1` is a light meadow. `0` clears. Far chunks use one quad | `TerrainFoliage(t)` |
+| `TerrainTrees(t, mesh [, density])` | Instanced `mesh` on flat ground. Far copies are a quad. `0` clears that mesh | `TerrainTrees(t, tree)` |
+| `TerrainProps(t, mesh [, density])` | Rocks and clutter. Several meshes are several layers. `0` removes that mesh | `TerrainProps(t, rock, 0.4)` |
+| `TerrainScatter(t, mesh, kind$, density)` | Same planter. `kind$` is `grass` `tree` `prop` `any` | `TerrainScatter(t, bush, "prop", 0.5)` |
 | `CreateProcTexture(kind$)` | `sand` `grass` `grass2` `rock` `snow` `rocknormal` `dudv` `cloud` | `tex = CreateProcTexture("grass")` |
 | `TerrainSlope(x, z)` / `GetTerrainSlope` | Up-dot normal (1 = flat) | `n# = TerrainSlope(x, z)` |
 | `CreateVolumetricClouds([y, scale])` / `CreateClouds` | 3.3 raymarch dome (no compute) | `c = CreateVolumetricClouds(110, 260)` |
@@ -665,7 +751,64 @@ See `docs/TERRAIN.md`. OpenGL **3.3** regular grids (no tessellation).
 | `SetTerrainStreamRadius(t, n)` / `GetTerrainStreamRadius([t])` | Chunk window | `SetTerrainStreamRadius(t, 2)` |
 | `SetTerrainLOD(t, on)` / `GetTerrainLOD([t])` | Distant chunks skip verts | `SetTerrainLOD(t, 1)` |
 | `TerrainChunkCount()` / `GetTerrainChunkCount()` | Resident terrain tiles | `n = TerrainChunkCount()` |
-| `BakeTerrainNav([terrain])` | Detour from loaded chunk triangles | `nav = BakeTerrainNav(t)` |
+| `BakeTerrainNav([terrain])` | Detour from loaded chunk triangles. Scatter is not included | `nav = BakeTerrainNav(t)` |
+
+## Outdoor and indoor play
+
+How to use every call, in order: [PLAY.md](PLAY.md). Runnable scene: `examples/outdoor.bb` (`.\bs.exe examples\outdoor.bb`). WASD walks the terrain, E uses the crosshair, `[` `]` moves the hour, F5 / F9 save and load.
+
+One play layer on the same world. Outdoor streaming stays the terrain. Indoor streaming is the current room plus the rooms linked through a doorway. Entities in no room stay visible (the player, the terrain, the sun). There is no portal renderer and no second outdoor renderer.
+
+`SetTimeOfDay(hours)` moves every directional light, the sky colors, the fog, and the outdoor ambient together. `0`–`5.5` and `19.5`–`24` are night, `5.5`–`8` and `17`–`19.5` are sunset, the middle of the day is the default sky. The sun pitch follows the hour and never drops below 8°, so night is a dim light rather than a light under the ground. Calling it again with the same band does not rebuild the skybox.
+
+`CreateRoom` returns a room id. Room `0` is outdoors. `SetRoom(ent, room)` puts an entity in a room (`RoomAdd(room, ent)` is the same pair of arguments swapped). `RoomLink(a, b)` shows both rooms from either one. `EnterRoom(id)` hides every other room. `CurrentRoom()` is the id you are in.
+
+`RoomAmbient(room, r, g, b)` replaces the sky ambient while you are in that room and turns directional intensity down, so a lamp can own the space. Leaving the room restores the outdoor ambient and the sun. `RoomAudio(room, footstepSound, reverb)` plays `footstepSound` about once a metre while the player moves. `reverb` is `0`–`1`. There is no convolution reverb; a value above `0` plays the same clip again, quieter, about 0.12s later. `SetPlayer(ent)` is who those steps follow.
+
+`CreateDoor(mesh [, roomA, roomB, sound])` swings that entity 100° on yaw when `Use` hits it, plays `sound` if you passed one, and links `roomA` and `roomB` so the next room is already visible. The swing runs on Flip.
+
+`Use([ent])` uses the entity, or `CameraPick`’s `PickedEntity` when you omit it. A door toggles. An item from `SetItem(ent, name$)` goes into the inventory and the entity hides. `SetDialogue(ent, text$)` starts a conversation; lines are split on `|` or a newline. `DialogueOn()`, `DialogueLine$()`, and `DialogueAdvance()` walk it. An actor from `CreateActor` is set to chase. Anything else returns `0`.
+
+Inventory is a list of names: `InventoryHas(name$)`, `InventoryCount()`, `InventoryItem(index)`, `InventoryRemove(name$)`.
+
+`CreateActor(ent [, aggro, speed])` is three states and nothing else: `0` idle, `1` chase, `2` attack (within 1.5 units). Default aggro is 8 and default speed is 3.2. Chase walks toward `SetPlayer` and samples `TerrainHeight` when a terrain exists. `ActorState(ent)` reads the state. `Use` on the actor starts a chase.
+
+`SaveGame(path$)` / `LoadGame(path$)` write one JSON file: hour, player position, inventory, which doors are open, visited terrain chunks, and the current dialogue line. This is not `SaveScene`. A relative path is under the program directory. The default name is `savegame.json`.
+
+```basic
+SetPlayer(player)
+SetTimeOfDay(15)
+hall = CreateRoom()
+kitchen = CreateRoom()
+SetRoom(table, hall)
+RoomLink(hall, kitchen)
+RoomAmbient(hall, 30, 28, 24)
+RoomAudio(hall, stepSnd, 0.4)
+CreateDoor(doorMesh, hall, kitchen, doorSnd)
+SetItem(keyMesh, "key")
+SetDialogue(npc, "Hello|The key is on the table")
+CreateActor(wolf, 10, 4)
+EnterRoom(hall)
+```
+
+| Command | Meaning | Example |
+| --- | --- | --- |
+| `SetTimeOfDay(hours)` / `GetTimeOfDay()` | Sun, sky, fog, outdoor ambient. Hours wrap at 24 | `SetTimeOfDay(18.5)` |
+| `CreateRoom()` | New room id. `0` is outdoors | `hall = CreateRoom()` |
+| `SetRoom(ent, room)` / `RoomAdd(room, ent)` | Membership. Room `0` clears it | `SetRoom(crate, hall)` |
+| `RoomLink(a, b)` | Both rooms visible from either | `RoomLink(hall, kitchen)` |
+| `RoomAmbient(room, r, g, b)` | Indoor ambient while you are inside | `RoomAmbient(hall, 30, 28, 24)` |
+| `RoomAudio(room, sound, reverb)` | Footsteps plus a quiet slapback | `RoomAudio(hall, step, 0.35)` |
+| `EnterRoom(id)` / `CurrentRoom()` | Show this room and its links | `EnterRoom(hall)` |
+| `CreateDoor(mesh [, a, b, sound])` | Swing, optional sound, links the two rooms | `CreateDoor(mesh, hall, kitchen, snd)` |
+| `Use([ent])` | Door, item, dialogue, or aggro. Blank uses the camera pick | `Use()` |
+| `SetItem(ent, name$)` | `Use` pockets it | `SetItem(key, "key")` |
+| `InventoryHas(name$)` / `InventoryCount()` / `InventoryItem(i)` / `InventoryRemove(name$)` | Name list | `If InventoryHas("key")` |
+| `SetDialogue(ent, text$)` | Lines split on `\|` or newline | `SetDialogue(npc, "Hello\|Bye")` |
+| `DialogueOn()` / `DialogueLine$()` / `DialogueAdvance()` | Current line, then the next, then stop | `Print DialogueLine$()` |
+| `SetPlayer(ent)` | Chase target, footstep body, and the world bubble. `SetStreamOrigin` / `SetStreamFollow` still override the center | `SetPlayer(player)` |
+| `CreateActor(ent [, aggro, speed])` / `ActorState(ent)` | Idle `0`, chase `1`, attack `2` | `CreateActor(wolf, 9, 3.5)` |
+| `SaveGame(path$)` / `LoadGame(path$)` | Player, inventory, doors, hour, visited chunks | `SaveGame("slot1.json")` |
 
 ## Geo
 
@@ -695,7 +838,7 @@ See `examples/geo.bb`.
 
 ## Water
 
-See `docs/WATER.md`. Two techniques, one shader: **Gerstner** vertex ocean + **scenic** dual-FBO / DuDv / Fresnel. Camera-centered **LOD grid** (no 128-only cap). Lite screen-space reflect is **Partial**. GL 3.3.
+See `docs/WATER.md`. Two techniques, one shader: **Gerstner** vertex ocean + **scenic** dual-FBO / DuDv / Fresnel. The surface is opaque; `SetWaterColor` is the deep color. `SetWaterFollow(True)` keeps ~0.5 m cells under the camera. Lite screen-space reflect is **Partial**. GL 3.3.
 
 | Command | Meaning | Example |
 | --- | --- | --- |
@@ -823,7 +966,7 @@ See `examples/glmodern.bb`.
 
 ## Light probes (GI)
 
-Drive the existing hemisphere in `mbshadow`. No RTX.
+Drive the hemisphere in `mbshadow` and, on PBR, the cubemap in `mbphysical`. No RTX. The probe nearest the camera captures one 32×32 face per frame. After six frames that cubemap replaces the sky cubemap. `SetProbeColor` is still the sky and ground tint.
 
 | Command | Meaning | Example |
 | --- | --- | --- |
@@ -932,7 +1075,7 @@ See `examples/editor.bb`. Material sliders: `GuiSlider` + `EntityShininess` / `E
 
 ## Post-processing (GL 3.3 fullscreen blit)
 
-Scene renders to a color FBO, then one blit: Reinhard tonemap, exposure, cheap 9-tap bloom, optional FXAA, contrast/sat/tint. **Not** deferred MRT / Unreal post. See `docs/POSTFX.md`.
+Scene renders to a color FBO, then one blit: tonemap (`reinhard`, `neutral`, `aces`, or `none`), exposure, a half-resolution bloom chain, optional FXAA, contrast/sat/tint. The 9-tap extract remains only if the bloom framebuffers cannot be built. **Not** deferred MRT / Unreal post. See `docs/POSTFX.md`.
 
 | Command | Meaning | Example |
 | --- | --- | --- |

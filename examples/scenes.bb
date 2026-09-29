@@ -1,5 +1,5 @@
-; Menu / level pattern: ClearWorld then LoadScene a setup .bb
-; Space loads the level chunk. Esc quits.
+; Scenes — menu marker spins; Space loads level_setup.bb via ClearWorld + LoadScene.
+; Esc quits.
 
 Graphics3D(800, 600)
 SetBuffer(BackBuffer())
@@ -7,15 +7,15 @@ SetWindowTitle("BitShin BASIC — scenes")
 SetCameraClsColor(22, 28, 40)
 SetAmbientLight(80, 90, 110)
 
+; Menu camera + light
 cam = CreateCamera()
-SetPosition(cam, 0, 1.8, -6)
-PointEntity(cam, 0, 0.5, 0)
+cam.Position([0, 1.8, -6])
+cam.Point(0, 0.5, 0)
 light = CreateLight()
-SetRotation(light, 40, 20, 0)
+light.Rotate(40, 20, 0)
 
-marker = CreateCube()
-SetPosition(marker, 0, 0.5, 0)
-SetEntityColor(marker, 80, 170, 255)
+; Menu marker
+marker = CreateCube().Position([0, 0.5, 0]).Color(80, 170, 255)
 
 phase = 0
 
@@ -29,10 +29,10 @@ While Not KeyDown(KEY_ESCAPE)
         If KeyHit(KEY_SPACE) Then
             ClearWorld()
             cam = CreateCamera()
-            SetPosition(cam, 0, 1.8, -4)
-            PointEntity(cam, 0, 0.5, 6)
+            cam.Position([0, 1.8, -4])
+            cam.Point(0, 0.5, 6)
             light = CreateLight()
-            SetRotation(light, 40, 20, 0)
+            light.Rotate(40, 20, 0)
             SetAmbientLight(80, 90, 110)
             LoadScene("level_setup.bb")
             phase = 1

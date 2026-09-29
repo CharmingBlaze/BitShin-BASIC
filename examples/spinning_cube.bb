@@ -1,4 +1,5 @@
-; CreateCube — 2026 command style (classic names still work)
+; Spinning Cube — CreateCube with modern Set* helpers
+; Esc quits after a few frames.
 
 Graphics3D(800, 600, 0, 2)
 SetBuffer(BackBuffer())
@@ -6,13 +7,16 @@ SetWindowTitle("BitShin BASIC — Spinning cube")
 SetCameraClsColor(18, 22, 32)
 SetAmbientLight(70, 80, 100)
 
+; Camera
 camera = CreateCamera()
 SetPosition(camera, 0, 2, -6)
 PointEntity(camera, 0, 0, 0)
 
+; Light
 light = CreateLight()
 SetRotation(light, 50, 30, 0)
 
+; Scene — SetPosition / SetEntityColor
 ground = CreatePlane(16, 16)
 SetPosition(ground, 0, -1, 0)
 SetEntityColor(ground, 36, 42, 52)
@@ -21,6 +25,7 @@ cube = CreateCube()
 SetPosition(cube, 0, 0.2, 0)
 SetEntityColor(cube, 70, 160, 255)
 
+; Loop — TurnEntity spin; Esc after frame 8
 frames = 0
 While True
     frames = frames + 1

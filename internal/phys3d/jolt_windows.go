@@ -48,6 +48,7 @@ func New() World {
 	}
 	ps := jolt.NewPhysicsSystem()
 	ps.EnableContactListener(true)
+	ps.ConfigureStable()
 	ps.SetGravity(jolt.Vec3{X: 0, Y: -9.81, Z: 0})
 	return &joltWorld{
 		ps:               ps,
@@ -121,18 +122,25 @@ func (w *joltWorld) Step(dt float32) {
 			m = 70
 		}
 		if kc.virtual != nil {
-			if f[0] != 0 || f[1] != 0 || f[2] != 0 {
-				lv := kc.virtual.GetLinearVelocity()
-				kc.virtual.SetLinearVelocity(jolt.Vec3{
-					X: lv.X + f[0]/m*dt,
-					Y: lv.Y + f[1]/m*dt,
-					Z: lv.Z + f[2]/m*dt,
-				})
+			// GameUpdate does not integrate gravity. Jolt expects the
+			// caller to add it, and to copy ground velocity while supported
+			// so a jump (vy already above the floor) is kept.
+			lv := kc.virtual.GetLinearVelocity()
+			ground := kc.virtual.GetGroundState()
+			if ground == jolt.GroundStateOnGround || ground == jolt.GroundStateOnSteepGround {
+				gv := kc.virtual.GetGroundVelocity()
+				if lv.Y-gv.Y < 0.15 {
+					lv.Y = gv.Y
+				}
 			}
-			kc.virtual.ExtendedUpdate(dt, g)
+			lv.X += (g.X + f[0]/m) * dt
+			lv.Y += (g.Y + f[1]/m) * dt
+			lv.Z += (g.Z + f[2]/m) * dt
+			kc.virtual.SetLinearVelocity(lv)
+			kc.virtual.GameUpdate(dt, g, w.tempAllocator)
 			p := kc.virtual.GetPosition()
 			kc.x, kc.y, kc.z = p.X, p.Y, p.Z
-			lv := kc.virtual.GetLinearVelocity()
+			lv = kc.virtual.GetLinearVelocity()
 			w.vel[id] = [3]float32{lv.X, lv.Y, lv.Z}
 			kc.onGround = kc.virtual.GetGroundState() == jolt.GroundStateOnGround
 			continue
@@ -202,6 +210,44 @@ func joltMotion(motion int) jolt.MotionType {
 	}
 }
 
+func (w *joltWorld) deltaVScale(id int) float32 {
+	if b := w.body[id]; b != nil && w.ps != nil {
+		if inv := w.ps.InverseMass(b); inv > 1e-8 {
+			return 1 / inv
+		}
+	}
+	if m := w.mass[id]; m > 0.001 {
+		return m
+	}
+	return 1
+}
+
+func (w *joltWorld) tuneBody(id int) {
+	b := w.body[id]
+	if b == nil || w.char[id] != nil {
+		return
+	}
+	if _, ok := w.friction[id]; !ok {
+		w.friction[id] = 0.6
+		w.bi.SetFriction(b, 0.6)
+	}
+	if _, ok := w.rest[id]; !ok {
+		w.rest[id] = 0.2
+		w.bi.SetRestitution(b, 0.2)
+	}
+	if w.motion[id] != MotionTypeDynamic {
+		return
+	}
+	if _, ok := w.linDamp[id]; !ok {
+		w.linDamp[id] = 0.04
+		w.ps.SetLinearDamping(b, 0.04)
+	}
+	if _, ok := w.angDamp[id]; !ok {
+		w.angDamp[id] = 0.08
+		w.ps.SetAngularDamping(b, 0.08)
+	}
+}
+
 func (w *joltWorld) add(id int, shape *jolt.Shape, x, y, z, r float32, motion int) {
 	mt := joltMotion(motion)
 	b := w.bi.CreateBody(shape, jolt.Vec3{X: x, Y: y, Z: z}, mt, false)
@@ -215,6 +261,7 @@ func (w *joltWorld) add(id int, shape *jolt.Shape, x, y, z, r float32, motion in
 	}
 	w.rad[id] = r
 	w.pendingAdds++
+	w.tuneBody(id)
 }
 
 func (w *joltWorld) AddBox(id int, x, y, z, hx, hy, hz float32, dynamic bool) {
@@ -291,21 +338,35 @@ func (w *joltWorld) AddCharacterController(id int, x, y, z, height, radius, maxS
 	if maxStrength <= 0 {
 		maxStrength = 100
 	}
-	shape := jolt.CreateCapsule(height*0.5, radius)
+	shaft := capsuleCylinderHalf(height, radius)
+	shape := jolt.CreateCapsule(shaft, radius)
 	settings := jolt.NewCharacterVirtualSettings(shape)
 	settings.MaxSlopeAngle = jolt.DegreesToRadians(maxSlopeDeg)
 	settings.MaxStrength = maxStrength
+	settings.Mass = 70
 	settings.EnhancedInternalEdgeRemoval = true
-	inner := jolt.CreateCapsule(height*0.5, radius*0.85)
+	settings.PredictiveContactDistance = 0.15
+	settings.MaxCollisionIterations = 8
+	settings.CharacterPadding = 0.03
+	settings.PenetrationRecoverySpeed = 1
+	inner := jolt.CreateCapsule(shaft, radius*0.92)
 	cv := w.ps.CreateCharacterVirtualWithInner(settings, jolt.Vec3{X: x, Y: y, Z: z}, inner, 1)
 	w.char[id] = &kinChar{
 		x: x, y: y, z: z,
-		radius:  radius + height*0.5,
+		radius:  radius,
 		height:  height,
 		virtual: cv,
 	}
-	w.rad[id] = radius + height*0.5
+	w.rad[id] = radius
 	w.mass[id] = 70
+	if cv != nil {
+		if ib := cv.InnerBody(); ib != nil {
+			w.body[id] = ib
+			w.bodyToEnt[ib.Key()] = id
+			w.bodyVal[ib.Value()] = id
+			w.motion[id] = MotionTypeKinematic
+		}
+	}
 }
 
 func (w *joltWorld) SetCharacterShape(id int, shapeType string, height, radius float32) {
@@ -319,13 +380,13 @@ func (w *joltWorld) SetCharacterShape(id int, shapeType string, height, radius f
 	if radius <= 0 {
 		radius = 0.4
 	}
-	newShape := jolt.CreateCapsule(height*0.5, radius)
+	newShape := jolt.CreateCapsule(capsuleCylinderHalf(height, radius), radius)
 	if shapeType == "box" || shapeType == "Box" || shapeType == "BOX" {
 		newShape = jolt.CreateBox(jolt.Vec3{X: radius, Y: height * 0.5, Z: radius})
 	}
 	kc.virtual.SetShape(newShape, 0.1)
 	kc.height = height
-	kc.radius = radius + height*0.5
+	kc.radius = height * 0.5
 	w.rad[id] = kc.radius
 }
 
@@ -489,8 +550,9 @@ func (w *joltWorld) ApplyImpulse(id int, x, y, z float32) {
 		w.vel[id] = [3]float32{lv.X, lv.Y, lv.Z}
 		return
 	}
-	if b, ok := w.body[id]; ok {
-		w.bi.AddImpulse(b, jolt.NewVec3(x, y, z))
+	if b, ok := w.body[id]; ok && w.char[id] == nil {
+		s := w.deltaVScale(id)
+		w.bi.AddImpulse(b, jolt.NewVec3(x*s, y*s, z*s))
 		w.bi.ActivateBody(b)
 		lv := w.bi.GetLinearVelocity(b)
 		w.vel[id] = [3]float32{lv.X, lv.Y, lv.Z}
@@ -562,6 +624,64 @@ func (w *joltWorld) Raycast(ox, oy, oz, dx, dy, dz float32) (int, float32, float
 	return id, hit.HitPoint.X, hit.HitPoint.Y, hit.HitPoint.Z, true
 }
 
+func (w *joltWorld) entityForBody(b *jolt.BodyID) int {
+	if b == nil {
+		return 0
+	}
+	if ent, found := w.bodyToEnt[b.Key()]; found {
+		return ent
+	}
+	if v := b.Value(); v != 0 {
+		if id := w.bodyVal[v]; id != 0 {
+			return id
+		}
+	}
+	for ent, body := range w.body {
+		if body.Equal(b) {
+			return ent
+		}
+	}
+	return 0
+}
+
+func (w *joltWorld) rayFrom(hit jolt.RaycastHit) (RayHit, bool) {
+	if hit.BodyID == nil {
+		return RayHit{}, false
+	}
+	return RayHit{
+		ID:       w.entityForBody(hit.BodyID),
+		X:        hit.HitPoint.X,
+		Y:        hit.HitPoint.Y,
+		Z:        hit.HitPoint.Z,
+		NX:       hit.Normal.X,
+		NY:       hit.Normal.Y,
+		NZ:       hit.Normal.Z,
+		Fraction: hit.Fraction,
+	}, true
+}
+
+func (w *joltWorld) RaycastDetail(ox, oy, oz, dx, dy, dz float32) (RayHit, bool) {
+	hit, ok := w.ps.CastRay(jolt.Vec3{X: ox, Y: oy, Z: oz}, jolt.Vec3{X: dx, Y: dy, Z: dz})
+	if !ok {
+		return RayHit{}, false
+	}
+	return w.rayFrom(hit)
+}
+
+func (w *joltWorld) RaycastAll(ox, oy, oz, dx, dy, dz float32, max int) []RayHit {
+	if max <= 0 {
+		max = 16
+	}
+	raw := w.ps.CastRayGetHits(jolt.Vec3{X: ox, Y: oy, Z: oz}, jolt.Vec3{X: dx, Y: dy, Z: dz}, max)
+	out := make([]RayHit, 0, len(raw))
+	for _, hit := range raw {
+		if h, ok := w.rayFrom(hit); ok {
+			out = append(out, h)
+		}
+	}
+	return out
+}
+
 func (w *joltWorld) SetGravity(x, y, z float32) {
 	w.gx, w.gy, w.gz = x, y, z
 	w.ps.SetGravity(jolt.Vec3{X: x, Y: y, Z: z})
@@ -570,19 +690,32 @@ func (w *joltWorld) GetGravity() (float32, float32, float32) {
 	return w.gx, w.gy, w.gz
 }
 
-func (w *joltWorld) Remove(id int) {
-	if kc := w.char[id]; kc != nil && kc.virtual != nil {
-		kc.virtual.Destroy()
-	}
-	if b, ok := w.body[id]; ok {
+func (w *joltWorld) dropBodyMap(id int) *jolt.BodyID {
+	b := w.body[id]
+	if b != nil {
 		delete(w.bodyToEnt, b.Key())
 		delete(w.bodyVal, b.Value())
 	}
-	delete(w.char, id)
 	delete(w.body, id)
+	return b
+}
+
+func (w *joltWorld) Remove(id int) {
+	id = w.resolvePhysID(id)
+	isChar := w.char[id] != nil
+	b := w.dropBodyMap(id)
+	if kc := w.char[id]; kc != nil && kc.virtual != nil {
+		kc.virtual.Destroy()
+	}
+	if b != nil && !isChar {
+		w.bi.RemoveAndDestroy(b)
+	}
+	delete(w.char, id)
 	delete(w.vel, id)
 	delete(w.force, id)
 	delete(w.rad, id)
+	delete(w.motion, id)
+	delete(w.mass, id)
 }
 
 func (w *joltWorld) Sleep(id int) {
@@ -602,13 +735,14 @@ func (w *joltWorld) SetJobThreads(n int) {
 }
 
 func (w *joltWorld) Close() {
-	for _, kc := range w.char {
+	for id, kc := range w.char {
+		w.dropBodyMap(id)
 		if kc.virtual != nil {
 			kc.virtual.Destroy()
 		}
 	}
 	for _, b := range w.body {
-		b.Destroy()
+		w.bi.RemoveAndDestroy(b)
 	}
 	w.ps.Destroy()
 	if w.tempAllocator != nil {

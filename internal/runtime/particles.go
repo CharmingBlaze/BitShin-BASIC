@@ -3,6 +3,7 @@ package runtime
 import (
 	"math"
 	"math/rand"
+	"strings"
 
 	"github.com/g3n/engine/core"
 	"github.com/g3n/engine/geometry"
@@ -28,6 +29,7 @@ type particle struct {
 type partVis struct {
 	mesh *graphic.Mesh
 	mat  *material.Standard
+	cube bool
 }
 
 type emitter struct {
@@ -151,10 +153,21 @@ func (w *World) particleGeom() *geometry.Geometry {
 	return w.partGeom
 }
 
-func (w *World) acquirePartVis() *partVis {
-	if len(w.partPool) > 0 {
-		v := w.partPool[len(w.partPool)-1]
-		w.partPool = w.partPool[:len(w.partPool)-1]
+func (w *World) particleCube() *geometry.Geometry {
+	if w.partCube == nil {
+		w.partCube = geometry.NewCube(1)
+	}
+	return w.partCube
+}
+
+func (w *World) acquirePartVis(cube bool) *partVis {
+	pool := &w.partPool
+	if cube {
+		pool = &w.cubePool
+	}
+	if len(*pool) > 0 {
+		v := (*pool)[len(*pool)-1]
+		*pool = (*pool)[:len(*pool)-1]
 		if v.mesh != nil {
 			v.mesh.SetVisible(true)
 			if w.scene != nil && v.mesh.GetNode().Parent() == nil {
@@ -167,15 +180,22 @@ func (w *World) acquirePartVis() *partVis {
 		return nil
 	}
 	mat := material.NewStandard(&math32.Color{1, 1, 1})
-	mat.SetShader("mbpart")
-	mat.SetUseLights(material.UseLightNone)
-	mat.SetSide(material.SideDouble)
-	mat.SetTransparent(true)
-	mat.SetDepthMask(false)
-	mesh := graphic.NewMesh(w.particleGeom(), mat)
-	mesh.SetRenderOrder(80)
+	var mesh *graphic.Mesh
+	if cube {
+		mat.SetSide(material.SideFront)
+		mat.SetDepthMask(true)
+		mesh = graphic.NewMesh(w.particleCube(), mat)
+	} else {
+		mat.SetShader("mbsoft")
+		mat.SetUseLights(material.UseLightNone)
+		mat.SetSide(material.SideDouble)
+		mat.SetTransparent(true)
+		mat.SetDepthMask(false)
+		mesh = graphic.NewMesh(w.particleGeom(), mat)
+		mesh.SetRenderOrder(80)
+	}
 	w.scene.Add(mesh)
-	return &partVis{mesh: mesh, mat: mat}
+	return &partVis{mesh: mesh, mat: mat, cube: cube}
 }
 
 func (w *World) recyclePartVis(v *partVis) {
@@ -183,7 +203,27 @@ func (w *World) recyclePartVis(v *partVis) {
 		return
 	}
 	v.mesh.SetVisible(false)
+	if v.cube {
+		w.cubePool = append(w.cubePool, v)
+		return
+	}
 	w.partPool = append(w.partPool, v)
+}
+
+func applyEmitterShape(e *emitter, name string) {
+	if e == nil {
+		return
+	}
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "streak", "rain":
+		e.style = 1
+	case "flake", "snow":
+		e.style = 2
+	case "cube", "mesh", "3d":
+		e.style = 3
+	default:
+		e.style = 0
+	}
 }
 
 func (w *World) emitterOrigin(e *emitter) (x, y, z float64) {
@@ -294,7 +334,7 @@ func (w *World) spawnParticle(e *emitter) {
 		vx: vx, vy: vy, vz: vz,
 		life: e.life, max: e.life,
 	}
-	if e.style == 2 {
+	if e.style == 2 || e.style == 3 {
 		p.spin = rand.Float64() * math.Pi * 2
 		p.spinVel = (rand.Float64()*2 - 1) * 2.8
 		p.wobble = rand.Float64() * math.Pi * 2
@@ -304,13 +344,16 @@ func (w *World) spawnParticle(e *emitter) {
 		p.life = 0.001
 	}
 	if !e.space2D && w.ready && !w.mode2D {
-		vis := w.acquirePartVis()
+		vis := w.acquirePartVis(e.style == 3)
 		if vis != nil {
-			if vis.mat != nil {
-				if e.style == 2 {
+			if vis.mat != nil && !vis.cube {
+				switch e.style {
+				case 2:
 					vis.mat.SetShader("mbflake")
-				} else {
+				case 1:
 					vis.mat.SetShader("mbpart")
+				default:
+					vis.mat.SetShader("mbsoft")
 				}
 			}
 			if e.tex != 0 {
@@ -414,9 +457,11 @@ func (w *World) tickEmitters(dt float32) {
 			p.x += p.vx * d
 			p.y += p.vy * d
 			p.z += p.vz * d
-			if e.style == 2 {
+			if e.style == 2 || e.style == 3 {
 				p.wobble += d
 				p.spin += p.spinVel * d
+			}
+			if e.style == 2 {
 				p.x += math.Sin(p.wobble*1.7+p.spin) * 0.62 * d
 				p.z += math.Cos(p.wobble*1.25) * 0.48 * d
 			}
@@ -459,8 +504,13 @@ func (w *World) tickEmitters(dt float32) {
 				}
 				gx, gy, gz := toG3N(float32(p.x), float32(p.y), float32(p.z))
 				p.vis.mesh.SetPosition(gx, gy, gz)
-				p.vis.mesh.SetScale(float32(s), float32(sy), 1)
-				if hasCam {
+				if e.style == 3 {
+					p.vis.mesh.SetScale(float32(s), float32(s), float32(s))
+					p.vis.mesh.SetRotation(float32(p.spin), float32(p.spin*0.73), float32(p.wobble))
+				} else {
+					p.vis.mesh.SetScale(float32(s), float32(sy), 1)
+				}
+				if e.style != 3 && hasCam {
 					if e.alignY {
 						dx := camPos.X - gx
 						dz := camPos.Z - gz

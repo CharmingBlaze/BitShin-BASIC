@@ -1,19 +1,23 @@
-; Flecs 4.1.6 — entities, components, query. Progress also runs on Flip.
+; ECS Basics — Flecs entities, components, and queries (console)
 
 EcsWorld()
 Print("BitShin BASIC Flecs", EcsVersion$())
 
+; Components
 pos = EcsComponent("Position")
 vel = EcsComponent("Velocity")
 
+; Named entity with Position + Velocity
 ship = EcsEntity("ship")
 EcsSet(ship, pos, 1, 2, 3)
 EcsSet(ship, vel, 0.5, 0, 0)
 EcsName(ship, "ship")
 
+; Second entity (string component name also works)
 rock = EcsEntity("rock")
 EcsSet(rock, "Position", 10, 0, 0)
 
+; Query all Position entities
 q = EcsQuery("Position")
 Print("query", EcsQueryCount(q))
 For i = 0 To EcsQueryCount(q) - 1
@@ -24,9 +28,11 @@ Next
 Print("has vel", EcsHas(ship, vel), "count Position", EcsCount(pos))
 Print("lookup", EcsLookup("ship"), "alive", EcsAlive(ship))
 
+; One progress tick integrates Velocity into Position
 EcsProgress(0.016)
 Print("get x", EcsGet(ship, pos))
 
+; Stress: many entities
 For i = 1 To 400
     e = EcsEntity()
     EcsSet(e, pos, i, 0, 0)

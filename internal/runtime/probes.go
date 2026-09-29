@@ -11,11 +11,18 @@ type lightProbe struct {
 	x, y, z float32
 	sky     math32.Color
 	ground  math32.Color
+	cube    uint32
+	fbo     uint32
+	depth   uint32
+	face    int
+	ready   bool
 }
 
 func (w *World) applyProbes() {
 	if len(w.probes) == 0 {
-		w.shaderUnis["ProbeEnabled"] = shaderUni{n: 1, v: [4]float32{0}}
+		if w.lightEnv == 0 {
+			w.shaderUnis["ProbeEnabled"] = shaderUni{n: 1, v: [4]float32{0}}
+		}
 		return
 	}
 	x, y, z := float32(0), float32(2), float32(0)

@@ -82,6 +82,83 @@ func TestUpdateTankThrottleMovesBody(t *testing.T) {
 	}
 }
 
+func TestPlaneCruiseHoldsAltitude(t *testing.T) {
+	w := readyWorld()
+	plane, err := w.Call("createcube", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := plane.Int()
+	if _, err := w.Call("scaleentity", []value.Value{value.Num(float64(id)), value.Num(4), value.Num(0.25), value.Num(3)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Call("positionentity", []value.Value{value.Num(float64(id)), value.Num(0), value.Num(8), value.Num(20)}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := w.Call("createplanecontroller", []value.Value{value.Num(float64(id))}); err != nil {
+		t.Fatal(err)
+	}
+	minY := 8.0
+	maxSpeed := 0.0
+	for i := 0; i < 180; i++ {
+		if _, err := w.Call("updateplane", []value.Value{value.Num(float64(id)), value.Num(0.55), value.Num(0), value.Num(0), value.Num(0)}); err != nil {
+			t.Fatal(err)
+		}
+		w.phys3.Step(1.0 / 60)
+		_, y, _, _ := w.phys3.GetPosition(id)
+		vx, vy, vz, _ := w.phys3.GetVelocity(id)
+		if float64(y) < minY {
+			minY = float64(y)
+		}
+		speed := math.Sqrt(float64(vx*vx + vy*vy + vz*vz))
+		if speed > maxSpeed {
+			maxSpeed = speed
+		}
+	}
+	if minY < 2 {
+		t.Fatalf("cruise throttle should keep the plane airborne, minY=%v", minY)
+	}
+	if maxSpeed > 80 {
+		t.Fatalf("plane thrust should stay in a game speed range, maxSpeed=%v", maxSpeed)
+	}
+	_, _, z, _ := w.phys3.GetPosition(id)
+	if z < 28 {
+		t.Fatalf("plane should fly forward, z=%v", z)
+	}
+}
+
+func TestBoatThrottleFloatsAndMoves(t *testing.T) {
+	w := readyWorld()
+	boat, err := w.Call("createcube", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	id := boat.Int()
+	w.Call("scaleentity", []value.Value{value.Num(float64(id)), value.Num(1.8), value.Num(0.55), value.Num(3.4)})
+	w.Call("positionentity", []value.Value{value.Num(float64(id)), value.Num(0), value.Num(1.4), value.Num(6)})
+	w.Call("createboatcontroller", []value.Value{value.Num(float64(id))})
+	w.Call("createwater", []value.Value{value.Num(220), value.Num(220), value.Num(48)})
+	w.Call("setwaterlevel", []value.Value{value.Num(0)})
+	for i := 0; i < 4; i++ {
+		w.Call("setgerstner", []value.Value{value.Num(float64(i)), value.Num(1), value.Num(0), value.Num(0), value.Num(0), value.Num(16), value.Num(0)})
+	}
+	for i := 0; i < 180; i++ {
+		w.Call("updateboat", []value.Value{value.Num(float64(id)), value.Num(1), value.Num(0)})
+		w.phys3.Step(1.0 / 60)
+	}
+	_, y, z, _ := w.phys3.GetPosition(id)
+	wh, err := w.Call("waterheight", []value.Value{value.Num(0), value.Num(float64(z))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if math.Abs(float64(y)-wh.Number()) > 0.45 {
+		t.Fatalf("boat should ride the waterline, y=%v water=%v", y, wh.Number())
+	}
+	if z < 14 {
+		t.Fatalf("boat throttle should drive it forward, z=%v", z)
+	}
+}
+
 func TestBoatBuoyancyStability(t *testing.T) {
 	w := New(".")
 	w.scene = core.NewNode()

@@ -32,6 +32,9 @@ func (w *World) timeCommands(n func(func([]value.Value) (value.Value, error)) cm
 			return value.Num(float64(int64(time.Since(t.start).Seconds() * t.hz))), nil
 		}),
 		"waittimer": n(func(a []value.Value) (value.Value, error) {
+			if w.playing && w.onHost && !w.mode2D && w.app != nil {
+				return w.pumpWaitTimer(argI(a, 0, 0))
+			}
 			t := w.timers[argI(a, 0, 0)]
 			if t == nil {
 				w.waitHold = false
@@ -67,6 +70,9 @@ func (w *World) timeCommands(n func(func([]value.Value) (value.Value, error)) cm
 		}),
 		"delay": n(func(a []value.Value) (value.Value, error) {
 			ms := argI(a, 0, 0)
+			if w.playing && w.onHost && !w.mode2D && w.app != nil {
+				return w.pumpDelay(ms)
+			}
 			if ms <= 0 {
 				w.waitHold = false
 				w.delayUntil = time.Time{}
@@ -89,6 +95,9 @@ func (w *World) timeCommands(n func(func([]value.Value) (value.Value, error)) cm
 			return z()
 		}),
 		"waitkey": n(func(a []value.Value) (value.Value, error) {
+			if w.playing && w.onHost && !w.mode2D && w.app != nil {
+				return w.pumpWaitKey()
+			}
 			if !w.ready {
 				_, _ = bufio.NewReader(os.Stdin).ReadBytes('\n')
 				w.waitHold = false

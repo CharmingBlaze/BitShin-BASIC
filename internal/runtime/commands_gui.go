@@ -5,7 +5,9 @@ import (
 
 	"github.com/AllenDang/cimgui-go/imgui"
 	implgl "github.com/AllenDang/cimgui-go/impl/opengl3"
+	"github.com/g3n/engine/gls"
 	"github.com/g3n/engine/window"
+	"github.com/go-gl/gl/v3.3-core/gl"
 
 	"bitshinbasic/internal/value"
 )
@@ -126,6 +128,130 @@ func (w *World) guiCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			}
 			return value.Num(0), nil
 		}),
+		"guibeginmenubar": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			if imgui.BeginMenuBar() {
+				return value.Num(1), nil
+			}
+			return value.Num(0), nil
+		}),
+		"guiendmenubar": n(func(a []value.Value) (value.Value, error) {
+			imgui.EndMenuBar()
+			return z()
+		}),
+		"guimenu": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			if imgui.BeginMenu(argS(a, 0)) {
+				return value.Num(1), nil
+			}
+			return value.Num(0), nil
+		}),
+		"guiendmenu": n(func(a []value.Value) (value.Value, error) {
+			imgui.EndMenu()
+			return z()
+		}),
+		"guimenuitem": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			if imgui.MenuItemBool(argS(a, 0)) {
+				return value.Num(1), nil
+			}
+			return value.Num(0), nil
+		}),
+		"guibegintabbar": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			id := argS(a, 0)
+			if id == "" {
+				id = "tabs"
+			}
+			if imgui.BeginTabBar(id) {
+				return value.Num(1), nil
+			}
+			return value.Num(0), nil
+		}),
+		"guiendtabbar": n(func(a []value.Value) (value.Value, error) {
+			imgui.EndTabBar()
+			return z()
+		}),
+		"guitabitem": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			if imgui.BeginTabItem(argS(a, 0)) {
+				return value.Num(1), nil
+			}
+			return value.Num(0), nil
+		}),
+		"guiendtabitem": n(func(a []value.Value) (value.Value, error) {
+			imgui.EndTabItem()
+			return z()
+		}),
+		"guitree": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			if imgui.TreeNodeStr(argS(a, 0)) {
+				return value.Num(1), nil
+			}
+			return value.Num(0), nil
+		}),
+		"guitreepop": n(func(a []value.Value) (value.Value, error) {
+			imgui.TreePop()
+			return z()
+		}),
+		"guibeginchild": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			id := argS(a, 0)
+			if id == "" {
+				id = "child"
+			}
+			if imgui.BeginChildStr(id) {
+				return value.Num(1), nil
+			}
+			return value.Num(0), nil
+		}),
+		"guiendchild": n(func(a []value.Value) (value.Value, error) {
+			imgui.EndChild()
+			return z()
+		}),
+		"guiopenpopup": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			imgui.OpenPopupStr(argS(a, 0))
+			return z()
+		}),
+		"guibeginpopup": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			if imgui.BeginPopup(argS(a, 0)) {
+				return value.Num(1), nil
+			}
+			return value.Num(0), nil
+		}),
+		"guiendpopup": n(func(a []value.Value) (value.Value, error) {
+			imgui.EndPopup()
+			return z()
+		}),
+		"guiselectable": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			if imgui.SelectableBool(argS(a, 0)) {
+				return value.Num(1), nil
+			}
+			return value.Num(0), nil
+		}),
 		"guidemo": n(func(a []value.Value) (value.Value, error) {
 			if err := w.guiEnsureFrame(); err != nil {
 				return value.Value{}, err
@@ -149,10 +275,20 @@ func (w *World) guiInit() error {
 	}
 	imgui.CreateContext()
 	imgui.StyleColorsDark()
-	if !implgl.Init() {
+	if io := imgui.CurrentIO(); io != nil {
+		io.SetConfigFlags(io.ConfigFlags() &^ imgui.ConfigFlagsViewportsEnable)
+	}
+	// G3N requests a 3.3 core context. The default imgui backend picks
+	// "#version 130" below GL 4.1, which does not compile in core profile.
+	if !implgl.InitV("#version 330") {
 		return fmt.Errorf("Gui*: ImGui OpenGL3 init failed")
 	}
+	if io := imgui.CurrentIO(); io != nil {
+		io.SetConfigFlags(io.ConfigFlags() &^ imgui.ConfigFlagsViewportsEnable)
+		io.SetBackendFlags(io.BackendFlags() &^ imgui.BackendFlagsRendererHasViewports)
+	}
 	w.guiReady = true
+	w.guiWarm = 24
 	return nil
 }
 
@@ -165,7 +301,6 @@ func (w *World) guiEnsureFrame() error {
 		return nil
 	}
 	w.guiPumpIO()
-	implgl.NewFrame()
 	imgui.NewFrame()
 	w.guiFrame = true
 	w.guiUsed = true
@@ -181,7 +316,18 @@ func (w *World) guiPumpIO() {
 	if w.app != nil {
 		ww, hh = w.app.GetSize()
 	}
+	sx, sy := float32(1), float32(1)
+	if gw := w.glfwWin(); gw != nil {
+		if sw, sh := gw.GetSize(); sw > 0 && sh > 0 {
+			ww, hh = sw, sh
+		}
+		if fbW, fbH := gw.GetFramebufferSize(); ww > 0 && hh > 0 && fbW > 0 && fbH > 0 {
+			sx = float32(fbW) / float32(ww)
+			sy = float32(fbH) / float32(hh)
+		}
+	}
 	io.SetDisplaySize(imgui.NewVec2(float32(ww), float32(hh)))
+	io.SetDisplayFramebufferScale(imgui.NewVec2(sx, sy))
 	dt := float32(w.delta)
 	if dt <= 0 {
 		dt = 1.0 / 60.0
@@ -231,10 +377,15 @@ func (w *World) guiPresent() {
 		w.guiWantK = false
 		return
 	}
+	if gw := w.glfwWin(); gw != nil {
+		gw.MakeContextCurrent()
+	}
+	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
 	if w.guiWinOpen {
 		imgui.End()
 		w.guiWinOpen = false
 	}
+	implgl.NewFrame()
 	imgui.Render()
 	if dd := imgui.CurrentDrawData(); dd != nil {
 		implgl.RenderDrawData(dd)
@@ -245,6 +396,52 @@ func (w *World) guiPresent() {
 	}
 	w.guiFrame = false
 	w.guiUsed = false
+	w.guiRestoreSceneGL()
+}
+
+// guiRestoreSceneGL puts the context back the way G3N's cached GL state
+// expects. ImGui (and its NewFrame device-object upload) enable scissor,
+// bind samplers/VAOs, and disable depth without going through GLS, so the
+// following RenderWorld pass can draw nothing while the overlay still appears.
+func (w *World) guiRestoreSceneGL() {
+	if w.app == nil {
+		return
+	}
+	gl.Disable(gl.SCISSOR_TEST)
+	gl.Disable(gl.STENCIL_TEST)
+	gl.Enable(gl.DEPTH_TEST)
+	gl.Enable(gl.CULL_FACE)
+	gl.Enable(gl.BLEND)
+	gl.DepthMask(true)
+	gl.ColorMask(true, true, true, true)
+	gl.DepthFunc(gl.LEQUAL)
+	gl.FrontFace(gl.CCW)
+	gl.CullFace(gl.BACK)
+	gl.BlendEquation(gl.FUNC_ADD)
+	gl.BlendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA)
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.BindSampler(0, 0)
+	gl.BindVertexArray(0)
+	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
+	gl.BindBuffer(gl.ELEMENT_ARRAY_BUFFER, 0)
+	gl.UseProgram(0)
+	gs := w.app.Gls()
+	if gs == nil {
+		return
+	}
+	gs.Disable(gls.DEPTH_TEST)
+	gs.Enable(gls.DEPTH_TEST)
+	gs.Disable(gls.CULL_FACE)
+	gs.Enable(gls.CULL_FACE)
+	gs.Disable(gls.BLEND)
+	gs.Enable(gls.BLEND)
+	gs.DepthMask(false)
+	gs.DepthMask(true)
+	gs.DepthFunc(gls.LEQUAL)
+	gs.BlendEquation(gls.FUNC_ADD)
+	gs.BlendFunc(gls.SRC_ALPHA, gls.ONE_MINUS_SRC_ALPHA)
+	gs.FrontFace(gls.CCW)
+	gs.CullFace(gls.BACK)
 }
 
 func (w *World) guiForwardKey(k window.Key, mods window.ModifierKey, down bool) {

@@ -1,24 +1,26 @@
-; Submarine: throttle, steer, dive vs WaterHeight. Esc after a few frames.
+; Submarine — throttle, steer, and dive vs WaterHeight.
+; WASD move / steer, Up / Down dive.
+; Esc quits after a few frames.
 
+; window
 SetWindowTitle("BitShin BASIC — Submarine")
 Graphics3D(960, 540, 0, 2)
 SetCameraClsColor(12, 30, 48)
 CreateLight()
 
-cam = CreateCamera()
-SetPosition(cam, 0, 8, -18)
-SetRotation(cam, 14, 0, 0)
+; camera
+cam = CreateCamera().Position([0, 8, -18]).Rotate(14, 0, 0)
 
+; world
 water = CreateWater(160, 160, 36)
 SetWaterLevel(0)
 SetGerstner(0, 0.6, 0.22, 0.2, 0.35, 16, 0.9)
 
-sub = CreateCube()
-SetScale(sub, 1.0, 0.55, 3.4)
-SetPosition(sub, 0, 0.4, 8)
-SetEntityColor(sub, 40, 90, 110)
+; vehicle
+sub = CreateCube().Scale(1.0, 0.55, 3.4).Position([0, 0.4, 8]).Color(40, 90, 110)
 CreateSubmarineController(sub)
 
+; loop
 frames = 0
 While 1
     frames = frames + 1
@@ -33,6 +35,7 @@ While 1
     If KeyDown(KEY_UP) Then dive = -1
     UpdateSubmarine(sub, th, steer, dive)
     UpdateWorld
+    CameraFollow(cam, sub, 16, 5, 7, EntityYaw(sub), 14)
     RenderWorld
     Text(12, 12, "Sub  WASD  Up/Down dive  waterY=" + Str(WaterHeight(0, 8)))
     Flip

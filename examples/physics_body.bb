@@ -1,23 +1,22 @@
-; Capsule + WASD impulse + jump raycast. Esc after Flip.
+; Capsule body — WASD impulse move, Space jumps when grounded.
+; Esc quits after a few frames.
 
 SetWindowTitle("BitShin BASIC — Physics body")
 Graphics3D(960, 600, 0, 2)
 SetCameraClsColor(18, 20, 28)
 
+; Camera
 cam = CreateCamera()
-SetPosition(cam, 0, 8, -16)
-SetRotation(cam, 22, 0, 0)
+cam.Position([0, 8, -16])
+cam.Rotate(22, 0, 0)
 CreateLight()
 
-ground = CreateCube()
-SetScale(ground, 10, 0.2, 10)
-SetPosition(ground, 0, 0, 8)
-SetEntityColor(ground, 50, 56, 70)
+; Static ground
+ground = CreateCube().Scale(10, 0.2, 10).Position([0, 0, 8]).Color(50, 56, 70)
 CreateBodyBox(ground, 10, 0.2, 10, 0)
 
-playerEntity = CreateCapsule(0.4, 0.9, 8)
-SetPosition(playerEntity, 0, 3, 8)
-SetEntityColor(playerEntity, 80, 190, 255)
+; Player capsule
+playerEntity = CreateCapsule(0.4, 0.9, 8).Position([0, 3, 8]).Color(80, 190, 255)
 playerBody = CreateBodyCapsule(playerEntity, 0.9, 0.4, 2)
 ActivateBody(playerBody)
 

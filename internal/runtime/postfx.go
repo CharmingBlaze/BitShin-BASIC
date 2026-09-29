@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/g3n/engine/camera"
 	"github.com/g3n/engine/gls"
@@ -17,22 +18,49 @@ import (
 // Not a deferred MRT / Unreal post graph.
 
 type postFX struct {
-	on       bool
-	userOn   bool
-	rainOnly bool
-	exposure float32
-	bloom    float32
-	fxaa     bool
-	contrast float32
-	sat      float32
-	tint     math32.Color
-	fbo      uint32
-	color    uint32
-	depth    uint32
-	w, h     int
-	prog     uint32
-	vao, vbo uint32
-	blitOK   bool
+	on             bool
+	userOn         bool
+	rainOnly       bool
+	exposure       float32
+	tonemap        int // 0 Reinhard, 1 Khronos PBR Neutral, 2 ACES fitted, 3 clamp only
+	bloom          float32
+	fxaa           bool
+	contrast       float32
+	sat            float32
+	tint           math32.Color
+	ssao           bool
+	ssaoRadius     float32
+	ssaoIntensity  float32
+	ssaoBias       float32
+	fbo            uint32
+	color          uint32
+	depth          uint32
+	w, h           int
+	prog           uint32
+	vao, vbo       uint32
+	blitOK         bool
+	bloomProg      uint32
+	bloomTex       [5]uint32
+	bloomFBO       [5]uint32
+	bloomW, bloomH int
+}
+
+func tonemapMode(name string, n int) int {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "neutral", "pbr", "khronos", "1":
+		return 1
+	case "aces", "filmic", "2":
+		return 2
+	case "none", "clamp", "3":
+		return 3
+	case "reinhard", "0", "":
+		if name == "" && n >= 1 && n <= 3 {
+			return n
+		}
+		return 0
+	default:
+		return 0
+	}
 }
 
 func (w *World) postCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error), need func(func([]value.Value) (value.Value, error)) cmd) map[string]cmd {
@@ -63,6 +91,10 @@ func (w *World) postCommands(n func(func([]value.Value) (value.Value, error)) cm
 		}),
 		"postfx": n(func(a []value.Value) (value.Value, error) {
 			return value.Num(float64(b01(w.post.on))), nil
+		}),
+		"settonemap": n(func(a []value.Value) (value.Value, error) {
+			w.post.tonemap = tonemapMode(argS(a, 0), argI(a, 0, 0))
+			return value.Num(float64(w.post.tonemap)), nil
 		}),
 		"setexposure": n(func(a []value.Value) (value.Value, error) {
 			w.post.exposure = float32(argN(a, 0, 1))
@@ -106,6 +138,81 @@ func (w *World) postCommands(n func(func([]value.Value) (value.Value, error)) cm
 			}
 			return z()
 		}),
+		"enablessao": need(func(a []value.Value) (value.Value, error) {
+			on := argI(a, 0, 1) != 0
+			w.post.ssao = on
+			if on {
+				w.post.on = true
+				w.post.userOn = true
+				if w.post.ssaoRadius <= 0 {
+					w.post.ssaoRadius = 0.8
+				}
+				if w.post.ssaoIntensity <= 0 {
+					w.post.ssaoIntensity = 1.8
+				}
+				if w.post.ssaoBias <= 0 {
+					w.post.ssaoBias = 0.02
+				}
+			}
+			return value.Num(float64(b01(w.post.ssao))), nil
+		}),
+		"setssao": need(func(a []value.Value) (value.Value, error) {
+			on := argI(a, 0, 1) != 0
+			w.post.ssao = on
+			if on {
+				w.post.on = true
+				w.post.userOn = true
+				if w.post.ssaoRadius <= 0 {
+					w.post.ssaoRadius = 0.8
+				}
+				if w.post.ssaoIntensity <= 0 {
+					w.post.ssaoIntensity = 1.8
+				}
+				if w.post.ssaoBias <= 0 {
+					w.post.ssaoBias = 0.02
+				}
+			}
+			return value.Num(float64(b01(w.post.ssao))), nil
+		}),
+		"getssao": n(func(a []value.Value) (value.Value, error) {
+			return value.Num(float64(b01(w.post.ssao))), nil
+		}),
+		"setssaoradius": n(func(a []value.Value) (value.Value, error) {
+			w.post.ssaoRadius = float32(argN(a, 0, 0.8))
+			if w.post.ssaoRadius < 0.01 {
+				w.post.ssaoRadius = 0.01
+			}
+			return value.Num(float64(w.post.ssaoRadius)), nil
+		}),
+		"getssaoradius": n(func(a []value.Value) (value.Value, error) {
+			if w.post.ssaoRadius <= 0 {
+				return value.Num(0.8), nil
+			}
+			return value.Num(float64(w.post.ssaoRadius)), nil
+		}),
+		"setssaointensity": n(func(a []value.Value) (value.Value, error) {
+			w.post.ssaoIntensity = float32(argN(a, 0, 1.8))
+			if w.post.ssaoIntensity < 0 {
+				w.post.ssaoIntensity = 0
+			}
+			return value.Num(float64(w.post.ssaoIntensity)), nil
+		}),
+		"getssaointensity": n(func(a []value.Value) (value.Value, error) {
+			if w.post.ssaoIntensity <= 0 {
+				return value.Num(1.8), nil
+			}
+			return value.Num(float64(w.post.ssaoIntensity)), nil
+		}),
+		"setssaobias": n(func(a []value.Value) (value.Value, error) {
+			w.post.ssaoBias = float32(argN(a, 0, 0.02))
+			return value.Num(float64(w.post.ssaoBias)), nil
+		}),
+		"getssaobias": n(func(a []value.Value) (value.Value, error) {
+			if w.post.ssaoBias <= 0 {
+				return value.Num(0.02), nil
+			}
+			return value.Num(float64(w.post.ssaoBias)), nil
+		}),
 	}
 }
 
@@ -125,7 +232,7 @@ func drainGL(where string) {
 }
 
 func (w *World) beginPostTarget(ww, hh int) bool {
-	if !w.post.on || ww <= 0 || hh <= 0 {
+	if (!w.post.on && !w.guiFrame) || ww <= 0 || hh <= 0 {
 		return false
 	}
 	if w.app != nil && w.app.Gls() != nil {
@@ -148,8 +255,20 @@ func (w *World) endPostTarget(gs *gls.GLS, ww, hh int) {
 	if w.post.fbo == 0 {
 		return
 	}
+	if w.post.on {
+		gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
+		w.blitPostFX(gs, ww, hh)
+		return
+	}
+	w.blitSceneCopy(ww, hh)
+}
+
+func (w *World) blitSceneCopy(ww, hh int) {
+	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, w.post.fbo)
+	gl.BindFramebuffer(gl.DRAW_FRAMEBUFFER, 0)
+	gl.BlitFramebuffer(0, 0, int32(ww), int32(hh), 0, 0, int32(ww), int32(hh), gl.COLOR_BUFFER_BIT, gl.NEAREST)
 	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
-	w.blitPostFX(gs, ww, hh)
+	drainGL("gui scene blit")
 }
 
 func (w *World) ensurePostFX(ww, hh int) error {
@@ -168,22 +287,28 @@ func (w *World) ensurePostFX(ww, hh int) error {
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
-	gl.GenRenderbuffers(1, &depth)
-	gl.BindRenderbuffer(gl.RENDERBUFFER, depth)
-	gl.RenderbufferStorage(gl.RENDERBUFFER, gl.DEPTH24_STENCIL8, int32(ww), int32(hh))
+
+	gl.GenTextures(1, &depth)
+	gl.BindTexture(gl.TEXTURE_2D, depth)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24, int32(ww), int32(hh), 0, gl.DEPTH_COMPONENT, gl.UNSIGNED_INT, nil)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+
 	gl.GenFramebuffers(1, &fbo)
 	gl.BindFramebuffer(gl.FRAMEBUFFER, fbo)
 	gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, color, 0)
-	gl.FramebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_STENCIL_ATTACHMENT, gl.RENDERBUFFER, depth)
+	gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, depth, 0)
 	st := gl.CheckFramebufferStatus(gl.FRAMEBUFFER)
 	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
 	gl.BindTexture(gl.TEXTURE_2D, 0)
-	gl.BindRenderbuffer(gl.RENDERBUFFER, 0)
 	if st != gl.FRAMEBUFFER_COMPLETE {
 		return fmt.Errorf("FBO incomplete (%d)", st)
 	}
 	w.post.fbo, w.post.color, w.post.depth = fbo, color, depth
 	w.post.w, w.post.h = ww, hh
+	w.disposeBloomChain()
 	return w.ensurePostBlit()
 }
 
@@ -193,13 +318,14 @@ func (w *World) disposePostFBO() {
 		w.post.color = 0
 	}
 	if w.post.depth != 0 {
-		gl.DeleteRenderbuffers(1, &w.post.depth)
+		gl.DeleteTextures(1, &w.post.depth)
 		w.post.depth = 0
 	}
 	if w.post.fbo != 0 {
 		gl.DeleteFramebuffers(1, &w.post.fbo)
 		w.post.fbo = 0
 	}
+	w.disposeBloomChain()
 }
 
 func (w *World) ensurePostProg() error {
@@ -248,12 +374,143 @@ func (w *World) ensurePostBlit() error {
 	return nil
 }
 
+func (w *World) disposeBloomChain() {
+	for i := 0; i < len(w.post.bloomTex); i++ {
+		if w.post.bloomTex[i] != 0 {
+			gl.DeleteTextures(1, &w.post.bloomTex[i])
+			w.post.bloomTex[i] = 0
+		}
+		if w.post.bloomFBO[i] != 0 {
+			gl.DeleteFramebuffers(1, &w.post.bloomFBO[i])
+			w.post.bloomFBO[i] = 0
+		}
+	}
+	w.post.bloomW, w.post.bloomH = 0, 0
+}
+
+func (w *World) ensureBloomProg() error {
+	if w.post.bloomProg != 0 {
+		return nil
+	}
+	p, err := compileLink(
+		struct {
+			kind uint32
+			src  string
+		}{gl.VERTEX_SHADER, mbpostVertex},
+		struct {
+			kind uint32
+			src  string
+		}{gl.FRAGMENT_SHADER, mbBloomDownFragment},
+	)
+	if err != nil {
+		return err
+	}
+	w.post.bloomProg = p
+	return nil
+}
+
+func (w *World) ensureBloomChain(ww, hh int) error {
+	if ww < 2 || hh < 2 {
+		return fmt.Errorf("bloom size")
+	}
+	if w.post.bloomTex[0] != 0 && w.post.bloomW == ww && w.post.bloomH == hh {
+		return nil
+	}
+	w.disposeBloomChain()
+	bw, bh := ww, hh
+	for i := 0; i < len(w.post.bloomTex); i++ {
+		bw /= 2
+		bh /= 2
+		if bw < 1 {
+			bw = 1
+		}
+		if bh < 1 {
+			bh = 1
+		}
+		var tex, fbo uint32
+		gl.GenTextures(1, &tex)
+		gl.BindTexture(gl.TEXTURE_2D, tex)
+		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, int32(bw), int32(bh), 0, gl.RGBA, gl.UNSIGNED_BYTE, nil)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+		gl.GenFramebuffers(1, &fbo)
+		gl.BindFramebuffer(gl.FRAMEBUFFER, fbo)
+		gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0)
+		st := gl.CheckFramebufferStatus(gl.FRAMEBUFFER)
+		gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
+		gl.BindTexture(gl.TEXTURE_2D, 0)
+		if st != gl.FRAMEBUFFER_COMPLETE {
+			gl.DeleteTextures(1, &tex)
+			gl.DeleteFramebuffers(1, &fbo)
+			w.disposeBloomChain()
+			return fmt.Errorf("bloom FBO incomplete (%d)", st)
+		}
+		w.post.bloomTex[i] = tex
+		w.post.bloomFBO[i] = fbo
+	}
+	w.post.bloomW, w.post.bloomH = ww, hh
+	return nil
+}
+
+func (w *World) fillBloomChain(ww, hh int) bool {
+	if w.post.bloom <= 0.001 || w.post.rainOnly || w.post.color == 0 || w.post.vao == 0 {
+		return false
+	}
+	if err := w.ensureBloomProg(); err != nil {
+		return false
+	}
+	if err := w.ensureBloomChain(ww, hh); err != nil {
+		return false
+	}
+	gl.Disable(gl.DEPTH_TEST)
+	gl.Disable(gl.BLEND)
+	gl.Disable(gl.CULL_FACE)
+	gl.UseProgram(w.post.bloomProg)
+	gl.Uniform1i(gl.GetUniformLocation(w.post.bloomProg, gl.Str("uSrc\x00")), 0)
+	src := w.post.color
+	sw, sh := ww, hh
+	for i := 0; i < len(w.post.bloomTex); i++ {
+		dw, dh := ww, hh
+		for k := 0; k <= i; k++ {
+			dw /= 2
+			dh /= 2
+			if dw < 1 {
+				dw = 1
+			}
+			if dh < 1 {
+				dh = 1
+			}
+		}
+		gl.BindFramebuffer(gl.FRAMEBUFFER, w.post.bloomFBO[i])
+		gl.Viewport(0, 0, int32(dw), int32(dh))
+		gl.ActiveTexture(gl.TEXTURE0)
+		gl.BindTexture(gl.TEXTURE_2D, src)
+		gl.Uniform2f(gl.GetUniformLocation(w.post.bloomProg, gl.Str("uTexel\x00")), 1/float32(sw), 1/float32(sh))
+		thr := float32(0)
+		if i == 0 {
+			thr = 0.72
+		}
+		gl.Uniform1f(gl.GetUniformLocation(w.post.bloomProg, gl.Str("uThreshold\x00")), thr)
+		gl.BindVertexArray(w.post.vao)
+		gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
+		src = w.post.bloomTex[i]
+		sw, sh = dw, dh
+	}
+	gl.BindVertexArray(0)
+	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
+	gl.UseProgram(0)
+	return true
+}
+
 func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 	if w.post.prog == 0 || !w.post.blitOK {
 		return
 	}
 	restore := saveModernGL(gs)
 	defer restore()
+	chain := w.fillBloomChain(ww, hh)
 	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
 	if ww > 0 && hh > 0 {
 		gl.Viewport(0, 0, int32(ww), int32(hh))
@@ -265,12 +522,46 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 	gl.ActiveTexture(gl.TEXTURE0)
 	gl.BindTexture(gl.TEXTURE_2D, w.post.color)
 	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uTex\x00")), 0)
+
+	gl.ActiveTexture(gl.TEXTURE1)
+	gl.BindTexture(gl.TEXTURE_2D, w.post.depth)
+	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uDepth\x00")), 1)
+
+	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uSSAO\x00")), int32(b01(w.post.ssao)))
+	rad := w.post.ssaoRadius
+	if rad <= 0 {
+		rad = 0.8
+	}
+	inten := w.post.ssaoIntensity
+	if inten <= 0 {
+		inten = 1.8
+	}
+	bias := w.post.ssaoBias
+	if bias <= 0 {
+		bias = 0.02
+	}
+	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uSSAORadius\x00")), rad)
+	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uSSAOIntensity\x00")), inten)
+	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uSSAOBias\x00")), bias)
+
 	exp := w.post.exposure
 	if exp <= 0 {
 		exp = 1
 	}
+	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uTonemap\x00")), int32(w.post.tonemap))
 	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uExposure\x00")), exp)
 	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uBloom\x00")), w.post.bloom)
+	chainOn := int32(0)
+	if chain {
+		chainOn = 1
+		for i := 0; i < len(w.post.bloomTex); i++ {
+			gl.ActiveTexture(gl.TEXTURE2 + uint32(i))
+			gl.BindTexture(gl.TEXTURE_2D, w.post.bloomTex[i])
+			name := fmt.Sprintf("uBloom%d\x00", i)
+			gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str(name)), int32(2+i))
+		}
+	}
+	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uBloomChain\x00")), chainOn)
 	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uFXAA\x00")), int32(b01(w.post.fxaa)))
 	con := w.post.contrast
 	if con <= 0 {
@@ -295,6 +586,13 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 	gl.BindVertexArray(w.post.vao)
 	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
 	gl.BindVertexArray(0)
+	for i := 0; i < len(w.post.bloomTex); i++ {
+		gl.ActiveTexture(gl.TEXTURE2 + uint32(i))
+		gl.BindTexture(gl.TEXTURE_2D, 0)
+	}
+	gl.ActiveTexture(gl.TEXTURE1)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	gl.ActiveTexture(gl.TEXTURE0)
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.UseProgram(0)
 	gl.Enable(gl.DEPTH_TEST)
@@ -321,7 +619,7 @@ func (w *World) renderSceneCams(rend *renderer.Renderer, ww, hh int) {
 		}
 	}
 	targetFBO := uint32(0)
-	if w.post.on && w.post.fbo != 0 {
+	if w.post.fbo != 0 && (w.post.on || w.guiFrame) {
 		targetFBO = w.post.fbo
 	}
 	if !split {

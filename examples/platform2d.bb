@@ -1,18 +1,22 @@
-; Ebiten 2D + Chipmunk2D — arrows move, space jumps, Esc quits
+; 2D platform — Chipmunk circle on a floor; arrows move, Space jumps.
+; Esc or X quits.
 
 SetWindowTitle("BitShin BASIC — 2D platform")
 Graphics2D(800, 480)
 SetClsColor(18, 22, 34)
 
+; Chipmunk world
 Physics2D()
 Gravity2D(0, 900)
 
+; Floor
 SetColor(60, 70, 90)
 floorImg = CreateImage(800, 40)
 floor = CreateSprite(floorImg)
 SetSpritePosition(floor, 400, 450)
 CreateBox2D(floor, 800, 40, 0, 0)
 
+; Player ball
 SetColor(80, 190, 255)
 ballImg = CreateImage(28, 28)
 player = CreateSprite(ballImg)

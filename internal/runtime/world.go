@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/g3n/engine/camera"
@@ -71,6 +72,20 @@ type Entity struct {
 	vpX, vpY, vpW, vpH                 int
 	anim                               *animState
 	lgtKind                            int // 0 ambient/none, 1 directional, 2 point, 3 spot
+	lgtFalloff                         int // 0 smooth, 1 classic polynomial, 2 physical inverse-square
+	lgtRange                           float32
+	lgtC, lgtLin, lgtQuad              float32
+	lgtSpec                            math32.Color
+	lgtSpecOn                          bool
+	lgtAmb                             math32.Color
+	lgtAmbOn                           bool
+	lgtEnvI                            float32
+	lgtEnvFall                         int
+	lgtEnvSaved                        bool
+	lgtDisabled                        bool
+	lgtOffI                            float32
+	lgtKelvin                          float32
+	lgtCookie                          *texture.Texture2D
 	castShadow                         bool
 	camFollowed                        bool
 	meshNoCast                         bool
@@ -86,6 +101,7 @@ type Entity struct {
 	ushader                            int
 	hitbox                             bool
 	collKind                           int // 0 none, 1 box, 2 sphere, 3 capsule, 4 cylinder, 5 sensor, 6 compound
+	physMat                            string
 }
 
 type texSlot struct {
@@ -98,229 +114,251 @@ type collideRule struct {
 }
 
 type World struct {
-	app                    *g3nHost
-	scene                  *core.Node
-	cam                    *camera.Camera
-	ambient                *light.Ambient
-	ents                   map[int]*Entity
-	nextID                 int
-	title                  string
-	clear                  math32.Color
-	base                   string
-	keys                   map[int]bool
-	prev                   map[int]bool
-	hits                   map[int]bool
-	mouse                  [8]bool
-	mx, my                 float32
-	delta                  float64
-	started                time.Time
-	lastFlip               time.Time
-	fogMode                int
-	fogRGB                 math32.Color
-	fogNear                float32
-	fogFar                 float32
-	fogDensity             float32
-	texts                  []*gui.Label
-	hudLines               []string
-	hudLabs                []*gui.Label
-	textRGB                math32.Color
-	texs                   map[int]*texSlot
-	nextTex                int
-	rules                  []collideRule
-	wire                   bool
-	ready                  bool
-	presented              bool
-	presentOK              bool
-	escapeLatch            bool
-	heldAtFlip             map[int]bool
-	closeReady             bool
-	loopFrames             int
-	quit                   bool
-	shadow                 shadowMap
-	shaderUnis             map[string]shaderUni
-	tweens                 []nodeTween
-	cmdMap                 map[string]cmd
-	phys3                  phys3d.World
-	vehCtrls               map[int]*vehCtrl
-	ropes                  map[int]*ropeSystem
-	nextRope               int
-	phys2                  *phys2d.Space
-	net                    netenet.Host
-	nets                   map[int]netenet.Host
-	netQ                   map[int][]netenet.Event
-	nextNet                int
-	netInbox               []netenet.Event
-	netMsg                 string
-	netPeer                int
-	netKind                int
-	netIP                  string
-	sess                   *netSess
-	mode2D                 bool
-	scrW                   int
-	scrH                   int
-	images                 map[int]*ebiImage
-	sprites                map[int]*ebiSprite
-	draws                  []drawOp
-	drawRGB                [3]uint8
-	clsRGB                 [3]uint8
-	nextImg                int
-	prevMX                 float32
-	prevMY                 float32
-	mxs                    float32
-	mys                    float32
-	mouseInited            bool
-	waitHold               bool
-	delayUntil             time.Time
-	timers                 map[int]*blitzTimer
-	nextTimer              int
-	namedT                 map[string]*namedTimer
-	pickID                 int
-	pickX, pickY, pickZ    float32
-	tformX, tformY, tformZ float32
-	sounds                 map[int]*sndSlot
-	nextSnd                int
-	listenEnt              int
-	musicID                int
-	mouseHits              [8]bool
-	mz                     float32
-	prevMZ                 float32
-	mzs                    float32
-	clipLocal              string
-	guiReady               bool
-	guiFrame               bool
-	guiUsed                bool
-	guiWantM               bool
-	guiWantK               bool
-	guiChars               []rune
-	guiCol                 [3]float32
-	guiPrevKeys            map[window.Key]bool
-	imgFilter              int // 0 nearest, 1 linear
-	shotPath               string
-	emitters               map[int]*emitter
-	nextEmit               int
-	partGeom               *geometry.Geometry
-	partPool               []*partVis
-	skies                  map[int]*skySlot
-	nextSky                int
-	skyID                  int
-	wx                     weatherState
-	thunderClip            *bsaudio.Clip
-	thunderVoice           *bsaudio.Voice
-	rainProg               uint32
-	rainVAO, rainVBO       uint32
-	rainBlitOK             bool
-	tiles                  map[int]*tileMap
-	nextTile               int
-	fonts                  map[int]*fontSlot
-	nextFont               int
-	curFont                int
-	pak                    *pakFS
-	runner                 *interp.Interp
-	gpDead                 float64
-	onResize               string
-	onKeyFn                string
-	onMouseFn              string
-	ecs                    ecsHost
-	docs                   map[int]*dataDoc
-	freeDocs               []int
-	nextDoc                int
-	pools                  map[int]*userPool
-	freePools              []int
-	nextPool               int
-	banks                  map[int]*bankSlot
-	freeBanks              []int
-	nextBank               int
-	freeIDs                []int
-	navs                   map[int]*navMesh
-	freeNavs               []int
-	nextNav                int
-	curNav                 int
-	agents                 map[int]*navAgent
-	navStepped             bool
-	grids                  map[int]*gridMap
-	freeGrids              []int
-	nextGrid               int
-	paths                  map[int]*gridPath
-	freePaths              []int
-	nextPath               int
-	guiSlide               map[string]*float32
-	guiCheck               map[string]*bool
-	guiInput               map[string]*string
-	guiWinOpen             bool
-	wins                   map[int]*extraWin
-	freeWins               []int
-	nextWin                int
-	renderWin              int
-	focusWin               int
-	winBlitProg            uint32
-	jobs                   *jobPool
-	jobWorkers             int
-	stream                 *worldStream
-	instances              map[int]*instancedMesh
-	probes                 map[int]*lightProbe
-	freeProbes             []int
-	nextProbe              int
-	terrains               map[int]*terrain
-	freeTerrains           []int
-	nextTerrain            int
-	curTerrain             int
-	hmaps                  map[int]*heightMap
-	freeHMaps              []int
-	nextHMap               int
-	curHMap                int
-	geo                    geoFrame
-	waters                 map[int]*waterBody
-	cloths                 map[int]*clothSheet
-	grabs                  map[int]grabHold
-	projectiles            map[int]*projFly
-	pathFollows            map[int]*pathFollow
-	physDebug              bool
-	physDebugMesh          *graphic.Mesh
-	physHitDebugMesh       *graphic.Mesh
-	beams                  map[int]*beamLink
-	boneAttaches           []boneAttach
-	freeWaters             []int
-	nextWater              int
-	curWater               int
-	crowds                 map[int]*crowd
-	freeCrowds             []int
-	nextCrowd              int
-	curCrowd               int
-	physAsync              bool
-	physThreads            int
-	navMaxSlope            float32
-	pbrLib                 map[int]*pbrMat
-	nextPBR                int
-	iblOn                  bool
-	iblIntensity           float32
-	glmod                  glModern
-	clouds                 map[int]*cloudLayer
-	freeClouds             []int
-	nextCloud              int
-	curCloud               int
-	skyTop                 math32.Color
-	skyBot                 math32.Color
-	skyProc                bool
-	skySun                 math32.Vector3
-	skySunOK               bool
-	atmo                   *atmoDome
-	fogHeight              float32
-	fogHFall               float32
-	wetness                float32
-	post                   postFX
-	ushaders               map[int]*userShader
-	freeUSh                []int
-	nextUSh                int
-	timeScale              float32
-	shakeTrauma            float32
-	shakeDuration          float32
-	shakeElapsed           float32
-	shakeFreq              float32
-	fpsControllers         map[int]*fpsCtrl
-	tpsControllers         map[int]*tpsCtrl
-	topDownControllers     map[int]*topDownCtrl
-	platformerControllers  map[int]*platformerCtrl
-	actTweens              []*activeTween
+	app                              *g3nHost
+	scene                            *core.Node
+	cam                              *camera.Camera
+	ambient                          *light.Ambient
+	lightEnv                         int // 0 unset, 1 outdoor sun+sky, 2 indoor practicals
+	timeOfDay                        float64
+	ents                             map[int]*Entity
+	nextID                           int
+	title                            string
+	scriptPath                       string
+	ext                              *appState
+	clear                            math32.Color
+	base                             string
+	keys                             map[int]bool
+	prev                             map[int]bool
+	hits                             map[int]bool
+	mouse                            [8]bool
+	mx, my                           float32
+	delta                            float64
+	started                          time.Time
+	lastFlip                         time.Time
+	fogMode                          int
+	fogRGB                           math32.Color
+	fogNear                          float32
+	fogFar                           float32
+	fogDensity                       float32
+	texts                            []*gui.Label
+	hudLines                         []string
+	hudLabs                          []*gui.Label
+	textRGB                          math32.Color
+	texs                             map[int]*texSlot
+	nextTex                          int
+	rules                            []collideRule
+	wire                             bool
+	ready                            bool
+	presented                        bool
+	presentOK                        bool
+	escapeLatch                      bool
+	heldAtFlip                       map[int]bool
+	closeReady                       bool
+	loopFrames                       int
+	quit                             bool
+	quitSeen                         atomic.Bool
+	playing                          bool
+	onHost                           bool
+	hopCh                            chan hopJob
+	hostDead                         chan struct{}
+	shadow                           shadowMap
+	shaderUnis                       map[string]shaderUni
+	tweens                           []nodeTween
+	cmdMap                           map[string]cmd
+	phys3                            phys3d.World
+	vehCtrls                         map[int]*vehCtrl
+	ropes                            map[int]*ropeSystem
+	nextRope                         int
+	phys2                            *phys2d.Space
+	net                              netenet.Host
+	nets                             map[int]netenet.Host
+	netQ                             map[int][]netenet.Event
+	nextNet                          int
+	netInbox                         []netenet.Event
+	netMsg                           string
+	netPeer                          int
+	netKind                          int
+	netIP                            string
+	sess                             *netSess
+	mode2D                           bool
+	scrW                             int
+	scrH                             int
+	images                           map[int]*ebiImage
+	sprites                          map[int]*ebiSprite
+	draws                            []drawOp
+	drawRGB                          [3]uint8
+	drawAlpha                        uint8
+	hudOver                          hudOverlayState
+	clsRGB                           [3]uint8
+	nextImg                          int
+	prevMX                           float32
+	prevMY                           float32
+	mxs                              float32
+	mys                              float32
+	mouseInited                      bool
+	waitHold                         bool
+	delayUntil                       time.Time
+	timers                           map[int]*blitzTimer
+	nextTimer                        int
+	namedT                           map[string]*namedTimer
+	pickID                           int
+	pickX, pickY, pickZ              float32
+	pickNX, pickNY, pickNZ, pickFrac float32
+	physStepped                      bool
+	play                             *playState
+	tformX, tformY, tformZ           float32
+	sounds                           map[int]*sndSlot
+	nextSnd                          int
+	listenEnt                        int
+	musicID                          int
+	mouseHits                        [8]bool
+	mz                               float32
+	prevMZ                           float32
+	mzs                              float32
+	clipLocal                        string
+	guiReady                         bool
+	guiFrame                         bool
+	guiUsed                          bool
+	guiWarm                          int
+	guiWantM                         bool
+	guiWantK                         bool
+	guiChars                         []rune
+	guiCol                           [3]float32
+	guiPrevKeys                      map[window.Key]bool
+	imgFilter                        int // 0 nearest, 1 linear
+	shotPath                         string
+	emitters                         map[int]*emitter
+	nextEmit                         int
+	partGeom                         *geometry.Geometry
+	partCube                         *geometry.Geometry
+	partPool                         []*partVis
+	cubePool                         []*partVis
+	skies                            map[int]*skySlot
+	nextSky                          int
+	skyID                            int
+	wx                               weatherState
+	thunderClip                      *bsaudio.Clip
+	thunderVoice                     *bsaudio.Voice
+	rainProg                         uint32
+	rainVAO, rainVBO                 uint32
+	rainBlitOK                       bool
+	tiles                            map[int]*tileMap
+	nextTile                         int
+	fonts                            map[int]*fontSlot
+	nextFont                         int
+	curFont                          int
+	pak                              *pakFS
+	runner                           *interp.Interp
+	gpDead                           float64
+	onResize                         string
+	onKeyFn                          string
+	onMouseFn                        string
+	ecs                              ecsHost
+	docs                             map[int]*dataDoc
+	freeDocs                         []int
+	nextDoc                          int
+	pools                            map[int]*userPool
+	freePools                        []int
+	nextPool                         int
+	banks                            map[int]*bankSlot
+	freeBanks                        []int
+	nextBank                         int
+	freeIDs                          []int
+	navs                             map[int]*navMesh
+	freeNavs                         []int
+	nextNav                          int
+	curNav                           int
+	agents                           map[int]*navAgent
+	navStepped                       bool
+	grids                            map[int]*gridMap
+	freeGrids                        []int
+	nextGrid                         int
+	paths                            map[int]*gridPath
+	freePaths                        []int
+	nextPath                         int
+	guiSlide                         map[string]*float32
+	guiCheck                         map[string]*bool
+	guiInput                         map[string]*string
+	guiWinOpen                       bool
+	wins                             map[int]*extraWin
+	freeWins                         []int
+	nextWin                          int
+	renderWin                        int
+	focusWin                         int
+	winBlitProg                      uint32
+	jobs                             *jobPool
+	jobWorkers                       int
+	stream                           *worldStream
+	bubble                           *worldBubble
+	instances                        map[int]*instancedMesh
+	probes                           map[int]*lightProbe
+	freeProbes                       []int
+	nextProbe                        int
+	skyCube                          uint32
+	probeCam                         *camera.Camera
+	capturingProbe                   bool
+	terrains                         map[int]*terrain
+	freeTerrains                     []int
+	nextTerrain                      int
+	curTerrain                       int
+	hmaps                            map[int]*heightMap
+	freeHMaps                        []int
+	nextHMap                         int
+	curHMap                          int
+	geo                              geoFrame
+	waters                           map[int]*waterBody
+	waterClip                        [4]float32
+	cloths                           map[int]*clothSheet
+	grabs                            map[int]grabHold
+	projectiles                      map[int]*projFly
+	pathFollows                      map[int]*pathFollow
+	physDebug                        bool
+	physDebugMesh                    *graphic.Mesh
+	physHitDebugMesh                 *graphic.Mesh
+	beams                            map[int]*beamLink
+	boneAttaches                     []boneAttach
+	freeWaters                       []int
+	nextWater                        int
+	curWater                         int
+	crowds                           map[int]*crowd
+	freeCrowds                       []int
+	nextCrowd                        int
+	curCrowd                         int
+	physAsync                        bool
+	physThreads                      int
+	navMaxSlope                      float32
+	pbrLib                           map[int]*pbrMat
+	nextPBR                          int
+	iblOn                            bool
+	iblIntensity                     float32
+	glmod                            glModern
+	clouds                           map[int]*cloudLayer
+	freeClouds                       []int
+	nextCloud                        int
+	curCloud                         int
+	skyTop                           math32.Color
+	skyBot                           math32.Color
+	skyProc                          bool
+	skySun                           math32.Vector3
+	skySunOK                         bool
+	atmo                             *atmoDome
+	fogHeight                        float32
+	fogHFall                         float32
+	wetness                          float32
+	post                             postFX
+	ushaders                         map[int]*userShader
+	freeUSh                          []int
+	nextUSh                          int
+	timeScale                        float32
+	shakeTrauma                      float32
+	shakeDuration                    float32
+	shakeElapsed                     float32
+	shakeFreq                        float32
+	fpsControllers                   map[int]*fpsCtrl
+	tpsControllers                   map[int]*tpsCtrl
+	topDownControllers               map[int]*topDownCtrl
+	platformerControllers            map[int]*platformerCtrl
+	actTweens                        []*activeTween
 }
 
 type blitzTimer struct {
@@ -335,12 +373,14 @@ type namedTimer struct {
 }
 
 type sndSlot struct {
-	path  string
-	clip  *bsaudio.Clip
-	voice *bsaudio.Voice
-	vol   float64
-	pitch float64
-	music bool
+	path    string
+	clip    *bsaudio.Clip
+	voice   *bsaudio.Voice
+	vol     float64
+	pitch   float64
+	minDist float64
+	maxDist float64
+	music   bool
 }
 
 func New(base string) *World {
@@ -384,6 +424,7 @@ func New(base string) *World {
 		nextFont:              1,
 		imgFilter:             1,
 		drawRGB:               [3]uint8{255, 255, 255},
+		drawAlpha:             255,
 		clsRGB:                [3]uint8{20, 22, 32},
 		scrW:                  800,
 		scrH:                  600,
@@ -467,6 +508,13 @@ func (w *World) Call(name string, args []value.Value) (value.Value, error) {
 	if n, ok := syntax.NetConstants[name]; ok {
 		return value.Num(float64(n)), nil
 	}
+	if w.playing && !w.onHost {
+		return w.hopCall(name, args)
+	}
+	return w.callDirect(name, args)
+}
+
+func (w *World) callDirect(name string, args []value.Value) (value.Value, error) {
 	if w.cmdMap == nil {
 		w.cmdMap = w.commandTable()
 	}
@@ -579,6 +627,12 @@ func (w *World) graphics3D(width, height, depth, mode int) (value.Value, error) 
 	}
 	w.ready = true
 	w.mode2D = false
+	if gw, ok := w.app.IWindow.(*window.GlfwWindow); ok {
+		gw.SetDropCallback(func(_ *glfw.Window, names []string) {
+			st := w.extState()
+			st.dropped = append(st.dropped, names...)
+		})
+	}
 	w.scrW, w.scrH = width, height
 	w.focusWin = 0
 	w.renderWin = 0
@@ -696,6 +750,9 @@ func (w *World) keyDown(code int) bool {
 		return false
 	}
 	// Escape must work after Flip even if imgui wants the keyboard.
+	if w.guiWarm > 0 && (code == KeyEscape || code == KeySpace) {
+		return false
+	}
 	if code == KeyEscape || code == KeySpace {
 		if !w.presented {
 			return false
@@ -722,6 +779,12 @@ func (w *World) windowWantsClose() bool {
 		return false
 	}
 	closing := gw.ShouldClose()
+	if w.guiWarm > 0 {
+		if closing {
+			gw.SetShouldClose(false)
+		}
+		return false
+	}
 	if !w.presented {
 		if closing {
 			gw.SetShouldClose(false)
@@ -747,6 +810,10 @@ func (w *World) windowWantsClose() bool {
 
 func (w *World) keyHit(code int) bool {
 	if w.heldAtFlip[code] {
+		return false
+	}
+	if w.guiWarm > 0 && (code == KeyEscape || code == KeySpace) {
+		w.hits[code] = false
 		return false
 	}
 	if code == KeyEscape || code == KeySpace {
@@ -845,7 +912,7 @@ func rgbBytes(r, g, b float64) [3]uint8 {
 func (w *World) newMat() *material.Standard {
 	m := material.NewStandard(&math32.Color{0.82, 0.84, 0.88})
 	m.SetShininess(8)
-	m.SetSpecularColor(&math32.Color{0.11, 0.11, 0.11})
+	m.SetSpecularColor(&math32.Color{0.18, 0.18, 0.20})
 	m.SetEmissiveColor(&math32.Color{0, 0, 0})
 	if w.shadow.on || w.fogMode != 0 {
 		m.SetShader("bsshadow")
@@ -899,6 +966,7 @@ func (w *World) Loop(in *interp.Interp) error {
 		}
 		if !first {
 			w.clearFrameText()
+			w.draws = w.draws[:0]
 			if err := in.Run(); err != nil {
 				fmt.Println(err)
 				if w.presented {
@@ -908,7 +976,7 @@ func (w *World) Loop(in *interp.Interp) error {
 		}
 		first = false
 		if w.windowWantsClose() {
-			w.quit = true
+			w.requestQuit()
 		}
 		if w.quit || in.Done() {
 			w.app.Exit()
@@ -1013,8 +1081,10 @@ func (w *World) tickFX() {
 	if w.jobs != nil {
 		w.jobs.flushGL()
 	}
+	w.tickBubble()
 	w.tickStream()
 	w.tickTerrain()
+	w.tickPlay(dt)
 	w.tickWater()
 	w.tickClouds(dt)
 	w.tickInstances()
@@ -1053,15 +1123,29 @@ func (w *World) render(rend *renderer.Renderer) {
 		hh = 600
 	}
 	w.flushHudPrint()
-	usedPost := w.beginPostTarget(ww, hh)
+	if gw := w.glfwWin(); gw != nil {
+		gw.MakeContextCurrent()
+	}
+	if w.guiWarm > 0 {
+		w.guiWarm--
+		w.keys[KeyEscape] = false
+		w.hits[KeyEscape] = false
+		if gw := w.glfwWin(); gw != nil && gw.ShouldClose() {
+			gw.SetShouldClose(false)
+		}
+	}
+	w.guiRestoreSceneGL()
+	w.stepProbeCapture(rend)
+	usedOffscreen := w.beginPostTarget(ww, hh)
 	drainGL("render")
 	gl.Viewport(0, 0, int32(ww), int32(hh))
 	w.app.Gls().ClearColor(cr, cg, cb, 1)
 	w.app.Gls().Clear(gls.DEPTH_BUFFER_BIT | gls.STENCIL_BUFFER_BIT | gls.COLOR_BUFFER_BIT)
 	w.renderSceneCams(rend, ww, hh)
-	if usedPost {
+	if usedOffscreen {
 		w.endPostTarget(w.app.Gls(), ww, hh)
 	}
+	w.drawHUDOverlay3D(ww, hh)
 	w.guiPresent()
 	w.presentExtraWindows(rend)
 }
@@ -1331,6 +1415,29 @@ func (w *World) resolveDrivenOverlaps() {
 			w.phys3.SetVelocity(p.id, d.vx+nx*kick, d.vy+ny*kick, d.vz+nz*kick)
 		}
 	}
+}
+
+// stepWorldIfIdle runs one UpdateWorld from Flip when the script did not
+// already step this frame. A bare Flip and an UpdateWorld+Flip loop both
+// step physics once.
+func (w *World) stepWorldIfIdle() {
+	if w.physStepped || (w.phys3 == nil && w.phys2 == nil) {
+		return
+	}
+	w.physStepped = true
+	w.updateWorld()
+}
+
+func (w *World) notePick(h phys3d.RayHit) {
+	w.pickID = h.ID
+	w.pickX, w.pickY, w.pickZ = h.X, h.Y, h.Z
+	w.pickNX, w.pickNY, w.pickNZ, w.pickFrac = h.NX, h.NY, h.NZ, h.Fraction
+}
+
+func (w *World) clearPick() {
+	w.pickID = 0
+	w.pickX, w.pickY, w.pickZ = 0, 0, 0
+	w.pickNX, w.pickNY, w.pickNZ, w.pickFrac = 0, 0, 0, 0
 }
 
 func (w *World) updateWorld() {

@@ -64,12 +64,16 @@ func exampleKnownCommands() map[string]bool {
 		"sqr": true, "abs": true, "int": true, "floor": true, "ceil": true, "float": true, "sgn": true,
 		"min": true, "max": true, "pow": true, "str": true, "hex": true,
 		"len": true, "left": true, "right": true, "mid": true, "chr": true, "asc": true,
+		"createmap": true, "mapset": true, "mapget": true, "maphas": true, "mapdelete": true, "mapcount": true,
+		"copy": true, "callback": true,
+		"createstatemachine": true, "addstate": true, "gostate": true, "statename": true, "updatestate": true,
 		"instr": true, "lower": true, "upper": true, "trim": true,
-		"millisecs": true,
+		"millisecs":  true,
 		"backbuffer": true, "frontbuffer": true, "setbuffer": true,
 		"clamp": true, "lerp": true, "invlerp": true, "smoothstep": true,
 		"easein": true, "easeout": true, "approach": true, "wrapangle": true,
 		"angledelta": true, "approachangle": true,
+		"movewish": true, "accelerate": true, "turntoward": true, "land": true, "material": true,
 		"dist": true, "distance2d": true, "distance3d": true, "pointdistance": true,
 		"length2d": true, "length3d": true,
 		"normx": true, "normy": true, "normx3": true, "normy3": true, "normz3": true,
@@ -96,6 +100,9 @@ func exampleKnownCommands() map[string]bool {
 		known[k] = true
 	}
 	for k := range syntax.NetConstants {
+		known[k] = true
+	}
+	for k := range syntax.PhysicsConstants {
 		known[k] = true
 	}
 	return known
@@ -301,6 +308,10 @@ func (w *exampleCmdWalker) walkStmts(stmts []ast.Stmt) {
 			for _, a := range n.Values {
 				w.walkExpr(a)
 			}
+		case *ast.TryStmt:
+			w.walkStmts(n.Body)
+			w.walkStmts(n.Catch)
+		case *ast.StrictStmt:
 		case *ast.EnumStmt:
 			for _, a := range n.Values {
 				w.walkExpr(a)

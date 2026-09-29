@@ -4,6 +4,7 @@ package jolt
 
 // #include "wrapper/character.h"
 import "C"
+import "unsafe"
 
 // BackFaceMode controls how the character collides with back faces
 type BackFaceMode int
@@ -249,6 +250,34 @@ func (cv *CharacterVirtual) ExtendedUpdate(deltaTime float32, gravity Vec3) {
 		C.float(gravity.Y),
 		C.float(gravity.Z),
 	)
+}
+
+// GameUpdate runs stair stepping and floor stick with the caller's temp allocator.
+func (cv *CharacterVirtual) GameUpdate(deltaTime float32, gravity Vec3, alloc *TempAllocator) {
+	if cv == nil || cv.handle == nil || alloc == nil || alloc.handle == nil {
+		return
+	}
+	C.JoltCharacterGameUpdate(
+		cv.handle,
+		cv.ps.handle,
+		unsafe.Pointer(alloc.handle),
+		C.float(deltaTime),
+		C.float(gravity.X),
+		C.float(gravity.Y),
+		C.float(gravity.Z),
+	)
+}
+
+// InnerBody is the kinematic rigid body rays and contact listeners can hit.
+func (cv *CharacterVirtual) InnerBody() *BodyID {
+	if cv == nil || cv.handle == nil {
+		return nil
+	}
+	h := C.JoltCharacterInnerBody(cv.handle)
+	if h == nil {
+		return nil
+	}
+	return &BodyID{handle: h}
 }
 
 // SetLinearVelocity sets the character's linear velocity
