@@ -389,6 +389,7 @@ type World struct {
 	renderSerial                     int // one per render(); per-frame caches key on it
 	entsAdded                        int // bumps on every addEntity
 	drawsAt, drawsN                  int // StatsDraws, once per frame
+	warnedLone                       bool
 	lights                           lightScan
 	ushaders                         map[int]*userShader
 	freeUSh                          []int

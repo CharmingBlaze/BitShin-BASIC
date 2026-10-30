@@ -43,6 +43,7 @@ Dotted topic names call these same commands: `Math.Abs`, `String.Upper`, `Input.
 `CreateCapsule(radius, height [, segs, parent])`, `CreateDisk` / `CreateCircle(radius [, segs, parent])`  
 `CreatePyramid([size, parent])`, `CreateWedge(w, h, d [, parent])`, `CreateTube(radius, height [, segs, parent])`, `CreateQuad([size, parent])`  
 `CreatePivot`  
+A single whole-number argument that is a live entity id is read as the parent, not a size. If that id is 64 or less, a one-time warning is printed, since you may have meant a size; pass `(size, 0)` to say so.  
 `LoadMesh file$ [, parent]` — `.obj`, `.gltf`, `.glb`, `.dae`, `.fbx` (triangles only)
 `LoadLevel file$ [, cell#]` — `LoadMesh`, then `MergeLevel` on it. For large static levels  
 `MergeLevel root [, cell# [, keep]]` — bakes every visible static mesh under `root` into one mesh per material per `cell` (default 64 m), frustum culled, hidden past the fog. Untextured lit materials of any color share one draw (their color goes per vertex). Meshes with a collision type, a body, a collider, animation, wind sway, or a name are left alone. The merged entities are freed; `keep = True` hides them instead. Returns the cell count  
@@ -250,7 +251,7 @@ Sprites and `DrawTileMap` scroll with the camera. `Rect`, `Oval`, `Line`, `Text`
 
 ## Skyboxes
 
-`CreateSkyBox([prefix$])` — 6-face cubemap. Empty / `"default"` builds a procedural sky (gradient, a crisp sun disc with halos that warm toward orange as it sets). Prefix tries `px/nx/py/ny/pz/nz` (also `_px`, `right/left/up/down/front/back`) as `.png` / `.jpg`  
+`CreateSkyBox([prefix$])` — 6-face cubemap. Empty / `"default"` builds a procedural sky (gradient, a crisp sun disc with halos that warm toward orange as it sets). At night (`SetTimeOfDay` before 5.5 or after 19.5) the sun goes away and the sky gets stars and a moon opposite the sun. Prefix tries `px/nx/py/ny/pz/nz` (also `_px`, `right/left/up/down/front/back`) as `.png` / `.jpg`  
 `LoadSkyBox(px$, nx$, py$, ny$, pz$, nz$)`  
 `SetSkyBox id` `HideSkyBox` `ShowSkyBox` `FreeSkyBox([id])`  
 `SetSkyColor r, g, b` — solid clear color; a visible skybox draws in front of it  
@@ -478,6 +479,16 @@ World +Z is forward. Yaw 0 faces +Z; `x += Sin(yaw)*dist`, `z += Cos(yaw)*dist`.
 | `ProjectedX([cam,] x,y,z)` `ProjectedY` `ProjectedZ` | World point to screen (Z is NDC) |
 | `UnprojectX([cam,] sx, sy [, depth])` `UnprojectY` `UnprojectZ` | Screen to world (`depth` 0 near-ish) |
 | `CameraPick([cam, x, y])` | Screen ray pick; `PickedX/Y/Z` |
+
+With `SetWorldShift` on, the world moves under you past 4 km, so `EntityX` and `TerrainHeight` are in shifted (local) space. These helpers give positions that stay the same across a shift:
+
+| Command | Meaning |
+| --- | --- |
+| `WorldToLocalX(x)` `WorldToLocalZ(z)` | World coordinate to the current shifted space |
+| `LocalToWorldX(x)` `LocalToWorldZ(z)` | Shifted space to world |
+| `EntityWorldX(e)` `EntityWorldZ(e)` | Entity position in world coordinates |
+| `PositionEntityWorld(e, x, y, z)` | Place an entity at a world position |
+| `TerrainHeightWorld(x, z)` | Ground height at a world position |
 
 See `examples/math.mb`.
 
@@ -818,7 +829,7 @@ Grid of prop chunks. Load/unload by camera/player. Mesh create stays on the GL t
 | `SetWorldSimRadius(n)` / `GetWorldSimRadius()` | Heightfield chunks around the player. `-1` is draw-only | `SetWorldSimRadius(1)` |
 | `SetWorldShift(on [, metres])` | Move the world when the player passes `metres` (default 4096) | `SetWorldShift(1, 4096)` |
 | `SetWorldMorph(on)` | Slide terrain verts toward the next LOD | `SetWorldMorph(1)` |
-| `WorldOriginX()` / `WorldOriginZ()` | Accumulated shift | `x# = WorldOriginX()` |
+| `WorldOriginX()` / `WorldOriginZ()` | Accumulated shift. `SaveScene` and `SaveGame` store it, and loading after a different shift puts things back in the same world place | `x# = WorldOriginX()` |
 | `CreateWorldStream([chunkSize, radius])` | Prop grid, including the demo slabs and cones | `CreateWorldStream(20, 2)` |
 | `SetStreamRadius(n)` / `GetStreamRadius()` | Chunks in each direction | `SetStreamRadius(3)` |
 | `SetStreamOrigin(x, y, z)` | Pin the center (y ignored). Wins over follow until the next `SetStreamFollow` | `SetStreamOrigin(EntityX(p), 0, EntityZ(p))` |
@@ -855,14 +866,14 @@ See `docs/TERRAIN.md`. OpenGL **3.3** grids: central-difference normals, far chu
 | `SetTerrainSplat([t,] sand, grass, rock, snow [, grass2, rockN])` | Bind texture handles | `SetTerrainSplat(t, s, g, r, n)` |
 | `SetTerrainOctaves` / `SetTerrainFreq` / `SetTerrainDispFactor` / `SetTerrainPower` | Their GUI sliders (rebuilds chunks) | `SetTerrainOctaves(t, 8)` |
 | `SetTerrainGrassCoverage` / `SetTerrainRockColor` / `SetTerrainFogFalloff` | Splat + fog | `SetTerrainGrassCoverage(t, 0.65)` |
-| `SetTerrainWaterHeight` / `SetTerrainBlend` / `SetTerrainSnow(on [, y])` | Sand line + optional snow | `SetTerrainSnow(True, 8.5)` |
+| `SetTerrainWaterHeight` / `SetTerrainBlend` / `SetTerrainSnow(on [, y])` | Sand line + optional snow. The snow edge wanders by about ±9 m and creeps lower on flat ground; trees and props are not planted in it. Steep rock gets strata and crevices | `SetTerrainSnow(True, 8.5)` |
 | `SetTerrainEdge(t, mode$)` | Ground past a heightmap's border. `"zero"` (default) drops to 0, an island in a sea. `"clamp"` carries the border height on. `"mirror"` reflects the hills so the land keeps going and a lake stays a lake | `SetTerrainEdge(t, "mirror")` |
 | `SetTerrainTessMultiplier(m)` | CPU vertex density (not GL tess) | `SetTerrainTessMultiplier(t, 1.4)` |
 | `SetTerrainDetail(t, pixels)` | Screen-space size as a CPU step. `8` is the old LOD. Smaller stays fine longer. `0` clears it | `SetTerrainDetail(t, 6)` |
 | `SetTerrainBlendMap(t, tex)` | R sand, G grass, B rock, A snow. Empty texels keep slope/height | `SetTerrainBlendMap(t, paint)` |
 | `TerrainFoliage(t [, density])` | Crossed grass cards. `1` is a light meadow. `0` clears. Far chunks use one quad | `TerrainFoliage(t)` |
-| `TerrainTrees(t, mesh [, density])` | Copies on flat ground, in stands with thinner clearings. A textured mesh becomes a card. An untextured one is planted as 3D meshes, with its child meshes (crown on a trunk) and their colors. `0` clears that mesh | `TerrainTrees(t, tree)` |
-| `SetTreeCards(t, width, height [, crossed, face])` | Card size. `crossed` adds a second card at 90 degrees. `face` turns it toward the camera | `SetTreeCards(t, 3.6, 4.4, False, True)` |
+| `TerrainTrees(t, mesh [, density])` | Copies on flat ground, in stands with thinner clearings. A textured mesh becomes a card. An untextured one is planted as 3D meshes, with its child meshes (crown on a trunk) and their colors. Blocks are built on worker threads, and far blocks use a simplified copy of each part (about 40% of the triangles). `0` clears that mesh | `TerrainTrees(t, tree)` |
+| `SetTreeCards(t, width, height [, crossed, face])` | Needs the terrain handle first. Card size. `crossed` adds a second card at 90 degrees. `face` turns it toward the camera | `SetTreeCards(t, 3.6, 4.4, False, True)` |
 | `SetTreeCardCross(t, on)` | Two intersecting cards, or one | `SetTreeCardCross(t, True)` |
 | `SetTreeCardFace(t, on)` | Cards turn toward the camera, or keep the yaw they were planted with | `SetTreeCardFace(t, False)` |
 | `TerrainProps(t, mesh [, density])` | Rocks and clutter. Several meshes are several layers. `0` removes that mesh | `TerrainProps(t, rock, 0.4)` |
@@ -1192,7 +1203,7 @@ ImGui panels use the existing `Gui*` commands. These query live numbers:
 | Command | Meaning | Example |
 | --- | --- | --- |
 | `StatsFPS()` / `GetStatsFPS()` | `1 / DeltaTime` | `fps = Int(StatsFPS())` |
-| `SetGraphicsQuality(q$)` | `"low"` `"medium"` `"high"` `"ultra"` or `"auto"`. One call sets shadow size, water reflection and refraction, post FX, terrain detail window and triangle size, tree/prop/grass count and reach. Low is aimed at a 2016 laptop iGPU at 720p: no water passes, cheap terrain texturing. High adds ambient occlusion and a coarse vista out to the fog; ultra adds soft (PCSS) shadow edges. `"auto"` reads the GPU name, then steps down a tier whenever frames average over 26 ms for 2 s. It never steps up. A setting you change after this call is yours until the next tier change | `SetGraphicsQuality("auto")` |
+| `SetGraphicsQuality(q$)` | `"low"` `"medium"` `"high"` `"ultra"` or `"auto"`. One call sets shadow size, water reflection and refraction, post FX, terrain detail window and triangle size, tree/prop/grass count and reach. Low is aimed at a 2016 laptop iGPU at 720p: no water passes, cheap terrain texturing. High adds ambient occlusion and a coarse vista out to the fog; ultra adds soft (PCSS) shadow edges and 4× MSAA. `"auto"` reads the GPU name, then steps down a tier whenever frames average over 26 ms for 2 s. It never steps up. A setting you change after this call is yours until the next tier change | `SetGraphicsQuality("auto")` |
 | `GraphicsQuality()` | Current tier, `0` low to `3` ultra | `q = GraphicsQuality()` |
 | `SaveScreenshot(path$)` | Saves the next presented frame (scene, post, HUD) as a PNG | `SaveScreenshot("shot.png")` |
 | `StatsDraws()` / `GetStatsDraws()` | Visible mesh count | `d = StatsDraws()` |
@@ -1216,6 +1227,7 @@ Scene renders to a color FBO, then one blit: tonemap (`reinhard`, `neutral`, `ac
 | `SetExposure n` / `GetExposure()` | Linear exposure (0.05–8) | `SetExposure(1.2)` |
 | `SetBloom n` / `GetBloom()` | Bright-extract strength (0 off) | `SetBloom(0.35)` |
 | `SetFXAA [on]` | Simple luma FXAA | `SetFXAA(True)` |
+| `SetMSAA n` | Multisampled scene target: `0`, `2`, `4`, or `8` samples (other values round up; no argument is 4). Needs post FX on; resolved before it. Falls back to none if the driver refuses. 4× costs about 2–4 ms at 720p on a mid GPU | `SetMSAA(4)` |
 | `SetColorGrade contrast, sat [, r, g, b]` | Grade + optional RGB tint 0–255 or 0–1 | `SetColorGrade(1.05, 1.1, 255, 240, 230)` |
 | `SetFilmGrain n` | 0–1 grain after the grade. Turns the stack on | `SetFilmGrain(0.15)` |
 | `SetVignette n` | 0–1 darkening toward the corners | `SetVignette(0.35)` |

@@ -284,3 +284,57 @@ func TestWorldShiftLeavesTheSunsDirection(t *testing.T) {
 		t.Fatalf("sun moved to %v; its position is its direction", p)
 	}
 }
+
+func TestTerrainArgsDoNotMistakeValuesForHandles(t *testing.T) {
+	w, tr := outdoorTerrain(t)
+	if tr.id != 1 {
+		t.Skipf("terrain handle %d; the clash needs handle 1", tr.id)
+	}
+	// SetTerrainRockColor(r, g, b) with r = 1 is a color, not terrain 1.
+	w.Call("setterrainrockcolor", []value.Value{value.Num(1), value.Num(128), value.Num(255)})
+	if math32.Abs(tr.rock.G-128.0/255) > 1e-3 || math32.Abs(tr.rock.B-1) > 1e-3 {
+		t.Fatalf("rock color %v; (1,128,255) was misread", tr.rock)
+	}
+	// TerrainTrees(tree, 0.7): a tree whose id equals the terrain handle.
+	tree := w.meshEnt(geometry.NewCone(1, 3, 6, 1, true), 0)
+	tr2 := w.terrains[w.curTerrain]
+	w.Call("terraintrees", []value.Value{value.Num(float64(tree)), value.Num(0.5)})
+	found := false
+	for _, l := range tr2.scatters {
+		if l.kind == "tree" && l.mesh == tree && math32.Abs(l.density-0.5) < 1e-6 {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("TerrainTrees(tree, 0.5) not recorded: %+v", tr2.scatters)
+	}
+	// The terrain form still works.
+	w.Call("terraintrees", []value.Value{value.Num(float64(tr.id)), value.Num(float64(tree)), value.Num(0.3)})
+	for _, l := range tr2.scatters {
+		if l.mesh == tree && math32.Abs(l.density-0.3) < 1e-6 {
+			return
+		}
+	}
+	t.Fatalf("TerrainTrees(t, tree, 0.3) not recorded: %+v", tr2.scatters)
+}
+
+func TestSceneRowsRebaseAcrossAWorldShift(t *testing.T) {
+	w, tr := outdoorTerrain(t)
+	q := tr.chunkWorld() * treeBlock
+	w.shiftScene(q, 0) // origin now (q, 0)
+	rows := []any{
+		map[string]any{"parent": 0, "x": float32(10), "z": float32(5)},
+		map[string]any{"parent": 0, "light": 1, "x": float32(40), "z": float32(30)},
+		map[string]any{"parent": 7, "x": float32(1), "z": float32(2)},
+	}
+	w.rebaseSceneRows(map[string]any{"ox": float32(0), "oz": float32(0)}, rows)
+	if x := rows[0].(map[string]any)["x"].(float32); math32.Abs(x-(10-q)) > 1e-3 {
+		t.Fatalf("top-level x %v, want %v", x, 10-q)
+	}
+	if x := rows[1].(map[string]any)["x"]; x != float32(40) {
+		t.Fatalf("a directional light's position is its direction; got %v", x)
+	}
+	if x := rows[2].(map[string]any)["x"]; x != float32(1) {
+		t.Fatalf("a child's position is relative to its parent; got %v", x)
+	}
+}

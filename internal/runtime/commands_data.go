@@ -516,6 +516,11 @@ func (w *World) sceneJSON() map[string]any {
 		ents = append(ents, row)
 	}
 	out := map[string]any{"entities": ents}
+	// Positions are in the shifted local frame; the origin turns them back
+	// into world places on load, whatever the origin is then.
+	if ox, oz := w.worldOrigin(); ox != 0 || oz != 0 {
+		out["ox"], out["oz"] = ox, oz
+	}
 	if joints := w.sceneJointRows(); len(joints) > 0 {
 		out["joints"] = joints
 	}
@@ -588,12 +593,37 @@ func (w *World) spawnSceneKind(kind, src string, parent int) int {
 	return w.tagEnt(w.meshEnt(geometry.NewCube(2), parent), "cube")
 }
 
+// rebaseSceneRows moves top-level positions saved under another world
+// origin into the current one. A directional light's position is its
+// direction and stays.
+func (w *World) rebaseSceneRows(m map[string]any, list []any) {
+	sox := float32(anyToValue(m["ox"]).Number())
+	soz := float32(anyToValue(m["oz"]).Number())
+	cox, coz := w.worldOrigin()
+	dx, dz := sox-cox, soz-coz
+	if dx == 0 && dz == 0 {
+		return
+	}
+	for _, raw := range list {
+		em, _ := raw.(map[string]any)
+		if em == nil || int(anyToValue(em["parent"]).Number()) != 0 {
+			continue
+		}
+		if int(anyToValue(em["light"]).Number()) == 1 {
+			continue
+		}
+		em["x"] = float32(anyToValue(em["x"]).Number()) + dx
+		em["z"] = float32(anyToValue(em["z"]).Number()) + dz
+	}
+}
+
 func (w *World) applySceneJSON(root any) {
 	m, _ := root.(map[string]any)
 	if m == nil {
 		return
 	}
 	list, _ := m["entities"].([]any)
+	w.rebaseSceneRows(m, list)
 	remap := map[int]int{}
 	type pending struct {
 		id, parent int

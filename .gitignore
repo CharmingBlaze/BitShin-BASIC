@@ -35,3 +35,13 @@ imgui.ini
 
 # IDE writes this beside the open file on Run
 .moonbasic_run.mb
+
+# Local run logs, screenshots, and editor backups
+/tmp_*
+*.exe~
+/out.txt
+/err.txt
+/_run_*.txt
+/_ocean_*.txt
+/terrain_run.log
+/physics_joints_run.log*

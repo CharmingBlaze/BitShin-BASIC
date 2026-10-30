@@ -20,6 +20,11 @@ import (
 // Not a deferred MRT / Unreal post graph.
 
 type postFX struct {
+	// MSAA: the scene renders here and resolves into fbo (color and depth),
+	// so every pass after it reads the same textures as before.
+	msaa                           int // wanted samples, 0 off
+	msaaFBO, msaaColor, msaaDepth  uint32
+	msaaW, msaaH, msaaHave         int
 	on             bool
 	userOn         bool
 	rainOnly       bool
@@ -246,6 +251,23 @@ func (w *World) postCommands(n func(func([]value.Value) (value.Value, error)) cm
 				w.post.tint = *c
 			}
 			return z()
+		}),
+		// SetMSAA(samples): multisample the scene (2, 4, or 8; 0 off). It
+		// needs post FX on; ultra turns on 4. Smooths thin edges FXAA cannot.
+		"setmsaa": n(func(a []value.Value) (value.Value, error) {
+			n := argI(a, 0, 4)
+			switch {
+			case n <= 1:
+				n = 0
+			case n <= 2:
+				n = 2
+			case n <= 4:
+				n = 4
+			default:
+				n = 8
+			}
+			w.post.msaa = n
+			return value.Num(float64(n)), nil
 		}),
 		"enablessao": need(func(a []value.Value) (value.Value, error) {
 			on := argI(a, 0, 1) != 0
@@ -475,8 +497,84 @@ func (w *World) disposePostFBO() {
 		gl.DeleteFramebuffers(1, &w.post.fbo)
 		w.post.fbo = 0
 	}
+	w.disposeMSAA()
 	w.disposeBloomChain()
 	w.disposeGTAO()
+}
+
+func (w *World) disposeMSAA() {
+	p := &w.post
+	if p.msaaColor != 0 {
+		gl.DeleteRenderbuffers(1, &p.msaaColor)
+		p.msaaColor = 0
+	}
+	if p.msaaDepth != 0 {
+		gl.DeleteRenderbuffers(1, &p.msaaDepth)
+		p.msaaDepth = 0
+	}
+	if p.msaaFBO != 0 {
+		gl.DeleteFramebuffers(1, &p.msaaFBO)
+		p.msaaFBO = 0
+	}
+	p.msaaHave = 0
+}
+
+// sceneTarget is where the scene is drawn: the MSAA buffer when it is on
+// and ready, else the post target. 0 is the window.
+func (w *World) sceneTarget(ww, hh int) uint32 {
+	p := &w.post
+	if !p.on || p.fbo == 0 {
+		return 0
+	}
+	if p.msaa < 2 {
+		if p.msaaFBO != 0 {
+			w.disposeMSAA()
+		}
+		return p.fbo
+	}
+	if p.msaaFBO != 0 && p.msaaW == ww && p.msaaH == hh && p.msaaHave == p.msaa {
+		return p.msaaFBO
+	}
+	w.disposeMSAA()
+	var fbo, col, dep uint32
+	gl.GenFramebuffers(1, &fbo)
+	gl.BindFramebuffer(gl.FRAMEBUFFER, fbo)
+	gl.GenRenderbuffers(1, &col)
+	gl.BindRenderbuffer(gl.RENDERBUFFER, col)
+	gl.RenderbufferStorageMultisample(gl.RENDERBUFFER, int32(p.msaa), gl.RGBA16F, int32(ww), int32(hh))
+	gl.FramebufferRenderbuffer(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.RENDERBUFFER, col)
+	gl.GenRenderbuffers(1, &dep)
+	gl.BindRenderbuffer(gl.RENDERBUFFER, dep)
+	gl.RenderbufferStorageMultisample(gl.RENDERBUFFER, int32(p.msaa), gl.DEPTH_COMPONENT24, int32(ww), int32(hh))
+	gl.FramebufferRenderbuffer(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.RENDERBUFFER, dep)
+	ok := gl.CheckFramebufferStatus(gl.FRAMEBUFFER) == gl.FRAMEBUFFER_COMPLETE
+	gl.BindRenderbuffer(gl.RENDERBUFFER, 0)
+	p.msaaFBO, p.msaaColor, p.msaaDepth = fbo, col, dep
+	p.msaaW, p.msaaH, p.msaaHave = ww, hh, p.msaa
+	drainGL("MSAA")
+	if !ok {
+		// A driver that will not multisample half float: run without.
+		fmt.Println("PostFX: MSAA target incomplete; drawing without it")
+		w.disposeMSAA()
+		p.msaa = 0
+		return p.fbo
+	}
+	return fbo
+}
+
+// resolveMSAA copies the multisampled scene (color and depth) into the post
+// target the rest of the chain reads.
+func (w *World) resolveMSAA(ww, hh int) {
+	p := &w.post
+	if p.msaaFBO == 0 || p.fbo == 0 {
+		return
+	}
+	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, p.msaaFBO)
+	gl.BindFramebuffer(gl.DRAW_FRAMEBUFFER, p.fbo)
+	gl.BlitFramebuffer(0, 0, int32(ww), int32(hh), 0, 0, int32(ww), int32(hh), gl.COLOR_BUFFER_BIT, gl.NEAREST)
+	gl.BlitFramebuffer(0, 0, int32(ww), int32(hh), 0, 0, int32(ww), int32(hh), gl.DEPTH_BUFFER_BIT, gl.NEAREST)
+	gl.BindFramebuffer(gl.FRAMEBUFFER, p.fbo)
+	drainGL("MSAA resolve")
 }
 
 func (w *World) ensurePostProg() error {
@@ -1089,6 +1187,7 @@ func (w *World) renderSceneCams(rend *renderer.Renderer, ww, hh int) {
 		targetFBO = w.post.fbo
 	}
 	if !split {
+		targetFBO = w.sceneTarget(ww, hh)
 		cam := w.cam
 		if cam == nil && len(list) > 0 {
 			cam = list[0].cam
@@ -1113,6 +1212,9 @@ func (w *World) renderSceneCams(rend *renderer.Renderer, ww, hh int) {
 				w.markShadowPrimed()
 			}
 			w.drawModernPass(cam)
+			if targetFBO != 0 && targetFBO == w.post.msaaFBO {
+				w.resolveMSAA(ww, hh)
+			}
 		}
 		return
 	}

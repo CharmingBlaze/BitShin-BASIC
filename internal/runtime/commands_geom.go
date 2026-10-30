@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/g3n/engine/geometry"
@@ -16,6 +17,23 @@ func clampSegs(n, lo, def int) int {
 		return def
 	}
 	return n
+}
+
+// loneParent reads a first argument that may be a size or a parent: an
+// existing entity's id is the parent. A whole number that is also a plausible
+// size is reported once, since CreateCube(3) means a parent only while
+// entity 3 exists. Pass both (CreateCube(3, 0)) to be explicit.
+func (w *World) loneParent(a []value.Value) bool {
+	v := argN(a, 0, 0)
+	id := int(v)
+	if float64(id) != v || !w.knownEnt(id) {
+		return false
+	}
+	if id <= 64 && !w.warnedLone {
+		w.warnedLone = true
+		fmt.Printf("moonBASIC: a lone %d is read as parent entity %d; pass (size, 0) for a size\n", id, id)
+	}
+	return true
 }
 
 func (w *World) knownEnt(id int) bool {
@@ -35,7 +53,7 @@ func (w *World) createCubeMesh(a []value.Value) int {
 	switch len(a) {
 	case 0:
 	case 1:
-		if w.knownEnt(argI(a, 0, 0)) {
+		if w.loneParent(a) {
 			parent = argI(a, 0, 0)
 		} else {
 			size = argN(a, 0, 2)
@@ -156,7 +174,7 @@ func (w *World) createPlaneMesh(a []value.Value) int {
 	case len(a) == 2:
 		pw, ph = argN(a, 0, 20), argN(a, 1, 20)
 	case len(a) == 1:
-		if w.knownEnt(argI(a, 0, 0)) {
+		if w.loneParent(a) {
 			parent = argI(a, 0, 0)
 		} else {
 			pw = argN(a, 0, 20)
@@ -202,13 +220,13 @@ func (w *World) createTorusMesh(a []value.Value) int {
 		if w.knownEnt(argI(a, 1, 0)) && argN(a, 0, 0) > 0 && argN(a, 0, 0) < 8 {
 			major = argN(a, 0, 1)
 			parent = argI(a, 1, 0)
-		} else if w.knownEnt(argI(a, 0, 0)) {
+		} else if w.loneParent(a) {
 			parent = argI(a, 0, 0)
 		} else {
 			major, minor = argN(a, 0, 1), argN(a, 1, 0.35)
 		}
 	case len(a) == 1:
-		if w.knownEnt(argI(a, 0, 0)) {
+		if w.loneParent(a) {
 			parent = argI(a, 0, 0)
 		} else {
 			major = argN(a, 0, 1)
@@ -234,7 +252,7 @@ func (w *World) createCapsuleMesh(a []value.Value) int {
 	case len(a) == 2:
 		r, h = argN(a, 0, 0.4), argN(a, 1, 1.2)
 	case len(a) == 1:
-		if w.knownEnt(argI(a, 0, 0)) {
+		if w.loneParent(a) {
 			parent = argI(a, 0, 0)
 		} else {
 			r = argN(a, 0, 0.4)
@@ -322,7 +340,7 @@ func (w *World) createTubeMesh(a []value.Value) int {
 			segs = argI(a, 2, 16)
 		}
 	case len(a) == 1:
-		if w.knownEnt(argI(a, 0, 0)) {
+		if w.loneParent(a) {
 			r, h, parent = 1, 2, argI(a, 0, 0)
 		}
 	case len(a) == 0:
@@ -346,7 +364,7 @@ func (w *World) createQuadMesh(a []value.Value) int {
 	case len(a) >= 2:
 		size, parent = argN(a, 0, 2), argI(a, 1, 0)
 	case len(a) == 1:
-		if w.knownEnt(argI(a, 0, 0)) {
+		if w.loneParent(a) {
 			parent = argI(a, 0, 0)
 		} else {
 			size = argN(a, 0, 2)

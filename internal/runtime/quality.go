@@ -31,6 +31,7 @@ type tierSettings struct {
 	scatter    float32 // tree / prop / grass count scale
 	treeReachM float32 // horizon trees stop here (still inside the fog)
 	ao         bool    // screen-space ambient occlusion
+	msaa       int     // scene samples when post is on; 0 is FXAA alone. 4x cost ~4 ms on a 780M
 	softShadow bool    // PCSS: shadow edges soften with distance from the caster
 }
 
@@ -38,7 +39,7 @@ var tiers = [...]tierSettings{
 	qualityLow:    {shadow: 1024, reflect: 0, refract: 0, post: false, radius: 1, detailPx: 14, scatter: 0.45, treeReachM: 220},
 	qualityMedium: {shadow: 1024, reflect: 512, refract: 512, post: true, radius: 2, detailPx: 10, scatter: 0.7, treeReachM: 320},
 	qualityHigh:   {shadow: 2048, reflect: 1024, refract: 1024, post: true, radius: 2, detailPx: 8, scatter: 1, treeReachM: 420, ao: true},
-	qualityUltra:  {shadow: 2048, reflect: 2048, refract: 1024, post: true, radius: 3, detailPx: 6, scatter: 1, treeReachM: 480, ao: true, softShadow: true},
+	qualityUltra:  {shadow: 2048, reflect: 2048, refract: 1024, post: true, radius: 3, detailPx: 6, scatter: 1, treeReachM: 480, ao: true, softShadow: true, msaa: 4},
 }
 
 type qualityState struct {
@@ -127,6 +128,7 @@ func (w *World) setQuality(tier int) {
 		}
 	}
 	w.post.ssao = s.ao && s.post
+	w.post.msaa = s.msaa
 	if w.post.ssao {
 		if w.post.ssaoRadius <= 0 {
 			w.post.ssaoRadius = 0.8

@@ -235,6 +235,11 @@ func (w *World) rebuildInstanceBatch(id int) {
 
 // buildIndexedBatch writes every copy from the shared-vertex source.
 func (w *World) buildIndexedBatch(im *instancedMesh, pos, nor, uvs *math32.ArrayF32, idx *math32.ArrayU32, col *math32.ArrayF32) {
+	buildIndexedBatchArrays(im, pos, nor, uvs, idx, col)
+}
+
+// buildIndexedBatchArrays is buildIndexedBatch without the World, for workers.
+func buildIndexedBatchArrays(im *instancedMesh, pos, nor, uvs *math32.ArrayF32, idx *math32.ArrayU32, col *math32.ArrayF32) {
 	nv := uint32(len(im.verts))
 	for i := 0; i < im.count && i < len(im.xforms); i++ {
 		m := instanceMatrix(im.xforms[i])

@@ -222,6 +222,41 @@ func scatterAccept(kind string, flat, h, water, snow float32, snowOn bool) bool 
 	}
 }
 
+// fract32, terrainHashGo, and terrainNoiseGo are the terrain shader's
+// terrainHash / terrainNoise in Go, so planting sees the snow line the
+// shader draws.
+func fract32(v float32) float32 { return v - float32(math.Floor(float64(v))) }
+
+func terrainHashGo(px, pz float32) float32 {
+	px, pz = fract32(px*123.34), fract32(pz*345.45)
+	d := px*(px+34.345) + pz*(pz+34.345)
+	px, pz = px+d, pz+d
+	return fract32(px * pz)
+}
+
+func terrainNoiseGo(x, z float32) float32 {
+	ix, iz := float32(math.Floor(float64(x))), float32(math.Floor(float64(z)))
+	fx, fz := x-ix, z-iz
+	fx = fx * fx * (3 - 2*fx)
+	fz = fz * fz * (3 - 2*fz)
+	a := terrainHashGo(ix, iz)
+	b := terrainHashGo(ix+1, iz)
+	c := terrainHashGo(ix, iz+1)
+	d := terrainHashGo(ix+1, iz+1)
+	top := a + (b-a)*fx
+	bot := c + (d-c)*fx
+	return top + (bot-top)*fz
+}
+
+// snowLineAt is where the shader's snow begins at x, z (minus its blend),
+// on ground with up-component flat. The shader works in G3N world space,
+// where z is flipped.
+func snowLineAt(t *terrain, x, z, flat float32) float32 {
+	gx, gz := x, -z
+	jit := (terrainNoiseGo(gx*0.012, gz*0.012)-0.5)*14 + (terrainNoiseGo(gx*0.09, gz*0.09)-0.5)*4
+	return t.snowH + jit - flat*6 + 3 - 2.5
+}
+
 func scatterFlat(t *terrain, x, z float32) float32 {
 	if t == nil {
 		return 1
@@ -417,7 +452,8 @@ func (w *World) scatterPoints(t *terrain, layer scatterLayer, key chunkKey, salt
 		x := x0 + rng.Float32()*size
 		z := z0 + rng.Float32()*size
 		h := w.sampleHeight(&t.hf, x, z)
-		if !scatterAccept(layer.kind, scatterFlat(t, x, z), h, t.waterY, t.snowH, t.snowOn) {
+		flat := scatterFlat(t, x, z)
+		if !scatterAccept(layer.kind, flat, h, t.waterY, snowLineAt(t, x, z, flat), t.snowOn) {
 			continue
 		}
 		if forest != nil {
@@ -835,10 +871,17 @@ func (w *World) scatterCommands(n func(func([]value.Value) (value.Value, error))
 	set := func(kind string, mesh bool, defDensity float64) func(a []value.Value) (value.Value, error) {
 		return func(a []value.Value) (value.Value, error) {
 			t := w.pickTerrain(a)
+			off := terrainArgOff(w, a)
+			// TerrainTrees(t, tree) and TerrainTrees(tree, 0.7) are both two
+			// numbers. The terrain form's second argument is an entity; a
+			// density never is. A mesh whose id matched the terrain's handle
+			// used to be read as the terrain.
+			if mesh && off == 1 && !w.knownEnt(argI(a, 1, 0)) {
+				t, off = w.terrains[w.curTerrain], 0
+			}
 			if t == nil {
 				return z()
 			}
-			off := terrainArgOff(w, a)
 			meshID := 0
 			if mesh {
 				meshID = argI(a, off, 0)

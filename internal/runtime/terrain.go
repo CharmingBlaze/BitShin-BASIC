@@ -142,6 +142,9 @@ type terrain struct {
 	scatterIDs   map[chunkKey][]int
 	scatterAt    map[chunkKey]int // scatterStep each chunk's copies were placed for
 	treeMesh     map[chunkKey][]int // 3D tree batches by treeBlock, out past the detail window
+	treePending  map[chunkKey]bool  // blocks a worker is building
+	treeGen      int                // bumps when trees are released
+	treeFar      map[chunkKey]bool  // block was planted with the simplified parts
 	built        map[chunkKey]int
 	simOn        map[chunkKey]bool
 	morphOff     bool
@@ -1359,9 +1362,10 @@ func (w *World) terrainCommands(n func(func([]value.Value) (value.Value, error))
 			return z()
 		}),
 		"setterrainrockcolor": n(func(a []value.Value) (value.Value, error) {
-			t := w.pickTerrain(a)
+			// (r, g, b) is three arguments; only a fourth makes the first a
+			// terrain. A red of 1 used to read as terrain 1.
+			t, off := w.terrainArgsN(a, 3)
 			if t != nil {
-				off := terrainArgOff(w, a)
 				t.rock = *rgb(argN(a, off, 180), argN(a, off+1, 158), argN(a, off+2, 112))
 			}
 			return z()
@@ -1656,6 +1660,18 @@ func (w *World) addTerrainGL(a []value.Value) int {
 	w.dirtyTerrain(t)
 	w.seedTerrainChunks(t)
 	return id
+}
+
+// terrainArgsN reads an optional leading terrain for a command whose own
+// arguments number base: the first argument is a terrain only when there
+// are more than base. Otherwise it is the current terrain.
+func (w *World) terrainArgsN(a []value.Value, base int) (*terrain, int) {
+	if len(a) > base {
+		if t := w.terrains[argI(a, 0, 0)]; t != nil {
+			return t, 1
+		}
+	}
+	return w.terrains[w.curTerrain], 0
 }
 
 func terrainArgOff(w *World, a []value.Value) int {

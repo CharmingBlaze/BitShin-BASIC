@@ -227,6 +227,7 @@ func (w *World) rekeyTerrain(qx, qz float32) {
 		t.vistaAt = chunkKey{t.vistaAt.X - dkx, t.vistaAt.Z - dkz}
 		if dkx%treeBlock == 0 && dkz%treeBlock == 0 {
 			t.treeMesh = rekey(t.treeMesh, dkx/treeBlock, dkz/treeBlock)
+			t.treeFar = rekey(t.treeFar, dkx/treeBlock, dkz/treeBlock)
 		} else {
 			w.releaseMeshTrees(t)
 		}
@@ -499,6 +500,45 @@ func (w *World) bubbleCommands(n func(func([]value.Value) (value.Value, error)) 
 				}
 			}
 			return z()
+		}),
+		// World-place helpers. After a floating-origin shift, positions and
+		// TerrainHeight are local; these convert to and from the fixed world.
+		"worldtolocalx": n(func(a []value.Value) (value.Value, error) {
+			x, _ := w.worldOrigin()
+			return value.Num(argN(a, 0, 0) - float64(x)), nil
+		}),
+		"worldtolocalz": n(func(a []value.Value) (value.Value, error) {
+			_, z := w.worldOrigin()
+			return value.Num(argN(a, 0, 0) - float64(z)), nil
+		}),
+		"localtoworldx": n(func(a []value.Value) (value.Value, error) {
+			x, _ := w.worldOrigin()
+			return value.Num(argN(a, 0, 0) + float64(x)), nil
+		}),
+		"localtoworldz": n(func(a []value.Value) (value.Value, error) {
+			_, z := w.worldOrigin()
+			return value.Num(argN(a, 0, 0) + float64(z)), nil
+		}),
+		"entityworldx": n(func(a []value.Value) (value.Value, error) {
+			x, _, _, _ := w.scriptPos(argI(a, 0, 0))
+			ox, _ := w.worldOrigin()
+			return value.Num(float64(x + ox)), nil
+		}),
+		"entityworldz": n(func(a []value.Value) (value.Value, error) {
+			_, _, z, _ := w.scriptPos(argI(a, 0, 0))
+			_, oz := w.worldOrigin()
+			return value.Num(float64(z + oz)), nil
+		}),
+		// PositionEntityWorld(e, x, y, z): a fixed world place, any origin.
+		"positionentityworld": n(func(a []value.Value) (value.Value, error) {
+			ox, oz := w.worldOrigin()
+			w.setScriptPos(argI(a, 0, 0), float32(argN(a, 1, 0))-ox, float32(argN(a, 2, 0)), float32(argN(a, 3, 0))-oz)
+			return z()
+		}),
+		// TerrainHeightWorld(x, z): the height at a fixed world place.
+		"terrainheightworld": n(func(a []value.Value) (value.Value, error) {
+			ox, oz := w.worldOrigin()
+			return value.Num(float64(w.terrainHeight(float32(argN(a, 0, 0))-ox, float32(argN(a, 1, 0))-oz))), nil
 		}),
 		"worldoriginx": n(func(a []value.Value) (value.Value, error) {
 			x, _ := w.worldOrigin()

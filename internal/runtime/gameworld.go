@@ -83,6 +83,7 @@ type gameSave struct {
 	Visited   []string   `json:"visited"`
 	TalkEnt   int        `json:"talkEnt"`
 	TalkLine  int        `json:"talkLine"`
+	Origin    [2]float32 `json:"origin,omitempty"` // world origin when saved
 }
 
 type saveDoor struct {
@@ -729,6 +730,7 @@ func (w *World) saveGame(path string) error {
 	if x, y, z, ok := w.scriptPos(g.player); ok {
 		sv.Player = [3]float32{x, y, z}
 	}
+	sv.Origin[0], sv.Origin[1] = w.worldOrigin()
 	ids := make([]int, 0, len(g.doors))
 	for id := range g.doors {
 		ids = append(ids, id)
@@ -786,7 +788,9 @@ func (w *World) loadGame(path string) error {
 			}
 		}
 	}
-	w.setScriptPos(g.player, sv.Player[0], sv.Player[1], sv.Player[2])
+	// Saved in the local frame of that moment; a shift since moves it.
+	ox, oz := w.worldOrigin()
+	w.setScriptPos(g.player, sv.Player[0]+sv.Origin[0]-ox, sv.Player[1], sv.Player[2]+sv.Origin[1]-oz)
 	w.enterRoom(sv.Room)
 	return nil
 }

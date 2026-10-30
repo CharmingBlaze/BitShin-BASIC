@@ -202,6 +202,12 @@ vec4 terrainSplat(inout vec3 n) {
     grass = mix(grass, triplanarRGB(TerrainGrass, TerrainHasGrass, grass, WorldPos, n, 0.09), 0.86);
     grass = mix(grass, triplanarRGB(TerrainGrass2, TerrainHasGrass2, grass, WorldPos, n, 0.13), 0.42);
     rock = mix(rock, triplanarRGB(TerrainRock, TerrainHasRock, rock, WorldPos, n, 0.055), 0.88);
+    // Cliffs read as one flat stain from afar: add horizontal strata and
+    // darker crevices so a face has layers, plus a slow tone drift.
+    float strata = terrainNoise(vec2(WorldPos.y * 0.55, (WorldPos.x + WorldPos.z) * 0.02));
+    float crev = smoothstep(0.62, 0.92, terrainNoise(WorldPos.xz * 0.21 + WorldPos.y * 0.13));
+    rock *= (0.84 + 0.30 * strata) * (1.0 - 0.32 * crev);
+    rock *= 0.9 + 0.2 * terrainNoise(WorldPos.xz * 0.004 + 3.7);
     sand = mix(sand, triplanarRGB(TerrainSand, TerrainHasSand, sand, WorldPos, n, 0.10), 0.72);
     snow = mix(snow, triplanarRGB(TerrainSnow, TerrainHasSnow, snow, WorldPos, n, 0.07), 0.55);
     // Large dry and lush patches, then a meadow-scale mottle. The fine
@@ -221,7 +227,12 @@ vec4 terrainSplat(inout vec3 n) {
     float sandMask = 1.0 - smoothstep(TerrainWaterY, TerrainWaterY + max(TerrainBlend, 1.2) * 2.0, h);
     float snowMask = 0.0;
     if (TerrainSnowOn != 0) {
-        snowMask = smoothstep(TerrainSnowH - 1.2, TerrainSnowH + 2.0, h) * smoothstep(0.40, 0.78, ny);
+        // A snow line wanders with the ground (big drifts and small
+        // patches) and reaches lower on flat ground than on slopes. A
+        // single height cut a ruler-straight band across every mountain.
+        float jit = (terrainNoise(WorldPos.xz * 0.012) - 0.5) * 14.0 + (terrainNoise(WorldPos.xz * 0.09) - 0.5) * 4.0;
+        float line = TerrainSnowH + jit - ny * 6.0 + 3.0;
+        snowMask = smoothstep(line - 2.5, line + 2.5, h) * smoothstep(0.36, 0.72, ny);
     }
     if (TerrainHasBlend != 0) {
         float sx = WorldPos.x;
@@ -302,7 +313,9 @@ void main() {
     float groundLevel = smoothstep(mix(0.55, 0.32, clamp(TerrainGrassCover, 0.0, 1.0)), mix(0.90, 0.67, clamp(TerrainGrassCover, 0.0, 1.0)), clamp(n.y, 0.0, 1.0));
     float gloss = mix(0.20, 0.04, groundLevel);
     if (TerrainSnowOn != 0) {
-        float snowM = smoothstep(TerrainSnowH - 1.2, TerrainSnowH + 2.0, WorldPos.y) * smoothstep(0.40, 0.78, n.y);
+        float jitG = (terrainNoise(WorldPos.xz * 0.012) - 0.5) * 14.0 + (terrainNoise(WorldPos.xz * 0.09) - 0.5) * 4.0;
+        float lineG = TerrainSnowH + jitG - n.y * 6.0 + 3.0;
+        float snowM = smoothstep(lineG - 2.5, lineG + 2.5, WorldPos.y) * smoothstep(0.36, 0.72, n.y);
         gloss = mix(gloss, 0.38, snowM);
     }
     float spec = pow(max(dot(reflect(-L, n), V), 0.0), mix(18.0, 48.0, gloss)) * ndl * sh * gloss;

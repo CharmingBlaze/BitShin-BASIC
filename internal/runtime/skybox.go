@@ -277,6 +277,16 @@ func generateSkyImages(top, bot math32.Color, sunX, sunY, sunZ float64, haze *ma
 	}
 	// A low sun warms its halo toward orange.
 	low := clamp01f(1 - sunY*2.2)
+	// A dark top is night: stars, and a moon opposite the sun, held above
+	// the horizon.
+	night := clamp01f((0.16 - (float64(top.R)+float64(top.G)+float64(top.B))/3) / 0.06)
+	mx, my, mz := -sunX, -sunY, -sunZ
+	if my < 0.35 {
+		my = 0.35
+	}
+	if ml := math.Sqrt(mx*mx + my*my + mz*mz); ml > 1e-6 {
+		mx, my, mz = mx/ml, my/ml, mz/ml
+	}
 	var out [6]*image.RGBA
 	for face := 0; face < 6; face++ {
 		img := image.NewRGBA(image.Rect(0, 0, n, n))
@@ -309,12 +319,35 @@ func generateSkyImages(top, bot math32.Color, sunX, sunY, sunZ float64, haze *ma
 					g += (float64(haze.G) - g) * h
 					b += (float64(haze.B) - b) * h
 				}
+				if night > 0 && dy > -0.02 {
+					// Stars: one in ~140 texels, most faint, a few bright.
+					hs := skyHash(face, x, y)
+					if hs > 0.9928 {
+						br := math.Pow((hs-0.9928)/0.0072, 3) * 0.9
+						br *= clamp01f(dy*4) * night
+						r += br * 0.92
+						g += br * 0.95
+						b += br
+					}
+					// Moon: a pale disc with soft maria, and a cool halo.
+					mc := dx*mx + dy*my + dz*mz
+					if mc > 0.99 {
+						disc := smoothstep64(0.99955, 0.99968, mc)
+						maria := 0.82 + 0.18*skyHash(face, x/3, y/3)
+						glow := math.Pow(math.Max(mc, 0), 400) * 0.22
+						r += (disc*0.85*maria + glow*0.7) * night
+						g += (disc*0.88*maria + glow*0.8) * night
+						b += (disc*0.92*maria + glow) * night
+					}
+				}
 				cosA := dx*sunX + dy*sunY + dz*sunZ
-				if cosA > 0 {
+				// The night sun stays a dim light above the horizon; its disc
+				// fades out so the moon is the only one in the sky.
+				if day := 1 - night; cosA > 0 && day > 0 {
 					// A crisp disc (about 1.4 degrees), then halos from tight
 					// to broad, warmer as the sun nears the horizon.
-					disc := smoothstep64(0.99962, 0.99975, cosA)
-					halo := math.Pow(cosA, 900)*0.55 + math.Pow(cosA, 64)*0.22 + math.Pow(cosA, 8)*0.10
+					disc := smoothstep64(0.99962, 0.99975, cosA) * day
+					halo := (math.Pow(cosA, 900)*0.55 + math.Pow(cosA, 64)*0.22 + math.Pow(cosA, 8)*0.10) * day
 					hr, hg, hb := 1.0, 0.86-0.18*low, 0.62-0.34*low
 					r += disc*1.2 + halo*hr
 					g += disc*1.1 + halo*hg
@@ -326,6 +359,15 @@ func generateSkyImages(top, bot math32.Color, sunX, sunY, sunZ float64, haze *ma
 		out[face] = img
 	}
 	return out
+}
+
+// skyHash is a stable 0..1 per face texel (stars, moon maria).
+func skyHash(face, x, y int) float64 {
+	h := uint32(face*73856093) ^ uint32(x*19349663) ^ uint32(y*83492791)
+	h ^= h >> 13
+	h *= 0x5bd1e995
+	h ^= h >> 15
+	return float64(h&0xffffff) / float64(0xffffff)
 }
 
 // skyHaze is the color the sky's horizon blends into. Off: a script's fog
