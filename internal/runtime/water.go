@@ -947,21 +947,19 @@ func (w *World) replaceWaterGLMap(dst *uint32, texID int) {
 }
 
 func (w *World) waterSunDir() (float32, float32, float32) {
-	for _, e := range w.ents {
-		if e == nil || e.lgtKind != 1 || e.node == nil {
-			continue
-		}
+	// From the frame's light scan: every terrain chunk and the water ask,
+	// and each used to walk every entity.
+	if n := w.scanLights().sunNode; n != nil {
 		var p math32.Vector3
-		e.node.GetNode().WorldPosition(&p)
+		n.GetNode().WorldPosition(&p)
 		if p.LengthSq() < 1e-6 {
-			e.node.GetNode().WorldDirection(&p)
+			n.GetNode().WorldDirection(&p)
 			p.Negate()
 		}
-		if p.LengthSq() < 1e-6 {
-			continue
+		if p.LengthSq() > 1e-6 {
+			p.Normalize()
+			return p.X, p.Y, p.Z
 		}
-		p.Normalize()
-		return p.X, p.Y, p.Z
 	}
 	return 0.4, 0.8, 0.3
 }

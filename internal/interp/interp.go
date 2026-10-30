@@ -2144,6 +2144,10 @@ func (in *Interp) installBuiltins() {
 	in.installMath(n)
 	n("rnd", func(a []value.Value) value.Value {
 		x := num(a, 0)
+		// Rnd(low, high) is Blitz's range form; it used to ignore high.
+		if len(a) >= 2 {
+			return value.Num(x + in.rng.Float64()*(num(a, 1)-x))
+		}
 		if x == 0 {
 			return value.Num(in.rng.Float64())
 		}

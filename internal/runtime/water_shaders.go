@@ -269,7 +269,9 @@ void main() {
         float bottom = smoothstep(0.25, 3.0, meters) * (1.0 - smoothstep(28.0, 70.0, meters));
         // The last half meter shows the sand through, so the water thins
         // out onto the beach instead of ending in a hard colored line.
-        float edge = 1.0 - smoothstep(0.0, 0.5, meters);
+        // Near the camera only: far away the depth buffer cannot tell half
+        // a metre, and whole lakes read as "shallow" and went pale.
+        float edge = (1.0 - smoothstep(0.0, 0.5, meters)) * (1.0 - smoothstep(60.0, 200.0, camDist));
         refrColor = mix(refrColor, grabbedR, max(bottom * 0.8, edge));
     }
     vec3 reflectCol = mix(deepWaterColor, vec3(0.65, 0.78, 0.9), 0.35);

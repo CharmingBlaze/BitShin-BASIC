@@ -44,6 +44,9 @@ Dotted topic names call these same commands: `Math.Abs`, `String.Upper`, `Input.
 `CreatePyramid([size, parent])`, `CreateWedge(w, h, d [, parent])`, `CreateTube(radius, height [, segs, parent])`, `CreateQuad([size, parent])`  
 `CreatePivot`  
 `LoadMesh file$ [, parent]` — `.obj`, `.gltf`, `.glb`, `.dae`, `.fbx` (triangles only)
+`LoadLevel file$ [, cell#]` — `LoadMesh`, then `MergeLevel` on it. For large static levels  
+`MergeLevel root [, cell# [, keep]]` — bakes every visible static mesh under `root` into one mesh per material per `cell` (default 64 m), frustum culled, hidden past the fog. Untextured lit materials of any color share one draw (their color goes per vertex). Meshes with a collision type, a body, a collider, animation, wind sway, or a name are left alone. The merged entities are freed; `keep = True` hides them instead. Returns the cell count  
+`LevelCells(root)` / `LevelSources(root)` — merged draws, and the meshes they replaced  
 `OptimizeMesh entity` — Forsyth vertex-cache reorder, overdraw reorder, then vertex pack (`internal/meshoptim`). Returns the triangle count  
 `SimplifyMesh entity [, ratio]` — quadric-error reduction (`internal/meshsimplify`). `ratio` is the fraction of triangles to keep (default 0.5). Returns the triangle count  
 `CopyEntity src [, parent]`, `FreeEntity`, `HideEntity`, `ShowEntity`, `EntityVisible(e)`  
@@ -402,7 +405,7 @@ Every angle is **degrees** (same as Blitz). `ATan2(y, x)` is the usual two-argum
 
 ### Random
 
-`Rnd([max])` — 0..1 if omitted, else 0..`max`  
+`Rnd([max])` — 0..1 if omitted, else 0..`max`. `Rnd(low, high)` is low..high (it used to ignore `high`)  
 `Rand(lo, hi)` — inclusive integers (`Rand(n)` is 1..n)  
 `SeedRnd n` `RndSeed()`
 
@@ -836,7 +839,7 @@ See `docs/TERRAIN.md`. OpenGL **3.3** grids: central-difference normals, far chu
 | `CreateTerrain(file$ \| hm, w, d, hscale)` | PNG/JPEG, `""` / `"default"` = FBM, or a `GenerateHeightmap` handle | `t = CreateTerrain(hm, 80, 80, 14)` |
 | `CreateTerrainFromHeightmap(hm [, w, d, hscale])` | Same as numeric `CreateTerrain` | `t = CreateTerrainFromHeightmap(hm, 80, 80, 14)` |
 | `LoadHeightmap(file$ [, w, d, hscale])` | Decode grayscale → **terrain** handle | `t = LoadHeightmap("h.png", 64, 64, 10)` |
-| `GenerateHeightmap(w, h, seed [, octaves, scale, persist, lacun, …])` | CPU FBM / ridged / diamond-square → heightmap handle | `hm = GenerateHeightmap(128, 128, 42, 6, 70, 0.48, 2.15)` |
+| `GenerateHeightmap(w, h, seed [, octaves, scale, persist, lacun, …])` | CPU FBM / ridged / diamond-square → heightmap handle. Up to 8192², generated on every core. A terrain over 2048² keeps 16-bit heights (4096² is 32 MB); `FreeHeightmap` after `CreateTerrainFromHeightmap` drops the float copy | `hm = GenerateHeightmap(128, 128, 42, 6, 70, 0.48, 2.15)` |
 | `GenerateHeightmapPreset(name$, w, h, seed)` | `alpine` `rolling-hills` `sharp-peaks` `archipelago` `plateaus` `gentle-dunes` `island` (one landmass, rim below 0.1) | `hm = GenerateHeightmapPreset("alpine", 128, 128, 3)` |
 | `SaveHeightmap(path$ [, hm])` | Greyscale PNG | `SaveHeightmap("assets/heightmap.png", hm)` |
 | `ImportHeightmap(file$)` / `LoadHeightmapData` | Image → heightmap handle | `hm = ImportHeightmap("h.png")` |
@@ -1188,7 +1191,7 @@ ImGui panels use the existing `Gui*` commands. These query live numbers:
 | Command | Meaning | Example |
 | --- | --- | --- |
 | `StatsFPS()` / `GetStatsFPS()` | `1 / DeltaTime` | `fps = Int(StatsFPS())` |
-| `SetGraphicsQuality(q$)` | `"low"` `"medium"` `"high"` `"ultra"` or `"auto"`. One call sets shadow size, water reflection and refraction, post FX, terrain detail window and triangle size, tree/prop/grass count and reach. Low is aimed at a 2016 laptop iGPU at 720p: no water passes, cheap terrain texturing. `"auto"` reads the GPU name, then steps down a tier whenever frames average over 26 ms for 2 s. It never steps up. A setting you change after this call is yours until the next tier change | `SetGraphicsQuality("auto")` |
+| `SetGraphicsQuality(q$)` | `"low"` `"medium"` `"high"` `"ultra"` or `"auto"`. One call sets shadow size, water reflection and refraction, post FX, terrain detail window and triangle size, tree/prop/grass count and reach. Low is aimed at a 2016 laptop iGPU at 720p: no water passes, cheap terrain texturing. High adds ambient occlusion and a coarse vista out to the fog; ultra adds soft (PCSS) shadow edges. `"auto"` reads the GPU name, then steps down a tier whenever frames average over 26 ms for 2 s. It never steps up. A setting you change after this call is yours until the next tier change | `SetGraphicsQuality("auto")` |
 | `GraphicsQuality()` | Current tier, `0` low to `3` ultra | `q = GraphicsQuality()` |
 | `SaveScreenshot(path$)` | Saves the next presented frame (scene, post, HUD) as a PNG | `SaveScreenshot("shot.png")` |
 | `StatsDraws()` / `GetStatsDraws()` | Visible mesh count | `d = StatsDraws()` |

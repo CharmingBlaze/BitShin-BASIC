@@ -142,6 +142,8 @@ Grass on the ground and grass you walk through are different. Trees and rocks ar
 
 **Trees.** `TerrainTrees(terrain, mesh [, density])` plants copies on the same flat-ground test, with a minimum spacing so trunks do not stack. If that mesh has a texture, each copy is a card of the picture and the transparent pixels are cut out. `SetTreeCards(terrain, width, height [, crossed, face])` sets the card size in world units, `crossed` plants a second card at 90 degrees, and `face` turns the card toward the camera. `SetTreeCardCross` and `SetTreeCardFace` change one of those on their own. Face defaults on, crossed defaults off. Y comes from `TerrainHeight`. Scale varies a little around 1. `TerrainTrees(t, mesh, 0)` clears that mesh. Steep rock and snow stay bare. Trees grow in stands: low-frequency noise keeps every tree in a forest and a fifth of them in a clearing.
 
+**Large maps.** `GenerateHeightmapPreset("island", 4096, 4096, seed)` over 16 km generates in about a second on every core and is stored 16-bit. On high and ultra a coarse vista continues past the 480 m ring out to the fog (up to 4 km), built on a worker with the ring and swapped in the same frame, so distant mountains show. The floating origin keeps terrain roots and directional lights in place on a shift; the pieces move instead, so chunks built after a shift land where they belong.
+
 **3D trees.** A template with no texture is planted as real meshes. Its direct children come along with their own colors, scale, and offset, so a hidden trunk with crown children is one tree:
 
 ```basic
@@ -150,7 +152,7 @@ crown = CreateCone(1.9, 4.2, 6, 1, pine).Position(0, 3, 0).Color(34, 92, 46)
 TerrainTrees(ground, pine, 0.3)
 ```
 
-3D trees are kept in 3×3-chunk blocks out to the quality tier's reach (220 m low to 480 m ultra), one batch per part per block, so a large map stays near a hundred draws. A block keeps its trees while its chunks change LOD, and new blocks are planted nearest first, one per frame. Props use the same planter, so a prop template's scale and children are kept too.
+Copies are smooth-shaded from the template's own normals, each one a little lighter, darker, warmer, or cooler, and they sway with `SetWind` (a light breeze if none is set); their shadows sway with them. 3D trees are kept in 3×3-chunk blocks out to the quality tier's reach (220 m low to 480 m ultra), one batch per part per block, so a large map stays near a hundred draws. A block keeps its trees while its chunks change LOD, and new blocks are planted nearest first, one per frame. Props use the same planter, so a prop template's scale and children are kept too.
 
 **Props.** `TerrainProps(terrain, mesh [, density])` uses the same planter for rocks, bushes, and crates. The default rule is looser than trees: anything that is not a cliff or a snowfield, including the shore. One terrain can have several prop meshes. Each call adds a layer. Density `0` removes that mesh. Far props are one vertical quad.
 

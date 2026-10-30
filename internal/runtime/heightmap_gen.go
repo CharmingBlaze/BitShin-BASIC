@@ -1,6 +1,8 @@
 package runtime
 
 import (
+	goruntime "runtime"
+	"sync"
 	"fmt"
 	"image"
 	"image/color"
@@ -47,11 +49,13 @@ func (s HeightmapSpec) normalize() HeightmapSpec {
 	if s.Height < 2 {
 		s.Height = 2
 	}
-	if s.Width > 1024 {
-		s.Width = 1024
+	// 8192² is 256 MB while generating; FreeHeightmap after the terrain
+	// is built keeps only the terrain's 16-bit copy (128 MB).
+	if s.Width > 8192 {
+		s.Width = 8192
 	}
-	if s.Height > 1024 {
-		s.Height = 1024
+	if s.Height > 8192 {
+		s.Height = 8192
 	}
 	if s.Octaves < 1 {
 		s.Octaves = 5
@@ -127,17 +131,21 @@ func GenerateHeightmapCPU(spec HeightmapSpec) []float32 {
 	default:
 		n := newNoise2(spec.Seed)
 		ridged := spec.Mode == "ridged" || spec.Mode == "ridge"
-		for y := 0; y < h; y++ {
-			for x := 0; x < w; x++ {
-				fx := (float64(x) + spec.PanX) / spec.Scale
-				fz := (float64(y) + spec.PanY) / spec.Scale
-				v := n.fbmOpen(fx, fz, spec.Octaves, spec.Persistence, spec.Lacunarity)
-				if ridged {
-					v = 1 - math.Abs(v)
+		// Rows split across the cores. The noise tables are read-only, and
+		// a 4096² map is 16M samples.
+		parallelRows(h, func(y0, y1 int) {
+			for y := y0; y < y1; y++ {
+				for x := 0; x < w; x++ {
+					fx := (float64(x) + spec.PanX) / spec.Scale
+					fz := (float64(y) + spec.PanY) / spec.Scale
+					v := n.fbmOpen(fx, fz, spec.Octaves, spec.Persistence, spec.Lacunarity)
+					if ridged {
+						v = 1 - math.Abs(v)
+					}
+					data[y*w+x] = float32(v)
 				}
-				data[y*w+x] = float32(v)
 			}
-		}
+		})
 	}
 	normalize01(data)
 	if spec.Black > 0 || spec.White < 1 {
@@ -160,6 +168,32 @@ func GenerateHeightmapCPU(spec HeightmapSpec) []float32 {
 		shapeIsland(data, w, h, 1)
 	}
 	return data
+}
+
+// parallelRows runs fn over [0,rows) in one band per core.
+func parallelRows(rows int, fn func(y0, y1 int)) {
+	workers := goruntime.NumCPU()
+	if workers > rows/64 {
+		workers = rows / 64
+	}
+	if workers < 2 {
+		fn(0, rows)
+		return
+	}
+	var wg sync.WaitGroup
+	band := (rows + workers - 1) / workers
+	for y0 := 0; y0 < rows; y0 += band {
+		y1 := y0 + band
+		if y1 > rows {
+			y1 = rows
+		}
+		wg.Add(1)
+		go func(a, b int) {
+			defer wg.Done()
+			fn(a, b)
+		}(y0, y1)
+	}
+	wg.Wait()
 }
 
 // shapeIsland fades the map to 0 at its rim. The coast follows the hills
@@ -706,10 +740,14 @@ func heightFieldFromMap(hm *heightMap, worldW, worldD, hscale float32) heightFie
 	for i, v := range hm.data {
 		h[i] = v * hscale
 	}
-	return heightField{
+	hf := heightField{
 		gw: hm.w, gd: hm.h, worldW: worldW, worldD: worldD, hscale: hscale,
 		ox: -worldW / 2, oz: -worldD / 2, h: h,
 	}
+	if len(h) > compactSamples {
+		hf.compact()
+	}
+	return hf
 }
 
 func (w *World) addHeightMap(spec HeightmapSpec, data []float32) int {
@@ -778,12 +816,13 @@ func (w *World) heightmapCommands(n func(func([]value.Value) (value.Value, error
 			if err != nil {
 				return value.Num(0), err
 			}
-			data := make([]float32, len(hf.h))
+			src := hf.heights()
+			data := make([]float32, len(src))
 			hs := hf.hscale
 			if hs == 0 {
 				hs = 1
 			}
-			for i, v := range hf.h {
+			for i, v := range src {
 				data[i] = v / hs
 			}
 			spec := HeightmapSpec{Width: hf.gw, Height: hf.gd, White: 1}

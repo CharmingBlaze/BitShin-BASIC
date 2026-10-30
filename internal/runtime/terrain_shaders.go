@@ -96,6 +96,19 @@ float terrainHash(vec2 p) {
     return fract(p.x * p.y);
 }
 
+// terrainNoise is smooth value noise. The old per-pixel hash at metre
+// frequency aliased into wavy stripes across the grass.
+float terrainNoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = terrainHash(i);
+    float b = terrainHash(i + vec2(1.0, 0.0));
+    float c = terrainHash(i + vec2(0.0, 1.0));
+    float d = terrainHash(i + vec2(1.0, 1.0));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+
 float terrainLuma(vec3 c) {
     return dot(c, vec3(0.299, 0.587, 0.114));
 }
@@ -181,10 +194,20 @@ vec4 terrainSplat(inout vec3 n) {
     rock = mix(rock, triplanarRGB(TerrainRock, TerrainHasRock, rock, WorldPos, n, 0.055), 0.88);
     sand = mix(sand, triplanarRGB(TerrainSand, TerrainHasSand, sand, WorldPos, n, 0.10), 0.72);
     snow = mix(snow, triplanarRGB(TerrainSnow, TerrainHasSnow, snow, WorldPos, n, 0.07), 0.55);
-    float patch = terrainHash(floor(WorldPos.xz * 0.07));
-    float fine = terrainHash(WorldPos.xz * 1.9);
-    grass = mix(grass, grass * vec3(0.72, 1.05, 0.58), patch * 0.28);
-    grass *= 0.94 + 0.06 * fine;
+    // Large dry and lush patches, then a meadow-scale mottle. The fine
+    // layer fades with distance before it can shimmer.
+    float camD = length(Position.xyz); // view space: distance to the camera
+    float big = terrainNoise(WorldPos.xz * 0.006) * 0.65 + terrainNoise(WorldPos.xz * 0.019) * 0.35;
+    float mid = terrainNoise(WorldPos.xz * 0.11);
+    float fine = mix(terrainNoise(WorldPos.xz * 0.9), 0.5, smoothstep(25.0, 70.0, camD));
+    vec3 dry = grass * vec3(1.18, 1.02, 0.62);
+    vec3 lush = grass * vec3(0.78, 0.96, 0.74);
+    grass = mix(lush, dry, smoothstep(0.32, 0.74, big));
+    grass *= 0.88 + 0.16 * mid;
+    grass *= 0.95 + 0.10 * fine;
+    // Pull toward olive: texture greens alone read as plastic.
+    float gl = terrainLuma(grass);
+    grass = mix(vec3(gl), grass, 0.78) * vec3(1.04, 1.0, 0.92);
     float sandMask = 1.0 - smoothstep(TerrainWaterY, TerrainWaterY + max(TerrainBlend, 1.2) * 2.0, h);
     float snowMask = 0.0;
     if (TerrainSnowOn != 0) {
@@ -212,10 +235,11 @@ vec4 terrainSplat(inout vec3 n) {
         dirtW,
         sandMask,
         snowMask);
-    float b0 = terrainHash(WorldPos.xz * 2.2);
-    float bx = terrainHash((WorldPos.xz + vec2(0.11, 0.0)) * 2.2);
-    float bz = terrainHash((WorldPos.xz + vec2(0.0, 0.11)) * 2.2);
-    float bump = mix(0.42, 0.10, rockMask) * (1.0 - snowMask);
+    float b0 = terrainNoise(WorldPos.xz * 1.6);
+    float bx = terrainNoise((WorldPos.xz + vec2(0.15, 0.0)) * 1.6);
+    float bz = terrainNoise((WorldPos.xz + vec2(0.0, 0.15)) * 1.6);
+    // Bump fades out with distance: past ~40 m it only adds shimmer.
+    float bump = mix(0.42, 0.10, rockMask) * (1.0 - snowMask) * (1.0 - smoothstep(15.0, 45.0, camD));
     n = normalize(n + vec3(b0 - bx, 0.0, b0 - bz) * bump);
     if (TerrainHasRockN != 0 && rockMask < 0.85) {
         vec3 up = vec3(0.0, 0.0, 1.0);

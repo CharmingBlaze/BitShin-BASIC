@@ -694,6 +694,9 @@ func (w *World) commandTable() map[string]cmd {
 	for k, v := range w.screenshotCommands(n, z) {
 		m[k] = v
 	}
+	for k, v := range w.levelCommands(n, z, need) {
+		m[k] = v
+	}
 	for k, v := range w.instanceCommands(n, z, need) {
 		m[k] = v
 	}

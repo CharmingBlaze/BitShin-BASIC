@@ -207,16 +207,25 @@ func (w *World) loadGeoJSON(rel string, parent int) (value.Value, error) {
 }
 
 func flipHeightRows(hf *heightField) {
-	if hf == nil || hf.gw < 1 || hf.gd < 2 || len(hf.h) < hf.gw*hf.gd {
+	if hf == nil || hf.gw < 1 || hf.gd < 2 {
 		return
 	}
-	tmp := make([]float32, len(hf.h))
-	for row := 0; row < hf.gd; row++ {
-		src := (hf.gd - 1 - row) * hf.gw
-		dst := row * hf.gw
-		copy(tmp[dst:dst+hf.gw], hf.h[src:src+hf.gw])
+	flip := func(n int, swap func(a, b int)) {
+		if n < hf.gw*hf.gd {
+			return
+		}
+		for row := 0; row < hf.gd/2; row++ {
+			a, b := row*hf.gw, (hf.gd-1-row)*hf.gw
+			for x := 0; x < hf.gw; x++ {
+				swap(a+x, b+x)
+			}
+		}
 	}
-	hf.h = tmp
+	if hf.q != nil {
+		flip(len(hf.q), func(a, b int) { hf.q[a], hf.q[b] = hf.q[b], hf.q[a] })
+		return
+	}
+	flip(len(hf.h), func(a, b int) { hf.h[a], hf.h[b] = hf.h[b], hf.h[a] })
 }
 
 func (w *World) applyGeoBounds(hf *heightField, west, south, east, north float64) {

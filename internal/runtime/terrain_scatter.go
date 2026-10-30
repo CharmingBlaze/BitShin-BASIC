@@ -377,7 +377,7 @@ func (w *World) placeScatter(t *terrain, key chunkKey, x0, z0, size float32, ste
 		// Same planting as 3D trees: the template's scale and child parts
 		// come along, and the batch is frustum culled.
 		if parts, _ := w.treeMeshParts(layer.mesh); len(parts) > 0 {
-			ids = append(ids, w.plantMeshTrees(layer.mesh, pts)...)
+			ids = append(ids, w.plantMeshTrees(layer.mesh, pts, false)...)
 		} else if id := w.plantInstances(layer.mesh, pts); id != 0 {
 			ids = append(ids, id)
 		}

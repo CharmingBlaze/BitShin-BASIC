@@ -90,6 +90,11 @@ type shadowMap struct {
 	depthMomentG3N                                                            *gls.Program
 	depthAlphaG3N                                                             *gls.Program
 	primed                                                                    map[*geometry.Geometry]bool
+	primedAt                                                                  int
+	depthFull, depthFullMoment                                                *gls.Program
+	attribsBound                                                              map[*geometry.Geometry]bool
+	casters                                                                   []*Entity
+	castersAt                                                                 int
 	okLogged                                                                  bool
 	warm                                                                      int // consecutive good depth frames
 	lastCam                                                                   math32.Vector3
@@ -115,11 +120,13 @@ type shadowMap struct {
 
 type litMat struct {
 	*material.Standard
-	w          *World
-	recvShadow bool
-	specMap    *texture.Texture2D
-	emitMap    *texture.Texture2D
-	normMap    *texture.Texture2D
+	w           *World
+	recvShadow  bool
+	vertexColor bool // multiply by VertexColor (merged level cells)
+	wind        bool // sway by texcoord weight (3D tree batches)
+	specMap     *texture.Texture2D
+	emitMap     *texture.Texture2D
+	normMap     *texture.Texture2D
 }
 
 func (m *litMat) GetMaterial() *material.Material { return m.Standard.GetMaterial() }
@@ -139,6 +146,11 @@ func (m *litMat) RenderSetup(gs *gls.GLS) {
 			recv = 0
 		}
 		setUni1i(gs, "MeshReceiveShadow", recv)
+		setUni1i(gs, "MeshVertexColor", bool01(m.vertexColor))
+		setUni1i(gs, "MeshWind", bool01(m.wind))
+		if m.wind {
+			m.w.bindWindUniforms(gs)
+		}
 		m.bindPhongMaps(gs)
 		m.w.uploadPhongLightTerms(gs)
 	}
@@ -562,7 +574,20 @@ func (w *World) shadowDepthProgram() *gls.Program {
 }
 
 func (w *World) setDepthMomentUniforms(gs *gls.GLS) {
-	prog := w.shadowDepthProgram()
+	w.setDepthMomentUniformsFor(gs, w.shadowDepthProgram())
+}
+
+// shadowDepthFullProgram is the all-attribute twin of shadowDepthProgram.
+func (w *World) shadowDepthFullProgram() *gls.Program {
+	if w.shadow.filter == shadowFilterEVSM || w.shadow.filter == shadowFilterMSM {
+		if w.shadow.depthFullMoment != nil && w.shadow.depthFullMoment.Handle() != 0 {
+			return w.shadow.depthFullMoment
+		}
+	}
+	return w.shadow.depthFull
+}
+
+func (w *World) setDepthMomentUniformsFor(gs *gls.GLS, prog *gls.Program) {
 	if gs == nil || prog == nil {
 		return
 	}
@@ -709,9 +734,19 @@ func (w *World) ensureShadowGL() error {
 	if err != nil {
 		return err
 	}
+	fullEmpty, err := compileShadowProgram(gs, depthFullVertexSrc, depthEmptyFragmentSrc, "depth-full")
+	if err != nil {
+		return err
+	}
+	fullMoment, err := compileShadowProgram(gs, depthFullVertexSrc, depthFragmentSrc, "depth-full-moment")
+	if err != nil {
+		return err
+	}
 	w.shadow.depthG3N = empty
 	w.shadow.depthMomentG3N = moment
 	w.shadow.depthAlphaG3N = alpha
+	w.shadow.depthFull = fullEmpty
+	w.shadow.depthFullMoment = fullMoment
 	w.shadow.glOK = true
 	return nil
 }
@@ -720,6 +755,12 @@ func (w *World) markShadowPrimed() {
 	if w.shadow.primed == nil {
 		w.shadow.primed = map[*geometry.Geometry]bool{}
 	}
+	// Only when an entity was added: walking 10k each frame cost 2 ms.
+	// A count would miss a freed id reused by a new mesh.
+	if w.entsAdded == w.shadow.primedAt {
+		return
+	}
+	w.shadow.primedAt = w.entsAdded
 	for _, e := range w.ents {
 		if e != nil && e.mesh != nil && e.name != "water" && !e.sky {
 			w.shadow.primed[e.mesh.GetGeometry()] = true
@@ -1143,6 +1184,68 @@ func (s *shadowMap) perspCam(aspect, near, far, fov float32) *camera.Camera {
 	return s.tmpPersp
 }
 
+// casterInLightView is false when a mesh's bounding sphere is outside the
+// cascade's light box in X and Y. Depth is not tested: a caster behind the
+// box can still throw shadow into it.
+func casterInLightView(lightVP *math32.Matrix4, m *graphic.Mesh) bool {
+	g := m.GetGeometry()
+	if g == nil || lightVP == nil {
+		return true
+	}
+	sph := g.BoundingSphere()
+	mw := m.GetNode().MatrixWorld()
+	c := sph.Center
+	c.ApplyMatrix4(&mw)
+	sx := math32.Sqrt(mw[0]*mw[0] + mw[1]*mw[1] + mw[2]*mw[2])
+	sy := math32.Sqrt(mw[4]*mw[4] + mw[5]*mw[5] + mw[6]*mw[6])
+	sz := math32.Sqrt(mw[8]*mw[8] + mw[9]*mw[9] + mw[10]*mw[10])
+	r := sph.Radius * math32.Max(sx, math32.Max(sy, sz))
+	l := lightVP
+	px := l[0]*c.X + l[4]*c.Y + l[8]*c.Z + l[12]
+	py := l[1]*c.X + l[5]*c.Y + l[9]*c.Z + l[13]
+	rx := r * math32.Sqrt(l[0]*l[0]+l[4]*l[4]+l[8]*l[8])
+	ry := r * math32.Sqrt(l[1]*l[1]+l[5]*l[5]+l[9]*l[9])
+	return px+rx >= -1 && px-rx <= 1 && py+ry >= -1 && py-ry <= 1
+}
+
+// shadowCasterList is the entities that can cast, found once per frame
+// rather than once per cascade over every entity.
+func (w *World) shadowCasterList() []*Entity {
+	s := &w.shadow
+	if s.castersAt == w.renderSerial && w.renderSerial != 0 {
+		return s.casters
+	}
+	s.castersAt = w.renderSerial
+	s.casters = s.casters[:0]
+	for _, e := range w.ents {
+		if shadowSkipMesh(e) || e.mesh == nil || !e.mesh.Visible() {
+			continue
+		}
+		s.casters = append(s.casters, e)
+	}
+	return s.casters
+}
+
+// bindWindUniforms feeds tree sway from the weather wind. No wind set is
+// still a light breeze, so a forest is never frozen.
+func (w *World) bindWindUniforms(gs *gls.GLS) {
+	dx, dz := float32(w.wx.windX), float32(w.wx.windZ)
+	str := float32(w.wx.windStr)
+	if l := math32.Sqrt(dx*dx + dz*dz); l > 1e-4 {
+		if str <= 0 {
+			str = l
+		}
+		dx, dz = dx/l, dz/l
+	} else {
+		dx, dz = 0.92, 0.38
+	}
+	amp := 0.10 + 0.30*math32.Min(str, 2)
+	gx, _, gz := toG3N(dx, 0, dz)
+	setUni3f(gs, "WindDir", gx, 0, gz)
+	setUni1f(gs, "WindAmp", amp)
+	setUni1f(gs, "WindTime", float32(w.wx.time))
+}
+
 func shadowSkipMesh(e *Entity) bool {
 	if e == nil || e.sky || e.meshNoCast {
 		return true
@@ -1170,10 +1273,7 @@ func (w *World) drawShadowCasters(gs *gls.GLS, lightVP *math32.Matrix4, mvpLoc i
 		}
 	}()
 	s := &w.shadow
-	for _, e := range w.ents {
-		if shadowSkipMesh(e) {
-			continue
-		}
+	for _, e := range w.shadowCasterList() {
 		if layer == shadowLayerStatic && !shadowCasterStatic(e) {
 			continue
 		}
@@ -1185,6 +1285,9 @@ func (w *World) drawShadowCasters(gs *gls.GLS, lightVP *math32.Matrix4, mvpLoc i
 		}
 		geom := e.mesh.GetGeometry()
 		if geom == nil || s.primed == nil || !s.primed[geom] {
+			continue
+		}
+		if !casterInLightView(lightVP, e.mesh) {
 			continue
 		}
 		if e.mat != nil && e.mat.Side() == material.SideDouble {
@@ -1200,15 +1303,31 @@ func (w *World) drawShadowCasters(gs *gls.GLS, lightVP *math32.Matrix4, mvpLoc i
 		prog := base
 		cutout := e.albedoTex != nil && s.depthAlphaG3N != nil && s.depthAlphaG3N.Handle() != 0 &&
 			w.shadow.filter != shadowFilterEVSM && w.shadow.filter != shadowFilterMSM
+		wind := false
+		if lm, ok := e.mesh.Materials()[0].IMaterial().(*litMat); ok && lm.wind {
+			wind = true
+		}
 		if cutout {
 			prog = s.depthAlphaG3N
+		} else if fp := w.shadowDepthFullProgram(); fp != nil && fp.Handle() != 0 && (wind || !s.attribsBound[geom]) {
+			prog = fp
 		}
+		if s.attribsBound == nil {
+			s.attribsBound = map[*geometry.Geometry]bool{}
+		}
+		s.attribsBound[geom] = true
 		gs.UseProgram(prog)
 		loc := prog.GetUniformLocation("MVP")
 		if loc < 0 {
 			loc = mvpLoc
 		}
 		gs.UniformMatrix4fv(loc, 1, false, &s.tmpMVP[0])
+		if ul := prog.GetUniformLocation("MeshWind"); ul >= 0 {
+			gs.Uniform1i(ul, int32(bool01(wind)))
+			if wind {
+				w.bindWindUniforms(gs)
+			}
+		}
 		if cutout {
 			e.albedoTex.RenderSetup(gs, 0, 0)
 			if ul := prog.GetUniformLocation("Cutout"); ul >= 0 {
@@ -1218,7 +1337,7 @@ func (w *World) drawShadowCasters(gs *gls.GLS, lightVP *math32.Matrix4, mvpLoc i
 				gs.Uniform1f(ul, 0.5)
 			}
 		} else {
-			w.setDepthMomentUniforms(gs)
+			w.setDepthMomentUniformsFor(gs, prog)
 		}
 		geom.RenderSetup(gs)
 		idx := geom.Indices()

@@ -100,7 +100,8 @@ func (w *World) tickBubble() {
 func (w *World) shiftQuantum() float32 {
 	if t := w.terrains[w.curTerrain]; t != nil {
 		if cw := t.chunkWorld(); cw >= 4 {
-			return cw
+			// Whole 3D-tree blocks, so their keys shift exactly.
+			return cw * treeBlock
 		}
 	}
 	if w.stream != nil && w.stream.size >= 4 {
@@ -131,6 +132,27 @@ func (w *World) shiftScene(dx, dz float32) {
 	b.originX += qx
 	b.originZ += qz
 	seen := map[*core.Node]bool{}
+	// A terrain root stays put and its pieces move. New chunks and rings are
+	// built in the new frame under that root; a moved root would offset
+	// every one of them by the whole shift.
+	for _, t := range w.terrains {
+		if t == nil {
+			continue
+		}
+		re := w.ents[t.root]
+		if re == nil || re.node == nil {
+			continue
+		}
+		rn := re.node.GetNode()
+		seen[rn] = true
+		for _, ch := range rn.Children() {
+			cn := ch.GetNode()
+			p := cn.Position()
+			x, y, z := fromG3N(p.X, p.Y, p.Z)
+			gx, gy, gz := toG3N(x-qx, y, z-qz)
+			cn.SetPosition(gx, gy, gz)
+		}
+	}
 	shiftNode := func(n *core.Node) {
 		if n == nil || seen[n] || !sceneLevel(w, n) {
 			return
@@ -143,6 +165,11 @@ func (w *World) shiftScene(dx, dz float32) {
 	}
 	for id, e := range w.ents {
 		if e == nil || e.node == nil {
+			continue
+		}
+		// A directional light's position is its direction, not a place.
+		// Shifting it by kilometres turned the sun almost horizontal.
+		if e.lgtKind == 1 {
 			continue
 		}
 		n := e.node.GetNode()
@@ -192,7 +219,17 @@ func (w *World) rekeyTerrain(qx, qz float32) {
 		t.ents = rekey(t.ents, dkx, dkz)
 		t.built = rekey(t.built, dkx, dkz)
 		t.scatterIDs = rekey(t.scatterIDs, dkx, dkz)
-		t.pending = rekey(t.pending, dkx, dkz)
+		t.scatterAt = rekey(t.scatterAt, dkx, dkz)
+		// In-flight builds are in the old frame and are dropped on arrival.
+		t.pending = map[chunkKey]bool{}
+		t.shiftSerial++
+		t.horizonAt = chunkKey{t.horizonAt.X - dkx, t.horizonAt.Z - dkz}
+		t.vistaAt = chunkKey{t.vistaAt.X - dkx, t.vistaAt.Z - dkz}
+		if dkx%treeBlock == 0 && dkz%treeBlock == 0 {
+			t.treeMesh = rekey(t.treeMesh, dkx/treeBlock, dkz/treeBlock)
+		} else {
+			w.releaseMeshTrees(t)
+		}
 		if w.phys3 != nil {
 			for _, id := range t.ents {
 				w.phys3.Remove(id)

@@ -1,0 +1,129 @@
+; City — a 1.6 km grid of about 9000 buildings, merged into a few hundred draws.
+; WASD fly, mouse / arrows look, Shift fast, Esc quit.
+; MergeLevel bakes every static mesh under a root into one mesh per material
+; per 64 m cell. LoadLevel(path$) does the same to a glTF / OBJ / FBX file.
+
+Graphics3D(1280, 720)
+SetWindowTitle("moonBASIC — City")
+SetGraphicsQuality("auto")
+SetCameraClsColor(150, 176, 205)
+SetAmbientLight(90, 96, 108)
+EnableFog(True)
+SetFog(160, 180, 205, 300, 1400)
+HidePointer()
+SetMousePosition(640, 360)
+Color(255, 248, 230)
+
+cam = CreateCamera()
+SetCameraRange(cam, 0.3, 3000)
+CreateSkyBox("default")
+sun = CreateDirectionalLight()
+SetLightColor(sun, 255, 236, 210)
+SetLightShadow(sun, True)
+EnableShadows(True)
+SetTimeOfDay(15)
+
+; Asphalt everywhere; each block sits on a pale pavement slab
+ground = CreatePlane(1800, 1800).Color(52, 55, 60)
+
+; Buildings: every object is its own mesh until MergeLevel. Colors vary
+; freely; a merged cell keeps them per vertex.
+city = CreatePivot()
+SeedRnd(11)
+blocks = 0
+For bz = -24 To 24
+    For bx = -24 To 24
+        cx# = bx * 32
+        cz# = bz * 32
+        slab = CreateCube().Scale(12.5, 0.12, 12.5).Position(cx, 0.12, cz).Color(150, 148, 142)
+        EntityParent(slab, city)
+        downtown = 0
+        If Abs(bx) < 6 And Abs(bz) < 6 Then downtown = 1
+        ; A park now and then outside downtown
+        If downtown = 1 Or Rnd(0, 1) > 0.1 Then
+            ; Four 12 m lots per block
+            For lz = 0 To 1
+                For lx = 0 To 1
+                    w# = Rnd(9, 11.5)
+                    d# = Rnd(9, 11.5)
+                    h# = Rnd(7, 24)
+                    If downtown = 1 Then h = Rnd(24, 120) * (1.2 - (Abs(bx) + Abs(bz)) / 14)
+                    If h < 7 Then h = 7
+                    kind = Int(Rnd(0, 4))
+                    If kind = 0 Then
+                        r = Rnd(150, 175)
+                        g = Rnd(80, 95)
+                        b = Rnd(64, 78)
+                    ElseIf kind = 1 Then
+                        r = Rnd(176, 200)
+                        g = r - 4
+                        b = r - 10
+                    ElseIf kind = 2 Then
+                        r = Rnd(196, 222)
+                        g = r - 18
+                        b = r - 46
+                    Else
+                        r = Rnd(92, 116)
+                        g = r + 26
+                        b = r + 52
+                    EndIf
+                    x# = cx + lx * 13 - 6.5
+                    z# = cz + lz * 13 - 6.5
+                    bld = CreateCube().Scale(w / 2, h / 2, d / 2).Position(x, h / 2 + 0.24, z).Color(r, g, b)
+                    EntityParent(bld, city)
+                    roof = CreateCube().Scale(w / 2 - 0.5, 0.35, d / 2 - 0.5).Position(x, h + 0.55, z).Color(66, 68, 74)
+                    EntityParent(roof, city)
+                    blocks = blocks + 1
+                Next
+            Next
+        Else
+            park = CreateCube().Scale(12, 0.2, 12).Position(cx, 0.3, cz).Color(70, 120, 58)
+            EntityParent(park, city)
+        EndIf
+    Next
+Next
+
+; Merge: about 22000 meshes into a few hundred cell draws
+draws = MergeLevel(city, 64)
+
+yaw# = 30
+pitch# = 12
+cam.Position(-600, 90, -600)
+cam.Rotate(pitch, yaw, 0)
+frames = 0
+fpsAvg# = 60
+
+While 1
+    frames = frames + 1
+    dt# = Time.Delta()
+    yaw = yaw + MouseDeltaX() * 0.14
+    pitch = pitch + MouseDeltaY() * 0.14
+    If Input.KeyDown(KEY_LEFT) Then yaw = yaw - 80 * dt
+    If Input.KeyDown(KEY_RIGHT) Then yaw = yaw + 80 * dt
+    If Input.KeyDown(KEY_UP) Then pitch = pitch - 50 * dt
+    If Input.KeyDown(KEY_DOWN) Then pitch = pitch + 50 * dt
+    If pitch > 80 Then pitch = 80
+    If pitch < -80 Then pitch = -80
+    cam.Rotate(pitch, yaw, 0)
+    SetMousePosition(640, 360)
+
+    spd# = 40
+    If Input.KeyDown(KEY_LSHIFT) Then spd = 160
+    spd = spd * dt
+    If Input.KeyDown(KEY_W) Then cam.Move(0, 0, spd)
+    If Input.KeyDown(KEY_S) Then cam.Move(0, 0, -spd)
+    If Input.KeyDown(KEY_A) Then cam.Move(-spd, 0, 0)
+    If Input.KeyDown(KEY_D) Then cam.Move(spd, 0, 0)
+    If EntityY(cam) < 2 Then cam.Position(EntityX(cam), 2, EntityZ(cam))
+
+    fpsAvg = fpsAvg * 0.95 + StatsFPS() * 0.05
+    Cls
+    Text(12, 12, "WASD fly   Shift fast   Esc quit")
+    Text(12, 32, Str(blocks) + " buildings in " + Str(LevelCells(city)) + " merged draws   visible meshes " + Str(StatsDraws()) + "   fps " + Str(Int(fpsAvg)))
+    RenderWorld
+    Flip
+    If frames > 8
+        If Input.KeyHit(KEY_ESCAPE) Then End
+    EndIf
+Wend
+End

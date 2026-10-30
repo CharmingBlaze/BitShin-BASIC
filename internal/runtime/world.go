@@ -382,6 +382,11 @@ type World struct {
 	post                             postFX
 	quality                          qualityState
 	treeParts                        map[int]treePartCache
+	levels                           map[int]*level
+	renderSerial                     int // one per render(); per-frame caches key on it
+	entsAdded                        int // bumps on every addEntity
+	drawsAt, drawsN                  int // StatsDraws, once per frame
+	lights                           lightScan
 	ushaders                         map[int]*userShader
 	freeUSh                          []int
 	nextUSh                          int
@@ -892,6 +897,7 @@ func (w *World) keyHit(code int) bool {
 func (w *World) addEntity(e *Entity, parent int) int {
 	id := w.takeHandle(&w.freeIDs, &w.nextID)
 	w.ents[id] = e
+	w.entsAdded++
 	e.radius = 1
 	e.boxX, e.boxY, e.boxZ = 1, 1, 1
 	e.tint = math32.Color4{1, 1, 1, 1}
@@ -1135,6 +1141,7 @@ func (w *World) tickFX() {
 	w.tickBubble()
 	w.tickStream()
 	w.tickTerrain()
+	w.tickLevels()
 	w.tickPlay(dt)
 	w.tickWater()
 	w.tickClouds(dt)
@@ -1154,6 +1161,7 @@ func (w *World) tickFX() {
 }
 
 func (w *World) render(rend *renderer.Renderer) {
+	w.renderSerial++
 	w.syncSkyboxes()
 	cr, cg, cb := w.clear.R, w.clear.G, w.clear.B
 	if w.fogMode != 0 && !w.skyVisible() && !w.atmoVisible() {

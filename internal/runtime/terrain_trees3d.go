@@ -4,13 +4,19 @@ import (
 	"sort"
 
 	"github.com/g3n/engine/core"
+	"github.com/g3n/engine/geometry"
+	"github.com/g3n/engine/gls"
 	"github.com/g3n/engine/math32"
 )
 
 // meshPart is one colored piece of a 3D tree template (trunk, canopy).
 type meshPart struct {
 	tris  [][3]math32.Vector3
+	nors  [][3]math32.Vector3 // the template's own normals, per tri corner
 	color math32.Color
+	// Shared-vertex form, for batches with a third of the vertex work.
+	verts, vnors []math32.Vector3
+	idx          []uint32
 }
 
 // treeMeshParts reads a 3D tree template: its own mesh and its direct
@@ -55,7 +61,9 @@ func (w *World) readTreeParts(id int) (parts []meshPart, minY float32) {
 		if e.mat != nil {
 			col = e.mat.AmbientColor()
 		}
-		parts = append(parts, meshPart{tris: tris, color: col})
+		part := meshPart{tris: tris, nors: geomTriNormals(e.mesh.GetGeometry(), m), color: col}
+		part.verts, part.vnors, part.idx = geomIndexed(e.mesh.GetGeometry(), m)
+		parts = append(parts, part)
 	}
 	add(root, base)
 	var kids []int
@@ -78,6 +86,83 @@ func (w *World) readTreeParts(id int) (parts []meshPart, minY float32) {
 		}
 	}
 	return parts, minY
+}
+
+// geomTriNormals is each triangle corner's normal, in ReadFaces order, under
+// m. nil when the geometry has none (the batch then uses face normals).
+func geomTriNormals(g *geometry.Geometry, m math32.Matrix4) [][3]math32.Vector3 {
+	if g == nil || g.VBO(gls.VertexNormal) == nil {
+		return nil
+	}
+	nor := readAttrib(g, gls.VertexNormal, 3)
+	n := len(nor) / 3
+	var nm math32.Matrix3
+	nm.GetNormalMatrix(&m)
+	at := func(i uint32) math32.Vector3 {
+		if int(i) >= n {
+			return math32.Vector3{Y: 1}
+		}
+		v := math32.Vector3{X: nor[i*3], Y: nor[i*3+1], Z: nor[i*3+2]}
+		v.ApplyMatrix3(&nm)
+		v.Normalize()
+		return v
+	}
+	var out [][3]math32.Vector3
+	if idx := g.Indices(); len(idx) > 0 {
+		for i := 0; i+2 < len(idx); i += 3 {
+			out = append(out, [3]math32.Vector3{at(idx[i]), at(idx[i+1]), at(idx[i+2])})
+		}
+		return out
+	}
+	for i := uint32(0); int(i)+2 < n; i += 3 {
+		out = append(out, [3]math32.Vector3{at(i), at(i + 1), at(i + 2)})
+	}
+	return out
+}
+
+// geomIndexed is the geometry's own vertices, normals, and indices under m.
+func geomIndexed(g *geometry.Geometry, m math32.Matrix4) (verts, nors []math32.Vector3, idx []uint32) {
+	pos := readAttrib(g, gls.VertexPosition, 3)
+	nor := readAttrib(g, gls.VertexNormal, 3)
+	n := len(pos) / 3
+	if n == 0 {
+		return nil, nil, nil
+	}
+	var nm math32.Matrix3
+	nm.GetNormalMatrix(&m)
+	verts = make([]math32.Vector3, n)
+	nors = make([]math32.Vector3, n)
+	for i := 0; i < n; i++ {
+		v := math32.Vector3{X: pos[i*3], Y: pos[i*3+1], Z: pos[i*3+2]}
+		v.ApplyMatrix4(&m)
+		verts[i] = v
+		nv := math32.Vector3{Y: 1}
+		if len(nor) >= (i+1)*3 {
+			nv = math32.Vector3{X: nor[i*3], Y: nor[i*3+1], Z: nor[i*3+2]}
+			nv.ApplyMatrix3(&nm)
+			nv.Normalize()
+		}
+		nors[i] = nv
+	}
+	if gi := g.Indices(); len(gi) > 0 {
+		idx = append([]uint32(nil), gi...)
+	} else {
+		idx = make([]uint32, n)
+		for i := range idx {
+			idx[i] = uint32(i)
+		}
+	}
+	return verts, nors, idx
+}
+
+// treeTint is a stable per-copy shade: a little lighter or darker and a
+// touch warmer or cooler, so a stand is not one flat color.
+func treeTint(x, z float32) math32.Color {
+	h := chunkHash01(int(x*7.31), int(z*5.17), 41)
+	k := chunkHash01(int(x*3.11), int(z*9.43), 59)
+	b := 0.82 + 0.26*h
+	warm := (k - 0.5) * 0.14
+	return math32.Color{R: b * (1 + warm), G: b, B: b * (1 - warm)}
 }
 
 // localMatrix is built from the node's own position, turn, and scale.
@@ -113,16 +198,33 @@ func (w *World) isMeshTreeLayer(l scatterLayer) bool {
 }
 
 // plantMeshTrees puts one batch per template part on pts. The parts share
-// one ground offset so the trunk stays under the canopy.
-func (w *World) plantMeshTrees(mesh int, pts []scatterPt) []int {
+// one ground offset so the trunk stays under the canopy. sway is for trees.
+func (w *World) plantMeshTrees(mesh int, pts []scatterPt, sway bool) []int {
 	parts, minY := w.treeMeshParts(mesh)
 	if len(parts) == 0 || len(pts) == 0 {
 		return nil
+	}
+	maxY := minY
+	for _, p := range parts {
+		for _, t := range p.tris {
+			for _, v := range t {
+				maxY = math32.Max(maxY, v.Y)
+			}
+		}
+	}
+	tint := make([]math32.Color, len(pts))
+	for i, p := range pts {
+		tint[i] = treeTint(p.x, p.z)
 	}
 	var ids []int
 	for _, part := range parts {
 		id := w.newInstanced(nil, part.tris, part.color, len(pts), true)
 		im := w.instances[id]
+		im.triNor = part.nors
+		im.verts, im.vnors, im.vidx = part.verts, part.vnors, part.idx
+		im.tint = tint
+		im.sway = sway
+		im.swayLo, im.swayH = minY, maxY-minY
 		for i, p := range pts {
 			im.xforms[i] = instXform{
 				x: p.x, y: scatterPlantY(p.y, minY, p.scale), z: p.z,
@@ -238,7 +340,7 @@ func (w *World) syncMeshTrees(t *terrain, cw float32, cam chunkKey) {
 					pts = append(pts, w.scatterPoints(t, t.scatters[li], k, li, x0, z0, cw, 1)...)
 				}
 			}
-			ids = append(ids, w.plantMeshTrees(t.scatters[li].mesh, pts)...)
+			ids = append(ids, w.plantMeshTrees(t.scatters[li].mesh, pts, true)...)
 		}
 		t.treeMesh[b] = ids
 	}

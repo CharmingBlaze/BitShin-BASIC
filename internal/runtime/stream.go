@@ -290,6 +290,11 @@ func (w *World) streamCommands(n func(func([]value.Value) (value.Value, error)) 
 }
 
 func (w *World) visibleMeshCount() int {
+	// Once per frame: a HUD that prints it walked 20k entities every frame.
+	if w.drawsAt == w.renderSerial && w.renderSerial != 0 {
+		return w.drawsN
+	}
+	defer func() { w.drawsAt = w.renderSerial }()
 	n := 0
 	for _, e := range w.ents {
 		if e == nil || e.mesh == nil || e.node == nil {
@@ -299,5 +304,6 @@ func (w *World) visibleMeshCount() int {
 			n++
 		}
 	}
+	w.drawsN = n
 	return n
 }

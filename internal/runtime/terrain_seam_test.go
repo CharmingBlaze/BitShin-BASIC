@@ -3,6 +3,7 @@ package runtime
 import (
 	"testing"
 
+	"github.com/g3n/engine/core"
 	"github.com/g3n/engine/geometry"
 	"github.com/g3n/engine/gls"
 	"github.com/g3n/engine/math32"
@@ -229,7 +230,7 @@ func TestPlantedCopiesKeepTheirSize(t *testing.T) {
 	w.ents[trunk].node.GetNode().SetScale(1, 2, 1)
 	w.ents[trunk].node.GetNode().SetVisible(false)
 	ground := tr.hf.atWorld(10, 12)
-	ids := w.plantMeshTrees(trunk, []scatterPt{{x: 10, y: ground, z: 12, scale: 1}})
+	ids := w.plantMeshTrees(trunk, []scatterPt{{x: 10, y: ground, z: 12, scale: 1}}, false)
 	if len(ids) != 1 {
 		t.Fatalf("%d batches", len(ids))
 	}
@@ -241,5 +242,45 @@ func TestPlantedCopiesKeepTheirSize(t *testing.T) {
 	}
 	if math32.Abs(lo-ground) > 1e-3 || math32.Abs(hi-ground-6) > 1e-3 {
 		t.Fatalf("trunk spans %v..%v, want %v..%v (3 m scaled x2, base on the ground)", lo, hi, ground, ground+6)
+	}
+}
+
+func TestWorldShiftKeepsOldAndNewTerrainInPlace(t *testing.T) {
+	w, tr := outdoorTerrain(t)
+	cw := tr.chunkWorld()
+	segs := tr.chunkSegs(cw)
+	old := chunkKey{X: 0, Z: 0}
+	w.attachTerrainChunk(tr, old, 0, 0, cw, segs, 1, 0, lodCode(1, 0))
+	worldX := func(id int) float32 {
+		n := w.ents[id].node.GetNode()
+		n.UpdateMatrixWorld()
+		return worldPos(n).X + (*w.ents[id].mesh.GetGeometry().VBO(gls.VertexPosition).Buffer())[0]
+	}
+	before := worldX(tr.ents[old])
+	w.shiftScene(cw*treeBlock, 0) // one shift step; the origin moves +X
+	q := cw * treeBlock
+	// The old chunk is the same ground, now q to the left in the new frame.
+	moved := tr.ents[chunkKey{X: -treeBlock, Z: 0}]
+	if moved == 0 {
+		t.Fatal("old chunk was not re-keyed")
+	}
+	if got := worldX(moved); math32.Abs(got-(before-q)) > 1e-3 {
+		t.Fatalf("old chunk at %v, want %v", got, before-q)
+	}
+	// A chunk built after the shift lands at its own key in the new frame.
+	k := chunkKey{X: 1, Z: 0}
+	w.attachTerrainChunk(tr, k, cw, 0, cw, segs, 1, 0, lodCode(1, 0))
+	if got := worldX(tr.ents[k]); math32.Abs(got-cw) > 1e-3 {
+		t.Fatalf("new chunk at %v, want %v (offset by the shift)", got, cw)
+	}
+}
+
+func TestWorldShiftLeavesTheSunsDirection(t *testing.T) {
+	w, tr := outdoorTerrain(t)
+	sun := w.addEntity(&Entity{node: core.NewNode(), lgtKind: 1}, 0)
+	w.ents[sun].node.GetNode().SetPosition(40, 80, 30)
+	w.shiftScene(tr.chunkWorld()*treeBlock*20, 0)
+	if p := w.ents[sun].node.GetNode().Position(); p.X != 40 || p.Y != 80 || p.Z != 30 {
+		t.Fatalf("sun moved to %v; its position is its direction", p)
 	}
 }

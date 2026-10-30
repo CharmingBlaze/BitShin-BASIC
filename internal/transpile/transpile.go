@@ -749,6 +749,9 @@ func emitHelpers(w *writer) {
 	w.line("\tif x == 0 { return value.Num(_bb_rng.Float64()) }")
 	w.line("\treturn value.Num(_bb_rng.Float64() * x)")
 	w.line("}")
+	w.line("func _bb_rnd2(lo, hi float64) value.Value {")
+	w.line("	return value.Num(lo + _bb_rng.Float64()*(hi-lo))")
+	w.line("}")
 	w.line("func _bb_rand(lo, hi int, two bool) value.Value {")
 	w.line("\tif !two { hi = lo; lo = 1 }")
 	w.line("\tif hi < lo { lo, hi = hi, lo }")
@@ -2362,6 +2365,9 @@ func (w *writer) emitCall(name string, args []ast.Expr, worldVar string) string 
 		return fmt.Sprintf("value.Num(math.Max((%s).Number(), (%s).Number()))",
 			w.emitExprArg(args, 0, worldVar), w.emitExprArg(args, 1, worldVar))
 	case "rnd":
+		if len(args) >= 2 {
+			return fmt.Sprintf("_bb_rnd2((%s).Number(), (%s).Number())", w.emitExprArg(args, 0, worldVar), w.emitExprArg(args, 1, worldVar))
+		}
 		return fmt.Sprintf("_bb_rnd((%s).Number())", w.emitExprArg(args, 0, worldVar))
 	case "rand":
 		two := "false"

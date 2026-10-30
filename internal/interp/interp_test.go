@@ -1019,3 +1019,21 @@ Print plat
 		}
 	}
 }
+
+func TestRndLowHighStaysInRange(t *testing.T) {
+	// Rnd(low, high) used to ignore high and return 0..low.
+	out := run(t, `
+SeedRnd(3)
+bad = 0
+For i = 1 To 500
+    v# = Rnd(150, 175)
+    If v < 150 Or v >= 175 Then bad = bad + 1
+    k = Int(Rnd(0, 4))
+    If k < 0 Or k > 3 Then bad = bad + 1
+Next
+Print(bad)
+`)
+	if strings.TrimSpace(out) != "0" {
+		t.Fatalf("%s values out of range", strings.TrimSpace(out))
+	}
+}

@@ -30,13 +30,15 @@ type tierSettings struct {
 	detailPx   float32 // SetTerrainDetail
 	scatter    float32 // tree / prop / grass count scale
 	treeReachM float32 // horizon trees stop here (still inside the fog)
+	ao         bool    // screen-space ambient occlusion
+	softShadow bool    // PCSS: shadow edges soften with distance from the caster
 }
 
 var tiers = [...]tierSettings{
 	qualityLow:    {shadow: 1024, reflect: 0, refract: 0, post: false, radius: 1, detailPx: 14, scatter: 0.45, treeReachM: 220},
 	qualityMedium: {shadow: 1024, reflect: 512, refract: 512, post: true, radius: 2, detailPx: 10, scatter: 0.7, treeReachM: 320},
-	qualityHigh:   {shadow: 2048, reflect: 1024, refract: 1024, post: true, radius: 2, detailPx: 8, scatter: 1, treeReachM: 420},
-	qualityUltra:  {shadow: 2048, reflect: 2048, refract: 1024, post: true, radius: 3, detailPx: 6, scatter: 1, treeReachM: 480},
+	qualityHigh:   {shadow: 2048, reflect: 1024, refract: 1024, post: true, radius: 2, detailPx: 8, scatter: 1, treeReachM: 420, ao: true},
+	qualityUltra:  {shadow: 2048, reflect: 2048, refract: 1024, post: true, radius: 3, detailPx: 6, scatter: 1, treeReachM: 480, ao: true, softShadow: true},
 }
 
 type qualityState struct {
@@ -101,8 +103,16 @@ func (w *World) setQuality(tier int) {
 	if w.post.on != s.post {
 		w.post.on = s.post
 		if s.post {
+			// The neutral curve, as EnablePostFX gives. The still-default
+			// Reinhard turned a tier change into a grey, darker picture.
+			if w.post.tonemap == 0 {
+				w.post.tonemap = 1
+			}
 			if w.post.exposure <= 0 {
-				w.post.exposure = 1
+				w.post.exposure = 1.05
+			}
+			if w.post.bloom == 0 {
+				w.post.bloom = 0.22
 			}
 			if w.post.contrast <= 0 {
 				w.post.contrast = 1
@@ -114,6 +124,25 @@ func (w *World) setQuality(tier int) {
 				w.post.tint.R, w.post.tint.G, w.post.tint.B = 1, 1, 1
 			}
 			w.post.fxaa = true
+		}
+	}
+	w.post.ssao = s.ao && s.post
+	if w.post.ssao {
+		if w.post.ssaoRadius <= 0 {
+			w.post.ssaoRadius = 0.8
+		}
+		if w.post.ssaoIntensity <= 0 {
+			w.post.ssaoIntensity = 1.8
+		}
+		if w.post.ssaoBias <= 0 {
+			w.post.ssaoBias = 0.02
+		}
+	}
+	// PCF <-> PCSS only; a moment filter the script chose stays.
+	if w.shadow.filter <= 1 {
+		w.shadow.filter = 0
+		if s.softShadow {
+			w.shadow.filter = 1
 		}
 	}
 	for _, t := range w.terrains {

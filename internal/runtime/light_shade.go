@@ -331,23 +331,54 @@ func lightRadiance(n core.INode) (math32.Color, float32) {
 	return math32.Color{1, 1, 1}, 1
 }
 
-func (w *World) uploadPhongLightTerms(gs *gls.GLS) {
-	if gs == nil {
-		return
+// lightScan is what every lit draw needs from the scene's lights. It is
+// found once per rendered frame; walking the scene (and every entity per
+// light) on each draw cost 35 ms a frame in a 10k-object city.
+type lightScan struct {
+	serial                         int
+	dirS, dirA, ptS, ptA, spS, spA [8]math32.Color
+	cookies                        [2]*texture.Texture2D
+	sun                            math32.Color // first directional light's color
+	sunSet                         bool
+	sunNode                        core.INode
+}
+
+func (w *World) scanLights() *lightScan {
+	ls := &w.lights
+	if ls.serial == w.renderSerial && ls.serial != 0 {
+		return ls
 	}
-	var dirS, dirA, ptS, ptA, spS, spA [8]math32.Color
-	di, pi, si := 0, 0, 0
+	*ls = lightScan{serial: w.renderSerial}
+	// Entity per light node, built once instead of per light.
+	byNode := map[core.INode]*Entity{}
+	for _, e := range w.ents {
+		if e != nil && e.node != nil && e.lgtKind != 0 {
+			byNode[e.node] = e
+		}
+	}
+	di, pi, si, ci := 0, 0, 0, 0
 	w.eachSceneNode(func(n core.INode) {
-		var slot *[8]math32.Color
-		var amb *[8]math32.Color
+		var slot, amb *[8]math32.Color
 		var idx *int
 		switch n.(type) {
 		case *light.Directional:
-			slot, amb, idx = &dirS, &dirA, &di
+			slot, amb, idx = &ls.dirS, &ls.dirA, &di
+			if ls.sunNode == nil {
+				ls.sunNode = n
+				if c, ok := n.(interface{ Color() math32.Color }); ok {
+					ls.sun, ls.sunSet = c.Color(), true
+				}
+			}
 		case *light.Point:
-			slot, amb, idx = &ptS, &ptA, &pi
+			slot, amb, idx = &ls.ptS, &ls.ptA, &pi
 		case *light.Spot:
-			slot, amb, idx = &spS, &spA, &si
+			slot, amb, idx = &ls.spS, &ls.spA, &si
+			if ci < 2 {
+				if e := byNode[n]; e != nil {
+					ls.cookies[ci] = e.lgtCookie
+				}
+				ci++
+			}
 		default:
 			return
 		}
@@ -358,10 +389,7 @@ func (w *World) uploadPhongLightTerms(gs *gls.GLS) {
 		spec := col
 		spec.MultiplyScalar(inten)
 		var extra math32.Color
-		for _, e := range w.ents {
-			if e == nil || e.node != n {
-				continue
-			}
+		if e := byNode[n]; e != nil {
 			if e.lgtSpecOn {
 				spec = e.lgtSpec
 				spec.MultiplyScalar(inten)
@@ -370,18 +398,25 @@ func (w *World) uploadPhongLightTerms(gs *gls.GLS) {
 				extra = e.lgtAmb
 				extra.MultiplyScalar(inten)
 			}
-			break
 		}
 		slot[*idx] = spec
 		amb[*idx] = extra
 		*idx++
 	})
-	setUni3Array(gs, "DirSpec", &dirS)
-	setUni3Array(gs, "DirAmb", &dirA)
-	setUni3Array(gs, "PointSpec", &ptS)
-	setUni3Array(gs, "PointAmb", &ptA)
-	setUni3Array(gs, "SpotSpec", &spS)
-	setUni3Array(gs, "SpotAmb", &spA)
+	return ls
+}
+
+func (w *World) uploadPhongLightTerms(gs *gls.GLS) {
+	if gs == nil {
+		return
+	}
+	ls := w.scanLights()
+	setUni3Array(gs, "DirSpec", &ls.dirS)
+	setUni3Array(gs, "DirAmb", &ls.dirA)
+	setUni3Array(gs, "PointSpec", &ls.ptS)
+	setUni3Array(gs, "PointAmb", &ls.ptA)
+	setUni3Array(gs, "SpotSpec", &ls.spS)
+	setUni3Array(gs, "SpotAmb", &ls.spA)
 }
 
 func setUni3Array(gs *gls.GLS, name string, cols *[8]math32.Color) {
@@ -549,23 +584,7 @@ func (w *World) bindSpotCookies(gs *gls.GLS) {
 	if gs == nil {
 		return
 	}
-	var cookies [2]*texture.Texture2D
-	n := 0
-	w.eachSceneNode(func(node core.INode) {
-		if n >= 2 {
-			return
-		}
-		if _, ok := node.(*light.Spot); !ok {
-			return
-		}
-		for _, e := range w.ents {
-			if e != nil && e.node == node && e.lgtCookie != nil {
-				cookies[n] = e.lgtCookie
-				break
-			}
-		}
-		n++
-	})
+	cookies := w.scanLights().cookies
 	setUni1i(gs, "SpotCookie0On", bool01(cookies[0] != nil))
 	setUni1i(gs, "SpotCookie1On", bool01(cookies[1] != nil))
 	if cookies[0] != nil {

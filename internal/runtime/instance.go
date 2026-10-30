@@ -18,8 +18,15 @@ type instXform struct {
 }
 
 type instancedMesh struct {
-	src           *geometry.Geometry
-	tris          [][3]math32.Vector3
+	src    *geometry.Geometry
+	tris   [][3]math32.Vector3
+	triNor [][3]math32.Vector3 // smooth normals per tri corner; nil = flat faces
+	// Indexed source: shared corners, a third of the vertices of tris.
+	verts, vnors  []math32.Vector3
+	vidx          []uint32
+	tint          []math32.Color // per copy, multiplied into the color
+	sway          bool           // trees: weight and phase ride in the texcoords
+	swayLo, swayH float32        // template base and height for the weight
 	count         int
 	xforms        []instXform
 	batch         int // entity id of merged mesh (CPU fallback / shadows)
@@ -140,25 +147,59 @@ func (w *World) rebuildInstanceBatch(id int) {
 	nor := math32.NewArrayF32(0, len(im.tris)*9*im.count)
 	uvs := math32.NewArrayF32(0, len(im.tris)*6*im.count)
 	idx := math32.NewArrayU32(0, len(im.tris)*3*im.count)
+	var col *math32.ArrayF32
+	if len(im.tint) > 0 {
+		c := math32.NewArrayF32(0, len(im.tris)*9*im.count)
+		col = &c
+	}
+	if len(im.verts) > 0 && len(im.vidx) > 0 {
+		w.buildIndexedBatch(im, &pos, &nor, &uvs, &idx, col)
+	}
 	vi := uint32(0)
-	for i := 0; i < im.count && i < len(im.xforms); i++ {
+	for i := 0; i < im.count && i < len(im.xforms) && len(im.verts) == 0; i++ {
 		m := instanceMatrix(im.xforms[i])
-		for _, t := range im.tris {
+		var rot math32.Matrix3
+		rot.GetNormalMatrix(&m)
+		phase := float32(i%97) / 97
+		for ti, t := range im.tris {
 			a, b, c := t[0], t[1], t[2]
+			sw := [3]float32{}
+			if im.sway && im.swayH > 0 {
+				for k, v := range t {
+					f := (v.Y - im.swayLo) / im.swayH
+					sw[k] = f * f // trunks stay put, crowns move
+				}
+			}
 			a.ApplyMatrix4(&m)
 			b.ApplyMatrix4(&m)
 			c.ApplyMatrix4(&m)
-			e1 := b.Clone().Sub(&a)
-			e2 := c.Clone().Sub(&a)
-			n := e1.Cross(e2)
-			if n.LengthSq() > 1e-10 {
-				n.Normalize()
-			} else {
-				n = &math32.Vector3{0, 1, 0}
-			}
 			pos.Append(a.X, a.Y, a.Z, b.X, b.Y, b.Z, c.X, c.Y, c.Z)
-			nor.Append(n.X, n.Y, n.Z, n.X, n.Y, n.Z, n.X, n.Y, n.Z)
-			uvs.Append(0, 0, 1, 0, 0, 1)
+			if im.triNor != nil && ti < len(im.triNor) {
+				for _, n := range im.triNor[ti] {
+					n.ApplyMatrix3(&rot)
+					n.Normalize()
+					nor.Append(n.X, n.Y, n.Z)
+				}
+			} else {
+				e1 := b.Clone().Sub(&a)
+				e2 := c.Clone().Sub(&a)
+				n := e1.Cross(e2)
+				if n.LengthSq() > 1e-10 {
+					n.Normalize()
+				} else {
+					n = &math32.Vector3{0, 1, 0}
+				}
+				nor.Append(n.X, n.Y, n.Z, n.X, n.Y, n.Z, n.X, n.Y, n.Z)
+			}
+			if im.sway {
+				uvs.Append(sw[0], phase, sw[1], phase, sw[2], phase)
+			} else {
+				uvs.Append(0, 0, 1, 0, 0, 1)
+			}
+			if col != nil {
+				tc := im.tint[i%len(im.tint)]
+				col.Append(tc.R, tc.G, tc.B, tc.R, tc.G, tc.B, tc.R, tc.G, tc.B)
+			}
 			idx.Append(vi, vi+1, vi+2)
 			vi += 3
 		}
@@ -168,6 +209,9 @@ func (w *World) rebuildInstanceBatch(id int) {
 	g.AddVBO(gls.NewVBO(pos).AddAttrib(gls.VertexPosition))
 	g.AddVBO(gls.NewVBO(nor).AddAttrib(gls.VertexNormal))
 	g.AddVBO(gls.NewVBO(uvs).AddAttrib(gls.VertexTexcoord))
+	if col != nil {
+		g.AddVBO(gls.NewVBO(*col).AddAttrib(gls.VertexColor))
+	}
 	if im.batch != 0 {
 		w.freeEntityID(im.batch)
 		im.batch = 0
@@ -179,9 +223,57 @@ func (w *World) rebuildInstanceBatch(id int) {
 			c := im.color
 			e.mat.SetColor(&c)
 		}
+		// Tint and sway need the lit shader; under G3N's own they are skipped.
+		if lm, ok := e.mesh.Materials()[0].IMaterial().(*litMat); ok && e.mat != nil && e.mat.Shader() == "bsshadow" {
+			lm.vertexColor = col != nil
+			lm.wind = im.sway
+		}
 	}
 	im.batch = bid
 	im.dirty = false
+}
+
+// buildIndexedBatch writes every copy from the shared-vertex source.
+func (w *World) buildIndexedBatch(im *instancedMesh, pos, nor, uvs *math32.ArrayF32, idx *math32.ArrayU32, col *math32.ArrayF32) {
+	nv := uint32(len(im.verts))
+	for i := 0; i < im.count && i < len(im.xforms); i++ {
+		m := instanceMatrix(im.xforms[i])
+		var rot math32.Matrix3
+		rot.GetNormalMatrix(&m)
+		base := uint32(i) * nv
+		phase := float32(i%97) / 97
+		var tc math32.Color
+		if col != nil {
+			tc = im.tint[i%len(im.tint)]
+		}
+		for k, v := range im.verts {
+			sw := float32(0)
+			if im.sway && im.swayH > 0 {
+				f := (v.Y - im.swayLo) / im.swayH
+				sw = f * f
+			}
+			v.ApplyMatrix4(&m)
+			pos.Append(v.X, v.Y, v.Z)
+			n := math32.Vector3{Y: 1}
+			if k < len(im.vnors) {
+				n = im.vnors[k]
+			}
+			n.ApplyMatrix3(&rot)
+			n.Normalize()
+			nor.Append(n.X, n.Y, n.Z)
+			if im.sway {
+				uvs.Append(sw, phase)
+			} else {
+				uvs.Append(0, 0)
+			}
+			if col != nil {
+				col.Append(tc.R, tc.G, tc.B)
+			}
+		}
+		for _, ix := range im.vidx {
+			idx.Append(base + ix)
+		}
+	}
 }
 
 func (w *World) tickInstances() {

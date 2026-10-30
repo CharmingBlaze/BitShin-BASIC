@@ -1,0 +1,150 @@
+; Big World — a 16 km island with 600 m mountains, forests, and a far vista.
+; The map is 4096² heights (16-bit in memory), generated on every core.
+; WASD walk, mouse / arrows look, Shift run, F fly, 1-4 quality, Esc quit.
+; Quality starts on "auto": it reads the GPU, then steps down if frames run slow.
+
+Graphics3D(1280, 720)
+SetWindowTitle("moonBASIC — Big World")
+SetGraphicsQuality("auto")
+SetCameraClsColor(132, 172, 205)
+SetAmbientLight(84, 92, 104)
+EnableFog(True)
+
+; Fog sets how far you see. High and ultra draw a coarse vista out to it.
+Function ViewFog()
+    far# = 3500
+    If GraphicsQuality() = 1 Then far = 1400
+    If GraphicsQuality() = 0 Then far = 470
+    SetFog(150, 178, 200, far * 0.25, far)
+    Return GraphicsQuality()
+End Function
+lastQ = ViewFog()
+HidePointer()
+SetMousePosition(640, 360)
+Color(255, 248, 230)
+
+; Camera / sky / light
+cam = CreateCamera()
+SetCameraRange(cam, 0.3, 6000)
+CreateSkyBox("default")
+sun = CreateDirectionalLight()
+SetLightColor(sun, 255, 226, 186)
+SetLightShadow(sun, True)
+EnableShadows(True)
+SetTonemap "neutral"
+SetExposure 1.05
+SetTimeOfDay(10)
+SetPlayer(cam)
+
+; 4096 samples over 16384 m, 600 m tall. The rim sinks below the sea.
+sea# = 40
+hm = GenerateHeightmapPreset("island", 4096, 4096, 7)
+FilterHeightmap(hm, "erode", 0.4)
+ground = CreateTerrainFromHeightmap(hm, 16384, 16384, 600)
+FreeHeightmap(hm)
+ApplyTerrainSplat(ground)
+SetTerrainGrassCoverage(ground, 0.74)
+SetTerrainWaterHeight(ground, sea + 0.7)
+SetTerrainSnow(True, 520)
+
+; Sea — follows the camera out to the horizon
+water = CreateWater(16384, 16384, 64)
+SetWaterLevel(sea)
+SetWaterStyle("ocean")
+SetWaterColor(10, 66, 92)
+SetWaterWaves(4, 0.35)
+SetWaterWind(0.8, 0.3, 0.5)
+EnableWaterReflection(True)
+EnableWaterRefraction(True)
+
+; 3D trees. An untextured template is planted as real meshes; its child
+; meshes come along with their own colors. Hide() keeps the template itself
+; out of the scene.
+pine = CreateCylinder(0.2, 3, 5, 0).Color(92, 64, 42).Hide()
+pineLow = CreateCone(1.9, 4.2, 6, 1, pine).Position(0, 3, 0).Color(34, 92, 46)
+pineTop = CreateCone(1.35, 3.2, 6, 1, pine).Position(0, 5.2, 0).Color(40, 104, 52)
+
+oak = CreateCylinder(0.28, 3.4, 5, 0).Color(104, 76, 52).Hide()
+oakCrown = CreateSphere(4, oak).Scale(2.5, 2.1, 2.5).Position(0, 3.6, 0).Color(64, 118, 46)
+
+TerrainTrees(ground, pine, 0.3)
+TerrainTrees(ground, oak, 0.14)
+
+rock = CreateSphere(4).Scale(1.1, 0.6, 0.9).Color(122, 116, 108).Hide()
+TerrainProps(ground, rock, 0.3)
+
+; Spawn on the south beach: walk in from the sea until the sand.
+sx# = 0
+sz# = 7900
+While sz > -7900 And TerrainHeight(sx, sz) < sea + 0.8
+    sz = sz - 4
+Wend
+sz = sz - 6
+
+yaw# = 180
+pitch# = 2
+fly = 0
+frames = 0
+fpsAvg# = 60
+cam.Position(sx, TerrainHeight(sx, sz) + 1.75, sz)
+cam.Rotate(pitch, yaw, 0)
+
+; Loop
+While 1
+    frames = frames + 1
+    dt# = Time.Delta()
+    yaw = yaw + MouseDeltaX() * 0.14
+    pitch = pitch - MouseDeltaY() * 0.14
+    If Input.KeyDown(KEY_LEFT) Then yaw = yaw - 80 * dt
+    If Input.KeyDown(KEY_RIGHT) Then yaw = yaw + 80 * dt
+    If Input.KeyDown(KEY_UP) Then pitch = pitch + 50 * dt
+    If Input.KeyDown(KEY_DOWN) Then pitch = pitch - 50 * dt
+    If pitch > 80 Then pitch = 80
+    If pitch < -80 Then pitch = -80
+    cam.Rotate(pitch, yaw, 0)
+    SetMousePosition(640, 360)
+
+    If Input.KeyHit(KEY_F) Then fly = 1 - fly
+    If Input.KeyHit(KEY_1) Then SetGraphicsQuality("low")
+    If Input.KeyHit(KEY_2) Then SetGraphicsQuality("medium")
+    If Input.KeyHit(KEY_3) Then SetGraphicsQuality("high")
+    If Input.KeyHit(KEY_4) Then SetGraphicsQuality("ultra")
+
+    spd# = 6
+    If Input.KeyDown(KEY_LSHIFT) Then spd = 18
+    If fly = 1 Then spd = spd * 12
+    spd = spd * dt
+    If Input.KeyDown(KEY_W) Then cam.Move(0, 0, spd)
+    If Input.KeyDown(KEY_S) Then cam.Move(0, 0, -spd)
+    If Input.KeyDown(KEY_A) Then cam.Move(-spd, 0, 0)
+    If Input.KeyDown(KEY_D) Then cam.Move(spd, 0, 0)
+
+    ; Stay on the land or the water, whichever is higher
+    h# = TerrainHeight(EntityX(cam), EntityZ(cam))
+    If h < sea Then h = sea
+    If fly = 0 Then
+        cam.Position(EntityX(cam), h + 1.75, EntityZ(cam))
+    ElseIf EntityY(cam) < h + 2 Then
+        cam.Position(EntityX(cam), h + 2, EntityZ(cam))
+    EndIf
+    SetStreamOrigin(EntityX(cam), 0, EntityZ(cam))
+
+    If GraphicsQuality() <> lastQ Then lastQ = ViewFog()
+    fpsAvg = fpsAvg * 0.95 + StatsFPS() * 0.05
+    q$ = "high"
+    If GraphicsQuality() = 0 Then q$ = "low"
+    If GraphicsQuality() = 1 Then q$ = "medium"
+    If GraphicsQuality() = 3 Then q$ = "ultra"
+    mode$ = "walk"
+    If fly = 1 Then mode$ = "fly"
+
+    Cls
+    Text(12, 12, "WASD move   Shift run   F fly / walk   1-4 quality   Esc quit")
+    Text(12, 32, "quality " + q$ + "   fps " + Str(Int(fpsAvg)) + "   " + mode$ + "   height " + Str(Int(h - sea)) + " m")
+    RenderWorld
+    Flip
+    If frames > 8
+        If Input.KeyHit(KEY_ESCAPE) Then End
+    EndIf
+Wend
+End

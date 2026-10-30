@@ -19,7 +19,13 @@ out vec2 FragTexcoord;
 out vec3 WorldPos;
 out vec3 WorldNormal;
 out vec4 LightSpacePos[4];
+out vec3 VColor;
+uniform int MeshWind;
+uniform vec3 WindDir;
+uniform float WindAmp;
+uniform float WindTime;
 void main() {
+    VColor = VertexColor;
     Position = ModelViewMatrix * vec4(VertexPosition, 1.0);
     Normal = normalize(NormalMatrix * VertexNormal);
     vec2 texcoord = VertexTexcoord;
@@ -28,6 +34,15 @@ void main() {
 #endif
     FragTexcoord = texcoord;
     vec3 vPosition = VertexPosition;
+    // Tree batches: texcoord x is how far up the tree (squared), y a phase
+    // per tree. A slow lean plus a quicker flutter, so stands do not move as one.
+    if (MeshWind != 0) {
+        float wgt = VertexTexcoord.x;
+        float ph = VertexTexcoord.y * 6.2832 + VertexPosition.x * 0.07 + VertexPosition.z * 0.05;
+        float lean = sin(WindTime * 0.9 + ph) * 0.6 + 0.4;
+        float flutter = sin(WindTime * 3.1 + ph * 2.3) * 0.18;
+        vPosition += WindDir * (lean + flutter) * WindAmp * wgt;
+    }
     mat4 finalWorld = mat4(1.0);
     #include <morphtarget_vertex>
     #include <bones_vertex>
@@ -52,6 +67,8 @@ in vec2 FragTexcoord;
 in vec3 WorldPos;
 in vec3 WorldNormal;
 in vec4 LightSpacePos[4];
+in vec3 VColor;
+uniform int MeshVertexColor;
 #include <lights>
 #include <material>
 #include <phong_model>
@@ -183,6 +200,11 @@ void main() {
     #endif
     vec4 matDiffuse = vec4(MatDiffuseColor, MatOpacity) * texMixed;
     vec4 matAmbient = vec4(MatAmbientColor, MatOpacity) * texMixed;
+    // A merged level cell carries each object's color in its vertices.
+    if (MeshVertexColor != 0) {
+        matDiffuse.rgb *= VColor;
+        matAmbient.rgb *= VColor;
+    }
     vec3 fragNormal = normalize(Normal);
     if (!gl_FrontFacing) { fragNormal = -fragNormal; }
     fragNormal = shadeMappedNormal(fragNormal);
@@ -398,6 +420,35 @@ void main() {
 
 var mbshadowFragment = mbshadowFragmentHead + mbshadowSampleGLSL + mbshadowFragmentTail
 
+// G3N enables a geometry's attributes once, on its first draw, by asking the
+// program then in use. A mesh first drawn here would lose its normals,
+// colors, and texcoords for good, so the depth pass reads all four. Keep is
+// always 0; as a uniform the compiler cannot drop what it multiplies.
+const depthAttribsGLSL = `layout(location = 0) in vec3 VertexPosition;
+layout(location = 1) in vec3 VertexNormal;
+layout(location = 2) in vec3 VertexColor;
+layout(location = 3) in vec2 VertexTexcoord;
+uniform mat4 MVP;
+uniform float Keep;
+uniform int MeshWind;
+uniform vec3 WindDir;
+uniform float WindAmp;
+uniform float WindTime;
+vec3 depthPosition() {
+    vec3 p = VertexPosition;
+    if (MeshWind != 0) {
+        float wgt = VertexTexcoord.x;
+        float ph = VertexTexcoord.y * 6.2832 + VertexPosition.x * 0.07 + VertexPosition.z * 0.05;
+        float lean = sin(WindTime * 0.9 + ph) * 0.6 + 0.4;
+        float flutter = sin(WindTime * 3.1 + ph * 2.3) * 0.18;
+        p += WindDir * (lean + flutter) * WindAmp * wgt;
+    }
+    return p + Keep * (VertexNormal + VertexColor);
+}
+`
+
+// depthVertexSrc is the lean depth shader: position only. Fetching all
+// four attributes for every caster in every cascade cost 4-5 ms a frame.
 const depthVertexSrc = `#version 330 core
 layout(location = 0) in vec3 VertexPosition;
 uniform mat4 MVP;
@@ -406,18 +457,25 @@ void main() {
 }
 `
 
+// depthFullVertexSrc is used for a geometry's first shadow draw (so G3N
+// binds all its attributes) and for swaying trees.
+const depthFullVertexSrc = `#version 330 core
+` + depthAttribsGLSL + `
+void main() {
+    gl_Position = MVP * vec4(depthPosition(), 1.0);
+}
+`
+
 const depthEmptyFragmentSrc = `#version 330 core
 void main() {}
 `
 
 const depthAlphaVertexSrc = `#version 330 core
-layout(location = 0) in vec3 VertexPosition;
-layout(location = 3) in vec2 VertexTexcoord;
-uniform mat4 MVP;
+` + depthAttribsGLSL + `
 out vec2 vUV;
 void main() {
     vUV = VertexTexcoord;
-    gl_Position = MVP * vec4(VertexPosition, 1.0);
+    gl_Position = MVP * vec4(depthPosition(), 1.0);
 }
 `
 
