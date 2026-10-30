@@ -16,6 +16,7 @@ type lightProbe struct {
 	depth   uint32
 	face    int
 	ready   bool
+	size    int32 // face size, from the quality tier when the probe was made
 }
 
 func (w *World) applyProbes() {

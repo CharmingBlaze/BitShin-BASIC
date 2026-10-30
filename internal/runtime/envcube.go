@@ -11,15 +11,36 @@ import (
 	"github.com/go-gl/gl/v3.3-core/gl"
 )
 
+// Six mips whatever the size: the shader reads roughness as lod 0..5, and
+// each mip's blur is set relative to that count, so a bigger base only adds
+// sharpness to smooth metal. 32 everywhere made chrome look like clay.
 const (
-	skyCubeSize = 32
 	skyCubeMips = 6
-	probeFace   = 32
 	envCubeUnit = 12
 )
 
+var (
+	skyCubeSizes = [...]int{qualityLow: 32, qualityMedium: 64, qualityHigh: 128, qualityUltra: 256}
+	probeSizes   = [...]int{qualityLow: 32, qualityMedium: 64, qualityHigh: 128, qualityUltra: 128}
+)
+
+func (w *World) skyCubeSize() int {
+	if !w.quality.set {
+		return 64
+	}
+	return skyCubeSizes[w.quality.tier]
+}
+
+func (w *World) probeFaceSize() int {
+	if !w.quality.set {
+		return 64
+	}
+	return probeSizes[w.quality.tier]
+}
+
 func (w *World) ensureSkyCube() {
-	if w.skyCube != 0 && w.skyCubeRev == w.skyRev {
+	size := w.skyCubeSize()
+	if w.skyCube != 0 && w.skyCubeRev == w.skyRev && w.skyCubeSz == size {
 		return
 	}
 	if w.skyCube != 0 {
@@ -30,7 +51,7 @@ func (w *World) ensureSkyCube() {
 	gl.GenTextures(1, &cube)
 	gl.BindTexture(gl.TEXTURE_CUBE_MAP, cube)
 	for mip := 0; mip < skyCubeMips; mip++ {
-		sz := skyCubeSize >> mip
+		sz := size >> mip
 		if sz < 1 {
 			sz = 1
 		}
@@ -60,6 +81,7 @@ func (w *World) ensureSkyCube() {
 	gl.BindTexture(gl.TEXTURE_CUBE_MAP, 0)
 	w.skyCube = cube
 	w.skyCubeRev = w.skyRev
+	w.skyCubeSz = size
 }
 
 func (w *World) prefilterEnv(dx, dy, dz, radius float32) (float32, float32, float32) {
@@ -157,10 +179,11 @@ func (w *World) ensureProbeTarget(pr *lightProbe) bool {
 		return true
 	}
 	var cube, fbo, depth uint32
+	pr.size = int32(w.probeFaceSize())
 	gl.GenTextures(1, &cube)
 	gl.BindTexture(gl.TEXTURE_CUBE_MAP, cube)
 	for face := 0; face < 6; face++ {
-		gl.TexImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X+uint32(face), 0, gl.RGBA8, probeFace, probeFace, 0, gl.RGBA, gl.UNSIGNED_BYTE, nil)
+		gl.TexImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X+uint32(face), 0, gl.RGBA8, pr.size, pr.size, 0, gl.RGBA, gl.UNSIGNED_BYTE, nil)
 	}
 	gl.TexParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
 	gl.TexParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
@@ -170,7 +193,7 @@ func (w *World) ensureProbeTarget(pr *lightProbe) bool {
 	gl.GenerateMipmap(gl.TEXTURE_CUBE_MAP)
 	gl.GenRenderbuffers(1, &depth)
 	gl.BindRenderbuffer(gl.RENDERBUFFER, depth)
-	gl.RenderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, probeFace, probeFace)
+	gl.RenderbufferStorage(gl.RENDERBUFFER, gl.DEPTH_COMPONENT24, pr.size, pr.size)
 	gl.GenFramebuffers(1, &fbo)
 	gl.BindFramebuffer(gl.FRAMEBUFFER, fbo)
 	gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_CUBE_MAP_POSITIVE_X, cube, 0)
@@ -217,7 +240,7 @@ func (w *World) stepProbeCapture(rend *renderer.Renderer) {
 	gl.GetIntegerv(gl.VIEWPORT, &prevVP[0])
 	gl.BindFramebuffer(gl.FRAMEBUFFER, pr.fbo)
 	gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_CUBE_MAP_POSITIVE_X+uint32(face), pr.cube, 0)
-	gl.Viewport(0, 0, probeFace, probeFace)
+	gl.Viewport(0, 0, pr.size, pr.size)
 	gl.ClearColor(pr.sky.R, pr.sky.G, pr.sky.B, 1)
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 	w.capturingProbe = true

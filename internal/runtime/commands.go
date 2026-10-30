@@ -359,6 +359,9 @@ func (w *World) commandTable() map[string]cmd {
 			if err != nil || id == 0 {
 				return value.Num(0), nil
 			}
+			if len(a) >= 2 && a[0].Kind == value.KindStr {
+				w.texs[id].flags = argI(a, 1, 0)
+			}
 			return value.Num(float64(id)), nil
 		}),
 		"entitytexture": need(func(a []value.Value) (value.Value, error) {
@@ -370,6 +373,13 @@ func (w *World) commandTable() map[string]cmd {
 			if t != nil && e.mat != nil {
 				e.mat.AddTexture(t.tex)
 				e.albedoTex = t.tex
+				// Blitz flags: 2 blends the texture's alpha, 4 cuts it out.
+				if t.flags&2 != 0 {
+					e.mat.SetTransparent(true)
+					w.setEntityCutout(e, 2)
+				} else if t.flags&4 != 0 {
+					w.setEntityCutout(e, 1)
+				}
 			}
 			if t != nil && e.pbr != nil {
 				e.pbr.SetBaseColorMap(t.tex)
@@ -377,6 +387,21 @@ func (w *World) commandTable() map[string]cmd {
 			if t != nil {
 				e.albedoPath = t.path
 			}
+			return z()
+		}),
+		// EntityCutout(entity, on): on cuts texture alpha below 0.45 (fences,
+		// leaves); off keeps partial alpha. Unset, an opaque material cuts
+		// and a blended one does not.
+		"entitycutout": need(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			mode := 2
+			if argI(a, 1, 1) != 0 {
+				mode = 1
+			}
+			w.setEntityCutout(e, mode)
 			return z()
 		}),
 		"entitytype": need(func(a []value.Value) (value.Value, error) {

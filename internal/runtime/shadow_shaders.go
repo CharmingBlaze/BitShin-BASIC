@@ -69,6 +69,7 @@ in vec3 WorldNormal;
 in vec4 LightSpacePos[4];
 in vec3 VColor;
 uniform int MeshVertexColor;
+uniform int MeshCutout;
 #include <lights>
 #include <material>
 #include <phong_model>
@@ -195,8 +196,24 @@ void main() {
         #endif
     #endif
     #if MAT_TEXTURES > 0
-        float aa = fwidth(texMixed.a);
-        if (texMixed.a < 0.45 - aa) discard;
+        // MeshCutout: 0 unset (cut, the old rule), 1 cut, 2 never. A blended
+        // material is never cut, so a window or a coin's soft edge keeps
+        // its partial alpha instead of getting holes.
+        if (MeshCutout != 2 && MatOpacity > 0.999) {
+            // Each mip averages alpha down, so a far card thinned to specks.
+            // Boost by the mip level to keep its silhouette (Castano 2010).
+            vec2 ts = vec2(textureSize(MatTexture[0], 0));
+            vec2 du = dFdx(FragTexcoord * ts);
+            vec2 dv = dFdy(FragTexcoord * ts);
+            float lod = 0.5 * log2(max(max(dot(du, du), dot(dv, dv)), 1e-8));
+            float a = texMixed.a * (1.0 + max(lod, 0.0) * 0.25);
+            // A one-pixel ramp around the threshold instead of a hard step:
+            // blending is on, so the edge comes out antialiased.
+            float w = max(fwidth(a), 1e-4);
+            float cov = clamp((a - 0.45) / w + 0.5, 0.0, 1.0);
+            if (cov <= 0.0) discard;
+            texMixed.a = cov;
+        }
     #endif
     vec4 matDiffuse = vec4(MatDiffuseColor, MatOpacity) * texMixed;
     vec4 matAmbient = vec4(MatAmbientColor, MatOpacity) * texMixed;

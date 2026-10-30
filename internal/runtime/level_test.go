@@ -193,3 +193,28 @@ func TestMergeLevelFreesWhatItBakesButNotGameplayObjects(t *testing.T) {
 		t.Fatalf("%d entities after merge, want %d", got, before-50+lv.stats.cells)
 	}
 }
+
+func TestSaveSceneKeepsControllerMotion(t *testing.T) {
+	w := New(t.TempDir())
+	id := w.addEntity(&Entity{node: core.NewNode()}, 0)
+	w.platformerControllers = map[int]*platformerCtrl{id: {id: id, speed: 8, jumpForce: 12, maxJumps: 2, jumpsLeft: 1, vx: 3.5, vy: 6.25}}
+	row := w.sceneController(id)
+	if row == nil {
+		t.Fatal("no controller row")
+	}
+	// Through JSON, as SaveScene / LoadScene do.
+	b, _ := json.Marshal(row)
+	var back map[string]any
+	if err := json.Unmarshal(b, &back); err != nil {
+		t.Fatal(err)
+	}
+	id2 := w.addEntity(&Entity{node: core.NewNode()}, 0)
+	w.restoreSceneController(id2, map[string]any{"ctrl": back}, nil)
+	c := w.platformerControllers[id2]
+	if c == nil {
+		t.Fatal("controller not restored")
+	}
+	if c.vx != 3.5 || c.vy != 6.25 || c.jumpsLeft != 1 {
+		t.Fatalf("restored v=(%v,%v) jumps=%d; want (3.5,6.25) and 1 left", c.vx, c.vy, c.jumpsLeft)
+	}
+}

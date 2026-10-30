@@ -429,7 +429,9 @@ func (w *World) ensurePostFX(ww, hh int) error {
 	var fbo, color, depth uint32
 	gl.GenTextures(1, &color)
 	gl.BindTexture(gl.TEXTURE_2D, color)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, int32(ww), int32(hh), 0, gl.RGBA, gl.UNSIGNED_BYTE, nil)
+	// Half float: the lit shaders roll highlights off toward 2.0, and an
+	// 8-bit target clipped them at white before exposure and bloom saw them.
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, int32(ww), int32(hh), 0, gl.RGBA, gl.HALF_FLOAT, nil)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
@@ -579,7 +581,7 @@ func (w *World) ensureBloomChain(ww, hh int) error {
 		var tex, fbo uint32
 		gl.GenTextures(1, &tex)
 		gl.BindTexture(gl.TEXTURE_2D, tex)
-		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, int32(bw), int32(bh), 0, gl.RGBA, gl.UNSIGNED_BYTE, nil)
+		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, int32(bw), int32(bh), 0, gl.RGBA, gl.HALF_FLOAT, nil)
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)

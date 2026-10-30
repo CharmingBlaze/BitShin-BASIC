@@ -124,6 +124,7 @@ type litMat struct {
 	recvShadow  bool
 	vertexColor bool // multiply by VertexColor (merged level cells)
 	wind        bool // sway by texcoord weight (3D tree batches)
+	cutout      int  // 0 auto (cut unless blended), 1 always, 2 never
 	specMap     *texture.Texture2D
 	emitMap     *texture.Texture2D
 	normMap     *texture.Texture2D
@@ -147,6 +148,16 @@ func (m *litMat) RenderSetup(gs *gls.GLS) {
 		}
 		setUni1i(gs, "MeshReceiveShadow", recv)
 		setUni1i(gs, "MeshVertexColor", bool01(m.vertexColor))
+		// Always set: the value would otherwise carry over from the last
+		// mesh drawn with this shader.
+		cut := m.cutout
+		if cut == 0 {
+			cut = 1
+			if m.Standard.GetMaterial().Transparent() {
+				cut = 2
+			}
+		}
+		setUni1i(gs, "MeshCutout", cut)
 		setUni1i(gs, "MeshWind", bool01(m.wind))
 		if m.wind {
 			m.w.bindWindUniforms(gs)
@@ -1244,6 +1255,20 @@ func (w *World) bindWindUniforms(gs *gls.GLS) {
 	setUni3f(gs, "WindDir", gx, 0, gz)
 	setUni1f(gs, "WindAmp", amp)
 	setUni1f(gs, "WindTime", float32(w.wx.time))
+}
+
+// setEntityCutout sets the cutout mode on every lit material of e.
+func (w *World) setEntityCutout(e *Entity, mode int) {
+	if e == nil || e.node == nil {
+		return
+	}
+	w.walkMeshes(e.node, func(m *graphic.Mesh) {
+		for _, gm := range m.Materials() {
+			if lm, ok := gm.IMaterial().(*litMat); ok {
+				lm.cutout = mode
+			}
+		}
+	})
 }
 
 func shadowSkipMesh(e *Entity) bool {

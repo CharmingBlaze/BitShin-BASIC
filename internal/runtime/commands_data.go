@@ -476,6 +476,15 @@ func (w *World) sceneJSON() map[string]any {
 				if mass := w.phys3.GetMass(id); mass > 0 {
 					row["mass"] = mass
 				}
+				// A dynamic body keeps moving after a load.
+				if e.bodyType == 1 {
+					if x, y, z, ok := w.phys3.GetVelocity(id); ok && x*x+y*y+z*z > 0 {
+						row["v"] = []float32{x, y, z}
+					}
+					if x, y, z, ok := w.phys3.GetAngularVelocity(id); ok && x*x+y*y+z*z > 0 {
+						row["av"] = []float32{x, y, z}
+					}
+				}
 			}
 		}
 		if ctrl := w.sceneController(id); ctrl != nil {
@@ -695,6 +704,16 @@ func (w *World) applySceneJSON(root any) {
 			}
 		}
 		w.restoreSceneBody(row.id, em)
+		if em["ctrl"] == nil && w.phys3 != nil {
+			if _, ok := em["v"]; ok {
+				x, y, z := ctrlVec(em, "v")
+				w.phys3.SetVelocity(row.id, x, y, z)
+			}
+			if _, ok := em["av"]; ok {
+				x, y, z := ctrlVec(em, "av")
+				w.phys3.SetAngularVelocity(row.id, x, y, z)
+			}
+		}
 		w.restoreSceneMaterial(e, em)
 		w.restoreSceneSkin(e, em)
 		w.restoreSceneController(row.id, em, remap)

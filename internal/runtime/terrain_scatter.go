@@ -671,7 +671,11 @@ func (w *World) addCardScatter(t *terrain, kind string, pts []scatterPt, crossed
 		tex.SetFlipY(false)
 		mat.AddTexture(tex)
 	}
-	mesh := graphic.NewMesh(g, mat)
+	// Lit, so the card sets its own cutout instead of inheriting whatever
+	// the previous mesh on this shader left.
+	lm := newLitMat(w, mat)
+	lm.cutout = 1
+	mesh := graphic.NewMesh(g, lm)
 	parent := 0
 	if t != nil {
 		parent = t.root

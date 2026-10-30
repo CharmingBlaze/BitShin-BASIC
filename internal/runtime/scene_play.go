@@ -119,23 +119,30 @@ func (w *World) sceneJointRows() []any {
 }
 
 func (w *World) sceneController(id int) map[string]any {
+	// Live state rides along ("v", view angles, jumps left): a save taken
+	// mid-jump used to load standing still and facing forward.
 	if c := w.fpsControllers[id]; c != nil {
 		return map[string]any{
 			"kind": "fps", "cam": c.camID, "h": c.height, "r": c.radius,
 			"walk": c.walkSpeed, "sprint": c.sprintSpeed, "jump": c.jumpForce,
+			"v": []float32{c.vx, c.vy, c.vz}, "pitch": c.pitch, "yaw": c.yaw,
 		}
 	}
 	if c := w.tpsControllers[id]; c != nil {
 		return map[string]any{
 			"kind": "tps", "cam": c.camID, "h": c.height, "r": c.radius,
 			"move": c.moveSpeed, "sprint": c.sprintSpeed, "jump": c.jumpForce,
+			"v": []float32{c.vx, c.vy, c.vz}, "yaw": c.yaw,
+			"camyaw": c.camYaw, "campitch": c.camPitch, "camdist": c.camDist,
 		}
 	}
 	if c := w.topDownControllers[id]; c != nil {
-		return map[string]any{"kind": "topdown", "speed": c.speed, "turn": c.rotSpeed}
+		return map[string]any{"kind": "topdown", "speed": c.speed, "turn": c.rotSpeed,
+			"v": []float32{c.vx, c.vy, c.vz}, "aim": c.aimYaw}
 	}
 	if c := w.platformerControllers[id]; c != nil {
-		return map[string]any{"kind": "platformer", "speed": c.speed, "jump": c.jumpForce, "jumps": c.maxJumps}
+		return map[string]any{"kind": "platformer", "speed": c.speed, "jump": c.jumpForce, "jumps": c.maxJumps,
+			"v": []float32{c.vx, c.vy, 0}, "left": c.jumpsLeft}
 	}
 	c := w.vehCtrls[id]
 	if c == nil {
@@ -146,6 +153,12 @@ func (w *World) sceneController(id int) map[string]any {
 		"thrust": c.thrustMax, "cl": c.liftCl, "cd": c.dragCd, "stall": c.stall,
 	}
 	if w.phys3 != nil {
+		if x, y, z, ok := w.phys3.GetVelocity(id); ok {
+			row["v"] = []float32{x, y, z}
+		}
+		if x, y, z, ok := w.phys3.GetAngularVelocity(id); ok {
+			row["av"] = []float32{x, y, z}
+		}
 		if g := w.phys3.GetGravityScale(id); g != 1 {
 			row["g"] = g
 		}
@@ -192,6 +205,8 @@ func (w *World) restoreCharacterController(id int, kind string, raw map[string]a
 			walkSpeed: ctrlF(raw, "walk", 6), sprintSpeed: ctrlF(raw, "sprint", 10.5),
 			jumpForce: ctrlF(raw, "jump", 9.5), crouchRatio: 1,
 		}
+		c.vx, c.vy, c.vz = ctrlVec(raw, "v")
+		c.pitch, c.yaw = ctrlF(raw, "pitch", 0), ctrlF(raw, "yaw", 0)
 		w.fpsControllers[id] = c
 		w.phys3.AddCharacterController(id, px, py, pz, c.height, c.radius, 50, 80)
 	case "tps":
@@ -205,15 +220,22 @@ func (w *World) restoreCharacterController(id int, kind string, raw map[string]a
 			moveSpeed: ctrlF(raw, "move", 6.5), sprintSpeed: ctrlF(raw, "sprint", 11),
 			jumpForce: ctrlF(raw, "jump", 10),
 		}
+		c.vx, c.vy, c.vz = ctrlVec(raw, "v")
+		c.yaw = ctrlF(raw, "yaw", 0)
+		c.targetYaw = c.yaw
+		c.camYaw, c.camPitch, c.camDist = ctrlF(raw, "camyaw", 0), ctrlF(raw, "campitch", 0), ctrlF(raw, "camdist", 0)
 		w.tpsControllers[id] = c
 		w.phys3.AddCharacterController(id, px, py, pz, c.height, c.radius, 50, 80)
 	case "topdown":
 		if w.topDownControllers == nil {
 			w.topDownControllers = map[int]*topDownCtrl{}
 		}
-		w.topDownControllers[id] = &topDownCtrl{
+		td := &topDownCtrl{
 			id: id, speed: ctrlF(raw, "speed", 8), rotSpeed: ctrlF(raw, "turn", 18),
+			aimYaw: ctrlF(raw, "aim", 0),
 		}
+		td.vx, td.vy, td.vz = ctrlVec(raw, "v")
+		w.topDownControllers[id] = td
 		w.phys3.AddCharacterController(id, px, py, pz, 1.8, 0.45, 50, 80)
 	case "platformer":
 		jumps := int(ctrlF(raw, "jumps", 2))
@@ -223,10 +245,15 @@ func (w *World) restoreCharacterController(id int, kind string, raw map[string]a
 		if w.platformerControllers == nil {
 			w.platformerControllers = map[int]*platformerCtrl{}
 		}
-		w.platformerControllers[id] = &platformerCtrl{
+		pc := &platformerCtrl{
 			id: id, speed: ctrlF(raw, "speed", 8.5), jumpForce: ctrlF(raw, "jump", 12),
 			maxJumps: jumps, jumpsLeft: jumps,
 		}
+		if left, ok := raw["left"]; ok {
+			pc.jumpsLeft = int(anyToValue(left).Number())
+		}
+		pc.vx, pc.vy, _ = ctrlVec(raw, "v")
+		w.platformerControllers[id] = pc
 		w.phys3.AddCharacterController(id, px, py, pz, 1.8, 0.4, 50, 80)
 	}
 	if e != nil {
@@ -274,6 +301,14 @@ func (w *World) restoreVehicleController(id int, kind string, raw map[string]any
 		c.native = w.phys3.CreateTrackedVehicle(c.id, c.hx, c.hy, c.hz)
 	case "plane":
 		w.phys3.CreatePlaneController(c.id)
+	}
+	if _, ok := raw["v"]; ok {
+		x, y, z := ctrlVec(raw, "v")
+		w.phys3.SetVelocity(id, x, y, z)
+	}
+	if _, ok := raw["av"]; ok {
+		x, y, z := ctrlVec(raw, "av")
+		w.phys3.SetAngularVelocity(id, x, y, z)
 	}
 }
 
@@ -576,6 +611,15 @@ func (w *World) restoreSceneSkin(e *Entity, em map[string]any) {
 		gx, gy, gz := toG3N(x, y, z)
 		j.node.SetPosition(gx, gy, gz)
 	}
+}
+
+// ctrlVec reads a saved [x, y, z]; missing is zero (older saves).
+func ctrlVec(m map[string]any, key string) (float32, float32, float32) {
+	v := floatList(m[key])
+	if len(v) < 3 {
+		return 0, 0, 0
+	}
+	return v[0], v[1], v[2]
 }
 
 func ctrlF(m map[string]any, key string, def float32) float32 {

@@ -109,8 +109,9 @@ type Entity struct {
 }
 
 type texSlot struct {
-	tex  *texture.Texture2D
-	path string
+	tex   *texture.Texture2D
+	path  string
+	flags int // Blitz LoadTexture flags: 2 alpha (blend), 4 masked (cutout)
 }
 
 type collideRule struct {
@@ -318,6 +319,7 @@ type World struct {
 	skyImgs                          [6]*image.RGBA
 	skyRev                           int
 	skyCubeRev                       int
+	skyCubeSz                        int
 	probeCam                         *camera.Camera
 	capturingProbe                   bool
 	terrains                         map[int]*terrain

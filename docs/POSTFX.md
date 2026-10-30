@@ -1,6 +1,6 @@
 # Post-processing
 
-OpenGL **3.3** fullscreen blit. After the G3N scene (and water FBO / shadows), the color buffer is sampled once.
+OpenGL **3.3** fullscreen blit. After the G3N scene (and water FBO / shadows), the color buffer is sampled once. The scene target is half float (RGBA16F), as are the bloom buffers: lit shaders roll highlights off toward 2.0 instead of clipping at 1, so exposure and bloom grade the real brightness.
 
 ![PostFX demo](images/postfx.png)
 

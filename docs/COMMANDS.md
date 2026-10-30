@@ -93,7 +93,8 @@ How to light a scene, from one sun through falloff, materials, indoor / outdoor,
 `CameraFogColor([cam,] r, g, b)`, `CameraFogRange([cam,] near, far)`, `CameraFogDensity([cam,] n)`  
 `EnableFog on`  
 `SetFog(mode)` or `SetFog(r, g, b [, near, far])` or `SetFog(mode, r, g, b, near, far)`  
-`LoadTexture file$`, `EntityTexture e, tex`, `ScaleTexture`  
+`LoadTexture file$ [, flags]`, `EntityTexture e, tex`, `ScaleTexture`. Flag 2 blends the texture's alpha (never cut), flag 4 cuts it out. With neither, an opaque material cuts alpha below 0.45 and a blended one (`EntityAlpha` < 1) does not  
+`EntityCutout e, on` — cut texture alpha below 0.45 (fences, leaves) or keep partial alpha (a window, a coin's soft edge). Cut edges are antialiased, and a far card keeps its silhouette as its mips shrink  
 `Wireframe on`, `UpdateWorld`, `RenderWorld`
 
 Y up, +Z in front of a default camera.
@@ -1242,7 +1243,7 @@ See `examples/shader.mb`.
 ## Data
 
 `JSONLoad` `JSONSave` `JSONParse` `JSONGet` `JSONSet` `JSON$`  
-`SceneSave` / `SaveScene file$` — JSON of tagged primitives / `LoadMesh` paths, lights, cameras (`fov`/`near`/`far`), parent, transform, tint, visibility  
+`SceneSave` / `SaveScene file$` — JSON of tagged primitives / `LoadMesh` paths, lights, cameras (`fov`/`near`/`far`), parent, transform, tint, visibility. Controllers keep their live velocity and view (FPS pitch/yaw, TPS camera, platformer jumps left); dynamic bodies and vehicles keep linear and angular velocity  
 `SceneLoad` / `LoadSceneJSON file$` — rebuild those kinds (`mesh` reloads `src`; `camera` restores frustum; unknown / old dumps → cubes)  
 `LoadScene file$` — `.mb` setup script, **or** `.json` / `.yaml` scene dump  
 `YAMLLoad` `YAMLSave` `YAMLParse` `YAMLGet` `YAMLSet`  
