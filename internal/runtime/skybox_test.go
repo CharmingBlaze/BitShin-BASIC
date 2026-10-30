@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/g3n/engine/core"
+	"github.com/g3n/engine/math32"
 )
 
 func TestSkyFitScaleKeepsCornersInsideFar(t *testing.T) {
@@ -17,6 +18,28 @@ func TestSkyFitScaleKeepsCornersInsideFar(t *testing.T) {
 		if 0.5*s <= 0.25 {
 			t.Fatalf("far=%v scale=%v — near plane would clip the cube faces", far, s)
 		}
+	}
+}
+
+func TestSkySampleMatchesThePaintedFace(t *testing.T) {
+	top := math32.Color{0.1, 0.2, 0.9}
+	bot := math32.Color{0.85, 0.4, 0.15}
+	imgs := generateSkyImages(top, bot, 1, 0.15, 0)
+	upR, upG, upB, ok := sampleSkyImages(imgs, 0, 1, 0)
+	if !ok {
+		t.Fatal("sky images should sample")
+	}
+	dnR, dnG, dnB, _ := sampleSkyImages(imgs, 0, -1, 0)
+	if upB <= dnB || upR >= dnR {
+		t.Fatalf("up (%v,%v,%v) should be bluer than down (%v,%v,%v)", upR, upG, upB, dnR, dnG, dnB)
+	}
+	w := New(".")
+	w.scene = core.NewNode()
+	if _, err := w.publishSky(imgs); err != nil {
+		t.Fatal(err)
+	}
+	if w.skyRev == 0 || w.skyImgs[0] == nil {
+		t.Fatal("publishing a sky should feed the reflection cube")
 	}
 }
 

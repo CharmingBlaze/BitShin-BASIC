@@ -498,6 +498,7 @@ func (w *World) applyLightEnvironment(mode string) int {
 		w.shadow.fadeNear, w.shadow.fadeFar = 200, 240
 		w.post.exposure = 1.05
 		w.post.tonemap = 1
+		w.enableGrade()
 		w.applyLitShaders()
 		return 1
 	}
@@ -539,6 +540,7 @@ func (w *World) applyLightEnvironment(mode string) int {
 	w.shadow.fadeNear, w.shadow.fadeFar = 24, 40
 	w.post.exposure = 1.45
 	w.post.tonemap = 1
+	w.enableGrade()
 	w.applyLitShaders()
 	return 2
 }

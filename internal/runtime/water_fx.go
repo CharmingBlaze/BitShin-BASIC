@@ -9,7 +9,7 @@ import (
 	"github.com/g3n/engine/gls"
 	"github.com/go-gl/gl/v3.3-core/gl"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 const wakeRes = 96

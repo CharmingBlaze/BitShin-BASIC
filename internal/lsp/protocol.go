@@ -2,7 +2,7 @@ package lsp
 
 import "encoding/json"
 
-// JSON-RPC / LSP types for BitShin BASIC (stdio, Content-Length framing).
+// JSON-RPC / LSP types for moonBASIC (stdio, Content-Length framing).
 
 type rpcRequest struct {
 	JSONRPC string          `json:"jsonrpc"`

@@ -1,0 +1,29 @@
+{
+  "scopeName": "source.moonbasic",
+  "patterns": [
+    { "name": "comment.line.moonbasic", "match": "(;|'|//).*$" },
+    { "name": "string.quoted.double.moonbasic", "begin": "\"", "end": "\"", "patterns": [{ "match": "\"\"", "name": "constant.character.escape.moonbasic" }] },
+    { "name": "constant.numeric.hex.moonbasic", "match": "\\$[0-9A-Fa-f]+" },
+    { "name": "constant.numeric.moonbasic", "match": "\\b[0-9]+(\\.[0-9]+)?\\b" },
+    { "name": "constant.language.moonbasic", "match": "(?i)\\bKEY_[A-Za-z0-9_]+\\b" },
+    { "name": "constant.language.moonbasic", "match": "(?i)\\b(True|False|Yes|No|Null|Pi)\\b" },
+    {
+      "name": "keyword.control.moonbasic",
+      "match": "(?i)\\b(If|Then|ElseIf|Else|EndIf|While|Wend|EndWhile|For|To|Step|Next|Repeat|Until|Do|Loop|Function|EndFunction|Select|Case|Default|EndSelect|Return|Include|Import|Type|EndType|Struct|EndStruct|Method|EndMethod|Namespace|EndNamespace|Dim|ReDim|Global|Local|Static|Const|Enum|EndEnum|Data|Read|Restore|Exit|End|New|As)\\b"
+    },
+    { "name": "keyword.operator.logical.moonbasic", "match": "(?i)\\b(And|Or|Not|Xor|Mod)\\b" },
+    { "name": "keyword.operator.moonbasic", "match": "<>|<=|>=|=<|=>|><|[:=<>+\\-*/^]" },
+    { "name": "punctuation.separator.moonbasic", "match": "[,.]" },
+    { "name": "punctuation.section.parens.moonbasic", "match": "[()\\[\\]{}]" },
+    {
+      "match": "\\b([A-Za-z_][A-Za-z0-9_]*)([#$%])",
+      "captures": {
+        "1": { "name": "variable.other.moonbasic" },
+        "2": { "name": "storage.type.suffix.moonbasic" }
+      }
+    },
+    { "name": "support.function.create.moonbasic", "match": "(?i)\\b(Create|Load|Copy|Make)[A-Za-z0-9_]*\\b" },
+    { "name": "entity.name.function.moonbasic", "match": "\\b[A-Za-z_][A-Za-z0-9_]*\\s*(?=\\()" }
+  ],
+  "repository": {}
+}

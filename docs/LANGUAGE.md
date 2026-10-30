@@ -1,6 +1,12 @@
 # Language
 
-BitShin BASIC is case-insensitive BASIC, close to Blitz3D.
+moonBASIC here is this runtime's dialect. It keeps the everyday BASIC forms and this engine's commands (`Graphics3D`, `CreateCube`, `HostGame`). It does not implement the Raylib registry (`App.Open`, `Draw.Text`, `Render.*`, `Model.*`).
+
+Type suffixes are optional. The forms are `Local` / `Global` / `Static`, `Type` records, `If` / `Select` / `For` / `While` / `Repeat` / `Do`, `Function` with `Return`, `As` signatures, `@Name` and anonymous functions, `Erase` / `Delete`, `For v = Each(Type)`, and coroutines.
+
+Plain functions also answer under a topic name: `Math.Abs`, `Math.Lerp`, `String.Upper`, `List.Add`, `Map.Get`. `Input.KeyDown`, `Time.Delta`, `Entity.SetPos`, `File.Read`, `Json.Load`, `Sound.Play`, and `Net.Host` are the same commands as `KeyDown`, `DeltaTime`, `PositionEntity`, `ReadFile`, `JSONLoad`, `PlaySound`, and `HostGame`. A handle still uses `cube.SetPos(x, y, z)`.
+
+`$` `#` `%` on a name still mean the same variable, so older Blitz-style scripts keep running.
 
 ## Comments
 
@@ -34,9 +40,9 @@ Angles are **degrees** everywhere, including `Sin` / `Cos` / `Tan` / `ASin` / `A
 
 Each function returns one number (Blitz style). Use `NormX`/`NormY` or `RotatedX`/`RotatedY` instead of a vector type.
 
-Frame-rate independent move: `x = Approach(x, target, speed * DeltaTime())`.
+Frame-rate independent move: `x = Approach(x, target, speed * Time.Delta())`.
 
-Full list: [COMMANDS.md](COMMANDS.md) (Math). Demo: `examples/math.bb`.
+Full list: [COMMANDS.md](COMMANDS.md) (Math). Demo: `examples/math.mb`.
 
 ## Statements
 
@@ -52,7 +58,7 @@ Else
 EndIf
 
 While True
-    If KeyDown(KEY_ESCAPE) Then End
+    If Input.KeyDown(KEY_ESCAPE) Then End
     Flip
 Wend
 
@@ -91,9 +97,84 @@ Function Double(n)
     Return n * 2
 End Function
 
-Include "lib.bb"
-Import "lib.bb" As Math
+Include "lib.mb"
+Import "lib.mb" As Math
 End
+```
+
+## Do, Exit, Static, Enum, strings
+
+```basic
+Enum State
+    IDLE
+    WALK
+End Enum
+Print State.IDLE
+Print STATE_IDLE
+
+Print $"n={1+1}"
+Print $"hp={3.5:.1f}"
+
+x = 0
+Do
+    x = x + 1
+    If x = 3 Then Exit Do
+Loop
+
+Function Hits()
+    Static n = 0
+    n = n + 1
+    Return n
+End Function
+```
+
+`Do` … `Loop` repeats. `Do While cond` … `Loop` tests at the top. `Do` … `Loop Until cond` and `Do` … `Loop While cond` test at the bottom. `Exit Do`, `Exit For`, `Exit While`, and `Exit Repeat` leave that kind of loop. A bare `Exit` leaves the nearest loop. `Exit Function` returns 0.
+
+`Static n = 0` inside a function keeps `n` across calls. The first call starts at the written value. Later calls see the value left last time.
+
+`Enum State` defines `IDLE`, `STATE_IDLE`, and a record named `State`, so `State.IDLE` is `0`. The next name is one higher unless you write `WALK = 4`.
+
+`$"text {expr}"` builds one string. `{expr:.2f}` formats a number (`3.50`). `{name:s}` inserts text.
+
+## Functions, instances, and coroutines
+
+`As` on a parameter or a function result accepts `Integer`, `Float`, `String`, `Bool`, or a `Type` name. `Integer` truncates. A user type must be that type, or `0`.
+
+`@Name` is a function value. `Function()` … `End Function` with no name is an anonymous function. Call either with `f()`.
+
+`New(Enemy)` creates an `Enemy` and remembers it. `For e = Each(Enemy)` walks those instances. `Delete e1` drops that instance and sets the variable to `0`. `Erase a` sets one array, type, map, or function variable to `0`. `Erase All` does that for every global of those kinds. It does not free entity ids.
+
+`Dim scores(10)` is indexes `0` through `10` (Blitz). `Dim plat As Platform(4)` follows the moonBASIC count: indexes `0` through `3`. A type body can list fields as `x, y, z` or as `Field x`. `EndType`, `EndEnum`, `EndIf`, `EndFunction`, and `EndSelect` are one word or two.
+
+`String.Interp("Hi {0}", name)` fills numbered holes. `Format(3.5, "%.1f")` and `String.Format` do the same job as `{expr:.1f}`. `Free.All` is `Erase All`. 
+
+A `Coroutine` block starts when the program starts. `Yield` pauses it until the next `Flip`, or until the program ends. `Coroutine.Wait(seconds)` pauses for that long. `Coroutine.Start(@Fn)` starts a normal function as a coroutine and returns its id (`1` for the first coroutine, including blocks that started on their own).
+
+```basic
+Function Cut(n As Integer) As Integer
+    Return n + 0.9
+End Function
+
+f = Function()
+    Return 7
+End Function
+Print f()
+Print Coroutine.Start(@Cut)
+
+Type Enemy
+    Field hp
+End Type
+e1 = New(Enemy)
+For e = Each(Enemy)
+    Print e.hp
+Next
+Delete e1
+Erase All
+
+Coroutine Tick
+    Yield
+    Print "after"
+End Coroutine
 ```
 
 ## Struct / Type
@@ -164,9 +245,9 @@ End Function
 
 ## Import / Namespace
 
-`Include "file.bb"` splices the file into this program.
+`Include "file.mb"` splices the file into this program.
 
-`Import "file.bb"` is the same. `Import "file.bb" As Math` prefixes types and functions: `Math.Double(2)`.
+`Import "file.mb"` is the same. `Import "file.mb" As Math` prefixes types and functions: `Math.Double(2)`.
 
 ```basic
 Namespace Util
@@ -177,7 +258,7 @@ End Namespace
 Print Util.Sum(1, 2)
 ```
 
-See `examples/struct.bb`.
+See `examples/struct.mb`.
 
 `Const name = value` is a compile-time name. `Data` / `Read` / `Restore` walk a program-wide DATA pointer.
 
@@ -185,7 +266,7 @@ See `examples/struct.bb`.
 
 `recv.Name(` is a method. `recv.Name` without `(` is still a field (`v.x`).
 
-`cam.Position(0, 2.2, -8)` is `SetPosition(cam, 0, 2.2, -8)`. Mutating commands return the handle, so this works:
+`cam.Position(0, 2.2, -8)` is `Entity.SetPos(cam, 0, 2.2, -8)`. Mutating commands return the handle, so this works:
 
 ```basic
 box = CreateCube().Scale(1, 1, 1).Position([0, 1, 0]).Color($FFECc8)
@@ -211,17 +292,20 @@ Weather: `WEATHER_CLEAR` `WEATHER_RAIN` `WEATHER_SNOW` `WEATHER_FOG` `WEATHER_ST
 
 `CreateList` / `ListAdd` / `ListGet` / `ListSet` / `ListCount` / `ListRemove` are interpreter lists (not `Dim` arrays).
 
+`Replace`, `String`, and `Instr` with a start index are the rest of the classic string set. `ReadFile` / `WriteFile` / `OpenFile` plus `ReadLine` / `WriteLine` and the little-endian `Read*` / `Write*` calls are sequential files. A failed open is `0`. See [COMMANDS.md](COMMANDS.md).
+
 ## Editor / language server
 
-`bsls` (also `bs lsp`) is a stdio LSP for `*.bb` files (language id `bitshinbasic`):
+`moonsls` (also `moon lsp`) is a stdio LSP for `*.mb` files (language id `moonbasic`). The IDE looks for `moonsls.exe` beside the project, and runs games with `moon.exe`.
 
 ```powershell
-go build -o bsls.exe ./cmd/bsls
-.\bsls.exe
+go build -o moon.exe ./cmd/bs
+go build -o moonsls.exe ./cmd/bsls
+.\moonsls.exe
 ```
 
-Capabilities: full-document sync, parse diagnostics, hover, completion, go-to-definition and document symbols for functions in the same file. Cursor/VS Code: `.vscode/settings.json` associates `*.bb`; extension sources are in `editors/vscode`.
+Capabilities: full-document sync, parse diagnostics, hover, completion, go-to-definition and document symbols for functions in the same file. Cursor/VS Code: `.vscode/settings.json` associates `*.mb`; extension sources are in `editors/vscode`.
 
 `Graphics` / `Graphics2D` open Ebiten. `Graphics3D` opens G3N (**OpenGL 3.3 core** required; 4.x optional). Call one of them before drawing.
 
-`Flip` ends the current frame (see [ARCHITECTURE.md](ARCHITECTURE.md)). Escape / `WindowShouldClose` are ignored until the first `Flip`, so `While Not KeyDown(1)` enters the loop. Still call `Flip` every frame. Demos often wait `frames > 8` before `KeyHit(KEY_ESCAPE)`.
+`Flip` ends the current frame (see [ARCHITECTURE.md](ARCHITECTURE.md)). Escape / `WindowShouldClose` are ignored until the first `Flip`, so `While Not Input.KeyDown(1)` enters the loop. Still call `Flip` every frame. Demos often wait `frames > 8` before `Input.KeyHit(KEY_ESCAPE)`.

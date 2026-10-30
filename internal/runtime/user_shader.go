@@ -10,8 +10,8 @@ import (
 	"github.com/g3n/engine/material"
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/glslang"
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/glslang"
+	"moonbasic/internal/value"
 )
 
 // Shader-graph lite: GLSL 330 vert+frag programs bound to a mesh.

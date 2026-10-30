@@ -1,6 +1,8 @@
 # Commands
 
-Names are case-insensitive. Optional arguments in brackets. Handles are integers. Angles are **degrees**. RGB is **0–255**, or **0–1 if every channel is ≤ 1**. Paths resolve next to the `.bb` file, or inside `OpenPak` if set.
+Names are case-insensitive. Optional arguments in brackets. Handles are integers. Angles are **degrees**. RGB is **0–255**, or **0–1 if every channel is ≤ 1**. Paths resolve next to the `.mb` file, or inside `OpenPak` if set.
+
+Dotted topic names call these same commands: `Math.Abs`, `String.Upper`, `Input.KeyDown`, `Time.Delta`, `Entity.SetPos`, `File.Read`, `Json.Load`, `Sound.Play`, `Net.Host`. `App.Open`, `Draw.Text`, `Render.*`, and `Model.*` are not commands here.
 
 `Flip`, `WaitTimer`, `WaitKey`, and `Delay` yield a frame and are not allowed inside `Function`.
 
@@ -23,7 +25,7 @@ Names are case-insensitive. Optional arguments in brackets. Handles are integers
 | `MilliSecs()` | Milliseconds since start |
 | `GraphicsWidth()` / `GraphicsHeight()` | Current window size (GLFW or last `Graphics*`) |
 | `ClearWorld` | Free entities/sprites/emitters; keep the window |
-| `LoadScene file$` | Run a setup `.bb` (no `Flip`/`End`) on the same variables |
+| `LoadScene file$` | Run a setup `.mb` (no `Flip`/`End`) on the same variables |
 | `OpenPak file$` | Zip archive; later `Load*` look here if the disk file is missing |
 | `FileType(path$)` | 0 missing, 1 file, 2 directory |
 
@@ -31,7 +33,7 @@ Names are case-insensitive. Optional arguments in brackets. Handles are integers
 
 `CreateCamera([parent])`, `CreateFreeCamera([parent])` — free-look hides/raw-captures the mouse  
 `CreateCameraOrtho([parent, size])`, `CameraProjMode cam, mode` — 0 perspective, 1 ortho  
-`UpdateFreeLook cam [, speed]` — WASD + mouse look (`speed` units/sec, default 8). `examples/freelook.bb`  
+`UpdateFreeLook cam [, speed]` — WASD + mouse look (`speed` units/sec, default 8). `examples/freelook.mb`  
 `CreateLight([type, parent])` — 1 directional, 2 point, 3 spot  
 `CreateCube([size|parent])`, `CreateBox(w, h, d [, parent])` or `CreateBox(w, h, d, segW, segH, segD [, parent])`  
 `CreateSphere([segs, parent])` or `CreateSphere(radius, segs, parent)`  
@@ -41,7 +43,9 @@ Names are case-insensitive. Optional arguments in brackets. Handles are integers
 `CreateCapsule(radius, height [, segs, parent])`, `CreateDisk` / `CreateCircle(radius [, segs, parent])`  
 `CreatePyramid([size, parent])`, `CreateWedge(w, h, d [, parent])`, `CreateTube(radius, height [, segs, parent])`, `CreateQuad([size, parent])`  
 `CreatePivot`  
-`LoadMesh file$ [, parent]` — `.obj`, `.gltf`, `.glb`, `.dae`  
+`LoadMesh file$ [, parent]` — `.obj`, `.gltf`, `.glb`, `.dae`, `.fbx` (triangles only)
+`OptimizeMesh entity` — Forsyth vertex-cache reorder, overdraw reorder, then vertex pack (`internal/meshoptim`). Returns the triangle count  
+`SimplifyMesh entity [, ratio]` — quadric-error reduction (`internal/meshsimplify`). `ratio` is the fraction of triangles to keep (default 0.5). Returns the triangle count  
 `CopyEntity src [, parent]`, `FreeEntity`, `HideEntity`, `ShowEntity`, `EntityVisible(e)`  
 `PositionEntity e, x, y, z`, `MoveEntity`, `TranslateEntity`, `TurnEntity`, `RotateEntity`, `ScaleEntity`, `PointEntity`  
 `EntityColor e, r, g, b`, `EntityAlpha e, a`, `EntityAmbient e, r, g, b`, `EntityShininess e, n`, `EntitySpecular e, r, g, b`, `EntityEmission e, r, g, b`  
@@ -183,6 +187,12 @@ Source must be `.gltf` / `.glb` **with clips**.
 | `StopAnim e` / `StopAnimation e` | Pause (`mode` 0). **Not** the same as `Animate e` |
 | `AnimPlaying(e)` | 1 if a clip is advancing |
 | `SetAnimBlend e, w# [, seq\|name$]` / `BlendAnimation` | 0–1 mix of the previous clip pose into the current clip (`w=1` is current only). Passing a new seq/name stashes the old clip |
+| `SetAnimLayer e, slot, weight# [, seq\|name$]` | Extra clip blended over the base pose. `slot` starts at 0. Weight 0 turns that slot off |
+| `SetAnimAdditive e, slot, weight# [, seq\|name$]` | Same, added on top of the bind pose (bind is the pose at `LoadAnimMesh`) |
+| `SetIK e, upper$, lower$, end$, x, y, z [, weight#]` | Two-bone IK. Joint names are glTF node names. `x,y,z` is the world target. Weight defaults to 1 |
+| `SetIKChain e, bones$, x, y, z [, weight#]` | FABRIK along comma-separated joint names, at least 3. Same world target |
+| `SetIKPole e, x, y, z` | Bend the two-bone chain toward this world point |
+| `ClearIK e` | Stop solving |
 | `AttachToBone child, mesh, bone$` | Parent `child` to a named glTF node (or a named child entity). Alias `AttachBone`. See [PHYSICS.md](PHYSICS.md) |
 
 Clips advance with `DeltaTime` each frame (Flip), not twice if you also `UpdateWorld`.
@@ -203,17 +213,34 @@ Clips advance with `DeltaTime` each frame (Flip), not twice if you also `UpdateW
 `DrawImage img, x, y`  
 `DrawImageRect img, x, y, sx, sy, sw, sh [, dw, dh]`  
 `CreateSprite(img)`, `PositionSprite`, `MoveSprite`, `RotateSprite s, deg`, `ScaleSprite`  
-`SpriteX/Y`, `HideSprite`, `ShowSprite`  
+`SpriteX/Y`, `SpriteWidth`, `SpriteHeight`, `HideSprite`, `ShowSprite`  
+`ImageWidth`, `ImageHeight`  
+`SetSpriteSheet s, img, frameW, frameH` — grid on the image, frame 0 at the top left  
+`SetSpriteFrame s, index` — holds that frame  
+`AnimateSprite s, first, count, fps` — loops those frames  
+`FlipSprite s, horiz, vert` — 1 flips that axis  
+`SpriteAlpha s, a` — 0 invisible, 1 solid  
+`SpriteColor s, r, g, b`  
+`SpriteLayer s, n` — higher layers draw on top  
+`SetCamera2D x, y` — world point at the top-left of the screen. `MoveCamera2D`, `Camera2DX`, `Camera2DY`  
+`CameraFollow2D sprite [, ox, oy]` — keeps the sprite at screen center, plus an optional nudge  
+Sprites and `DrawTileMap` scroll with the camera. `Rect`, `Oval`, `Line`, `Text`, and `DrawImage` stay on the screen (HUD).  
 `Rect x, y, w, h [, filled]`, `Oval`, `Line`  
 `RectsOverlap`, `SpritesOverlap`, `ImagesOverlap`, `ImagesCollide`  
 `LoadFont file.ttf, size` — following `Text` uses it; otherwise the debug font  
 `SetFont handle`
 
+`examples/side_scroller.mb` is a tile platformer: run, jump, camera follow. `examples/platform2d.mb` is the Chipmunk version (circles, boxes, impulses).
+
 ### Tiles
 
 `CreateTileMap tw, th, cols, rows`  
 `SetTile map, tx, ty, id` — `id` 0 empty; 1+ is a tile  
-`DrawTileMap map, x, y [, atlas]` — colored cells if no atlas  
+`GetTile map, tx, ty` — 0 outside the map  
+`TileAt map, x, y` — cell under a world pixel  
+`SetTileSolid map, id, on` — ids above 0 block by default; `on` 0 lets the player pass through that id  
+`SpriteHitTile sprite, map` — 1 when the sprite box overlaps a blocking cell  
+`DrawTileMap map, x, y [, atlas]` — colored cells if no atlas; scrolls with `SetCamera2D`  
 `DrawTile atlas, tile, x, y, tw, th`  
 `LoadTileMap file.csv [, tw, th]` — CSV of integer ids
 
@@ -225,7 +252,7 @@ Clips advance with `DeltaTime` each frame (Flip), not twice if you also `UpdateW
 `SetSkyColor r, g, b` — solid clear color; a visible skybox draws in front of it  
 `SetSky` — string = preset (`default`/`sunset`) or cubemap prefix; 3 numbers = `SetSkyColor`; 6 numbers = `SetSkyGradient`  
 `CreateAtmosphere()` `SetAtmosphere` `SetAtmosphereRayleigh` `SetAtmosphereMie` `SetAtmosphereTurbidity` `SetSunDirection` — GLSL 330 sky dome: Go-baked 256×64 transmittance LUT + 12-step single scatter (Bruneton-style **Partial**, not the full 4D table)  
-`SetClouds cover [, density, speed]` / `CreateVolumetricClouds` — 3.3 layered-noise raymarch dome  
+`SetClouds cover [, density, speed]` / `CreateVolumetricClouds` — 36 shared cloud cards (no volume texture)  
 
 The sky follows the camera, does not write depth, and does not cast shadows.
 
@@ -249,8 +276,8 @@ Rain = streaks + wetness + height fog. Snow = flakes + drift. Fog = exp + height
 
 Particle crossfade is a **rate ramp**: outgoing emitters scale emission to 0 over the blend; incoming spawn at a low rate and ramp up (optional slight alpha fade). No transparent pile-up.
 
-`examples/weather.bb`: **1–5** clear / rain / snow / fog / storm, **T** long storm transition, **L** strike, **−/=** intensity, WASD + look.  
-`examples/platform64.bb`: same **1–5** keys.
+`examples/weather.mb`: **1–5** clear / rain / snow / fog / storm, **T** long storm transition, **L** strike, **−/=** intensity, WASD + look.  
+`examples/platform64.mb`: same **1–5** keys.
 
 ## Particles
 
@@ -298,7 +325,7 @@ SetEmitterSize(bits, 0.12, 0.04)
 `Emit e [, count]` / `EmitterBurst e, count`  
 `FreeEmitter e`  
 
-`SetEmitter*` aliases work (`SetEmitterShape`, `SetEmitterRate`, …). Demo: `examples/particles.bb`.
+`SetEmitter*` aliases work (`SetEmitterShape`, `SetEmitterRate`, …). Demo: `examples/particles.mb`.
 
 ### 2D (Ebiten)
 
@@ -308,7 +335,7 @@ SetEmitterSize(bits, 0.12, 0.04)
 `Particle2DDuration` `Particle2DLoop` `Particle2DBurst` `Particle2DSprite e, img`  
 `PositionEmitter2D` `Emit2D e [, count]` `FreeEmitter2D`  
 
-See `examples/particles.bb` and `examples/particles2d.bb`.
+See `examples/particles.mb` and `examples/particles2d.mb`.
 
 ## Input
 
@@ -317,10 +344,10 @@ See `examples/particles.bb` and `examples/particles2d.bb`.
 `MouseX/Y`, `MouseZ()` / `MouseWheel()` / `GetMouseWheel()`, `MouseXSpeed/YSpeed`, `MouseDown(btn)`, `MouseHit(btn)` — 1 left, 2 right, 3 middle  
 `MoveMouse x, y`, `HidePointer`, `ShowPointer`, `FlushKeys`, `FlushMouse`  
 `MouseLook [cam] [, sens, pitchMin, pitchMax]` — apply mouse delta to camera pitch/yaw (degrees). Pair with `SetCursorMode 2` / `SetRawMouse`  
-`CreateFreeCamera()` + `UpdateFreeLook cam [, speed]` — same look plus WASD. Do not bind Escape; use `WindowShouldClose`. `examples/freelook.bb`  
+`CreateFreeCamera()` + `UpdateFreeLook cam [, speed]` — same look plus WASD. Do not bind Escape; use `WindowShouldClose`. `examples/freelook.mb`  
 `SetGamepadDeadzone n` / `GamepadDeadzone()` / `GetGamepadDeadzone()` — axis deadzone (default 0.15)  
 
-See `examples/input.bb`.
+See `examples/input.mb`.
 
 ## Time
 
@@ -448,7 +475,7 @@ World +Z is forward. Yaw 0 faces +Z; `x += Sin(yaw)*dist`, `z += Cos(yaw)*dist`.
 | `UnprojectX([cam,] sx, sy [, depth])` `UnprojectY` `UnprojectZ` | Screen to world (`depth` 0 near-ish) |
 | `CameraPick([cam, x, y])` | Screen ray pick; `PickedX/Y/Z` |
 
-See `examples/math.bb`.
+See `examples/math.mb`.
 
 ## Audio (Ebiten / Oto)
 
@@ -482,49 +509,78 @@ Beginner: `Collide(mesh [, STATIC|KINEMATIC|DYNAMIC [, mass]])` boxes the mesh (
 `SetWaterFlow vx, vy, vz` feeds fluid velocity into `ApplyBuoyancyImpulse`. Dynamic bodies that enter the water (not vehicles / buoys) auto-float at factor 1.1; `SetBuoyancyFactor e, n` (`<0` disables).  
 `SetBodyCCD e, on` / `SetCCD e, on` — Windows: Jolt `LinearCast`. Linux/macOS and fallback: ray sweep from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate  
 `CreateCharacterController(e [, height, radius, maxSlope, maxStrength])` — Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). Windows also attaches a slightly smaller inner kinematic body so rays hit the player; Linux/macOS adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, "capsule"|"box", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.  
-Classic: `EntityType`, `GetEntityType`, `EntityRadius`, `EntityBox`, `Collisions`, `CountCollisions`, `EntityCollided(e [, type|other])`, `ResetEntity`, `CollisionEntity`, `CollisionX/Y/Z` — Windows Jolt `ContactListener` queues in **C++** (mutex, no `//export` from Jolt threads); Go drains in `UpdateWorld`. Linux/macOS and fallback synthesize persist contacts from overlap.
+Contacts, after `UpdateWorld`: `EntityCollided(e [, type|other])`, `CountCollisions(e)` (one entry per other entity), `CollisionEntity(e)`, `CollisionX/Y/Z(e)`. The list and the point are cleared when nothing is touching. `ResetEntity e` clears them early. `EntityType` / `GetEntityType`, `EntityRadius`, `EntityBox`. `Collisions srcType, destType, method, response` adds a sphere-radius rule; response 1 or 2 pushes the source apart. Windows uses the Jolt contact queue. Linux and macOS test each box or sphere. Fallback overlaps boxes and spheres. See [PHYSICS.md](PHYSICS.md).
 
-See `examples/physics3d.bb`, `examples/jolt_drop.bb`, `examples/physics_joints.bb`, `examples/physics_body.bb`, `examples/physics_contacts.bb`, `examples/physics_pile.bb`, `examples/character_virt.bb`, `examples/cloth.bb`, `examples/grab_beam.bb`. Helpers: [PHYSICS.md](PHYSICS.md), [MODERN_GAME_HELPERS.md](MODERN_GAME_HELPERS.md).
+See `examples/physics3d.mb`, `examples/jolt_drop.mb`, `examples/physics_joints.mb`, `examples/physics_body.mb`, `examples/physics_contacts.mb`, `examples/physics_pile.mb`, `examples/character_virt.mb`, `examples/cloth.mb`, `examples/grab_beam.mb`. Helpers: [PHYSICS.md](PHYSICS.md), [MODERN_GAME_HELPERS.md](MODERN_GAME_HELPERS.md).
 
 **2D (Chipmunk, not Box2D):** Box2D CGO was not added; Chipmunk already owns `phys2d`. `Physics2D`, `Gravity2D` / `SetGravity2D`, `CreateCircle2D`, `CreateBox2D`, `CreatePoly2D` / `CreatePolygon2D`, `Body2D`, `SetStatic2D`, `SetMass2D`, `SetVelocity2D` / `Velocity2D` / `Velocity2DX` / `Velocity2DY`, `Position2D` / `Position2DY`, `ApplyImpulse2D`, `ApplyForce2D`, `EntityAngle2D`, `Collides2D`, `CountCollisions2D`, `Raycast2D(x1,y1,x2,y2)` (segment; sets `PickedEntity` / `PickedX/Y`), `SetCCD2D on` (more iterations / tighter slop — not Box2D bullet CCD), `UpdateWorld2D`  
 `CreatePin2D(a, b [, ax,ay, bx,by])`, `CreateSpring2D(a, b, rest, stiff, damp [, anchors])`, `CreateSlide2D(a, b, min, max [, anchors])`, `CreateJoint2D(kind, a, b, …)` (1 pin, 2 spring, 3 slide), `FreeJoint2D id`
 
 ## Network
 
-See [NETWORK.md](NETWORK.md). `NetHost` / `HostNet port`, `NetConnect` / `ConnectNet host$, port`, `NetClose` — session API (UDP default; `-tags enet` uses ENet). Still works.
+How to host, join, and play is [NETWORK.md](NETWORK.md). One room, port **27015**. Call `NetUpdate` every frame. Examples: `examples/net_lobby.mb`, `examples/net_echo.mb`.
 
-High-level host (independent handles):
+**Room**
 
-`host = CreateNetworkHost(port [, maxPeers])` — also `CreateHost`  
-`client = CreateNetworkClient(ip$, port)` — also `Connect` / `ConnectNetwork` / `ConnectHost(ip$, port)`  
-`ConnectHost(host, ip$, port)` — connect an existing host handle to an address  
-`netEvent = PollNetwork(host)` — **returns a `netevent` struct**, not a type int. Fields: `Type`, `PeerID` / `Peer`, `PeerIP` / `IP`, `Data` / `Message` / `Msg`. `PollNetwork()` uses the active host.  
-`NET_NONE` = 0, `NET_CONNECT` = 1, `NET_DISCONNECT` = 2, `NET_RECEIVE` / `NET_RECV` = 3  
-`SendNetworkMessage peer, data$ [, reliable]` — World host; default reliable  
-`SendNetwork host, peer, data$ [, reliable]` or `SendNetwork peer, data$ [, reliable]` — also `SendNet host, peer, msg$ [, reliable]`  
-`DisconnectNetwork peer` or `DisconnectNetwork host, peer`  
-`CloseNetworkHost host` — also `CloseHost` / `CloseNetwork`  
-`GetNetworkEventType()` / `GetNetworkPeerID()` / `GetNetworkPeerIP()` / `GetNetworkData$()` — last `PollNetwork` (also `GetNetEventType` / `GetNetPeerIP`)
+`HostGame([port])` also `NetHost` / `HostNet` — returns 1, announces on the LAN  
+`FindGames$([ms])` — lines of `ip|port|room|name`. Default wait 800ms  
+`JoinGame(ip$ [, port])` also `NetConnect` / `ConnectNet`  
+`NetClose` — close the room, or `NetClose peer` to drop one player. `NetDisconnect peer`  
+`NetUpdate` — pump. `NetBackend$()` / `GetNetBackend$()` is `"udp"` or `"enet"`
 
-`examples/net_host.bb`.
+**Lobby**
 
+`SetNetPlayerName s$`, `NetPlayerName$([peer])` / `GetNetPlayerName$([peer])` — omit peer for yourself  
+`SetNetRoom s$`, `NetRoom$()` / `GetNetRoom$()`  
+`NetLobby$()` — room, started flag, then `id name ready` per player  
+`NetReady [on]`, `NetAllReady()`  
+`StartGame()` — host only, returns 1. `NetStarted()`  
+`NetLocalID()` / `GetNetLocalID()`, `NetPeerCount()` / `GetNetPeerCount()`, `NetConnected()` / `GetNetConnected()`  
+`NetPing [peer]`, `NetRTT([peer])` / `GetNetRTT([peer])`
+
+**Messages**
+
+`NetSay msg$` — chat to the room  
+`NetRecv()` — 1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)  
 `NetSend peer, msg$ [, reliable]`, `NetSendReliable peer, msg$`, `NetBroadcast msg$ [, reliable]`  
-`NetRecv()`, `NetUpdate`, `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` — 1 connect, 2 disconnect, 3 receive  
-`NetPeerCount()` / `GetNetPeerCount()`, `NetConnected()` / `GetNetConnected()`, `NetBackend$()` / `GetNetBackend$()`, `NetDisconnect peer`  
-`NetPing [peer]`, `NetRTT([peer])` / `GetNetRTT([peer])`  
-`SetNetPlayerName s$`, `NetPlayerName$([peer])` / `GetNetPlayerName$([peer])` — omit peer for local  
-`NetLocalID()` / `GetNetLocalID()`, `NetReady [on]`, `NetAllReady()`  
-`NetRoom$()` / `SetNetRoom s$` / `GetNetRoom$()`  
-`NetSendJSON json$ [, peer]`, `NetRecvJSON$()`  
-`NetReplicate e [, on]`, `NetSnapshot$()`, `NetApplySnapshot json$`, `NetTick()` / `GetNetTick()`  
-`NetRegister name$`, `NetCall name$ [, arg$] [, peer]` — RPC; local if no net
+`SetNetInfo key$, value$`, `NetInfo$(key$)` — short shared facts, host keeps the copy  
+`NetSendJSON json$ [, peer]`, `NetRecvJSON$()` — one JSON text, about 4KB  
+`NetRegister name$`, `NetCall name$ [, arg$] [, peer]`
 
-Default UDP. `go build -tags enet` uses ENet.
+**Movement**
+
+`NetReplicate e [, on]` — this machine publishes that entity. The host relays the others.  
+`SetNetSmooth(ms)` — glide remote poses. Default 100. `0` snaps.  
+`NetSnapshot$()`, `NetApplySnapshot json$`, `NetTick()` / `GetNetTick()`
+
+UDP can drop a packet. `go build -tags enet` is the reliable build.
+
+**Raw sockets.** These do not run the lobby or `NetReplicate`. `examples/net_host.mb`.
+
+`CreateNetworkHost(port [, maxPeers])` / `CreateHost`  
+`CreateNetworkClient(ip$, port)` / `Connect` / `ConnectNetwork`  
+`ConnectHost(host, ip$, port)`  
+`PollNetwork(host)` — a struct: `Type`, `PeerID` / `Peer`, `PeerIP` / `IP`, `Data` / `Message` / `Msg`  
+`NET_NONE` = 0, `NET_CONNECT` = 1, `NET_DISCONNECT` = 2, `NET_RECEIVE` / `NET_RECV` = 3  
+`SendNetworkMessage peer, data$ [, reliable]`, `SendNetwork host, peer, data$ [, reliable]`, `SendNet`  
+`DisconnectNetwork peer`, `CloseNetworkHost host` / `CloseHost` / `CloseNetwork`  
+`GetNetworkEventType()` / `GetNetworkPeerID()` / `GetNetworkPeerIP()` / `GetNetworkData$()`
 
 ## Language builtins
 
 `Print`  
-`Len`, `Left`, `Right`, `Mid`, `Chr`, `Asc`, `Str`, `Instr`, `Lower`, `Upper`, `Trim`  
+`Len`, `Left`, `Right`, `Mid`, `Chr`, `Asc`, `Str`, `Instr`, `Replace`, `String`, `Lower`, `Upper`, `Trim`
+
+`Instr(s$, find$ [, start])` is 1-based and returns 0 when `find$` is absent. `start` defaults to 1.  
+`Replace(s$, find$, repl$)` replaces every `find$`. An empty `find$` leaves `s$` unchanged.  
+`String(n, s$)` repeats `s$` `n` times.
+
+`ReadFile(path$)` `WriteFile(path$)` `OpenFile(path$)` return a handle, or 0 if the file cannot be opened. `WriteFile` creates or truncates. `OpenFile` opens an existing file for read and write.  
+`CloseFile(file)` `Eof(file)` `FilePos(file)` `SeekFile(file, pos)`  
+`ReadLine(file)` `WriteLine(file, s$)`  
+`ReadByte` `WriteByte` `ReadShort` `WriteShort` `ReadInt` `WriteInt` `ReadFloat` `WriteFloat` — little-endian, 8 / 16 / 32 / 32-bit.  
+`ReadString(file)` `WriteString(file, s$)` — 32-bit length, then the bytes.  
+`FileSize(path$)` — bytes on disk, or 0.  
 `CreateList()`, `ListAdd list, v`, `ListGet(list, i)`, `ListSet list, i, v`, `ListCount(list)`, `ListRemove list, i`  
 `ArraySize(arr [, dim])` — `Dim` length (`dim` 1 = first axis)  
 `Data` / `Read` / `Restore` — classic DATA pointer (language statements, not `World.Call`)  
@@ -535,10 +591,10 @@ Math is in the **Math** section above. See [LANGUAGE.md](LANGUAGE.md) for `Selec
 ## Packaging
 
 ```
-bs build game.bb -o dist
+moon build game.mb -o dist
 ```
 
-Writes `dist/` with the `bs` binary, the `.bb`, copied `Load*` files, `assets/` if present, and natives from `third_party/$GOOS` (on Windows: `libc++.dll` + `libunwind.dll`). Audio is Oto — OpenAL DLLs are not copied. Zip `dist` and run from that folder.
+Writes `dist/` with the `bs` binary, the `.mb`, copied `Load*` files, `assets/` if present, and natives from `third_party/$GOOS` (on Windows: `libc++.dll` + `libunwind.dll`). Audio is Oto — OpenAL DLLs are not copied. Zip `dist` and run from that folder.
 
 ## Menu / level
 
@@ -547,10 +603,10 @@ Keep graphics mode, swap contents:
 ```basic
 ClearWorld
 cam = CreateCamera()
-LoadScene "level_setup.bb"
+LoadScene "level_setup.mb"
 ```
 
-The scene file is setup only (create entities). Do not `Flip` or `End` inside it. See `examples/scenes.bb`.
+The scene file is setup only (create entities). Do not `Flip` or `End` inside it. See `examples/scenes.mb`.
 
 ## Window / input (G3N GLFW)
 
@@ -584,26 +640,57 @@ Primary window (`Graphics3D`):
 | `WindowClosed(win)` | 1 if the extra window was closed (X). Main uses `WindowShouldClose()` |
 | `WindowKeyDown(win, key)` | Key on that window (`KeyDown` still follows the focused window) |
 
-See `examples/windows.bb`.
+See `examples/windows.mb`.
 
 ## Dear ImGui (cimgui-go v1.6.0)
 
-Drawn on the **same** G3N GLFW + OpenGL window after the 3D scene, automatically on `Flip`. Requires `Graphics3D`.
+[cimgui-go](https://github.com/AllenDang/cimgui-go) v1.6.0 draws on the **same** G3N GLFW + OpenGL 3.3 window after the 3D scene, automatically on `Flip`. Requires `Graphics3D`. These commands do not open a second window. The framebuffer scale follows that GLFW window, so a HiDPI display stays aligned with the mouse. Passing a value back in (`spin# = GuiSlider("Spin", 0, 5, spin#)`) updates the widget when the script changes that value.
 
 | Command | Meaning |
 | --- | --- |
-| `GuiBegin(title$)` | Start a panel. Auto-closed on `Flip` if you skip `GuiEnd` |
+| `GuiBegin(title$ [, menu])` | Start a panel. `menu` nonzero reserves a menu bar. Auto-closed on `Flip` if you skip `GuiEnd` |
 | `GuiEnd` | Close the current panel |
 | `GuiButton(label$)` | 1 if clicked |
 | `GuiText s$` | Label |
-| `GuiSlider(label$, lo, hi [, v])` | Returns the current value |
+| `GuiBullet s$` | Bulleted label |
+| `GuiSlider(label$, lo, hi [, v])` | Slider. Returns the current value |
+| `GuiDrag(label$, lo, hi [, v])` | Drag box over the same range |
+| `GuiProgress(fraction [, overlay$])` | Bar from 0 to 1 |
 | `GuiCheckbox(label$ [, on])` | 1 / 0 |
+| `GuiRadio(label$, group$, id [, current])` | 1 when this `id` is the selected one in `group$` |
+| `GuiCombo(label$, items$ [, index])` | Items separated by a vertical bar. Returns the index |
 | `GuiInputText(label$ [, initial$])` | Returns the string |
-| `GuiSameLine` / `GuiSeparator` | Layout |
-| `WantCaptureMouse()` / `WantCaptureKeyboard()` | 1 when the panel wants that device |
+| `GuiColor(label$ [, r, g, b])` | Color picker. Channels are 0–255. Returns red |
+| `GuiColorG(label$)` | Green from the last `GuiColor` with that label |
+| `GuiColorB(label$)` | Blue from the last `GuiColor` with that label |
+| `GuiHeader(label$)` | Collapsing header. 1 when open |
+| `GuiSameLine` | Next widget on this row |
+| `GuiSeparator` | Horizontal line |
+| `GuiSpacing` | Vertical gap |
+| `GuiSetWidth n` | Width of the next widget. `-1` fills the row |
+| `GuiTooltip s$` | Tip for the previous widget while the pointer is over it |
+| `GuiBeginMenuBar` | Menu bar. `GuiBegin` needs `menu` set. 1 if the bar is open |
+| `GuiEndMenuBar` | Close the menu bar |
+| `GuiMenu(label$)` | 1 when the menu is open |
+| `GuiEndMenu` | Close the menu |
+| `GuiMenuItem(label$)` | 1 if chosen |
+| `GuiBeginTabBar(id$)` | Tab bar. 1 if visible |
+| `GuiEndTabBar` | Close the tab bar |
+| `GuiTabItem(label$)` | 1 when that tab is selected |
+| `GuiEndTabItem` | Close the tab item |
+| `GuiTree(label$)` | Tree node. 1 when expanded |
+| `GuiTreePop` | Close the tree node |
+| `GuiBeginChild(id$)` | Scrolling region |
+| `GuiEndChild` | Close the region |
+| `GuiOpenPopup(id$)` | Open a popup |
+| `GuiBeginPopup(id$)` | 1 while the popup is open |
+| `GuiEndPopup` | Close the popup |
+| `GuiSelectable(label$)` | 1 if clicked |
+| `WantCaptureMouse()` | 1 when the panel wants the mouse |
+| `WantCaptureKeyboard()` | 1 when the panel wants the keyboard |
 | `GuiDemo` | Built-in ImGui demo window |
 
-See `examples/gui_demo.bb`.
+See `examples/gui_demo.mb`, `examples/gui_panels.mb`, and `examples/gui_3d.mb` (panel on a lit 3D scene). Scene-graph widgets are `examples/gui_scene.mb`.
 
 ## G3N scene widgets
 
@@ -629,15 +716,17 @@ SetOnClick(btn, "OnOK")
 | `SetWidgetValue e, n` / `WidgetValue(e)` / `GetWidgetValue(e)` | Slider 0–1 or checkbox 0/1 | `SetWidgetValue(s, 0.5)` |
 | `SetWidgetPos e, x, y` | Screen position | `SetWidgetPos(b, 20, 40)` |
 
+See `examples/gui_scene.mb`.
+
 ## Flecs
 
-See `docs/ECS.md` and `examples/ecs.bb`. Module version **4.1.6**.
+See `docs/ECS.md` and `examples/ecs.mb`. Module version **4.1.6**.
 
 `EcsWorld` `EcsEntity` `EcsComponent` `EcsSet` `EcsGet` `EcsGetX/Y/Z/W` `EcsGetS$` `EcsHas` `EcsAdd` `EcsRemove` `EcsDelete` `EcsAlive` `EcsValid` `EcsLookup` `EcsName` `EcsQuery` `EcsQueryCount` `EcsQueryEntity` `EcsProgress` `EcsCount` `EcsParent` `EcsGetParent` `EcsVersion$`
 
 ## Pathfinding
 
-See `docs/NAV.md` and `examples/nav.bb`. Detour + grid A* only. **No DetourCrowd C API** (go-detour v0.1.3).
+See `docs/NAV.md` and `examples/nav.mb`. Detour + grid A* + an ORCA crowd. **No DetourCrowd C API** (go-detour v0.1.3).
 
 `CreateNavMesh(mesh)` `AddNavObstacle(entity)` `BakeNavMesh([nav])` `CreateAgent(entity)`  
 `SetAgentSpeed e, n` `SetAgentRadius e, n` `SetAgentDestination e, x, y, z`  
@@ -645,9 +734,9 @@ See `docs/NAV.md` and `examples/nav.bb`. Detour + grid A* only. **No DetourCrowd
 `SetNavMaxSlope deg` / `GetNavMaxSlope()` — skip faces steeper than `deg` when baking. Unset reads as **45** and does not write. `GetNavMaxSlope` never sets.  
 `CreateGrid(w, h)` `SetGridWalkable grid, x, y, on` `FindPath(grid, x1, y1, x2, y2)` `PathLength(p)` `PathX(p, i)` `PathY(p, i)`
 
-### Crowd (local separation)
+### Crowd (ORCA)
 
-go-detour v0.1.3 has **no DetourCrowd C API**. This is Detour paths plus a local push-apart, time-to-collision sidestep, and yaw toward travel.
+go-detour v0.1.3 has **no DetourCrowd C API**. Members follow Detour paths. Each step solves reciprocal velocity obstacles, then a time-to-collision sidestep, and yaws toward travel. `UpdateNav` does not also move crowd members.
 
 ```basic
 crowd = CreateCrowd(1.2)
@@ -661,12 +750,43 @@ CrowdUpdate
 | `CreateCrowd([sep#])` | Crowd handle. `sep` is personal space (default 1.2) | `cr = CreateCrowd(1.3)` |
 | `CrowdAddAgent(crowd, e)` / `AddCrowdAgent` | Track entity; creates a nav agent if needed | `CrowdAddAgent(cr, body)` |
 | `CrowdSetDestination(crowd, x, y, z)` / `SetCrowdDestination` | Same Detour path for every member | `CrowdSetDestination(cr, 6, 1, 6)` |
+| `CrowdSetAgentDestination(agent, x, y, z)` | One member's goal. With 5 numbers, the first is the crowd id and it is ignored | `CrowdSetAgentDestination(body, 4, 0, 9)` |
 | `CrowdUpdate()` | `UpdateNav` + local push-apart (also on Flip) | `CrowdUpdate()` |
 | `SetCrowdRadius crowd, n` / `GetCrowdRadius([crowd])` | Separation radius | `SetCrowdRadius(cr, 1.5)` |
 | `SetNavMaxSlope(deg)` / `GetNavMaxSlope()` | Skip steep tris on bake. Getter does not write. Unset = 45 | `slope = GetNavMaxSlope()` |
 | `BakeTerrainNav([terrain])` | Detour from loaded terrain chunk triangles | `nav = BakeTerrainNav(land)` |
 
-See `docs/NAV.md`, `examples/crowd.bb`, `examples/ecs_crowd.bb`.
+See `docs/NAV.md`, `examples/crowd.mb`, `examples/ecs_crowd.mb`.
+
+## Behavior trees
+
+`CreateBehavior()` returns a tree. Each node call returns a node id. `BTAdd(tree, parent, child)` links them. `SetBehavior(entity, tree, root)` ticks that root every frame and calls each leaf as `Function fn(entity)`. Do not `Flip` inside a leaf. `ClearBehavior(entity)` stops ticking that entity. `examples/largeworld.mb` uses one tree for eight named people.
+
+| Command | Meaning | Example |
+| --- | --- | --- |
+| `CreateBehavior()` | Empty tree handle | `tree = CreateBehavior()` |
+| `BTSequence(tree)` | Run children in order. Stop on failure | `seq = BTSequence(tree)` |
+| `BTSelector(tree)` | Run children until one succeeds | `sel = BTSelector(tree)` |
+| `BTParallel(tree)` | Run every child. Fail if any child fails | `par = BTParallel(tree)` |
+| `BTCondition(tree, fn$)` | Success when `fn(entity)` is nonzero | `near = BTCondition(tree, "CloseEnough")` |
+| `BTAction(tree, fn$)` | `0` success, `>0` still running, `<0` fail | `act = BTAction(tree, "Greet")` |
+| `BTAdd(tree, parent, child)` | Parent the child node | `BTAdd(tree, seq, near)` |
+| `SetBehavior(entity, tree, root)` | Tick `root` on that entity | `SetBehavior(npc, tree, seq)` |
+| `ClearBehavior(entity)` | Stop that entity's tree | `ClearBehavior(npc)` |
+
+## Planner (GOAP)
+
+`CreatePlanner()` then `AddPlanAction(planner, name$, cost, pre$, add$)`. Facts are comma-separated words. `Plan(planner, state$, goal$)` returns the first action name, or `""` when no plan exists. `PlanLength(planner)` and `PlanStep(planner, i)` read the whole list. The search is forward from the current facts. It does not run the actions for you.
+
+```basic
+ai = CreatePlanner()
+AddPlanAction(ai, "eat", 1, "hungry", "fed")
+next$ = Plan(ai, "hungry", "fed")
+```
+
+## People and mesh export
+
+`CreatePerson(name$ [, x, y, z])` builds a blocky person (torso, head, arms, legs) whose height and color come from the name. `ExportGLTF(file$, entity)` / `ExportMesh` writes every mesh under that entity as glTF 2.0 with positions and indices. It does not write skin or materials.
 
 ## Jobs
 
@@ -705,7 +825,7 @@ Grid of prop chunks. Load/unload by camera/player. Mesh create stays on the GL t
 | `StreamChunkCount()` / `GetStreamChunkCount()` | Loaded cells | `Print(StreamChunkCount())` |
 | `StreamOriginX()` `StreamOriginZ()` | Current origin | `x = GetStreamOriginX()` |
 
-See `examples/stream.bb`.
+See `examples/stream.mb`.
 
 ## Terrain
 
@@ -736,12 +856,15 @@ See `docs/TERRAIN.md`. OpenGL **3.3** grids: central-difference normals, far chu
 | `SetTerrainDetail(t, pixels)` | Screen-space size as a CPU step. `8` is the old LOD. Smaller stays fine longer. `0` clears it | `SetTerrainDetail(t, 6)` |
 | `SetTerrainBlendMap(t, tex)` | R sand, G grass, B rock, A snow. Empty texels keep slope/height | `SetTerrainBlendMap(t, paint)` |
 | `TerrainFoliage(t [, density])` | Crossed grass cards. `1` is a light meadow. `0` clears. Far chunks use one quad | `TerrainFoliage(t)` |
-| `TerrainTrees(t, mesh [, density])` | Instanced `mesh` on flat ground. Far copies are a quad. `0` clears that mesh | `TerrainTrees(t, tree)` |
+| `TerrainTrees(t, mesh [, density])` | Copies on flat ground. A textured mesh becomes a card. `0` clears that mesh | `TerrainTrees(t, tree)` |
+| `SetTreeCards(t, width, height [, crossed, face])` | Card size. `crossed` adds a second card at 90 degrees. `face` turns it toward the camera | `SetTreeCards(t, 3.6, 4.4, False, True)` |
+| `SetTreeCardCross(t, on)` | Two intersecting cards, or one | `SetTreeCardCross(t, True)` |
+| `SetTreeCardFace(t, on)` | Cards turn toward the camera, or keep the yaw they were planted with | `SetTreeCardFace(t, False)` |
 | `TerrainProps(t, mesh [, density])` | Rocks and clutter. Several meshes are several layers. `0` removes that mesh | `TerrainProps(t, rock, 0.4)` |
 | `TerrainScatter(t, mesh, kind$, density)` | Same planter. `kind$` is `grass` `tree` `prop` `any` | `TerrainScatter(t, bush, "prop", 0.5)` |
 | `CreateProcTexture(kind$)` | `sand` `grass` `grass2` `rock` `snow` `rocknormal` `dudv` `cloud` | `tex = CreateProcTexture("grass")` |
 | `TerrainSlope(x, z)` / `GetTerrainSlope` | Up-dot normal (1 = flat) | `n# = TerrainSlope(x, z)` |
-| `CreateVolumetricClouds([y, scale])` / `CreateClouds` | 3.3 raymarch dome (no compute) | `c = CreateVolumetricClouds(110, 260)` |
+| `CreateVolumetricClouds([y, scale])` / `CreateClouds` | 36 shared cards, `scale` is the field radius | `c = CreateVolumetricClouds(110, 260)` |
 | `SetCloudCoverage` / `SetCloudSpeed` / `SetCloudDensity` | Cloud layer | `SetCloudCoverage(0.55)` |
 | `SetSkyPreset(name$)` | `default` `sunset` `sunset1` | `SetSkyPreset("sunset")` |
 | `SetSkyGradient(tR,tG,tB, bR,bG,bB)` | Rebuild procedural sky | `SetSkyGradient(134, 187, 214, 230, 230, 242)` |
@@ -755,7 +878,7 @@ See `docs/TERRAIN.md`. OpenGL **3.3** grids: central-difference normals, far chu
 
 ## Outdoor and indoor play
 
-How to use every call, in order: [PLAY.md](PLAY.md). Runnable scene: `examples/outdoor.bb` (`.\bs.exe examples\outdoor.bb`). WASD walks the terrain, E uses the crosshair, `[` `]` moves the hour, F5 / F9 save and load.
+How to use every call, in order: [PLAY.md](PLAY.md). Runnable scene: `examples/outdoor.mb` (`.\moon.exe examples\outdoor.mb`). WASD walks the terrain, E uses the crosshair, `[` `]` moves the hour, F5 / F9 save and load.
 
 One play layer on the same world. Outdoor streaming stays the terrain. Indoor streaming is the current room plus the rooms linked through a doorway. Entities in no room stay visible (the player, the terrain, the sun). There is no portal renderer and no second outdoor renderer.
 
@@ -834,7 +957,7 @@ WGS84 ↔ world XZ (Web Mercator, +X east, +Z north). Thin subset of flywave/go-
 | `CreateTerrainFromGeoDEM(hm, west, south, east, north [, hscale])` | Same bounds on a `GenerateHeightmap` handle | `t = CreateTerrainFromGeoDEM(hm, w, s, e, n, 8)` |
 | `GeoHeight(lon, lat)` / `GetGeoHeight` | `TerrainHeight` at the projected XZ | `y# = GeoHeight(lon, lat)` |
 
-See `examples/geo.bb`.
+See `examples/geo.mb`.
 
 ## Water
 
@@ -854,7 +977,8 @@ See `docs/WATER.md`. Two techniques, one shader: **Gerstner** vertex ocean + **s
 | `SetWaterWaves(count [, amp])` | 0 = flat plane, 1–4 Gerstner | `SetWaterWaves(4, 0.42)` |
 | `SetGerstner(i, dirX, dirZ, steep, amp, lambda, speed)` | One wave (i = 0–3) | `SetGerstner(0, 0.85, 0.35, 0.42, 0.55, 18, 1.15)` |
 | `SetWaterWind(dirX, dirZ [, str])` / `GetWaterWind()` | Steer / boost Gerstner | `SetWaterWind(0.9, 0.25, 0.7)` |
-| `WaterHeight(x, z)` / `GetWaterHeight` | CPU Gerstner (matches shader + wind) | `y# = WaterHeight(x, z)` |
+| `EnableFFT([water,] on)` | Phillips tile. `WaterHeight` is the CPU inverse FFT. The mesh samples a GPU inverse DFT of the same spectrum. One argument is on/off for the current water | `EnableFFT(True)` |
+| `WaterHeight(x, z)` / `GetWaterHeight` | CPU Gerstner plus the FFT tile when `EnableFFT` is on | `y# = WaterHeight(x, z)` |
 | `CreateBuoy(ent)` | Jolt lift + splash + wake impulse | `CreateBuoy(boat)` |
 | `SetWaterFollow(on)` | Recenter LOD grid on camera XZ | `SetWaterFollow(True)` |
 | `SetWaterLevel(y)` / `GetWaterLevel()` | Still-water plane | `SetWaterLevel(0)` |
@@ -950,7 +1074,7 @@ Water/terrain stay on a **dense regular mesh** on 3.3. This only compiles a tiny
 | `ShaderSPIRVSize(id)` | SPIR-V word count (0 if no validator) | `n = ShaderSPIRVSize(s)` |
 | `GlslangNative()` | 1 if `glslangValidator` (or `glslang`) is on PATH | `If GlslangNative() Then` |
 
-CLI: `bs shader file.glsl [stage]` — same validate path, no window.
+CLI: `moon shader file.glsl [stage]` — same validate path, no window.
 
 ### Gonum helpers (CPU, no GL)
 
@@ -962,7 +1086,7 @@ G3N scene types stay `math32`. These use `gonum.org/v1/gonum` via `internal/math
 | `SHEval(nx, ny, nz)` | Evaluate probe SH (red channel) | `r# = SHEval(0, 1, 0)` |
 | `JobXform([count])` | Worker-pool batch of 4×4 multiplies | `id = JobXform(256)` |
 
-See `examples/glmodern.bb`.
+See `examples/glmodern.mb`.
 
 ## Light probes (GI)
 
@@ -1037,22 +1161,22 @@ See [VEHICLES.md](VEHICLES.md). `CreateXxxController` + `UpdateXxx` each frame.
 
 Also: `CreateGliderController` / `CreateSkiController`. Forces: `ApplyTorque` `ApplyForceAtPosition` `ApplyLocalImpulse` `SetGravityScale` `SetRestitution` `SetLinearDamping` `SetFriction` `ApplyBuoyancy` `WaterHeight`.
 
-Demos: `examples/car.bb` `plane.bb` `jet.bb` `spaceship.bb` `boat.bb` `motorcycle.bb` `helicopter.bb` `hovercraft.bb` `submarine.bb` `tank.bb` `drone.bb` `vehicles_more.bb`.
+Demos: `examples/car.mb` `plane.mb` `jet.mb` `spaceship.mb` `boat.mb` `motorcycle.mb` `helicopter.mb` `hovercraft.mb` `submarine.mb` `tank.mb` `drone.mb` `vehicles_more.mb`.
 
 | Command | Physics | Example |
 | --- | --- | --- |
-| `CreateCarController` / `CreateVehicle` / `UpdateCar e, steer, th, brake` | Jolt wheeled (Windows) or force fallback | `examples/car.bb` |
+| `CreateCarController` / `CreateVehicle` / `UpdateCar e, steer, th, brake` | Jolt wheeled (Windows) or force fallback | `examples/car.mb` |
 | `SetVehicleInput e, steer, th, brake` | Same as `UpdateCar` (alias `SetCarInput`) | |
-| `CreateMotorcycleController` / `UpdateMotorcycle` | Jolt motorcycle or fallback | `examples/motorcycle.bb` |
-| `CreateTankController` / `CreateTrackedController` / `UpdateTank` | Jolt tracked or fallback | `examples/tank.bb` |
-| `CreatePlaneController` / `UpdatePlane e, th, pitch, roll, yaw` | Aero. **Not** `CreatePlane` | `examples/plane.bb` |
-| `CreateJetController` / `UpdateJet` | Aero, more thrust | `examples/jet.bb` |
-| `CreateSpaceshipController` / `UpdateSpaceship` | Zero-g local impulse | `examples/spaceship.bb` |
-| `CreateBoatController` / `UpdateBoat e, th, steer` | Gerstner `WaterHeight` | `examples/boat.bb` |
-| `CreateHelicopterController` / `UpdateHelicopter e, col, cycP, cycR, yaw` | Hover + cyclic | `examples/helicopter.bb` |
-| `CreateHovercraftController` / `UpdateHovercraft` | Up-force + slip | `examples/hovercraft.bb` |
-| `CreateSubmarineController` / `UpdateSubmarine e, th, steer, dive` | `WaterHeight` buoyancy | `examples/submarine.bb` |
-| `CreateDroneController` / `UpdateDrone` | Small hover | `examples/drone.bb` |
+| `CreateMotorcycleController` / `UpdateMotorcycle` | Jolt motorcycle or fallback | `examples/motorcycle.mb` |
+| `CreateTankController` / `CreateTrackedController` / `UpdateTank` | Jolt tracked or fallback | `examples/tank.mb` |
+| `CreatePlaneController` / `UpdatePlane e, th, pitch, roll, yaw` | Aero. **Not** `CreatePlane` | `examples/plane.mb` |
+| `CreateJetController` / `UpdateJet` | Aero, more thrust | `examples/jet.mb` |
+| `CreateSpaceshipController` / `UpdateSpaceship` | Zero-g local impulse | `examples/spaceship.mb` |
+| `CreateBoatController` / `UpdateBoat e, th, steer` | Gerstner `WaterHeight` | `examples/boat.mb` |
+| `CreateHelicopterController` / `UpdateHelicopter e, col, cycP, cycR, yaw` | Hover + cyclic | `examples/helicopter.mb` |
+| `CreateHovercraftController` / `UpdateHovercraft` | Up-force + slip | `examples/hovercraft.mb` |
+| `CreateSubmarineController` / `UpdateSubmarine e, th, steer, dive` | `WaterHeight` buoyancy | `examples/submarine.mb` |
+| `CreateDroneController` / `UpdateDrone` | Small hover | `examples/drone.mb` |
 | `CreateGliderController` / `UpdateGlider` | Aero, no thrust | |
 | `CreateSkiController` / `UpdateSki` | Low friction | |
 
@@ -1071,7 +1195,7 @@ ImGui panels use the existing `Gui*` commands. These query live numbers:
 | `ReloadTexture(tex, file$)` | Swap image (GL thread) | `ReloadTexture(tex, "a.png")` |
 | `ReloadMesh(ent, file$)` | Load a new mesh, copy pose | `ReloadMesh(e, "tree.glb")` |
 
-See `examples/editor.bb`. Material sliders: `GuiSlider` + `EntityShininess` / `EntityColor` / `EntitySpecular`.
+See `examples/editor.mb`. Material sliders: `GuiSlider` + `EntityShininess` / `EntityColor` / `EntitySpecular`.
 
 ## Post-processing (GL 3.3 fullscreen blit)
 
@@ -1085,8 +1209,12 @@ Scene renders to a color FBO, then one blit: tonemap (`reinhard`, `neutral`, `ac
 | `SetBloom n` / `GetBloom()` | Bright-extract strength (0 off) | `SetBloom(0.35)` |
 | `SetFXAA [on]` | Simple luma FXAA | `SetFXAA(True)` |
 | `SetColorGrade contrast, sat [, r, g, b]` | Grade + optional RGB tint 0–255 or 0–1 | `SetColorGrade(1.05, 1.1, 255, 240, 230)` |
+| `SetFilmGrain n` | 0–1 grain after the grade. Turns the stack on | `SetFilmGrain(0.15)` |
+| `SetVignette n` | 0–1 darkening toward the corners | `SetVignette(0.35)` |
+| `SetChromaticAberration n` | 0–1 red/blue split from the center | `SetChromaticAberration(0.2)` |
+| `SetSharpen n` | 0–2 unsharp amount | `SetSharpen(0.4)` |
 
-See `examples/postfx.bb`.
+See `examples/postfx.mb`.
 
 ## Shader programs (graph lite)
 
@@ -1102,14 +1230,14 @@ PBR + Phong stay as they are. This is **GLSL 330 vert+frag bound to a mesh**, no
 | `SetUniform` | Same | |
 | `ShaderOK(sh)` | 1 if validate/register succeeded | `If ShaderOK(sh) Then` |
 
-See `examples/shader.bb`.
+See `examples/shader.mb`.
 
 ## Data
 
 `JSONLoad` `JSONSave` `JSONParse` `JSONGet` `JSONSet` `JSON$`  
 `SceneSave` / `SaveScene file$` — JSON of tagged primitives / `LoadMesh` paths, lights, cameras (`fov`/`near`/`far`), parent, transform, tint, visibility  
 `SceneLoad` / `LoadSceneJSON file$` — rebuild those kinds (`mesh` reloads `src`; `camera` restores frustum; unknown / old dumps → cubes)  
-`LoadScene file$` — `.bb` setup script, **or** `.json` / `.yaml` scene dump  
+`LoadScene file$` — `.mb` setup script, **or** `.json` / `.yaml` scene dump  
 `YAMLLoad` `YAMLSave` `YAMLParse` `YAMLGet` `YAMLSet`  
 `PackSave` `PackLoad` `PackEncode$` `PackDecode`
 

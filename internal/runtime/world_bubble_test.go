@@ -6,7 +6,7 @@ import (
 
 	"github.com/g3n/engine/core"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 func TestOldStreamCommandsStillWork(t *testing.T) {
@@ -135,5 +135,28 @@ func TestLODMorphRisesNearTheBoundary(t *testing.T) {
 	far := &World{bubble: &worldBubble{on: true, simRadius: 1}}
 	if far.chunkInSim(chunkKey{X: 3}, 32) {
 		t.Fatal("a far chunk should stay visual-only")
+	}
+}
+
+func TestHorizonRingFillsPastTheDetail(t *testing.T) {
+	cam := chunkKey{}
+	if inHorizonRing(cam, chunkKey{X: 1}, 2, 8) {
+		t.Fatal("detail chunks stay on the fine mesh")
+	}
+	if !inHorizonRing(cam, chunkKey{X: 4}, 2, 8) {
+		t.Fatal("the coarse ring should cover the ground out toward the fog")
+	}
+	if inHorizonRing(cam, chunkKey{X: 12}, 2, 8) {
+		t.Fatal("past the fog ring is not meshed")
+	}
+}
+
+func TestChunkStaysInRangeAroundTheCamera(t *testing.T) {
+	tr := &terrain{radius: 2, hf: heightField{worldW: 140, gw: 96}, chunkVerts: 17}
+	if !tr.chunkInRange(chunkKey{X: 1, Z: -1}, 10, 10) {
+		t.Fatal("a neighbor of the camera chunk is still in range")
+	}
+	if tr.chunkInRange(chunkKey{X: 8, Z: 8}, 10, 10) {
+		t.Fatal("a chunk well outside the ring should drop")
 	}
 }

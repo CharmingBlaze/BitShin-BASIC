@@ -9,10 +9,9 @@ import (
 	"github.com/g3n/engine/graphic"
 	"github.com/g3n/engine/gui"
 	"github.com/g3n/engine/math32"
-	"github.com/g3n/engine/texture"
 	"github.com/g3n/engine/window"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 func (w *World) commandTable() map[string]cmd {
@@ -356,17 +355,10 @@ func (w *World) commandTable() map[string]cmd {
 			if len(a) >= 2 && a[0].Kind != value.KindStr {
 				file = argS(a, 1)
 			}
-			path, err := w.openPath(file)
-			if err != nil {
+			id, err := w.loadTextureFile(file)
+			if err != nil || id == 0 {
 				return value.Num(0), nil
 			}
-			tex, err := texture.NewTexture2DFromImage(path)
-			if err != nil {
-				return value.Num(0), nil
-			}
-			id := w.nextTex
-			w.nextTex++
-			w.texs[id] = &texSlot{tex: tex, path: file}
 			return value.Num(float64(id)), nil
 		}),
 		"entitytexture": need(func(a []value.Value) (value.Value, error) {
@@ -381,6 +373,9 @@ func (w *World) commandTable() map[string]cmd {
 			}
 			if t != nil && e.pbr != nil {
 				e.pbr.SetBaseColorMap(t.tex)
+			}
+			if t != nil {
+				e.albedoPath = t.path
 			}
 			return z()
 		}),
@@ -666,6 +661,9 @@ func (w *World) commandTable() map[string]cmd {
 	for k, v := range w.appCommands(n, z, need) {
 		m[k] = v
 	}
+	for k, v := range w.fileCommands(n) {
+		m[k] = v
+	}
 	for k, v := range w.g3nGuiCommands(n, z, need) {
 		m[k] = v
 	}
@@ -715,6 +713,24 @@ func (w *World) commandTable() map[string]cmd {
 		m[k] = v
 	}
 	for k, v := range w.crowdCommands(n, z, need) {
+		m[k] = v
+	}
+	for k, v := range w.ikCommands(n, z, need) {
+		m[k] = v
+	}
+	for k, v := range w.behaviorCommands(n, z, need) {
+		m[k] = v
+	}
+	for k, v := range w.meshCommands(n, z, need) {
+		m[k] = v
+	}
+	for k, v := range w.goapCommands(n, z, need) {
+		m[k] = v
+	}
+	for k, v := range w.exportCommands(n, z, need) {
+		m[k] = v
+	}
+	for k, v := range w.personCommands(n, z, need) {
 		m[k] = v
 	}
 	for k, v := range w.scaleCommands(n, z, need) {
@@ -874,6 +890,10 @@ func (w *World) cameraFollow(a []value.Value) (value.Value, error) {
 	if wishY < minY {
 		wishY = minY
 	}
+	wishX, wishY, wishZ = w.pullFollowCamera(argI(a, 1, 0), float64(tx), float64(ty)+1.15, float64(tz), wishX, wishY, wishZ)
+	if wishY < minY {
+		wishY = minY
+	}
 	cn := camE.node.GetNode()
 	cp := worldPos(cn)
 	cx, cy, cz := fromG3N(cp.X, cp.Y, cp.Z)
@@ -903,6 +923,37 @@ func (w *World) cameraFollow(a []value.Value) (value.Value, error) {
 	camE.yaw = float32(yaw)
 	camE.pitch = float32(pitch)
 	return value.Num(0), nil
+}
+
+// pullFollowCamera shortens the orbit when a body sits between the look point and the wish position.
+// The target itself is ignored, so the camera does not collide with the thing it is following.
+func (w *World) pullFollowCamera(target int, lookX, lookY, lookZ, wishX, wishY, wishZ float64) (float64, float64, float64) {
+	if w.phys3 == nil {
+		return wishX, wishY, wishZ
+	}
+	dx := wishX - lookX
+	dy := wishY - lookY
+	dz := wishZ - lookZ
+	dist := math.Sqrt(dx*dx + dy*dy + dz*dz)
+	if dist < 0.8 {
+		return wishX, wishY, wishZ
+	}
+	hits := w.phys3.RaycastAll(float32(lookX), float32(lookY), float32(lookZ), float32(dx), float32(dy), float32(dz), 8)
+	for _, h := range hits {
+		if h.ID == 0 || h.ID == target || h.Fraction <= 0 || h.Fraction >= 1 {
+			continue
+		}
+		safe := float64(h.Fraction)*dist - 0.35
+		if safe < 0.8 {
+			safe = 0.8
+		}
+		if safe >= dist {
+			return wishX, wishY, wishZ
+		}
+		s := safe / dist
+		return lookX + dx*s, lookY + dy*s, lookZ + dz*s
+	}
+	return wishX, wishY, wishZ
 }
 
 func (w *World) pointOrLook(a []value.Value) (value.Value, error) {

@@ -3,7 +3,7 @@ package runtime
 import (
 	"testing"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 func TestCameraHelpers(t *testing.T) {

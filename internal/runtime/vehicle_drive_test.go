@@ -7,7 +7,7 @@ import (
 	"github.com/g3n/engine/core"
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 func TestUpdateCarThrottleMovesBody(t *testing.T) {
@@ -43,6 +43,77 @@ func TestUpdateCarThrottleMovesBody(t *testing.T) {
 	}
 	if z-startZ < 1.5 {
 		t.Fatalf("throttle should drive the car forward, startZ=%v z=%v native=%d", startZ, z, c.native)
+	}
+}
+
+func TestUpdateMotorcycleThrottleMovesBody(t *testing.T) {
+	w := New(".")
+	w.scene = core.NewNode()
+	w.ensurePhys3()
+	ground := &Entity{node: core.NewNode()}
+	bike := &Entity{node: core.NewNode()}
+	gid := w.addEntity(ground, 0)
+	bid := w.addEntity(bike, 0)
+	ground.node.GetNode().SetPosition(0, 0, 8)
+	bike.node.GetNode().SetPosition(0, 1.2, 8)
+	bike.node.GetNode().SetScale(0.28, 0.5, 1.2)
+	w.phys3.AddBox(gid, 0, 0, 8, 40, 0.25, 40, false)
+	c := w.bindCtrl("moto", []value.Value{value.Num(float64(bid))}, 0.25, 0.45, 1.1, 220)
+	c.native = w.phys3.CreateMotorcycleVehicle(c.id, c.hx, c.hy, c.hz)
+	_, _, startZ, ok := w.phys3.GetPosition(bid)
+	if !ok {
+		t.Fatal("motorcycle body missing")
+	}
+	for i := 0; i < 120; i++ {
+		w.updateNamed("moto", []value.Value{
+			value.Num(float64(bid)),
+			value.Num(0),
+			value.Num(1),
+			value.Num(0),
+		})
+		w.phys3.Step(1.0 / 60.0)
+	}
+	_, y, z, ok := w.phys3.GetPosition(bid)
+	if !ok {
+		t.Fatal("motorcycle body missing after drive")
+	}
+	if z-startZ < 1.2 {
+		t.Fatalf("throttle should drive the motorcycle forward, startZ=%v z=%v y=%v native=%d", startZ, z, y, c.native)
+	}
+	if y < 0.4 || y > 3 {
+		t.Fatalf("motorcycle should stay on the road, y=%v", y)
+	}
+}
+
+func TestFallbackCarThrottleStaysUpright(t *testing.T) {
+	w := New(".")
+	w.scene = core.NewNode()
+	w.ensurePhys3()
+	ground := &Entity{node: core.NewNode()}
+	car := &Entity{node: core.NewNode()}
+	gid := w.addEntity(ground, 0)
+	cid := w.addEntity(car, 0)
+	ground.node.GetNode().SetPosition(0, 0, 10)
+	car.node.GetNode().SetPosition(0, 1.2, 10)
+	w.phys3.AddBox(gid, 0, 0, 10, 40, 0.25, 40, false)
+	c := w.bindCtrl("car", []value.Value{value.Num(float64(cid))}, 0.9, 0.35, 1.8, 1200)
+	c.native = 0
+	_, _, startZ, ok := w.phys3.GetPosition(cid)
+	if !ok {
+		t.Fatal("car body missing")
+	}
+	for i := 0; i < 90; i++ {
+		w.updateWheeled(c, 0, 1, 0)
+		w.phys3.Step(1.0 / 60.0)
+		w.syncPhys3Pose()
+	}
+	_, _, z, _ := w.phys3.GetPosition(cid)
+	e := w.ents[cid]
+	if z-startZ < 1.5 {
+		t.Fatalf("force-driven car should move forward, startZ=%v z=%v", startZ, z)
+	}
+	if math32.Abs(e.roll) > 20 || math32.Abs(e.pitch) > 25 {
+		t.Fatalf("force-driven car should stay upright, pitch=%v roll=%v", e.pitch, e.roll)
 	}
 }
 

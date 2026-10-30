@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
+
+	"moonbasic/internal/lex"
 )
 
 func writeRPC(t *testing.T, w io.Writer, payload string) {
@@ -55,7 +58,7 @@ func TestServeInitializeDiagnosticsShutdown(t *testing.T) {
 	}
 
 	writeRPC(t, clientW, `{"jsonrpc":"2.0","method":"initialized","params":{}}`)
-	writeRPC(t, clientW, `{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///t.bb","languageId":"bitshinbasic","version":1,"text":"Function\n"}}}`)
+	writeRPC(t, clientW, `{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///t.bb","languageId":"moonbasic","version":1,"text":"Function\n"}}}`)
 
 	diag := map[string]any{}
 	deadline := time.Now().Add(2 * time.Second)
@@ -125,6 +128,24 @@ func TestParseDiagnosticsAndSymbols(t *testing.T) {
 	list := completions(c, doc, position{Line: 3, Character: 0})
 	if len(list.Items) < 10 {
 		t.Fatalf("completions too few: %d", len(list.Items))
+	}
+}
+
+func TestDocumentedCommandsAreKnown(t *testing.T) {
+	c := newCatalog()
+	c.ingestDocLine("| `CameraRange cam, near, far` | clip |", regexp.MustCompile("`([^`]+)`"))
+	c.ingestDocLine("| `CameraClsColor r, g, b` | background |", regexp.MustCompile("`([^`]+)`"))
+	c.ingestDocLine("| `LightColor` / `SetLightColor light, r, g, b` | RGB |", regexp.MustCompile("`([^`]+)`"))
+	for _, name := range []string{"CameraRange", "CameraClsColor", "SetLightColor", "LightColor"} {
+		if _, ok := c.hover[lex.IdentKey(name)]; !ok {
+			t.Fatalf("%s missing from catalog", name)
+		}
+	}
+	c.seedCommands()
+	src := "CameraRange(camera, 0.1, 4000)\nCameraClsColor(22, 28, 42)\nSetLightColor(light, 255, 240, 220)\n"
+	diags := semanticDiags(c, &document{text: src})
+	if len(diags) != 0 {
+		t.Fatalf("valid commands flagged: %+v", diags)
 	}
 }
 

@@ -9,8 +9,8 @@ import (
 	"github.com/g3n/engine/material"
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/phys3d"
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/phys3d"
+	"moonbasic/internal/value"
 )
 
 type pathFollow struct {

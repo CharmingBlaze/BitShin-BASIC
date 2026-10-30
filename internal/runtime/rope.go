@@ -5,7 +5,7 @@ import (
 
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 type ropeVec struct{ x, y, z float32 }

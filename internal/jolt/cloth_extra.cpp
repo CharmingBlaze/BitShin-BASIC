@@ -257,6 +257,37 @@ int JoltGetClothVertices(JoltPhysicsSystem system, JoltBodyID bodyID, float *xyz
 	return n;
 }
 
+void JoltSetClothVertices(JoltPhysicsSystem system, JoltBodyID bodyID, const float *xyz, int nFloats)
+{
+	if (system == nullptr || bodyID == nullptr || xyz == nullptr || nFloats < 3)
+	{
+		return;
+	}
+	PhysicsSystem *ps = GetPhysicsSystem(static_cast<PhysicsSystemWrapper *>(system));
+	BodyLockWrite lock(ps->GetBodyLockInterface(), *asID(bodyID));
+	if (!lock.Succeeded())
+	{
+		return;
+	}
+	Body &body = lock.GetBody();
+	if (!body.IsSoftBody())
+	{
+		return;
+	}
+	SoftBodyMotionProperties *mp = static_cast<SoftBodyMotionProperties *>(body.GetMotionProperties());
+	Array<SoftBodyVertex> &verts = mp->GetVertices();
+	int n = nFloats / 3;
+	if (n > static_cast<int>(verts.size()))
+	{
+		n = static_cast<int>(verts.size());
+	}
+	for (int i = 0; i < n; ++i)
+	{
+		verts[static_cast<size_t>(i)].mPosition = Vec3(xyz[i * 3], xyz[i * 3 + 1], xyz[i * 3 + 2]);
+		verts[static_cast<size_t>(i)].mVelocity = Vec3::sZero();
+	}
+}
+
 void JoltApplyClothWind(JoltPhysicsSystem system, JoltBodyID bodyID,
 						float vx, float vy, float vz, unsigned int start, unsigned int step)
 {

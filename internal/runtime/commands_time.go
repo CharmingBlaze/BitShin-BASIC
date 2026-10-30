@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 func (w *World) timeCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error)) map[string]cmd {

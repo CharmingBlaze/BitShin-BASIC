@@ -260,8 +260,8 @@ void main() {
     vec3 sun = sunColor * ndl * sh;
     vec3 hemi = mix(vec3(0.30, 0.22, 0.14), vec3(0.40, 0.50, 0.62), n.y * 0.5 + 0.5);
     vec3 V = normalize(CamWorldPos - WorldPos);
-    float flat = smoothstep(mix(0.55, 0.32, clamp(TerrainGrassCover, 0.0, 1.0)), mix(0.90, 0.67, clamp(TerrainGrassCover, 0.0, 1.0)), clamp(n.y, 0.0, 1.0));
-    float gloss = mix(0.20, 0.04, flat);
+    float groundLevel = smoothstep(mix(0.55, 0.32, clamp(TerrainGrassCover, 0.0, 1.0)), mix(0.90, 0.67, clamp(TerrainGrassCover, 0.0, 1.0)), clamp(n.y, 0.0, 1.0));
+    float gloss = mix(0.20, 0.04, groundLevel);
     if (TerrainSnowOn != 0) {
         float snowM = smoothstep(TerrainSnowH - 1.2, TerrainSnowH + 2.0, WorldPos.y) * smoothstep(0.40, 0.78, n.y);
         gloss = mix(gloss, 0.38, snowM);
@@ -351,79 +351,64 @@ void main() {
 
 var mbterrainFragment = mbterrainFragmentHead + mbshadowSampleGLSL + mbterrainFragmentTail
 
-// mbclouds: 3.3 fragment raymarch through layered 2D noise (no compute / 3D tex).
-// Visual stand-in for Terrain-OpenGL volumetric_clouds.comp.
+// mbclouds: one camera-facing card. The puff is a few ellipses, so the
+// corners discard and the sky shows between cards. No noise texture.
 
 const mbcloudsVertex = `#include <attributes>
-uniform mat4 ModelViewMatrix;
-uniform mat4 MVP;
 uniform mat4 ModelMatrix;
-out vec3 WorldPos;
+uniform mat4 CloudVP;
+uniform vec3 CloudCam;
 out vec2 FragTexcoord;
+out vec3 WorldPos;
 void main() {
-    vec4 world = ModelMatrix * vec4(VertexPosition, 1.0);
-    WorldPos = world.xyz;
+    vec3 center = ModelMatrix[3].xyz;
+    float sx = length(ModelMatrix[0].xyz);
+    float sy = length(ModelMatrix[1].xyz);
+    vec2 corner = VertexPosition.xy;
+    vec3 toCam = CloudCam - center;
+    vec3 fwd = toCam / max(length(toCam), 0.001);
+    vec3 upRef = vec3(0.0, 1.0, 0.0);
+    if (abs(fwd.y) > 0.92) {
+        upRef = vec3(0.0, 0.0, 1.0);
+    }
+    vec3 right = normalize(cross(upRef, fwd));
+    vec3 up = normalize(cross(fwd, right));
+    WorldPos = center + right * corner.x * sx + up * corner.y * sy;
     FragTexcoord = VertexTexcoord;
-    gl_Position = MVP * vec4(VertexPosition, 1.0);
+    gl_Position = CloudVP * vec4(WorldPos, 1.0);
 }
 `
 
 const mbcloudsFragment = `precision highp float;
-in vec3 WorldPos;
 in vec2 FragTexcoord;
-uniform sampler2D CloudNoise;
-uniform int CloudHasNoise;
-uniform vec3 CloudCam;
-uniform vec3 CloudSun;
-uniform float CloudTime;
-uniform float CloudCover;
+in vec3 WorldPos;
+uniform float CloudSeed;
 uniform float CloudDensity;
 uniform vec3 CloudColor;
-uniform vec3 CloudSkyBot;
-uniform vec3 CloudWind;
+uniform vec3 CloudSun;
 out vec4 FragColor;
 
-float hash13(vec3 p) {
-    return fract(sin(dot(p, vec3(127.1, 311.7, 74.7))) * 43758.5453);
-}
-
-float cloudNoise(vec3 p) {
-    if (CloudHasNoise != 0) {
-        vec2 woff = CloudWind.xy * CloudTime * 0.04;
-        float a = texture(CloudNoise, p.xz * 0.004 + vec2(CloudTime * 0.012, CloudTime * 0.007) + woff).r;
-        float b = texture(CloudNoise, p.xz * 0.011 + vec2(-CloudTime * 0.008, CloudTime * 0.01) + woff * 0.6).g;
-        return mix(a, b, 0.45);
-    }
-    return hash13(floor(p * 0.04));
+float blob(vec2 p, vec2 c, float rx, float ry) {
+    vec2 d = (p - c) / vec2(rx, ry);
+    return 1.0 - smoothstep(0.55, 1.0, dot(d, d));
 }
 
 void main() {
-    vec3 ro = CloudCam;
-    vec3 rd = normalize(WorldPos - CloudCam);
-    if (rd.y < 0.02) { discard; }
-    float t0 = (95.0 - ro.y) / rd.y;
-    float t1 = (145.0 - ro.y) / rd.y;
-    if (t1 < t0) { float tmp = t0; t0 = t1; t1 = tmp; }
-    t0 = max(t0, 0.0);
-    if (t1 < 0.0) { discard; }
-    float step = (t1 - t0) / 12.0;
-    if (step < 1.0) { step = 1.0; }
-    float acc = 0.0;
-    vec3 pos = ro + rd * t0;
-    for (int i = 0; i < 12; i++) {
-        float n = cloudNoise(pos);
-        float h = clamp((pos.y - 95.0) / 50.0, 0.0, 1.0);
-        float d = smoothstep(1.0 - CloudCover, 1.0, n) * (1.0 - h * 0.65);
-        acc += d * CloudDensity * 0.22;
-        pos += rd * step;
+    vec2 p = FragTexcoord * 2.0 - 1.0;
+    float s = CloudSeed;
+    float fat = clamp(CloudDensity, 0.45, 1.8);
+    float a = blob(p, vec2(-0.28 + s * 0.16, 0.05), 0.62 * fat, 0.42);
+    float b = blob(p, vec2(0.32, 0.10 - s * 0.08), 0.50 * fat, 0.36);
+    float c = blob(p, vec2(-0.02, -0.22), 0.46 * fat, 0.30);
+    float d = blob(p, vec2(0.08 + s * 0.1, 0.28), 0.30 * fat, 0.24);
+    float n = max(max(a, b), max(c, d));
+    if (n < 0.04) {
+        discard;
     }
-    acc = clamp(acc, 0.0, 1.0);
-    if (acc < 0.02) { discard; }
-    float sun = pow(max(dot(rd, normalize(CloudSun)), 0.0), 8.0);
-    vec3 col = mix(CloudColor * 0.55, CloudColor, acc);
-    col += sun * vec3(1.0, 0.85, 0.55) * 0.35 * acc;
-    col = mix(CloudSkyBot, col, 0.85);
-    FragColor = vec4(col, acc * 0.78);
+    vec3 sun = normalize(CloudSun);
+    float shade = clamp(0.62 + 0.38 * n + sun.y * 0.08, 0.45, 1.0);
+    vec3 col = CloudColor * shade;
+    FragColor = vec4(col, clamp(n * 1.25, 0.0, 0.94));
 }
 `
 

@@ -1,0 +1,98 @@
+; Terrain — alpine FBM heightfield with splat, lake, walk / fly.
+; WASD walk, mouse/arrows look, Space fly, Q/E height in fly. Esc after a few frames.
+
+Graphics3D(1280, 720)
+SetWindowTitle("moonBASIC — Terrain")
+SetCameraClsColor(110, 160, 210)
+SetAmbientLight(88, 92, 100)
+EnableFog(True)
+SetFog(145, 168, 188, 150, 800)
+EnableHeightFog(False)
+SetFogHeight(0, 0)
+HidePointer()
+SetMousePosition(640, 360)
+Color(255, 245, 220)
+
+; Camera / sky
+cam = CreateCamera()
+SetCameraRange(cam, 0.25, 4000)
+CreateSkyBox("default")
+SetSkyPreset("default")
+
+; Light / shadows
+sun = CreateDirectionalLight()
+SetLightDirection(sun, 42, 48, 12)
+SetLightColor(sun, 255, 220, 175)
+SetLightShadow(sun, True)
+EnableShadows(True)
+SetShadowResolution(1024)
+
+; Terrain — CPU heightmap → chunked XZ mesh
+hm = GenerateHeightmapPreset("alpine", 160, 160, 19)
+ground = CreateTerrainFromHeightmap(hm, 220, 220, 28)
+ApplyTerrainSplat(ground)
+SetTerrainGrassCoverage(ground, 0.68)
+SetTerrainWaterHeight(ground, 5.5)
+SetTerrainSnow(True, 19)
+SetTerrainFogFalloff(0)
+SetTerrainStreamRadius(ground, 3)
+SetTerrainLOD(ground, 1)
+SetStreamOrigin(0, 0, 0)
+
+; Lake in the low bowl — do not touch ocean / mbwater shaders
+water = CreateWater(36, 36, 16)
+SetWaterLevel(5.5)
+SetWaterColor(22, 78, 102)
+EnableWaterReflection(True)
+SetWaterFollow(False)
+SetWaterWaves(2, 0.05)
+
+; Start pose
+yaw# = 18
+pitch# = -12
+fly = 0
+frames = 0
+cam.Position(12, TerrainHeight(12, 18) + 1.8, 18)
+cam.Rotate(pitch, yaw, 0)
+
+; Loop
+While 1
+    frames = frames + 1
+    dt# = Time.Delta()
+    yaw = yaw + MouseDeltaX() * 0.14
+    pitch = pitch - MouseDeltaY() * 0.14
+    If Input.KeyDown(KEY_LEFT) Then yaw = yaw - 80 * dt
+    If Input.KeyDown(KEY_RIGHT) Then yaw = yaw + 80 * dt
+    If Input.KeyDown(KEY_UP) Then pitch = pitch + 50 * dt
+    If Input.KeyDown(KEY_DOWN) Then pitch = pitch - 50 * dt
+    If pitch > 80 Then pitch = 80
+    If pitch < -80 Then pitch = -80
+    If Input.KeyHit(KEY_SPACE) Then fly = 1 - fly
+    cam.Rotate(pitch, yaw, 0)
+    SetMousePosition(640, 360)
+
+    spd# = 14 * dt
+    If Input.KeyDown(KEY_W) Then cam.Move(0, 0, spd)
+    If Input.KeyDown(KEY_S) Then cam.Move(0, 0, -spd)
+    If Input.KeyDown(KEY_A) Then cam.Move(-spd, 0, 0)
+    If Input.KeyDown(KEY_D) Then cam.Move(spd, 0, 0)
+
+    SetStreamOrigin(EntityX(cam), 0, EntityZ(cam))
+    h# = TerrainHeight(EntityX(cam), EntityZ(cam))
+    If fly Then
+        If Input.KeyDown(KEY_Q) Then cam.Position(EntityX(cam), EntityY(cam) + 12 * dt, EntityZ(cam))
+        If Input.KeyDown(KEY_E) Then cam.Position(EntityX(cam), EntityY(cam) - 12 * dt, EntityZ(cam))
+    Else
+        cam.Position(EntityX(cam), h + 1.75, EntityZ(cam))
+    EndIf
+
+    Cls
+    Text(12, 12, "TERRAIN  WASD walk  mouse/arrows look  Space fly  Q/E  Esc quit")
+    Text(12, 32, "chunks=" + Str(TerrainChunkCount()) + "  h=" + Str(h) + "  fps=" + Str(StatsFPS()))
+    RenderWorld
+    Flip
+    If frames > 8
+        If Input.KeyHit(KEY_ESCAPE) Then End
+    EndIf
+Wend
+End

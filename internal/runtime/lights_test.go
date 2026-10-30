@@ -7,7 +7,7 @@ import (
 	"github.com/g3n/engine/light"
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 func TestDirLightOffsetAbove(t *testing.T) {
@@ -225,6 +225,9 @@ func TestLightLadder(t *testing.T) {
 	if w.lightEnv != 1 {
 		t.Fatalf("outdoor env %d", w.lightEnv)
 	}
+	if !w.post.on || w.post.tonemap != 1 || w.post.bloom < 0.2 || w.post.exposure < 1 {
+		t.Fatalf("outdoor grade on=%v tonemap=%d bloom=%v exposure=%v", w.post.on, w.post.tonemap, w.post.bloom, w.post.exposure)
+	}
 	if w.ambient == nil || w.ambient.Color().B < w.ambient.Color().R {
 		t.Fatal("outdoor ambient should be sky-leaning")
 	}
@@ -242,6 +245,9 @@ func TestLightLadder(t *testing.T) {
 	}
 	if w.lightEnv != 2 || w.fogMode != 0 {
 		t.Fatalf("indoor env=%d fog=%d", w.lightEnv, w.fogMode)
+	}
+	if !w.post.on || w.post.exposure < 1.4 {
+		t.Fatalf("indoor grade exposure=%v on=%v", w.post.exposure, w.post.on)
 	}
 	if lightConstant(p) >= 0 {
 		t.Fatal("indoor point lights use inverse-square falloff")

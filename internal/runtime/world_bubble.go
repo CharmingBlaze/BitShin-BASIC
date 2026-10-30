@@ -5,7 +5,7 @@ import (
 
 	"github.com/g3n/engine/core"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 // worldBubble is the open-world window around the player.
@@ -240,6 +240,43 @@ func (w *World) chunkInSim(k chunkKey, cw float32) bool {
 		dz = -dz
 	}
 	return dx <= b.simRadius && dz <= b.simRadius
+}
+
+func (w *World) terrainAnchor() (float32, float32) {
+	if w.stream != nil {
+		return w.stream.ox, w.stream.oz
+	}
+	if w.cam != nil {
+		p := worldPos(w.cam.GetNode())
+		x, _, z := fromG3N(p.X, p.Y, p.Z)
+		return x, z
+	}
+	return 0, 0
+}
+
+func (t *terrain) chunkInRange(k chunkKey, ox, oz float32) bool {
+	if t == nil || t.radius < 0 {
+		return false
+	}
+	c := chunkOf(ox, oz, t.chunkWorld())
+	dx, dz := k.X-c.X, k.Z-c.Z
+	if dx < 0 {
+		dx = -dx
+	}
+	if dz < 0 {
+		dz = -dz
+	}
+	return dx <= t.radius && dz <= t.radius
+}
+
+func (w *World) retireChunkEntity(id int) {
+	if id == 0 {
+		return
+	}
+	if w.phys3 != nil {
+		w.phys3.Remove(id)
+	}
+	w.freeEntityID(id)
 }
 
 func (w *World) releaseTerrainChunk(t *terrain, k chunkKey, id int) {

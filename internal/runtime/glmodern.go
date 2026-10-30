@@ -9,8 +9,8 @@ import (
 	"github.com/go-gl/gl/v3.3-core/gl"
 	gl4 "github.com/go-gl/gl/v4.6-core/gl"
 
-	"bitshinbasic/internal/glslang"
-	"bitshinbasic/internal/mathx"
+	"moonbasic/internal/glslang"
+	"moonbasic/internal/mathx"
 )
 
 // Required baseline is OpenGL 3.3 core. G3N and extra windows request 3.3 —

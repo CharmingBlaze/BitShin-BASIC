@@ -34,7 +34,7 @@
 
   function getFileIcon(name: string) {
     const lower = name.toLowerCase();
-    if (lower.endsWith('.bb') || lower.endsWith('.basic') || lower.endsWith('.b3d')) {
+    if (lower.endsWith('.mb') || lower.endsWith('.basic') || lower.endsWith('.b3d')) {
       return { icon: FileCode, color: 'var(--accent)' };
     }
     if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg') || lower.endsWith('.bmp')) {

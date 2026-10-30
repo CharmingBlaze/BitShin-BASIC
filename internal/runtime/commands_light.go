@@ -8,7 +8,7 @@ import (
 	"github.com/g3n/engine/light"
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 func (w *World) makeLight(kind, parent int) int {

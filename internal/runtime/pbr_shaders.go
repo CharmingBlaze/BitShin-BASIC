@@ -111,6 +111,7 @@ uniform samplerCube uEnvCube;
 uniform int HasEnvCube;
 uniform vec3 CamWorldPos;
 uniform float uAO;
+uniform int uPostGrade;
 uniform float uOcclusionStrength;
 uniform sampler2D WaterCaustic;
 uniform int WaterCausticsOn;
@@ -370,7 +371,9 @@ void main() {
 #endif
 
     vec3 color = ambient * ao + direct + emissive + ShadowColor * ((1.0 - sunOcc) * pbrInputs.diffuseColor * 0.35);
-    color = pow(max(color, vec3(0.0)), vec3(1.0 / 2.2));
+    if (uPostGrade == 0) {
+        color = pow(max(color, vec3(0.0)), vec3(1.0 / 2.2));
+    }
     FragColor = vec4(color, baseColor.a);
     if (Wetness > 0.001) {
         float up = clamp(WorldNormal.y, 0.0, 1.0);

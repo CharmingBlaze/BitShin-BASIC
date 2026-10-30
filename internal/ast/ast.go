@@ -1,4 +1,4 @@
-// Package ast is the BitShin BASIC syntax tree.
+// Package ast is the moonBASIC syntax tree.
 package ast
 
 type Program struct {
@@ -55,6 +55,7 @@ type WhileStmt struct {
 	Src
 	Cond Expr
 	Body []Stmt
+	Tag  string // "do" when this is a Do loop
 }
 
 type ForStmt struct {
@@ -62,7 +63,8 @@ type ForStmt struct {
 	Var        string
 	Start, End Expr
 	Step       Expr
-	In         Expr // For v In xs  (Each is optional)
+	In         Expr   // For v In xs  (Each is optional)
+	EachType   string // For v = Each(Type)
 	Body       []Stmt
 }
 
@@ -70,6 +72,7 @@ type RepeatStmt struct {
 	Src
 	Body  []Stmt
 	Until Expr
+	Tag   string // "do" when this is Do ... Loop Until
 }
 
 type ReturnStmt struct {
@@ -79,10 +82,13 @@ type ReturnStmt struct {
 
 type FuncDecl struct {
 	Src
-	Name     string
-	Params   []string
-	Defaults []Expr // same length as Params; nil means required
-	Body     []Stmt
+	Name       string
+	Params     []string
+	Defaults   []Expr // same length as Params; nil means required
+	ParamTypes []string
+	Ret        string
+	Body       []Stmt
+	Coroutine  bool
 }
 
 type DimStmt struct {
@@ -97,6 +103,7 @@ type LocalStmt struct {
 	Src
 	Names  []string
 	Values []Expr // nil entry means 0
+	Static bool
 }
 
 type GlobalStmt struct {
@@ -151,6 +158,7 @@ type NamespaceDecl struct {
 type MethodStmt struct {
 	Src
 	Object string
+	Index  []Expr // foe(i).Hide — empty for foe.Hide
 	Path   []string
 	Method string
 	Args   []Expr
@@ -164,9 +172,23 @@ type ExprStmt struct {
 
 type EndStmt struct{ Src }
 
+type EraseStmt struct {
+	Src
+	Name string
+	All  bool
+}
+
+type DeleteStmt struct {
+	Src
+	Name string
+}
+
+type YieldStmt struct{ Src }
+
 type ExitStmt struct {
 	Src
 	Function bool
+	Loop     string // for, while, repeat, do; empty exits the nearest loop
 }
 
 type SelectStmt struct {
@@ -235,6 +257,9 @@ func (NamespaceDecl) stmt() {}
 func (MethodStmt) stmt()    {}
 func (ExprStmt) stmt()      {}
 func (EndStmt) stmt()       {}
+func (EraseStmt) stmt()     {}
+func (DeleteStmt) stmt()    {}
+func (YieldStmt) stmt()     {}
 func (ExitStmt) stmt()      {}
 func (SelectStmt) stmt()    {}
 func (DataStmt) stmt()      {}
@@ -257,10 +282,29 @@ type UnaryExpr struct {
 	X  Expr
 }
 
+// FmtExpr formats one value. Spec is a printf body such as ".2f".
+type FmtExpr struct {
+	Src
+	X    Expr
+	Spec string
+}
+
 type CallExpr struct {
 	Src
 	Name string
 	Args []Expr
+}
+
+// FuncRefExpr is @Name.
+type FuncRefExpr struct {
+	Src
+	Name string
+}
+
+// FuncExpr is an anonymous Function() … End Function.
+type FuncExpr struct {
+	Src
+	Decl *FuncDecl
 }
 
 type IdentExpr struct {
@@ -308,14 +352,17 @@ type StringExpr struct {
 	Value string
 }
 
-func (BinaryExpr) expr() {}
-func (UnaryExpr) expr()  {}
-func (CallExpr) expr()   {}
-func (IdentExpr) expr()  {}
-func (FieldExpr) expr()  {}
-func (MethodExpr) expr() {}
-func (NewExpr) expr()    {}
-func (IndexExpr) expr()  {}
-func (NumberExpr) expr() {}
-func (StringExpr) expr() {}
-func (VecExpr) expr()    {}
+func (BinaryExpr) expr()  {}
+func (UnaryExpr) expr()   {}
+func (FmtExpr) expr()     {}
+func (CallExpr) expr()    {}
+func (FuncRefExpr) expr() {}
+func (FuncExpr) expr()    {}
+func (IdentExpr) expr()   {}
+func (FieldExpr) expr()   {}
+func (MethodExpr) expr()  {}
+func (NewExpr) expr()     {}
+func (IndexExpr) expr()   {}
+func (NumberExpr) expr()  {}
+func (StringExpr) expr()  {}
+func (VecExpr) expr()     {}

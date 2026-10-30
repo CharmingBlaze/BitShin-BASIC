@@ -1,0 +1,125 @@
+; GUI panels — cimgui-go tabs, tree, list, radio, drag, and popup.
+; Esc quits.
+
+Graphics3D(960, 600)
+SetWindowTitle("moonBASIC — GUI panels")
+SetCameraClsColor(18, 22, 32)
+SetAmbientLight(70, 80, 100)
+
+camera = CreateCamera().Position([0, 2.2, -6])
+camera.Point(0, 0.4, 0)
+CreateLight().Rotate(50, 30, 0)
+
+ground = CreatePlane(16, 16).Position([0, -1, 0]).Color(36, 42, 52)
+cube = CreateCube().Position([0, 0.5, 0]).Color(70, 160, 255)
+sphere = CreateSphere().Position([0, 0.5, 0]).Color(70, 160, 255).Hide()
+torus = CreateTorus(0.7, 0.22).Position([0, 0.5, 0]).Color(70, 160, 255).Hide()
+
+shape = 0
+x# = 0
+y# = 0.5
+spin# = 1
+tintR = 70
+tintG = 160
+tintB = 255
+showDemo = 0
+
+While Not Input.KeyDown(1)
+    dt# = Time.Delta() * 60
+
+    GuiBegin("Widgets", 1)
+    If GuiBeginMenuBar() Then
+        If GuiMenu("View") Then
+            If GuiMenuItem("ImGui gallery") Then showDemo = 1 - showDemo
+            GuiEndMenu()
+        EndIf
+        GuiEndMenuBar()
+    EndIf
+
+    If GuiBeginTabBar("pages") Then
+        If GuiTabItem("Shape") Then
+            GuiText("Pick a mesh")
+            If GuiRadio("Cube", "shape", 0, shape) Then shape = 0
+            If GuiRadio("Sphere", "shape", 1, shape) Then shape = 1
+            If GuiRadio("Torus", "shape", 2, shape) Then shape = 2
+            GuiSpacing()
+            If GuiHeader("Notes") Then
+                GuiBullet("Same window as Graphics3D")
+                GuiBullet("Esc quits")
+            EndIf
+            GuiEndTabItem()
+        EndIf
+        If GuiTabItem("Move") Then
+            GuiSetWidth(180)
+            x# = GuiDrag("X", -4, 4, x#)
+            GuiSetWidth(180)
+            y# = GuiDrag("Y", 0, 3, y#)
+            spin# = GuiSlider("Spin", 0, 5, spin#)
+            GuiTooltip("Turn speed")
+            GuiProgress(spin# / 5, "spin")
+            GuiEndTabItem()
+        EndIf
+        If GuiTabItem("Color") Then
+            tintR = GuiColor("Tint", tintR, tintG, tintB)
+            tintG = GuiColorG("Tint")
+            tintB = GuiColorB("Tint")
+            If GuiButton("Reset") Then GuiOpenPopup("confirm")
+            If GuiBeginPopup("confirm") Then
+                GuiText("Reset tint and place?")
+                If GuiButton("Yes") Then
+                    tintR = 70
+                    tintG = 160
+                    tintB = 255
+                    x# = 0
+                    y# = 0.5
+                    spin# = 1
+                    shape = 0
+                EndIf
+                GuiSameLine()
+                GuiText("Click outside to keep")
+                GuiEndPopup()
+            EndIf
+            GuiEndTabItem()
+        EndIf
+        GuiEndTabBar()
+    EndIf
+    GuiEnd()
+
+    GuiBegin("List")
+    If GuiTree("Meshes") Then
+        GuiBullet("0 cube")
+        GuiBullet("1 sphere")
+        GuiBullet("2 torus")
+        GuiTreePop()
+    EndIf
+    GuiSeparator()
+    GuiBeginChild("names")
+    If GuiSelectable("cube") Then shape = 0
+    If GuiSelectable("sphere") Then shape = 1
+    If GuiSelectable("torus") Then shape = 2
+    GuiEndChild()
+    GuiEnd()
+
+    If showDemo Then GuiDemo()
+
+    cube.Hide()
+    sphere.Hide()
+    torus.Hide()
+    If shape = 0 Then cube.Show()
+    If shape = 1 Then sphere.Show()
+    If shape = 2 Then torus.Show()
+
+    cube.Position(x, y, 0)
+    sphere.Position(x, y, 0)
+    torus.Position(x, y, 0)
+    cube.Color(tintR, tintG, tintB)
+    sphere.Color(tintR, tintG, tintB)
+    torus.Color(tintR, tintG, tintB)
+    cube.Turn(0, spin# * dt, 0)
+    sphere.Turn(0, spin# * dt, 0)
+    torus.Turn(0, spin# * dt, 0)
+
+    RenderWorld
+    Flip
+Wend
+End

@@ -1,8 +1,8 @@
-//go:build !nojolt && windows
+//go:build !nojolt && (windows || (!joltgo && ((linux && (amd64 || arm64)) || (darwin && arm64))))
 
 package phys3d
 
-import "bitshinbasic/internal/jolt"
+import "moonbasic/internal/jolt"
 
 type kinChar struct {
 	x, y, z  float32
@@ -188,7 +188,7 @@ func (w *joltWorld) Step(dt float32) {
 
 func (w *joltWorld) MoveKinematic(id int, x, y, z, qx, qy, qz, qw, dt float32) {
 	b, ok := w.body[id]
-	if !ok {
+	if !ok || w.motion[id] != MotionTypeKinematic {
 		return
 	}
 	if dt <= 1e-6 {
@@ -357,7 +357,7 @@ func (w *joltWorld) AddCharacterController(id int, x, y, z, height, radius, maxS
 		height:  height,
 		virtual: cv,
 	}
-	w.rad[id] = radius
+	w.rad[id] = characterReach(height, radius)
 	w.mass[id] = 70
 	if cv != nil {
 		if ib := cv.InnerBody(); ib != nil {
@@ -380,14 +380,20 @@ func (w *joltWorld) SetCharacterShape(id int, shapeType string, height, radius f
 	if radius <= 0 {
 		radius = 0.4
 	}
-	newShape := jolt.CreateCapsule(capsuleCylinderHalf(height, radius), radius)
+	shaft := capsuleCylinderHalf(height, radius)
+	newShape := jolt.CreateCapsule(shaft, radius)
+	inner := jolt.CreateCapsule(shaft, radius*0.92)
 	if shapeType == "box" || shapeType == "Box" || shapeType == "BOX" {
 		newShape = jolt.CreateBox(jolt.Vec3{X: radius, Y: height * 0.5, Z: radius})
+		inner = jolt.CreateBox(jolt.Vec3{X: radius * 0.92, Y: height * 0.46, Z: radius * 0.92})
 	}
 	kc.virtual.SetShape(newShape, 0.1)
+	if b, ok := w.body[id]; ok && inner != nil {
+		w.bi.SetShape(b, inner, false)
+	}
 	kc.height = height
-	kc.radius = height * 0.5
-	w.rad[id] = kc.radius
+	kc.radius = radius
+	w.rad[id] = characterReach(height, radius)
 }
 
 func (w *joltWorld) CharacterGround(id int) int {

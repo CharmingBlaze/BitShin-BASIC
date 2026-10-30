@@ -16,7 +16,7 @@ import (
 	"github.com/g3n/engine/material"
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 type heightField struct {
@@ -44,28 +44,38 @@ type terrain struct {
 	lightmap   int
 	root       int
 	// Splat layers (Terrain-OpenGL port). Generator does not own these.
-	splat      bool
-	sandTex    int
-	grassTex   int
-	grass2Tex  int
-	rockTex    int
-	snowTex    int
-	rockNrm    int
-	grassCover float32
-	waterY     float32
-	blend      float32
-	fogFalloff float32
-	tessMul    float32
-	rock       math32.Color
-	snowOn     bool
-	snowH      float32
-	blendTex   int
-	detailPx   float32
-	scatters   []scatterLayer
-	scatterIDs map[chunkKey][]int
-	built      map[chunkKey]int
-	simOn      map[chunkKey]bool
-	morphOff   bool
+	splat        bool
+	sandTex      int
+	grassTex     int
+	grass2Tex    int
+	rockTex      int
+	snowTex      int
+	rockNrm      int
+	grassCover   float32
+	waterY       float32
+	blend        float32
+	fogFalloff   float32
+	tessMul      float32
+	rock         math32.Color
+	snowOn       bool
+	snowH        float32
+	blendTex     int
+	detailPx     float32
+	scatters     []scatterLayer
+	scatterIDs   map[chunkKey][]int
+	built        map[chunkKey]int
+	simOn        map[chunkKey]bool
+	morphOff     bool
+	horizonID    int
+	horizonAt    chunkKey
+	horizonN     int
+	horizonTrees []int
+	cards        []treeCard
+	// Tree card setup. cardW/cardH 0 keeps the picture's default size.
+	// cardFace defaults on: one card turns toward the camera.
+	cardW, cardH float32
+	cardCross    bool
+	cardFace     bool
 }
 
 func (hf *heightField) sample(x, z float32) float32 {
@@ -202,6 +212,8 @@ func gridCoord(a, b float32, i, nQuads int) float32 {
 
 // terrainMeshSegs raises a coarse chunk so a cell stays near 0.4 world
 // units. Far LOD still thins that count with step inside buildHeightMesh.
+// A raised count is a multiple of 4, so step 2 and 4 stay whole and the
+// horizon ring can pick a cell that lands on the chunk border.
 func terrainMeshSegs(span float32, segs int) int {
 	if segs < 2 {
 		segs = 2
@@ -210,7 +222,7 @@ func terrainMeshSegs(span float32, segs int) int {
 	if span > maxCell {
 		need := int(math.Ceil(float64(span / maxCell)))
 		if need > segs {
-			segs = need
+			segs = (need + 3) / 4 * 4
 		}
 	}
 	if segs > 72 {
@@ -235,7 +247,15 @@ func buildHeightMesh(sample func(x, z float32) float32, x0, z0, x1, z1 float32, 
 		span = 0.001
 	}
 	raw := sample
+	// The border is never morphed. It is the edge a neighbor, at another
+	// step or morph, and the horizon ring all share.
+	border := func(x, z float32) bool {
+		return x == x0 || x == x1 || z == z0 || z == z1
+	}
 	sample = func(x, z float32) float32 {
+		if border(x, z) {
+			return raw(x, z)
+		}
 		return coarseY(raw, x, z, x0, z0, x1, z1, full, step, morph)
 	}
 	normCell := span / float32(full)
@@ -263,7 +283,11 @@ func buildHeightMesh(sample func(x, z float32) float32, x0, z0, x1, z1 float32, 
 		y := sample(x, z) - yoff
 		gx, gy, gz := toG3N(x, y, z)
 		pos.Append(gx, gy, gz)
-		nx, ny, nz := sharedHeightNormal(sample, x, z, normCell)
+		ns := sample
+		if border(x, z) {
+			ns = raw
+		}
+		nx, ny, nz := sharedHeightNormal(ns, x, z, normCell)
 		nor.Append(nx, ny, nz)
 		uvs.Append((x-x0)/max32(span, 1)*4, (z-z0)/max32(z1-z0, 1)*4)
 		id := nverts
@@ -488,21 +512,20 @@ func (w *World) tickTerrain() {
 		if t.pending[k] {
 			continue
 		}
-		if id := t.ents[k]; id != 0 {
-			w.releaseTerrainChunk(t, k, id)
+		segs := t.chunkSegs(cw)
+		// The chunk under the camera, and the ones it is about to enter, are
+		// built before the frame draws. A far chunk can arrive a frame later.
+		if t.ents[k] == 0 && dx+dz <= 2 {
+			w.attachTerrainChunk(t, k, x0, z0, cw, segs, step, morph, code)
+			continue
 		}
+		// Keep the mesh that is already drawing. The replacement is attached
+		// when it is ready, so a LOD change does not open a hole.
 		t.pending[k] = true
 		key := k
 		size := cw
 		tid := t.id
-		segs := t.chunkVerts
-		if t.tessMul > 1 {
-			segs = int(float32(segs) * t.tessMul)
-		}
-		if segs < 4 {
-			segs = 17
-		}
-		segs = terrainMeshSegs(size, segs)
+		lod := code
 		w.ensureJobs().submit(func() {
 			// Heights only on the worker. Geometry / VBOs stay on the GL thread.
 			w.ensureJobs().enqueueGL(func() {
@@ -510,22 +533,194 @@ func (w *World) tickTerrain() {
 				if tt == nil {
 					return
 				}
-				g := buildHeightMesh(func(x, z float32) float32 {
-					return w.sampleHeight(&tt.hf, x, z)
-				}, x0, z0, x0+size, z0+size, segs, step, morph)
-				id := w.terrainChunkEnt(g, tt)
-				tt.ents[key] = id
-				if tt.built == nil {
-					tt.built = map[chunkKey]int{}
+				ax, az := w.terrainAnchor()
+				if !tt.chunkInRange(key, ax, az) {
+					delete(tt.pending, key)
+					return
 				}
-				tt.built[key] = code
-				w.placeScatter(tt, key, x0, z0, size, step)
-				w.syncChunkSim(tt, key, id, x0, z0, size)
+				w.attachTerrainChunk(tt, key, x0, z0, size, segs, step, morph, lod)
 				delete(tt.pending, key)
 			})
 		})
 	}
+	w.syncHorizon(t, cw, c)
+	w.faceTreeCards(t)
 	w.cullTerrainChunks(t, cw)
+}
+
+// inHorizonRing is the coarse ground past the detailed chunks. Games keep
+// this ring out to the fog so the hill does not end in open sky.
+func inHorizonRing(cam, k chunkKey, radius, n int) bool {
+	dx, dz := k.X-cam.X, k.Z-cam.Z
+	if dx < 0 {
+		dx = -dx
+	}
+	if dz < 0 {
+		dz = -dz
+	}
+	d := dx
+	if dz > d {
+		d = dz
+	}
+	return d > radius && d <= n
+}
+
+func (w *World) syncHorizon(t *terrain, cw float32, cam chunkKey) {
+	if t == nil || cw < 1 || t.radius < 0 {
+		return
+	}
+	reach := float32(360)
+	if w.fogMode != 0 && w.fogFar > reach {
+		reach = w.fogFar
+	}
+	if reach > 480 {
+		reach = 480
+	}
+	n := int(math.Ceil(float64(reach / cw)))
+	if n < t.radius+1 {
+		n = t.radius + 1
+	}
+	if n > 28 {
+		n = 28
+	}
+	if t.horizonID != 0 && t.horizonAt == cam && t.horizonN == n {
+		return
+	}
+	g := w.buildHorizonMesh(t, cw, cam, n)
+	if g == nil {
+		return
+	}
+	id := w.terrainChunkEnt(g, t)
+	if t.horizonID != 0 {
+		w.retireChunkEntity(t.horizonID)
+	}
+	t.horizonID = id
+	t.horizonAt = cam
+	t.horizonN = n
+	w.placeHorizonTrees(t, cw, cam, n)
+}
+
+// horizonCells is how many detail cells one horizon cell spans. It divides
+// the chunk, so the ring's inner edge lands on the detailed tiles' own
+// border vertices instead of crossing the hill on another grid.
+func horizonCells(cw float32, segs, chunks int) int {
+	if segs < 1 {
+		return 1
+	}
+	cell := cw / float32(segs)
+	want := cw / 10
+	if want < 1.2 {
+		want = 1.2
+	}
+	if want > 2.8 {
+		want = 2.8
+	}
+	best, bestErr := segs, float32(math.MaxFloat32)
+	for d := 1; d <= segs; d++ {
+		if segs%d != 0 || chunks*(segs/d) > 240 {
+			continue
+		}
+		e := cell*float32(d) - want
+		if e < 0 {
+			e = -e
+		}
+		if e < bestErr {
+			best, bestErr = d, e
+		}
+	}
+	return best
+}
+
+func (w *World) buildHorizonMesh(t *terrain, cw float32, cam chunkKey, n int) *geometry.Geometry {
+	// A chunk-sized quad reads as a seam and a flat hill. Keep cells near
+	// the size of the ground you can still see through the fog.
+	segs := t.chunkSegs(cw)
+	d := horizonCells(cw, segs, 2*n)
+	per := segs / d
+	normCell := cw / float32(segs)
+	if normCell < 0.2 {
+		normCell = 0.2
+	}
+	quads := 2 * n * per
+	// The detailed window in cell indices. Whole chunks, so a quad is in or out.
+	h0 := (n - t.radius) * per
+	h1 := (n + t.radius + 1) * per
+	type hz struct{ x, z int }
+	ids := map[hz]uint32{}
+	pos := math32.NewArrayF32(0, 0)
+	nor := math32.NewArrayF32(0, 0)
+	uvs := math32.NewArrayF32(0, 0)
+	idx := math32.NewArrayU32(0, 0)
+	var nverts uint32
+	coord := func(c0, i int) float32 {
+		// Same arithmetic as a chunk's border (attachTerrainChunk +
+		// buildHeightMesh), so the shared verts match to the bit.
+		k := c0 + i/per
+		a := float32(k) * cw
+		return gridCoord(a, a+cw, (i%per)*d, segs)
+	}
+	corner := func(ix, iz int) uint32 {
+		if id, ok := ids[hz{ix, iz}]; ok {
+			return id
+		}
+		x := coord(cam.X-n, ix)
+		z := coord(cam.Z-n, iz)
+		y := w.sampleHeight(&t.hf, x, z)
+		gx, gy, gz := toG3N(x, y, z)
+		pos.Append(gx, gy, gz)
+		nx, ny, nz := sharedHeightNormal(func(sx, sz float32) float32 {
+			return w.sampleHeight(&t.hf, sx, sz)
+		}, x, z, normCell)
+		nor.Append(nx, ny, nz)
+		// Chunks repeat a material texture 4x per chunk.
+		uvs.Append(x/max32(cw, 1)*4, z/max32(cw, 1)*4)
+		id := nverts
+		nverts++
+		ids[hz{ix, iz}] = id
+		return id
+	}
+	for iz := 0; iz < quads; iz++ {
+		for ix := 0; ix < quads; ix++ {
+			if ix >= h0 && ix < h1 && iz >= h0 && iz < h1 {
+				continue
+			}
+			a := corner(ix, iz)
+			b := corner(ix+1, iz)
+			c := corner(ix, iz+1)
+			d := corner(ix+1, iz+1)
+			idx.Append(a, b, d, a, d, c)
+		}
+	}
+	if nverts < 3 || idx.Size() < 3 {
+		return nil
+	}
+	g := geometry.NewGeometry()
+	g.SetIndices(idx)
+	g.AddVBO(gls.NewVBO(pos).AddAttrib(gls.VertexPosition))
+	g.AddVBO(gls.NewVBO(nor).AddAttrib(gls.VertexNormal))
+	g.AddVBO(gls.NewVBO(uvs).AddAttrib(gls.VertexTexcoord))
+	return g
+}
+
+func (w *World) attachTerrainChunk(t *terrain, key chunkKey, x0, z0, size float32, segs, step int, morph float32, lod int) {
+	if t == nil {
+		return
+	}
+	g := buildHeightMesh(func(x, z float32) float32 {
+		return w.sampleHeight(&t.hf, x, z)
+	}, x0, z0, x0+size, z0+size, segs, step, morph)
+	id := w.terrainChunkEnt(g, t)
+	if prev := t.ents[key]; prev != 0 && prev != id {
+		w.retireChunkEntity(prev)
+		w.freeScatter(t, key)
+	}
+	t.ents[key] = id
+	if t.built == nil {
+		t.built = map[chunkKey]int{}
+	}
+	t.built[key] = lod
+	w.placeScatter(t, key, x0, z0, size, step)
+	w.syncChunkSim(t, key, id, x0, z0, size)
 }
 
 func (w *World) cullTerrainChunks(t *terrain, cw float32) {
@@ -952,7 +1147,7 @@ func (w *World) addTerrain(hf heightField, chunkVerts, radius int) int {
 	w.terrains[id] = &terrain{
 		id: id, hf: hf, chunkVerts: chunkVerts, radius: radius,
 		ents: map[chunkKey]int{}, pending: map[chunkKey]bool{}, root: root,
-		lod: 1, grassCover: 0.65, waterY: 2.2, blend: 1.4,
+		lod: 1, grassCover: 0.65, waterY: 2.2, blend: 1.4, cardFace: true,
 		fogFalloff: 0, tessMul: 1, splat: true,
 		rock: math32.Color{0.55, 0.48, 0.40}, snowH: 19,
 	}
@@ -964,6 +1159,18 @@ func (w *World) addTerrain(hf heightField, chunkVerts, radius int) int {
 	// Origin ring on the GL thread so the first Flip is not an empty plane.
 	w.seedTerrainChunks(w.terrains[id])
 	return id
+}
+
+// chunkSegs is the quad count across one detailed chunk.
+func (t *terrain) chunkSegs(cw float32) int {
+	segs := t.chunkVerts
+	if t.tessMul > 1 {
+		segs = int(float32(segs) * t.tessMul)
+	}
+	if segs < 4 {
+		segs = 17
+	}
+	return terrainMeshSegs(cw, segs)
 }
 
 func (t *terrain) chunkWorld() float32 {
@@ -992,14 +1199,7 @@ func (w *World) seedTerrainChunks(t *terrain) {
 	if ring < 1 {
 		ring = 1
 	}
-	segs := t.chunkVerts
-	if t.tessMul > 1 {
-		segs = int(float32(segs) * t.tessMul)
-	}
-	if segs < 4 {
-		segs = 17
-	}
-	segs = terrainMeshSegs(cw, segs)
+	segs := t.chunkSegs(cw)
 	for z := -ring; z <= ring; z++ {
 		for x := -ring; x <= ring; x++ {
 			k := chunkKey{x, z}

@@ -6,7 +6,7 @@ import (
 	"github.com/g3n/engine/math32"
 	"github.com/g3n/engine/texture"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 func (w *World) pbrCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error), need func(func([]value.Value) (value.Value, error)) cmd) map[string]cmd {

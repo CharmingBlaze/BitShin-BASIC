@@ -3,6 +3,7 @@ package runtime
 import (
 	"image"
 	"image/color"
+	"sort"
 	"time"
 
 	"github.com/hajimehoshi/ebiten/v2"
@@ -11,37 +12,46 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 
-	"bitshinbasic/internal/interp"
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/interp"
+	"moonbasic/internal/value"
 )
 
 type ebiImage struct {
-	img    *ebiten.Image
-	src    image.Image
-	glTex  uint32
-	mid    bool
-	w, h   int
+	img   *ebiten.Image
+	src   image.Image
+	glTex uint32
+	mid   bool
+	w, h  int
 }
 
 type ebiSprite struct {
-	img           *ebiten.Image
-	x, y          float64
-	rot, sx, sy   float64
-	visible       bool
+	img                 *ebiten.Image
+	id                  int
+	x, y                float64
+	rot, sx, sy         float64
+	visible             bool
+	fw, fh              int
+	frame               int
+	animFrom, animCount int
+	animFPS, animT      float64
+	flipX, flipY        bool
+	alpha               float64
+	cr, cg, cb          float64
+	layer               int
 }
 
 type drawOp struct {
-	kind       int // 0 image, 1 rect, 2 oval, 3 line, 4 text
-	img        *ebiten.Image
-	imgID      int
-	glTex      uint32
-	texW, texH int
-	x, y, w, h float32
-	x2, y2     float32
+	kind           int // 0 image, 1 rect, 2 oval, 3 line, 4 text
+	img            *ebiten.Image
+	imgID          int
+	glTex          uint32
+	texW, texH     int
+	x, y, w, h     float32
+	x2, y2         float32
 	sx, sy, sw, sh int
-	r, g, b, a uint8
-	text       string
-	filled     bool
+	r, g, b, a     uint8
+	text           string
+	filled         bool
 }
 
 var ebiKeys = map[int]ebiten.Key{
@@ -101,6 +111,7 @@ func (g *ebiGame) Update() error {
 	}
 	g.first = false
 	g.w.tickFX()
+	g.w.tickSpriteAnims()
 	if g.in.Done() || g.w.quit {
 		return ebiten.Termination
 	}
@@ -227,17 +238,77 @@ func (w *World) draw2D(screen *ebiten.Image) {
 	w.drawHudPrint2D(screen)
 	w.drawParticles2D(screen)
 	w.drawFog2D(screen)
+	list := make([]*ebiSprite, 0, len(w.sprites))
 	for _, s := range w.sprites {
-		if s == nil || !s.visible || s.img == nil {
-			continue
+		if s != nil && s.visible && s.img != nil {
+			list = append(list, s)
+		}
+	}
+	sort.SliceStable(list, func(i, j int) bool {
+		if list[i].layer != list[j].layer {
+			return list[i].layer < list[j].layer
+		}
+		return list[i].id < list[j].id
+	})
+	for _, s := range list {
+		src := s.img
+		bw, bh := src.Bounds().Dx(), src.Bounds().Dy()
+		if s.fw > 0 && s.fh > 0 {
+			cols := bw / s.fw
+			if cols < 1 {
+				cols = 1
+			}
+			fr := s.frame
+			if fr < 0 {
+				fr = 0
+			}
+			sx, sy := (fr%cols)*s.fw, (fr/cols)*s.fh
+			if sx+s.fw <= bw && sy+s.fh <= bh {
+				src = src.SubImage(rectXYWH(sx, sy, s.fw, s.fh)).(*ebiten.Image)
+				bw, bh = s.fw, s.fh
+			}
 		}
 		opt := &ebiten.DrawImageOptions{}
-		b := s.img.Bounds()
-		opt.GeoM.Translate(-float64(b.Dx())/2, -float64(b.Dy())/2)
-		opt.GeoM.Scale(s.sx, s.sy)
+		opt.GeoM.Translate(-float64(bw)/2, -float64(bh)/2)
+		sx, sy := s.sx, s.sy
+		if sx == 0 {
+			sx = 1
+		}
+		if sy == 0 {
+			sy = 1
+		}
+		if s.flipX {
+			sx = -sx
+		}
+		if s.flipY {
+			sy = -sy
+		}
+		opt.GeoM.Scale(sx, sy)
 		opt.GeoM.Rotate(s.rot * 3.141592653589793 / 180)
-		opt.GeoM.Translate(s.x, s.y)
-		screen.DrawImage(s.img, opt)
+		opt.GeoM.Translate(s.x-w.cam2X, s.y-w.cam2Y)
+		opt.ColorScale.Scale(float32(s.cr), float32(s.cg), float32(s.cb), float32(s.alpha))
+		screen.DrawImage(src, opt)
+	}
+}
+
+func (w *World) tickSpriteAnims() {
+	dt := w.delta
+	if dt <= 0 {
+		return
+	}
+	for _, s := range w.sprites {
+		if s == nil || s.animCount <= 1 || s.animFPS <= 0 {
+			continue
+		}
+		s.animT += dt
+		step := 1 / s.animFPS
+		for s.animT >= step {
+			s.animT -= step
+			s.frame++
+			if s.frame < s.animFrom || s.frame >= s.animFrom+s.animCount {
+				s.frame = s.animFrom
+			}
+		}
 	}
 }
 

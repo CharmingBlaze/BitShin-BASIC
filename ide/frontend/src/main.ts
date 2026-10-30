@@ -1,3 +1,4 @@
+import './lib/shell'
 import { mount } from 'svelte'
 import '@fontsource-variable/geist'
 import '@fontsource-variable/geist-mono'

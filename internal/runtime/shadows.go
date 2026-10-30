@@ -617,6 +617,8 @@ func saveShadowGL(gs *gls.GLS) func() {
 	gl.GetIntegerv(gl.VIEWPORT, &vp[0])
 	var fbo int32
 	gl.GetIntegerv(gl.FRAMEBUFFER_BINDING, &fbo)
+	var drawBuf int32
+	gl.GetIntegerv(gl.DRAW_BUFFER, &drawBuf)
 	return func() {
 		if gs != nil {
 			gs.Disable(gls.POLYGON_OFFSET_FILL)
@@ -627,6 +629,9 @@ func saveShadowGL(gs *gls.GLS) func() {
 			gs.Viewport(vp[0], vp[1], vp[2], vp[3])
 		}
 		gl.BindFramebuffer(gl.FRAMEBUFFER, uint32(fbo))
+		// Depth-only shadow targets set DRAW_BUFFER to NONE. Leaving that
+		// set makes the following scene pass clear and then draw no color.
+		gl.DrawBuffer(uint32(drawBuf))
 		gl.DepthMask(true)
 		gl.Disable(gl.SCISSOR_TEST)
 	}

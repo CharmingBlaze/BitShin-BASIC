@@ -26,7 +26,7 @@ G3N has **no built-in terrain**. Community work ([josephtclegg/g3nterrain](https
 
 **Best fit we ship:** CPU FBM / PNG heightfield → chunked XZ `NewGeometry` mesh → height/slope splat → `TerrainHeight` walk. Visible hills come from a real height scale (not `0.005 * freq` on a 40-unit tile).
 
-Demo: `examples/terrain.bb` (alpine heightmap), `examples/terrain_gl.bb` (value-noise port).
+Demo: `examples/terrain.mb` (alpine heightmap), `examples/terrain_gl.mb` (value-noise port).
 
 ## Modes
 
@@ -56,7 +56,7 @@ Clean-room port of the documented [ergin3d/heightmap-generator](https://github.c
 
 `CreateTerrain` / `CreateTerrainFromHeightmap` feed the existing chunk mesh + splat path — they do not rebuild it.
 
-Demo: `examples/heightmap.bb` (writes `examples/assets/heightmap.png`).
+Demo: `examples/heightmap.mb` (writes `examples/assets/heightmap.png`).
 
 ## Geo / DEM
 
@@ -66,7 +66,7 @@ Lon/lat worlds use `docs/GEO.md` (`SetGeoOrigin`, `GeoProject`). `LoadGeoDEM` an
 
 ## Streaming + LOD
 
-`SetTerrainStreamRadius(terrain, n)` keeps a `(2n+1)²` window of chunks around the camera, `SetStreamFollow`, or `SetStreamOrigin`. Those three still work on their own. `SetPlayer` points the same window at the player until an origin or follow call overrides it. With `SetTerrainLOD` on (the default), a far chunk is coarse in the middle (`step=2`, then `step=4`) and full resolution on the border. In the last third of each band the verts slide toward the next lattice (`SetWorldMorph`) so the swap does not pop. `SetWorldMorph(0)` leaves the old step swap. Skirts still drop that border so a missed sample cannot show sky. `SetTerrainTessMultiplier` raises CPU density. It is not a tessellation shader.
+`SetTerrainStreamRadius(terrain, n)` keeps a `(2n+1)²` window of detailed chunks around the camera, `SetStreamFollow`, or `SetStreamOrigin`. A coarser ring continues from that window out to the fog (capped at 480), the same split games use so the horizon is ground instead of sky. Those three still work on their own. `SetPlayer` points the same window at the player until an origin or follow call overrides it. With `SetTerrainLOD` on (the default), a far chunk is coarse in the middle (`step=2`, then `step=4`) and full resolution on the border. In the last third of each band the verts slide toward the next lattice (`SetWorldMorph`) so the swap does not pop. `SetWorldMorph(0)` leaves the old step swap. Skirts still drop that border so a missed sample cannot show sky. `SetTerrainTessMultiplier` raises CPU density. It is not a tessellation shader.
 
 Do not create GL objects on workers. The job submits; `enqueueGL` builds the G3N mesh on Flip.
 
@@ -78,7 +78,7 @@ Do not create GL objects on workers. The job submits; `enqueueGL` builds the G3N
 
 Full behavior port of [Terrain-OpenGL](https://github.com/mark99106/Terrain-OpenGL) onto **G3N + GLSL 330**. Their repo is OpenGL 4 (tessellation + compute volumetric clouds). We do **not** require 4.5.
 
-| Their feature | BitShin BASIC |
+| Their feature | moonBASIC |
 | --- | --- |
 | Value-noise FBM + `pow` displacement in TES | Same hash/quintic/FBM on **CPU** (`terrain_gl_noise.go`); mesh already displaced |
 | Distance tessellation LOD | Chunked grid. Interior `step=2/4`, border matches the near chunk. `SetTerrainTessMultiplier` raises CPU density |
@@ -87,7 +87,7 @@ Full behavior port of [Terrain-OpenGL](https://github.com/mark99106/Terrain-Open
 | Directional light + height fog | G3N lights + CSM from `mbshadow` vertex + engine fog |
 | Procedural sky + sun disk | `SetSkyPreset("default"\|"sunset"\|"sunset1")` / `SetSkyGradient` |
 | Water reflection/refraction | Existing `CreateWater` + planar FBO (Gerstner, not their DUDV-only plane) |
-| Compute volumetric clouds | `CreateVolumetricClouds` — 3.3 raymarch through layered 2D noise (no compute) |
+| Compute volumetric clouds | `CreateVolumetricClouds` — 36 shared camera-facing cards (no compute, no 3D texture) |
 
 ```basic
 t = CreateTerrainGL(0, 25, 3, 3.2, 0.035, 8, 40)
@@ -125,7 +125,7 @@ y# = TerrainHeight(x, z)
 SetPlayer(player)
 ```
 
-`ApplyTerrainSplat` builds the CC0 sand, grass, rock, and snow maps and turns on `mbterrain`. Coverage, water line, and snow are the knobs. Walk with `TerrainHeight`. How to plant grass, trees, and props, then go indoors: [PLAY.md](PLAY.md). Demos: `examples/terrain.bb`, `examples/outdoor.bb`.
+`ApplyTerrainSplat` builds the CC0 sand, grass, rock, and snow maps and turns on `mbterrain`. Coverage, water line, and snow are the knobs. Walk with `TerrainHeight`. How to plant grass, trees, and props, then go indoors: [PLAY.md](PLAY.md). Demos: `examples/terrain.mb`, `examples/outdoor.mb`.
 
 ### Ground cover, trees, and props
 
@@ -140,9 +140,9 @@ Grass on the ground and grass you walk through are different. Trees and rocks ar
 
 **Grass cards.** `TerrainFoliage(terrain [, density])` scatters crossed cards where the ground is flat, below the snow line, and above the shore. `TerrainFoliage(t, 0)` clears them. Density `1` is a light meadow. Near cards are two crossed quads. On a far chunk (`step` 2 or 4) each card is one vertical quad turned toward the camera when that chunk is built.
 
-**Trees.** `TerrainTrees(terrain, mesh [, density])` plants `mesh` on the same flat-ground test, with a minimum spacing so trunks do not stack. Near copies are instances. Far copies are a single camera-facing quad, so a distant forest does not keep every trunk mesh. Y comes from `TerrainHeight`. Yaw is random. Scale varies a little around 1. `TerrainTrees(t, mesh, 0)` clears that mesh. Steep rock and snow stay bare.
+**Trees.** `TerrainTrees(terrain, mesh [, density])` plants copies on the same flat-ground test, with a minimum spacing so trunks do not stack. If that mesh has a texture, each copy is a card of the picture and the transparent pixels are cut out. `SetTreeCards(terrain, width, height [, crossed, face])` sets the card size in world units, `crossed` plants a second card at 90 degrees, and `face` turns the card toward the camera. `SetTreeCardCross` and `SetTreeCardFace` change one of those on their own. Face defaults on, crossed defaults off. Y comes from `TerrainHeight`. Scale varies a little around 1. `TerrainTrees(t, mesh, 0)` clears that mesh. Steep rock and snow stay bare.
 
-**Props.** `TerrainProps(terrain, mesh [, density])` uses the same planter for rocks, bushes, and crates. The default rule is looser than trees: anything that is not a cliff or a snowfield, including the shore. One terrain can have several prop meshes. Each call adds a layer. Density `0` removes that mesh. Far props use the same billboard quad as far trees.
+**Props.** `TerrainProps(terrain, mesh [, density])` uses the same planter for rocks, bushes, and crates. The default rule is looser than trees: anything that is not a cliff or a snowfield, including the shore. One terrain can have several prop meshes. Each call adds a layer. Density `0` removes that mesh. Far props are one vertical quad.
 
 Beginner scene:
 
@@ -197,7 +197,7 @@ Not planned: concurrent binary trees (Dupuy 2020, Intel Siggraph 2024) and virtu
 - A camera-facing grass shader that turns every card every frame. Far cards face the camera when the chunk is built.
 - True compute volumetric clouds (3.3 raymarch stand-in)
 - GPU clipmaps, concurrent binary trees, virtual texturing
-- meshoptimizer / Basis / KTX2 (not added; scene files stay JSON/YAML/MessagePack)
+- meshoptimizer C++ and BasisLZ (not added). KTX2 Zstd and ZLIB supercompression inflate to S3TC. `OptimizeMesh` and `SimplifyMesh` use the Go `meshoptim` and `meshsimplify` packages. DDS and KTX S3TC load as compressed GPU textures. Scene files stay JSON/YAML/MessagePack
 - FlatBuffers
 
-Demo: `examples/outdoor.bb` (foliage, trees, props, time of day, rooms), `examples/terrain_gl.bb` (full look), `examples/terrain.bb`, `examples/heightmap.bb`, `examples/largeworld.bb`. Walkthrough: [PLAY.md](PLAY.md).
+Demo: `examples/outdoor.mb` (foliage, trees, props, time of day, rooms), `examples/terrain_gl.mb` (full look), `examples/terrain.mb`, `examples/heightmap.mb`, `examples/largeworld.mb`. Walkthrough: [PLAY.md](PLAY.md).

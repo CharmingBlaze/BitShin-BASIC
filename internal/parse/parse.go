@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"bitshinbasic/internal/ast"
-	"bitshinbasic/internal/lex"
+	"moonbasic/internal/ast"
+	"moonbasic/internal/lex"
 )
 
 type Parser struct {
@@ -149,6 +149,8 @@ func (p *Parser) statement() (ast.Stmt, error) {
 		return p.parseIf()
 	case "while":
 		return p.parseWhile()
+	case "do":
+		return p.parseDo()
 	case "for":
 		return p.parseFor()
 	case "repeat":
@@ -188,9 +190,23 @@ func (p *Parser) statement() (ast.Stmt, error) {
 	case "dim":
 		return p.parseDim()
 	case "global":
-		return p.parseDeclNames(true)
+		return p.parseDeclNames(true, false)
 	case "local":
-		return p.parseDeclNames(false)
+		return p.parseDeclNames(false, false)
+	case "static":
+		return p.parseDeclNames(false, true)
+	case "erase":
+		return p.parseErase()
+	case "delete":
+		return p.parseDelete()
+	case "yield":
+		p.next()
+		return &ast.YieldStmt{Src: pos}, nil
+	case "coroutine":
+		if p.lx.Peek().Kind == lex.Dot {
+			break
+		}
+		return p.parseCoroutine()
 	case "include":
 		p.next()
 		if p.tok.Kind != lex.String {
@@ -217,8 +233,18 @@ func (p *Parser) statement() (ast.Stmt, error) {
 		return &ast.EndStmt{Src: pos}, nil
 	case "exit":
 		p.next()
-		fn := p.eatIdent("function")
-		return &ast.ExitStmt{Src: pos, Function: fn}, nil
+		if p.tok.Kind == lex.Ident {
+			switch identKey(p.tok) {
+			case "function":
+				p.next()
+				return &ast.ExitStmt{Src: pos, Function: true}, nil
+			case "for", "while", "repeat", "do":
+				loop := identKey(p.tok)
+				p.next()
+				return &ast.ExitStmt{Src: pos, Loop: loop}, nil
+			}
+		}
+		return &ast.ExitStmt{Src: pos}, nil
 	}
 
 	name := p.tok.Lit
@@ -289,7 +315,7 @@ func (p *Parser) statement() (ast.Stmt, error) {
 			return &ast.AssignStmt{Src: pos, Name: name, Index: args, Fields: fields, Value: e}, nil
 		}
 		if len(fields) > 0 {
-			return nil, p.errorf("expected =")
+			return p.indexedMethodStmt(pos, name, args, fields)
 		}
 		// function call with parens — allow CreateCube().Scale().Position()
 		call := &ast.CallExpr{Src: pos, Name: name, Args: args}
@@ -442,6 +468,30 @@ func (p *Parser) parseFor() (ast.Stmt, error) {
 		return nil, p.errorf("For expects = or In")
 	}
 	p.next()
+	if p.is("each") {
+		p.next()
+		if p.tok.Kind != lex.LParen {
+			return nil, p.errorf("Each expects (Type)")
+		}
+		p.next()
+		if p.tok.Kind != lex.Ident {
+			return nil, p.errorf("Each expects a type name")
+		}
+		typeName := p.tok.Lit
+		p.next()
+		if p.tok.Kind != lex.RParen {
+			return nil, p.errorf("expected )")
+		}
+		p.next()
+		body, err := p.statements(endFor)
+		if err != nil {
+			return nil, err
+		}
+		if !p.eatIdent("next") {
+			return nil, p.errorf("expected Next")
+		}
+		return &ast.ForStmt{Src: pos, Var: name, EachType: typeName, Body: body}, nil
+	}
 	start, err := p.expr()
 	if err != nil {
 		return nil, err
@@ -473,6 +523,58 @@ func (p *Parser) parseFor() (ast.Stmt, error) {
 	return &ast.ForStmt{Src: pos, Var: name, Start: start, End: end, Step: step, Body: body}, nil
 }
 
+func endDo(p *Parser) bool { return p.is("loop") }
+
+func (p *Parser) parseDo() (ast.Stmt, error) {
+	pos := astPos(p.tok)
+	p.next()
+	var head ast.Expr
+	headUntil := false
+	if p.eatIdent("while") {
+		e, err := p.expr()
+		if err != nil {
+			return nil, err
+		}
+		head = e
+	} else if p.eatIdent("until") {
+		e, err := p.expr()
+		if err != nil {
+			return nil, err
+		}
+		head = e
+		headUntil = true
+	}
+	body, err := p.statements(endDo)
+	if err != nil {
+		return nil, err
+	}
+	if !p.eatIdent("loop") {
+		return nil, p.errorf("expected Loop")
+	}
+	if head != nil {
+		cond := head
+		if headUntil {
+			cond = &ast.UnaryExpr{Src: pos, Op: "not", X: head}
+		}
+		return &ast.WhileStmt{Src: pos, Cond: cond, Body: body, Tag: "do"}, nil
+	}
+	if p.eatIdent("while") {
+		e, err := p.expr()
+		if err != nil {
+			return nil, err
+		}
+		return &ast.RepeatStmt{Src: pos, Body: body, Until: &ast.UnaryExpr{Src: pos, Op: "not", X: e}, Tag: "do"}, nil
+	}
+	if p.eatIdent("until") {
+		e, err := p.expr()
+		if err != nil {
+			return nil, err
+		}
+		return &ast.RepeatStmt{Src: pos, Body: body, Until: e, Tag: "do"}, nil
+	}
+	return &ast.WhileStmt{Src: pos, Cond: &ast.NumberExpr{Src: pos, Value: 1}, Body: body, Tag: "do"}, nil
+}
+
 func (p *Parser) parseRepeat() (ast.Stmt, error) {
 	pos := astPos(p.tok)
 	p.next()
@@ -490,6 +592,33 @@ func (p *Parser) parseRepeat() (ast.Stmt, error) {
 	return &ast.RepeatStmt{Src: pos, Body: body, Until: cond}, nil
 }
 
+func (p *Parser) parseAnonFunc(pos ast.Src) (*ast.FuncDecl, error) {
+	params, defaults, types, err := p.parseParamList()
+	if err != nil {
+		return nil, err
+	}
+	ret := ""
+	if p.eatIdent("as") {
+		if p.tok.Kind != lex.Ident {
+			return nil, p.errorf("As expects a type")
+		}
+		ret = p.tok.Lit
+		p.next()
+	}
+	body, err := p.statements(endFunc)
+	if err != nil {
+		return nil, err
+	}
+	if p.eatIdent("endfunction") || (p.is("end") && lex.IdentKey(p.lx.Peek().Lit) == "function") {
+		if p.is("end") {
+			p.next()
+			p.next()
+		}
+		return &ast.FuncDecl{Src: pos, Params: params, Defaults: defaults, ParamTypes: types, Ret: ret, Body: body}, nil
+	}
+	return nil, p.errorf("expected End Function")
+}
+
 func (p *Parser) parseFunc() (ast.Stmt, error) {
 	pos := astPos(p.tok)
 	p.next()
@@ -498,23 +627,94 @@ func (p *Parser) parseFunc() (ast.Stmt, error) {
 	}
 	name := p.tok.Lit
 	p.next()
-	params, defaults, err := p.parseParamList()
+	params, defaults, types, err := p.parseParamList()
 	if err != nil {
 		return nil, err
+	}
+	ret := ""
+	if p.eatIdent("as") {
+		if p.tok.Kind != lex.Ident {
+			return nil, p.errorf("As expects a type")
+		}
+		ret = p.tok.Lit
+		p.next()
+		for p.tok.Kind == lex.Comma {
+			p.next()
+			if p.tok.Kind == lex.Ident {
+				p.next()
+			}
+		}
 	}
 	body, err := p.statements(endFunc)
 	if err != nil {
 		return nil, err
 	}
 	if p.eatIdent("endfunction") {
-		return &ast.FuncDecl{Src: pos, Name: name, Params: params, Defaults: defaults, Body: body}, nil
+		return &ast.FuncDecl{Src: pos, Name: name, Params: params, Defaults: defaults, ParamTypes: types, Ret: ret, Body: body}, nil
 	}
 	if p.is("end") && lex.IdentKey(p.lx.Peek().Lit) == "function" {
 		p.next()
 		p.next()
-		return &ast.FuncDecl{Src: pos, Name: name, Params: params, Defaults: defaults, Body: body}, nil
+		return &ast.FuncDecl{Src: pos, Name: name, Params: params, Defaults: defaults, ParamTypes: types, Ret: ret, Body: body}, nil
 	}
 	return nil, p.errorf("expected End Function")
+}
+
+func (p *Parser) parseCoroutine() (ast.Stmt, error) {
+	pos := astPos(p.tok)
+	p.next()
+	if p.tok.Kind != lex.Ident {
+		return nil, p.errorf("Coroutine expects a name")
+	}
+	name := p.tok.Lit
+	p.next()
+	stop := func(p *Parser) bool {
+		return p.is("endcoroutine") || (p.is("end") && lex.IdentKey(p.lx.Peek().Lit) == "coroutine")
+	}
+	body, err := p.statements(stop)
+	if err != nil {
+		return nil, err
+	}
+	if p.eatIdent("endcoroutine") || (p.is("end") && lex.IdentKey(p.lx.Peek().Lit) == "coroutine") {
+		if p.is("end") {
+			p.next()
+			p.next()
+		}
+		return &ast.FuncDecl{Src: pos, Name: name, Body: body, Coroutine: true}, nil
+	}
+	return nil, p.errorf("expected End Coroutine")
+}
+
+func (p *Parser) parseErase() (ast.Stmt, error) {
+	pos := astPos(p.tok)
+	p.next()
+	if p.tok.Kind == lex.LParen {
+		p.next()
+	}
+	if p.tok.Kind != lex.Ident {
+		return nil, p.errorf("Erase expects a name")
+	}
+	name := p.tok.Lit
+	all := identKey(p.tok) == "all"
+	p.next()
+	if p.tok.Kind == lex.RParen {
+		p.next()
+	}
+	if all {
+		return &ast.EraseStmt{Src: pos, All: true}, nil
+	}
+	return &ast.EraseStmt{Src: pos, Name: name}, nil
+}
+
+func (p *Parser) parseDelete() (ast.Stmt, error) {
+	pos := astPos(p.tok)
+	p.next()
+	if p.tok.Kind != lex.Ident {
+		return nil, p.errorf("Delete expects a name")
+	}
+	name := p.tok.Lit
+	p.next()
+	return &ast.DeleteStmt{Src: pos, Name: name}, nil
 }
 
 func (p *Parser) parseDim() (ast.Stmt, error) {
@@ -526,6 +726,29 @@ func (p *Parser) parseDim() (ast.Stmt, error) {
 	name := p.tok.Lit
 	p.next()
 	if p.tok.Kind != lex.LParen && p.tok.Kind != lex.LBracket {
+		if p.eatIdent("as") {
+			if p.tok.Kind != lex.Ident {
+				return nil, p.errorf("Dim As expects a type name")
+			}
+			typeName := p.tok.Lit
+			p.next()
+			if p.tok.Kind != lex.LParen && p.tok.Kind != lex.LBracket {
+				return nil, p.errorf("Dim As expects Type(count)")
+			}
+			closeK := lex.RParen
+			if p.tok.Kind == lex.LBracket {
+				closeK = lex.RBracket
+			}
+			p.next()
+			sizes, err := p.argList(closeK)
+			if err != nil {
+				return nil, err
+			}
+			for i, e := range sizes {
+				sizes[i] = &ast.BinaryExpr{Op: "-", Left: e, Right: &ast.NumberExpr{Value: 1}}
+			}
+			return &ast.DimStmt{Src: pos, Name: name, Sizes: sizes, TypeName: typeName}, nil
+		}
 		return nil, p.errorf("Dim expects (size)")
 	}
 	closeK := lex.RParen
@@ -548,29 +771,38 @@ func (p *Parser) parseDim() (ast.Stmt, error) {
 	return &ast.DimStmt{Src: pos, Name: name, Sizes: sizes, TypeName: typeName}, nil
 }
 
-func (p *Parser) parseParamList() (params []string, defaults []ast.Expr, err error) {
+func (p *Parser) parseParamList() (params []string, defaults []ast.Expr, types []string, err error) {
 	if p.tok.Kind != lex.LParen {
-		return nil, nil, nil
+		return nil, nil, nil, nil
 	}
 	p.next()
 	seenDef := false
 	for p.tok.Kind != lex.RParen && p.tok.Kind != lex.EOF {
 		if p.tok.Kind != lex.Ident {
-			return nil, nil, p.errorf("expected parameter name")
+			return nil, nil, nil, p.errorf("expected parameter name")
 		}
 		params = append(params, p.tok.Lit)
 		p.next()
+		typ := ""
+		if p.eatIdent("as") {
+			if p.tok.Kind != lex.Ident {
+				return nil, nil, nil, p.errorf("As expects a type")
+			}
+			typ = p.tok.Lit
+			p.next()
+		}
+		types = append(types, typ)
 		if p.tok.Kind == lex.Eq {
 			p.next()
 			e, err := p.expr()
 			if err != nil {
-				return nil, nil, err
+				return nil, nil, nil, err
 			}
 			defaults = append(defaults, e)
 			seenDef = true
 		} else {
 			if seenDef {
-				return nil, nil, p.errorf("default parameters must come last")
+				return nil, nil, nil, p.errorf("default parameters must come last")
 			}
 			defaults = append(defaults, nil)
 		}
@@ -579,13 +811,13 @@ func (p *Parser) parseParamList() (params []string, defaults []ast.Expr, err err
 		}
 	}
 	if p.tok.Kind != lex.RParen {
-		return nil, nil, p.errorf("expected )")
+		return nil, nil, nil, p.errorf("expected )")
 	}
 	p.next()
-	return params, defaults, nil
+	return params, defaults, types, nil
 }
 
-func (p *Parser) parseDeclNames(global bool) (ast.Stmt, error) {
+func (p *Parser) parseDeclNames(global, static bool) (ast.Stmt, error) {
 	pos := astPos(p.tok)
 	p.next()
 	var names []string
@@ -612,7 +844,7 @@ func (p *Parser) parseDeclNames(global bool) (ast.Stmt, error) {
 	if global {
 		return &ast.GlobalStmt{Src: pos, Names: names, Values: values}, nil
 	}
-	return &ast.LocalStmt{Src: pos, Names: names, Values: values}, nil
+	return &ast.LocalStmt{Src: pos, Names: names, Values: values, Static: static}, nil
 }
 
 func (p *Parser) parseTry() (ast.Stmt, error) {
@@ -955,8 +1187,15 @@ func (p *Parser) parseType() (ast.Stmt, error) {
 			continue
 		}
 		if p.tok.Kind == lex.Ident {
-			st.Fields = append(st.Fields, ast.TypeField{Name: p.tok.Lit})
-			p.next()
+			for p.tok.Kind == lex.Ident {
+				st.Fields = append(st.Fields, ast.TypeField{Name: p.tok.Lit})
+				p.next()
+				if p.tok.Kind == lex.Comma {
+					p.next()
+					continue
+				}
+				break
+			}
 			continue
 		}
 		return nil, p.errorf("expected Field, Method, or End %s", strings.Title(kind))
@@ -988,7 +1227,7 @@ func (p *Parser) parseMethod(recv string) (ast.Stmt, error) {
 		name = p.tok.Lit
 		p.next()
 	}
-	params, defaults, err := p.parseParamList()
+	params, defaults, _, err := p.parseParamList()
 	if err != nil {
 		return nil, err
 	}
@@ -1021,6 +1260,31 @@ func (p *Parser) parseNamespace() (ast.Stmt, error) {
 		return nil, p.errorf("expected End Namespace")
 	}
 	return &ast.NamespaceDecl{Src: pos, Name: name, Stmts: body}, nil
+}
+
+// indexedMethodStmt parses foe(i).Hide() and foe(i).Position(x, y, z).
+// A dotted name after an index used to be assignment-only (expected =).
+func (p *Parser) indexedMethodStmt(pos ast.Src, name string, index []ast.Expr, fields []string) (ast.Stmt, error) {
+	method := fields[len(fields)-1]
+	path := fields[:len(fields)-1]
+	var margs []ast.Expr
+	paren := false
+	if p.tok.Kind == lex.LParen {
+		paren = true
+		p.next()
+		var err error
+		margs, err = p.argList(lex.RParen)
+		if err != nil {
+			return nil, err
+		}
+	} else if startsExpr(p.tok) && p.tok.Kind != lex.Newline && p.tok.Kind != lex.Colon && p.tok.Kind != lex.EOF {
+		var err error
+		margs, err = p.bareArgs()
+		if err != nil {
+			return nil, err
+		}
+	}
+	return &ast.MethodStmt{Src: pos, Object: name, Index: index, Path: path, Method: method, Args: margs, Paren: paren}, nil
 }
 
 func (p *Parser) parseDottedStmt(pos ast.Src, name string) (ast.Stmt, error) {
@@ -1312,6 +1576,19 @@ func (p *Parser) primary() (ast.Expr, error) {
 	case lex.Ident:
 		if identKey(p.tok) == "new" {
 			p.next()
+			if p.tok.Kind == lex.LParen {
+				p.next()
+				if p.tok.Kind != lex.Ident {
+					return nil, p.errorf("New expects a type name")
+				}
+				typ := p.tok.Lit
+				p.next()
+				if p.tok.Kind != lex.RParen {
+					return nil, p.errorf("expected )")
+				}
+				p.next()
+				return p.postfix(&ast.NewExpr{Src: pos, Type: typ})
+			}
 			if p.tok.Kind != lex.Ident {
 				return nil, p.errorf("New expects a type name")
 			}
@@ -1330,6 +1607,26 @@ func (p *Parser) primary() (ast.Expr, error) {
 		}
 		name := p.tok.Lit
 		p.next()
+		if name == "@" {
+			if p.tok.Kind != lex.Ident {
+				return nil, p.errorf("@ expects a function name")
+			}
+			ref := p.tok.Lit
+			p.next()
+			return p.postfix(&ast.FuncRefExpr{Src: pos, Name: ref})
+		}
+		if strings.EqualFold(name, "function") && (p.tok.Kind == lex.LParen || p.tok.Kind == lex.Newline || p.is("as")) {
+			decl, err := p.parseAnonFunc(pos)
+			if err != nil {
+				return nil, err
+			}
+			return &ast.FuncExpr{Src: pos, Decl: decl}, nil
+		}
+		if name == "$" && p.tok.Kind == lex.String {
+			raw := p.tok.Lit
+			p.next()
+			return p.interpString(pos, raw)
+		}
 		if p.tok.Kind == lex.LParen || p.tok.Kind == lex.LBracket {
 			closeK := lex.RParen
 			if p.tok.Kind == lex.LBracket {
@@ -1375,6 +1672,74 @@ func (p *Parser) postfix(e ast.Expr) (ast.Expr, error) {
 	return e, nil
 }
 
+func (p *Parser) interpString(pos ast.Src, raw string) (ast.Expr, error) {
+	var parts []ast.Expr
+	for i := 0; i < len(raw); {
+		if raw[i] != '{' {
+			j := i
+			for j < len(raw) && raw[j] != '{' {
+				j++
+			}
+			parts = append(parts, &ast.StringExpr{Src: pos, Value: raw[i:j]})
+			i = j
+			continue
+		}
+		depth := 1
+		j := i + 1
+		for j < len(raw) && depth > 0 {
+			switch raw[j] {
+			case '{':
+				depth++
+			case '}':
+				depth--
+			}
+			if depth > 0 {
+				j++
+			}
+		}
+		if depth != 0 {
+			return nil, p.errorf("unclosed { in string")
+		}
+		inner := strings.TrimSpace(raw[i+1 : j])
+		exprSrc := inner
+		spec := ""
+		if c := strings.LastIndex(inner, ":"); c > 0 {
+			exprSrc = strings.TrimSpace(inner[:c])
+			spec = strings.TrimSpace(inner[c+1:])
+		}
+		ex, err := parseExprSrc(exprSrc)
+		if err != nil {
+			return nil, err
+		}
+		if spec != "" {
+			parts = append(parts, &ast.FmtExpr{Src: pos, X: ex, Spec: spec})
+		} else {
+			parts = append(parts, ex)
+		}
+		i = j + 1
+	}
+	if len(parts) == 0 {
+		return &ast.StringExpr{Src: pos, Value: ""}, nil
+	}
+	e := parts[0]
+	for _, part := range parts[1:] {
+		e = &ast.BinaryExpr{Src: pos, Op: "+", Left: e, Right: part}
+	}
+	return e, nil
+}
+
+func parseExprSrc(src string) (ast.Expr, error) {
+	p := New(src, ".")
+	e, err := p.expr()
+	if err != nil {
+		return nil, err
+	}
+	if p.tok.Kind != lex.EOF && p.tok.Kind != lex.Newline {
+		return nil, p.errorf("bad interpolation %q", src)
+	}
+	return e, nil
+}
+
 func astPos(t lex.Token) ast.Src {
 	return ast.Src{Line: t.Line, Col: t.Col}
 }
@@ -1382,9 +1747,11 @@ func astPos(t lex.Token) ast.Src {
 func stopsBareArg(p *Parser) bool {
 	k := identKey(p.tok)
 	switch k {
-	case "else", "elseif", "endif", "wend", "next", "until", "case", "default",
+	case "wend", "next", "until", "loop":
+		return p.lx.Peek().Kind != lex.LParen
+	case "else", "elseif", "endif", "case", "default",
 		"end", "endselect", "endfunction", "endwhile", "endtype", "endstruct",
-		"endmethod", "endnamespace":
+		"endmethod", "endnamespace", "endcoroutine":
 		return true
 	}
 	return false
@@ -1393,10 +1760,11 @@ func stopsBareArg(p *Parser) bool {
 func isKeyword(k string) bool {
 	switch k {
 	case "if", "then", "else", "elseif", "endif", "while", "wend", "for", "to", "step",
-		"next", "repeat", "until", "function", "end", "return", "dim", "redim", "global", "local",
+		"next", "repeat", "until", "do", "loop", "function", "end", "return", "dim", "redim", "global", "local", "static",
 		"const", "enum", "endenum", "select", "case", "default", "data", "read", "restore",
 		"and", "or", "not", "xor", "mod", "include", "import", "exit",
-		"type", "struct", "method", "namespace", "field", "new", "as":
+		"type", "struct", "method", "namespace", "field", "new", "as",
+		"erase", "delete", "yield", "coroutine", "endcoroutine":
 		return true
 	}
 	return false
@@ -1415,6 +1783,12 @@ func ExpandIncludes(prog *ast.Program, base string) (*ast.Program, error) {
 			file = filepath.Join(base, file)
 		}
 		inner, err := ParseFile(file)
+		if err != nil && os.IsNotExist(err) {
+			alt := scriptAlt(file)
+			if alt != "" {
+				inner, err = ParseFile(alt)
+			}
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -1429,6 +1803,19 @@ func ExpandIncludes(prog *ast.Program, base string) (*ast.Program, error) {
 		out = append(out, stmts...)
 	}
 	return &ast.Program{Stmts: out}, nil
+}
+
+func scriptAlt(file string) string {
+	ext := strings.ToLower(filepath.Ext(file))
+	base := strings.TrimSuffix(file, filepath.Ext(file))
+	switch ext {
+	case ".mb":
+		return base + ".bb"
+	case ".bb":
+		return base + ".mb"
+	default:
+		return ""
+	}
 }
 
 func importPath(s ast.Stmt) (path, as string, ok bool) {

@@ -8,14 +8,14 @@ import (
 	"runtime"
 	"strings"
 
-	"bitshinbasic/internal/parse"
-	"bitshinbasic/internal/transpile"
+	"moonbasic/internal/parse"
+	"moonbasic/internal/transpile"
 )
 
 // runCompile compiles a BlitzBasic program directly into a native machine-code standalone binary.
 func runCompile(args []string) error {
 	if len(args) < 1 {
-		return fmt.Errorf("bs compile: missing program.bb")
+		return fmt.Errorf("moon compile: missing program.mb")
 	}
 	src := args[0]
 	baseName := strings.TrimSuffix(filepath.Base(src), filepath.Ext(src))
@@ -138,14 +138,14 @@ func runCompile(args []string) error {
 	fmt.Printf("Compiling %s -> %s (native machine code AOT)...\n", src, outPath)
 	if err := cmd.Run(); err != nil {
 		if targetOS != runtime.GOOS || targetArch != runtime.GOARCH {
-			return fmt.Errorf("bs compile: cross-compile failed for %s/%s: %w", targetOS, targetArch, err)
+			return fmt.Errorf("moon compile: cross-compile failed for %s/%s: %w", targetOS, targetArch, err)
 		}
-		return fmt.Errorf("bs compile: failed: %w", err)
+		return fmt.Errorf("moon compile: failed: %w", err)
 	}
 
 	// 6. Copy runtime natives (DLLs, so, dylib) next to executable
 	if err := copyRuntimeNatives(destDir, targetOS); err != nil {
-		fmt.Fprintf(os.Stderr, "bs compile: natives warning (%s): %v\n", targetOS, err)
+		fmt.Fprintf(os.Stderr, "moon compile: natives warning (%s): %v\n", targetOS, err)
 	}
 
 	// 7. Copy referenced assets next to executable
@@ -163,7 +163,7 @@ func runCompile(args []string) error {
 // runTranspile translates a BlitzBasic script to Go source code without invoking the Go compiler.
 func runTranspile(args []string) error {
 	if len(args) < 1 {
-		return fmt.Errorf("bs transpile: missing program.bb")
+		return fmt.Errorf("moon transpile: missing program.mb")
 	}
 	src := args[0]
 	outPath := ""

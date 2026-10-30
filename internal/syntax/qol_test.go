@@ -3,7 +3,7 @@ package syntax
 import (
 	"testing"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 func TestResolveMethod(t *testing.T) {

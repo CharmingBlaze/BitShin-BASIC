@@ -1,4 +1,4 @@
-//go:build windows
+//go:build windows || (linux && (amd64 || arm64)) || (darwin && arm64)
 
 package jolt
 
@@ -31,6 +31,13 @@ func (ps *PhysicsSystem) ClothVertices(bodyID *BodyID, dst []float32) int {
 	}
 	n := int(C.JoltGetClothVertices(ps.handle, bodyID.handle, (*C.float)(unsafe.Pointer(&dst[0])), C.int(len(dst))))
 	return n
+}
+
+func (ps *PhysicsSystem) SetClothVertices(bodyID *BodyID, src []float32) {
+	if bodyID == nil || len(src) < 3 {
+		return
+	}
+	C.JoltSetClothVertices(ps.handle, bodyID.handle, (*C.float)(unsafe.Pointer(&src[0])), C.int(len(src)))
 }
 
 func (ps *PhysicsSystem) ApplyClothWind(bodyID *BodyID, vx, vy, vz float32, start, step uint32) {

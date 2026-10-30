@@ -6,8 +6,8 @@ import (
 	"github.com/g3n/engine/core"
 	"github.com/g3n/engine/geometry"
 
-	"bitshinbasic/internal/phys3d"
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/phys3d"
+	"moonbasic/internal/value"
 )
 
 func TestCreateBodyCylinderAndConvex(t *testing.T) {

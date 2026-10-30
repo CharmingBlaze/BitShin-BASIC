@@ -9,13 +9,16 @@ layout(location = 1) in vec3 VertexNormal;
 layout(location = 2) in mat4 InstanceMatrix;
 uniform mat4 ViewProj;
 uniform vec3 Color;
+uniform vec3 CamPos;
 out vec3 vN;
 out vec3 vC;
+out float vDist;
 void main() {
     mat4 m = InstanceMatrix;
     vec4 wp = m * vec4(VertexPosition, 1.0);
     vN = mat3(m) * VertexNormal;
     vC = Color;
+    vDist = length(wp.xyz - CamPos);
     gl_Position = ViewProj * wp;
 }
 `
@@ -23,11 +26,28 @@ void main() {
 const mbInstFragment = `#version 330 core
 in vec3 vN;
 in vec3 vC;
+in float vDist;
+uniform int FogMode;
+uniform vec3 FogColor;
+uniform float FogNear;
+uniform float FogFar;
+uniform float FogDensity;
 out vec4 FragColor;
 void main() {
     vec3 n = normalize(vN);
     float d = max(dot(n, normalize(vec3(0.35, 0.85, 0.4))), 0.15);
-    FragColor = vec4(vC * d, 1.0);
+    vec3 rgb = vC * d;
+    float f = 1.0;
+    if (FogMode == 1) {
+        float span = max(FogFar - FogNear, 0.0001);
+        f = clamp((FogFar - vDist) / span, 0.0, 1.0);
+    } else if (FogMode == 2) {
+        f = exp(-FogDensity * vDist);
+    } else if (FogMode != 0) {
+        float fd = FogDensity * vDist;
+        f = exp(-fd * fd);
+    }
+    FragColor = vec4(mix(FogColor, rgb, clamp(f, 0.0, 1.0)), 1.0);
 }
 `
 

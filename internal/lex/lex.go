@@ -1,4 +1,4 @@
-// Package lex tokenizes BitShin BASIC source (case-insensitive BASIC).
+// Package lex tokenizes moonBASIC source (case-insensitive BASIC).
 package lex
 
 import (

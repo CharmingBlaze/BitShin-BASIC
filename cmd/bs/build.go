@@ -9,13 +9,15 @@ import (
 	"regexp"
 	"runtime"
 	"strings"
+
+	"moonbasic/internal/joltstage"
 )
 
 var assetExt = regexp.MustCompile(`(?i)"([^"]+\.(png|jpg|jpeg|gif|bmp|wav|ogg|mp3|obj|mtl|gltf|glb|dae|ttf|otf|csv|zip|bb))"`)
 
 func runBuild(args []string) error {
 	if len(args) < 1 {
-		return fmt.Errorf("bs build: missing program.bb")
+		return fmt.Errorf("moon build: missing program.mb")
 	}
 	src := args[0]
 	outDir := "dist"
@@ -47,16 +49,25 @@ func runBuild(args []string) error {
 		}
 	}
 	if targetOS != "windows" && targetOS != "linux" && targetOS != "darwin" && targetOS != "wasm" {
-		return fmt.Errorf("bs build: unknown -os %s (windows, linux, darwin, wasm)", targetOS)
+		return fmt.Errorf("moon build: unknown -os %s (windows, linux, darwin, wasm)", targetOS)
 	}
 	if _, err := os.Stat(src); err != nil {
-		return fmt.Errorf("bs build: %w", err)
+		return fmt.Errorf("moon build: %w", err)
 	}
 	if err := os.MkdirAll(outDir, 0o755); err != nil {
 		return err
 	}
 	if targetOS == "wasm" {
 		return buildWasmBundle(src, outDir)
+	}
+	if targetOS == "linux" || targetOS == "darwin" {
+		root, err := os.Getwd()
+		if err != nil {
+			return err
+		}
+		if err := joltstage.Stage(root); err != nil {
+			return fmt.Errorf("moon build: %w", err)
+		}
 	}
 	binName := "bs"
 	if targetOS == "windows" {
@@ -82,9 +93,9 @@ func runBuild(args []string) error {
 	cmd.Env = env
 	if err := cmd.Run(); err != nil {
 		if targetOS != runtime.GOOS || targetArch != runtime.GOARCH {
-			return fmt.Errorf("bs build: CGO cross-compile failed for %s/%s — build on that OS (see docs/RELEASE.md): %w", targetOS, targetArch, err)
+			return fmt.Errorf("moon build: CGO cross-compile failed for %s/%s — build on that OS (see docs/RELEASE.md): %w", targetOS, targetArch, err)
 		}
-		return fmt.Errorf("bs build: compile: %w", err)
+		return fmt.Errorf("moon build: compile: %w", err)
 	}
 	base := filepath.Dir(src)
 	if err := copyFile(src, filepath.Join(outDir, filepath.Base(src))); err != nil {
@@ -101,7 +112,7 @@ func runBuild(args []string) error {
 		}
 	}
 	if err := copyRuntimeNatives(outDir, targetOS); err != nil {
-		fmt.Fprintf(os.Stderr, "bs build: natives (%s): %v\n", targetOS, err)
+		fmt.Fprintf(os.Stderr, "moon build: natives (%s): %v\n", targetOS, err)
 	}
 	fmt.Printf("Wrote %s\n", outDir)
 	fmt.Println("Zip that folder and send it. Run the binary from that folder (natives stay next to it).")
@@ -124,7 +135,7 @@ func normalizeOS(s string) string {
 }
 
 func buildWasmBundle(src, outDir string) error {
-	return fmt.Errorf("bs: HTML5/WASM is not a runnable game target (%s -> %s). The runtime needs a desktop OpenGL window. Use bs compile or bs build for windows, linux, or darwin", src, outDir)
+	return fmt.Errorf("moon: HTML5/WASM is not a runnable game target (%s -> %s). The runtime needs a desktop OpenGL window. Use bs compile or bs build for windows, linux, or darwin", src, outDir)
 }
 
 func collectAssets(bb, base, dest string, seen map[string]bool) error {
@@ -142,7 +153,7 @@ func collectAssets(bb, base, dest string, seen map[string]bool) error {
 		if !filepath.IsAbs(src) {
 			src = filepath.Join(base, filepath.FromSlash(rel))
 		}
-		if strings.HasSuffix(strings.ToLower(rel), ".bb") {
+		if strings.HasSuffix(strings.ToLower(rel), ".mb") {
 			if _, err := os.Stat(src); err == nil {
 				_ = copyFile(src, filepath.Join(dest, filepath.FromSlash(rel)))
 				_ = collectAssets(src, filepath.Dir(src), dest, seen)

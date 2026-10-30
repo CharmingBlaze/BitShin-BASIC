@@ -9,7 +9,7 @@ import (
 	"github.com/g3n/engine/gls"
 	"github.com/g3n/engine/texture"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 // Original CC0 splat maps (not Nintendo, not the Terrain-OpenGL JPGs).

@@ -3,6 +3,7 @@ package runtime
 
 import (
 	"fmt"
+	"image"
 	"math"
 	"os"
 	"path/filepath"
@@ -28,13 +29,13 @@ import (
 	"github.com/go-gl/gl/v3.3-core/gl"
 	"github.com/go-gl/glfw/v3.3/glfw"
 
-	bsaudio "bitshinbasic/internal/audio"
-	"bitshinbasic/internal/interp"
-	"bitshinbasic/internal/netenet"
-	"bitshinbasic/internal/phys2d"
-	"bitshinbasic/internal/phys3d"
-	"bitshinbasic/internal/syntax"
-	"bitshinbasic/internal/value"
+	bsaudio "moonbasic/internal/audio"
+	"moonbasic/internal/interp"
+	"moonbasic/internal/netenet"
+	"moonbasic/internal/phys2d"
+	"moonbasic/internal/phys3d"
+	"moonbasic/internal/syntax"
+	"moonbasic/internal/value"
 )
 
 type Entity struct {
@@ -71,6 +72,8 @@ type Entity struct {
 	driveTrack                         bool
 	vpX, vpY, vpW, vpH                 int
 	anim                               *animState
+	ik                                 *ikChain
+	skin                               *meshSkin
 	lgtKind                            int // 0 ambient/none, 1 directional, 2 point, 3 spot
 	lgtFalloff                         int // 0 smooth, 1 classic polynomial, 2 physical inverse-square
 	lgtRange                           float32
@@ -91,6 +94,7 @@ type Entity struct {
 	meshNoCast                         bool
 	meshNoRecv                         bool
 	albedoTex                          *texture.Texture2D
+	albedoPath                         string
 	shadowRes                          int
 	shadowGeomDirty                    bool // vertex/morph edits: skip shadow cache until redrawn
 	sky                                bool
@@ -166,6 +170,7 @@ type World struct {
 	tweens                           []nodeTween
 	cmdMap                           map[string]cmd
 	phys3                            phys3d.World
+	sceneJoints                      []sceneJoint
 	vehCtrls                         map[int]*vehCtrl
 	ropes                            map[int]*ropeSystem
 	nextRope                         int
@@ -180,6 +185,9 @@ type World struct {
 	netKind                          int
 	netIP                            string
 	sess                             *netSess
+	discStop                         chan struct{}
+	discPort                         int
+	discMsg                          atomic.Value
 	mode2D                           bool
 	scrW                             int
 	scrH                             int
@@ -239,11 +247,19 @@ type World struct {
 	wx                               weatherState
 	thunderClip                      *bsaudio.Clip
 	thunderVoice                     *bsaudio.Voice
+	engineClip                       *bsaudio.Clip
+	stepClip                         *bsaudio.Clip
+	clothClip                        *bsaudio.Clip
+	engineVoices                     map[int]*bsaudio.Voice
+	stepVoice                        *bsaudio.Voice
+	stepDist                         map[int]float32
+	clothVoice                       *bsaudio.Voice
 	rainProg                         uint32
 	rainVAO, rainVBO                 uint32
 	rainBlitOK                       bool
 	tiles                            map[int]*tileMap
 	nextTile                         int
+	cam2X, cam2Y                     float64
 	fonts                            map[int]*fontSlot
 	nextFont                         int
 	curFont                          int
@@ -277,8 +293,12 @@ type World struct {
 	freePaths                        []int
 	nextPath                         int
 	guiSlide                         map[string]*float32
+	guiDrag                          map[string]*float32
 	guiCheck                         map[string]*bool
 	guiInput                         map[string]*string
+	guiCombo                         map[string]*int32
+	guiRadio                         map[string]*int32
+	guiColor                         map[string]*[3]float32
 	guiWinOpen                       bool
 	wins                             map[int]*extraWin
 	freeWins                         []int
@@ -295,6 +315,9 @@ type World struct {
 	freeProbes                       []int
 	nextProbe                        int
 	skyCube                          uint32
+	skyImgs                          [6]*image.RGBA
+	skyRev                           int
+	skyCubeRev                       int
 	probeCam                         *camera.Camera
 	capturingProbe                   bool
 	terrains                         map[int]*terrain
@@ -307,6 +330,9 @@ type World struct {
 	curHMap                          int
 	geo                              geoFrame
 	waters                           map[int]*waterBody
+	fftProg                          uint32
+	fftVAO                           uint32
+	fftQuad                          uint32
 	waterClip                        [4]float32
 	cloths                           map[int]*clothSheet
 	grabs                            map[int]grabHold
@@ -321,6 +347,14 @@ type World struct {
 	nextWater                        int
 	curWater                         int
 	crowds                           map[int]*crowd
+	bts                              map[int]*behavior
+	planners                         map[int]*planner
+	freePlan                         []int
+	nextPlan                         int
+	freeBT                           []int
+	nextBT                           int
+	btEnt                            map[int]btLink
+	btStub                           func(name string, ent int) int
 	freeCrowds                       []int
 	nextCrowd                        int
 	curCrowd                         int
@@ -396,7 +430,7 @@ func New(base string) *World {
 		scene:                 core.NewNode(),
 		shadow:                shadowMap{on: true, size: 2048, extent: 32, distance: 250, zPad: 60, cascades: 4, pcf: 3, bias: 0.0025, normalBias: 1, lightSize: 0.04, evsmC: 8, fadeNear: 220, fadeFar: 250, primed: map[*geometry.Geometry]bool{}},
 		shaderUnis:            map[string]shaderUni{},
-		title:                 "BitShin BASIC",
+		title:                 "moonBASIC",
 		clear:                 math32.Color{0.15, 0.16, 0.2},
 		textRGB:               math32.Color{1, 1, 1},
 		fogRGB:                math32.Color{0.6, 0.65, 0.75},
@@ -448,8 +482,12 @@ func New(base string) *World {
 		paths:                 map[int]*gridPath{},
 		nextPath:              1,
 		guiSlide:              map[string]*float32{},
+		guiDrag:               map[string]*float32{},
 		guiCheck:              map[string]*bool{},
 		guiInput:              map[string]*string{},
+		guiCombo:              map[string]*int32{},
+		guiRadio:              map[string]*int32{},
+		guiColor:              map[string]*[3]float32{},
 		wins:                  map[int]*extraWin{},
 		nextWin:               1,
 		instances:             map[int]*instancedMesh{},
@@ -462,6 +500,8 @@ func New(base string) *World {
 		waters:                map[int]*waterBody{},
 		nextWater:             1,
 		crowds:                map[int]*crowd{},
+		bts:                   map[int]*behavior{},
+		btEnt:                 map[int]btLink{},
 		nextCrowd:             1,
 		pbrLib:                map[int]*pbrMat{},
 		nextPBR:               1,
@@ -853,10 +893,18 @@ func (w *World) addEntity(e *Entity, parent int) int {
 	e.radius = 1
 	e.boxX, e.boxY, e.boxZ = 1, 1, 1
 	e.tint = math32.Color4{1, 1, 1, 1}
+	if parent == id {
+		parent = 0
+	}
 	e.parent = parent
 	p := w.parentNode(parent)
-	if p != nil && p.GetNode() != nil && e.node != nil {
-		p.GetNode().Add(e.node)
+	if p != nil && e.node != nil {
+		pn := p.GetNode()
+		// Add the INode (mesh, light, camera). Add(GetNode()) stores the
+		// embedded *core.Node, and the renderer then cannot see the graphic.
+		if pn != nil && pn != e.node.GetNode() {
+			pn.Add(e.node)
+		}
 	}
 	return id
 }
@@ -1090,6 +1138,8 @@ func (w *World) tickFX() {
 	w.tickInstances()
 	w.applyProbes()
 	w.tickAnims(dt)
+	w.applySkins()
+	w.tickBehaviors()
 	w.tickWeather(dt)
 	w.tickEmitters(dt)
 	w.syncSkyboxes()
@@ -1138,16 +1188,42 @@ func (w *World) render(rend *renderer.Renderer) {
 	w.stepProbeCapture(rend)
 	usedOffscreen := w.beginPostTarget(ww, hh)
 	drainGL("render")
-	gl.Viewport(0, 0, int32(ww), int32(hh))
+	vw, vh := w.drawableSize(ww, hh)
+	if usedOffscreen {
+		vw, vh = ww, hh
+	}
+	gl.Disable(gl.SCISSOR_TEST)
+	gl.Viewport(0, 0, int32(vw), int32(vh))
+	if !usedOffscreen {
+		bindColorTarget(0)
+	}
 	w.app.Gls().ClearColor(cr, cg, cb, 1)
 	w.app.Gls().Clear(gls.DEPTH_BUFFER_BIT | gls.STENCIL_BUFFER_BIT | gls.COLOR_BUFFER_BIT)
-	w.renderSceneCams(rend, ww, hh)
+	w.renderSceneCams(rend, vw, vh)
+	fbw, fbh := w.drawableSize(ww, hh)
 	if usedOffscreen {
 		w.endPostTarget(w.app.Gls(), ww, hh)
 	}
-	w.drawHUDOverlay3D(ww, hh)
+	w.drawHUDOverlay3D(fbw, fbh)
 	w.guiPresent()
 	w.presentExtraWindows(rend)
+}
+
+// drawableSize is the OpenGL framebuffer, which is larger than the window
+// on a scaled display. Drawing into the window size leaves a blank band.
+func (w *World) drawableSize(ww, hh int) (int, int) {
+	if gw := w.glfwWin(); gw != nil {
+		if fw, fh := gw.GetFramebufferSize(); fw > 0 && fh > 0 {
+			return fw, fh
+		}
+	}
+	if ww <= 0 {
+		ww = 800
+	}
+	if hh <= 0 {
+		hh = 600
+	}
+	return ww, hh
 }
 
 func (w *World) resolve(path string) string {
@@ -1211,19 +1287,25 @@ func (w *World) processPhysicsContacts() {
 		if ev.Kind == phys3d.ContactRemoved {
 			continue
 		}
-		if a := w.ents[ev.A]; a != nil && ev.B != 0 {
-			a.collided = append(a.collided, ev.B)
-			a.hitID = ev.B
-			a.hitX, a.hitY, a.hitZ = ev.X, ev.Y, ev.Z
-		}
-		if b := w.ents[ev.B]; b != nil && ev.A != 0 {
-			b.collided = append(b.collided, ev.A)
-			if b.hitID == 0 {
-				b.hitID = ev.A
-				b.hitX, b.hitY, b.hitZ = ev.X, ev.Y, ev.Z
-			}
+		w.noteContact(w.ents[ev.A], ev.B, ev.X, ev.Y, ev.Z)
+		w.noteContact(w.ents[ev.B], ev.A, ev.X, ev.Y, ev.Z)
+	}
+}
+
+func (w *World) noteContact(e *Entity, other int, x, y, z float32) {
+	if e == nil || other == 0 {
+		return
+	}
+	for _, id := range e.collided {
+		if id == other {
+			e.hitID = other
+			e.hitX, e.hitY, e.hitZ = x, y, z
+			return
 		}
 	}
+	e.collided = append(e.collided, other)
+	e.hitID = other
+	e.hitX, e.hitY, e.hitZ = x, y, z
 }
 
 func (w *World) syncPhys3Pose() {
@@ -1237,6 +1319,11 @@ func (w *World) syncPhys3Pose() {
 		if x, y, z, ok := w.phys3.GetPosition(id); ok {
 			gx, gy, gz := toG3N(x, y, z)
 			e.node.GetNode().SetPosition(gx, gy, gz)
+		}
+		// Character controllers set facing themselves. The kinematic inner
+		// body stays unrotated, and copying that quaternion undoes the turn.
+		if w.characterOwnsFacing(id) {
+			continue
 		}
 		if qx, qy, qz, qw, ok := w.phys3.GetRotation(id); ok {
 			q := math32.Quaternion{X: qx, Y: qy, Z: -qz, W: qw}
@@ -1275,7 +1362,7 @@ func (w *World) driveParentedBodies(dt float32) {
 	}
 	w.refreshWorldMatrices()
 	for id, e := range w.ents {
-		if e == nil || e.parent == 0 || e.node == nil {
+		if e == nil || e.parent == 0 || e.node == nil || e.bodyType != 3 {
 			continue
 		}
 		if _, _, _, ok := w.phys3.GetPosition(id); !ok {
@@ -1453,6 +1540,8 @@ func (w *World) updateWorld() {
 	w.updatePathFollows(dt)
 	for _, e := range w.ents {
 		e.collided = e.collided[:0]
+		e.hitID = 0
+		e.hitX, e.hitY, e.hitZ = 0, 0, 0
 	}
 	if w.phys3 != nil {
 		w.driveParentedBodies(dt)
@@ -1467,6 +1556,7 @@ func (w *World) updateWorld() {
 		}
 		w.resolveDrivenOverlaps()
 		w.syncPhys3Pose()
+		w.placeCharacterCameras()
 		w.drawPhysicsDebug()
 		w.tickCloth()
 		w.tickBeams()
@@ -1571,6 +1661,8 @@ func (w *World) loadMeshFile(path string, parent int) (int, error) {
 		id, err = w.loadGLTFAt(realPath, parent, true)
 	case ".dae":
 		id, err = w.loadColladaAt(realPath, parent)
+	case ".fbx":
+		id, err = w.loadFBXAt(realPath, parent)
 	default:
 		id, err = w.loadObjAt(realPath, parent)
 	}

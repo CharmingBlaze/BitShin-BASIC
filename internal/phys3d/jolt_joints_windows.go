@@ -1,8 +1,8 @@
-//go:build !nojolt && windows
+//go:build !nojolt && (windows || (!joltgo && ((linux && (amd64 || arm64)) || (darwin && arm64))))
 
 package phys3d
 
-import "bitshinbasic/internal/jolt"
+import "moonbasic/internal/jolt"
 
 func (w *joltWorld) bodyOf(id int) (*jolt.BodyID, bool) {
 	if id == 0 {

@@ -13,7 +13,7 @@ import (
 	"github.com/g3n/engine/geometry"
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 type navMesh struct {
@@ -36,6 +36,8 @@ type navAgent struct {
 	lastX   float32
 	lastZ   float32
 	hasLast bool
+	inCrowd bool
+	vx, vz  float32
 }
 
 func (w *World) navCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error), need func(func([]value.Value) (value.Value, error)) cmd) map[string]cmd {
@@ -449,7 +451,7 @@ func (w *World) updateNav() {
 		dt = 1.0 / 60.0
 	}
 	for _, ag := range w.agents {
-		if ag == nil || !ag.moving || ag.i >= len(ag.path) {
+		if ag == nil || ag.inCrowd || !ag.moving || ag.i >= len(ag.path) {
 			continue
 		}
 		e, err := w.ent(ag.ent)

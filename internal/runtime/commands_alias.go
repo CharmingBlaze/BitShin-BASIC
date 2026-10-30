@@ -501,6 +501,64 @@ var modernAliases = map[string]string{
 	"dist3d":         "distance3d",
 	"dist2d":         "distance2d",
 	"sound3d":        "playsound3d",
+
+	// Dotted names for this engine. Not the Raylib App/Draw/Render/Model registry.
+	"input.keydown":    "keydown",
+	"input.keyhit":     "keyhit",
+	"input.mousedown":  "mousedown",
+	"input.mousehit":   "mousehit",
+	"input.mousex":     "mousex",
+	"input.mousey":     "mousey",
+	"input.mousez":     "mousez",
+	"input.mousewheel": "mousez",
+	"time.delta":       "deltatime",
+	"time.frametime":   "frametime",
+	"time.millisecs":   "millisecs",
+	"entity.setpos":      "positionentity",
+	"entity.setposition": "positionentity",
+	"entity.move":        "moveentity",
+	"entity.turn":        "turnentity",
+	"entity.scale":       "scaleentity",
+	"entity.color":       "entitycolor",
+	"entity.free":        "freeentity",
+	"entity.hide":        "hideentity",
+	"entity.show":        "showentity",
+	"entity.x":           "entityx",
+	"entity.y":           "entityy",
+	"entity.z":           "entityz",
+	"file.read":    "readfile",
+	"file.write":   "writefile",
+	"file.open":    "openfile",
+	"file.close":   "closefile",
+	"file.exists":  "filetype",
+	"json.load":    "jsonload",
+	"json.save":    "jsonsave",
+	"json.parse":   "jsonparse",
+	"json.get":     "jsonget",
+	"json.set":     "jsonset",
+	"sound.load":   "loadsound",
+	"sound.play":   "playsound",
+	"sound.stop":   "stopsound",
+	"net.host":     "hostgame",
+	"net.join":     "joingame",
+	"net.say":      "netsay",
+	"net.find":     "findgames",
+
+	"setiktarget":          "setik",
+	"setanimadditivelayer": "setanimadditive",
+	"addanimlayer":         "setanimlayer",
+	"btaddnode":            "btadd",
+	"setagentdestination":  "crowdsetagentdestination",
+}
+
+// CommandNames is every command and alias the interpreter will run.
+func CommandNames() []string {
+	m := New("").commandTable()
+	names := make([]string, 0, len(m))
+	for k := range m {
+		names = append(names, k)
+	}
+	return names
 }
 
 func applyModernAliases(m map[string]cmd) {

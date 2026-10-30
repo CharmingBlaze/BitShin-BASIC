@@ -1,46 +1,83 @@
-; Boat — Gerstner WaterHeight buoyancy at hull offsets.
-; WASD throttle / steer.
-; Esc quits after a few frames.
+; PBR — metallic-roughness spheres on mbphysical with sun + CSM.
+; Leave running (no Escape) — close the window to quit.
 
-; window
-SetWindowTitle("BitShin BASIC — Boat")
-Graphics3D(960, 540, 0, 2)
-SetCameraClsColor(40, 90, 130)
-SetAmbientLight(90, 110, 130)
-CreateLight()
+Graphics3D(960, 600)
+SetWindowTitle("moonBASIC — PBR")
+SetCameraClsColor(12, 14, 22)
+SetAmbientLight(22, 26, 34)
 
-; camera
-cam = CreateCamera().Position([0, 8, -14]).Rotate(16, 0, 0)
+; Camera
+cam = CreateCamera().Position([0, 3.2, -8])
+cam.Point(0, 0.6, 3)
 
-; world
-water = CreateWater(220, 220, 48)
-SetWaterLevel(0)
-SetGerstner(0, 0.9, 0.3, 0.28, 0.45, 18, 1.1)
+; Shadows / IBL
+EnableShadows True
+EnablePostFX True
+SetExposure 1.05
+SetTonemap "neutral"
+SetBloom 0.22
+EnableSSAO True
+ShadowCascades 2
+ShadowMapSize 1024
+SetShadowBias 0.003
+SetShadowPCF 3
 
-; vehicle
-boat = CreateCube().Scale(1.8, 0.55, 3.4).Position([0, 1.4, 6]).Color(230, 120, 50)
-CreateBoatController(boat)
-SetLinearDamping(boat, 1.8)
-cam.Point(boat)
+sun = CreateDirectionalLight()
+SetLightDirection sun, 50, 35, 0
+SetLightColor sun, 255, 230, 190
+SetLightShadow sun, True
 
-; loop
-frames = 0
+CreateSkyBox("default")
+SetIBL True
+SetIBLIntensity 1.0
+
+; Ground
+ground = CreatePlane().Scale(18, 1, 18).Position([0, 0, 4])
+SetMaterialPBR(ground, 1)
+SetAlbedo(ground, 48, 54, 64)
+SetMetallic(ground, 0)
+SetRoughness(ground, 0.88)
+SetAO(ground, 1)
+
+; Rough dielectric
+clay = CreateSphere().Position([-3.2, 0.75, 4])
+SetMaterialPBR(clay, 1)
+SetAlbedo(clay, 200, 72, 58)
+SetMetallic(clay, 0)
+SetRoughness(clay, 0.86)
+
+; Smooth metal
+gold = CreateSphere().Position([-1.05, 0.75, 4])
+SetAlbedo(gold, 232, 196, 96)
+SetMetallic(gold, 1)
+SetRoughness(gold, 0.12)
+
+; Rusted metal (library material + SetMaterial)
+rustMat = CreatePBRMaterial()
+SetBaseColor(rustMat, 138, 74, 42)
+SetMetallic(rustMat, 0.62)
+SetRoughness(rustMat, 0.74)
+SetAO(rustMat, 0.55)
+rust = CreateSphere().Position([1.1, 0.75, 4])
+SetMaterial(rust, rustMat)
+
+; Emissive
+glow = CreateSphere().Position([3.25, 0.75, 4])
+SetAlbedo(glow, 16, 18, 24)
+SetMetallic(glow, 0)
+SetRoughness(glow, 0.35)
+SetEmissive(glow, 40, 160, 255)
+
+Print "PBR: clay / gold / rust / emissive  |  GetMaterialPBR(gold)=" + Str(GetMaterialPBR(gold))
+
+; Loop
 While 1
-    frames = frames + 1
-    th# = 0
-    steer# = 0
-    If KeyDown(KEY_W) Then th = 1
-    If KeyDown(KEY_S) Then th = -0.4
-    If KeyDown(KEY_A) Then steer = -1
-    If KeyDown(KEY_D) Then steer = 1
-    UpdateBoat(boat, th, steer)
+    dt# = Time.Delta() * 60
+    clay.Turn(0, 0.35 * dt, 0)
+    gold.Turn(0, 0.35 * dt, 0)
+    rust.Turn(0, 0.35 * dt, 0)
+    glow.Turn(0, 0.35 * dt, 0)
     UpdateWorld
-    CameraFollow(cam, boat, 16, 5, 7, EntityYaw(boat), 14)
     RenderWorld
-    Text(12, 12, "BitShin BASIC — Boat  |  WASD  waterY=" + Str(WaterHeight(0, 8)))
     Flip
-    If frames > 8
-        If KeyHit(KEY_ESCAPE) Then End
-    EndIf
 Wend
-End

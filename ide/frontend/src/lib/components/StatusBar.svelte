@@ -5,7 +5,7 @@
 
 <footer class="ide-status">
   <div class="ide-status-group">
-    <span class="ide-lang">BitShin BASIC</span>
+    <span class="ide-lang">moonBASIC</span>
     {#if editorStore.activeTab}
       <span class="ide-status-sep"></span>
       <span title={editorStore.activeTab.path}>{editorStore.activeTab.name}</span>

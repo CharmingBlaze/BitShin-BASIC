@@ -10,7 +10,7 @@ import (
 
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 // playState is the outdoor/indoor game layer: time of day, rooms, doors,
@@ -376,7 +376,7 @@ func (w *World) paintTimeSky(band string) {
 		return
 	}
 	sx, sy, sz := w.proceduralSkySun()
-	id, err := w.createSkyBoxFromFaces(generateSkyFaces(w.skyTop, w.skyBot, sx, sy, sz))
+	id, err := w.publishSky(generateSkyImages(w.skyTop, w.skyBot, sx, sy, sz))
 	if err == nil {
 		w.skyProc = true
 		w.setSkyBox(id)

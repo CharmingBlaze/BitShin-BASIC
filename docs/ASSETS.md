@@ -7,13 +7,15 @@
 | `.glb` / `.gltf` | Preferred. Clips need `LoadAnimMesh`. Physical materials use `mbphysical`. `AttachToBone child, mesh, "JointName"` parents a prop to a named node in that scene graph (`docs/PHYSICS.md`). |
 | `.obj` | + `.mtl` if present |
 | `.dae` | Collada |
-| `.fbx` | **Not loaded.** Export glTF/OBJ |
+| `.fbx` | Mesh triangles, normals, vertex UVs, and skin clusters (indexes, weights, limb translation). Z-up files become Y-up. A unit scale of 50 or more (centimetres) is converted to metres. Moving a limb node drags its weighted vertices. Cameras and animation clips are not read |
 
-No meshopt, no Basis/KTX2, no extra C++ codec tree.
+`OptimizeMesh entity` reorders that mesh for the vertex cache, then for overdraw, and packs vertices in draw order. `SimplifyMesh entity [, ratio]` reduces the triangle count with quadric error. Both use the Go packages copied into `internal/meshoptim` and `internal/meshsimplify` from [m31labs.dev/gosx](https://pkg.go.dev/m31labs.dev/gosx/assetpipe/meshoptim). They do not link the meshoptimizer C++ library.
 
 ## Textures
 
 PNG / JPEG via `LoadTexture` / `LoadImage`. Heightmaps: PNG/JPEG grayscale (`LoadHeightmap`, `GenerateHeightmap`, `SaveHeightmap`).
+
+`LoadTexture` also accepts `.dds` (DXT1, DXT3, DXT5, or 32-bit uncompressed) and `.ktx` / `.ktx2` when the image is S3TC/BC1–BC3. KTX2 Zstandard and ZLIB supercompression are inflated first. BasisLZ is not transcoded. The blocks stay compressed on the GPU (`EXT_texture_compression_s3tc` on OpenGL 3.3).
 
 ## Audio (Oto)
 
@@ -21,10 +23,10 @@ PNG / JPEG via `LoadTexture` / `LoadImage`. Heightmaps: PNG/JPEG grayscale (`Loa
 
 ## Packaging
 
-`bs build game.bb -o dist` copies the interpreter, the `.bb`, quoted asset paths, `assets/`, and natives from `third_party/$GOOS`. Zip `dist` and run from that folder. Details: [RELEASE.md](RELEASE.md).
+`moon build game.mb -o dist` copies the interpreter, the `.mb`, quoted asset paths, `assets/`, and natives from `third_party/$GOOS`. Zip `dist` and run from that folder. Details: [RELEASE.md](RELEASE.md).
 
 ## Scene files
 
-- `LoadScene "setup.bb"` — run setup (no `Flip` / `End`).
+- `LoadScene "setup.mb"` — run setup (no `Flip` / `End`).
 - `SaveScene` / `SceneSave` — JSON of primitive `kind`, `LoadMesh` `src`, parent, transform, tint, visibility. Lights and cameras included.
 - `LoadScene "dump.json"` — rebuilds tagged primitives, reloads meshes from `src`, restores lights and camera frustum. Pre-1.0 dumps without `kind` still spawn cubes.

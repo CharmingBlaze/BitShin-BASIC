@@ -1,4 +1,4 @@
-//go:build windows
+//go:build windows || (linux && (amd64 || arm64)) || (darwin && arm64)
 
 package jolt
 
@@ -9,16 +9,16 @@ import "C"
 type ContactEventType int
 
 const (
-	ContactAdded      ContactEventType = C.JOLT_CONTACT_ADDED
-	ContactPersisted  ContactEventType = C.JOLT_CONTACT_PERSISTED
-	ContactRemoved    ContactEventType = C.JOLT_CONTACT_REMOVED
+	ContactAdded     ContactEventType = C.JOLT_CONTACT_ADDED
+	ContactPersisted ContactEventType = C.JOLT_CONTACT_PERSISTED
+	ContactRemoved   ContactEventType = C.JOLT_CONTACT_REMOVED
 )
 
 // ContactEvent is a drained contact from the C++ queue (main thread only).
 type ContactEvent struct {
-	Type  ContactEventType
-	BodyA uint32
-	BodyB uint32
+	Type       ContactEventType
+	BodyA      uint32
+	BodyB      uint32
 	X, Y, Z    float32
 	NX, NY, NZ float32
 }

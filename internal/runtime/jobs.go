@@ -5,7 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 // jobPool is a small Go worker pool. Workers must never create GL objects

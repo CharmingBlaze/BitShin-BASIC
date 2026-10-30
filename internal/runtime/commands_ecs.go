@@ -5,7 +5,7 @@ import (
 
 	"github.com/SanderMertens/flecs-go"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 type ecsHost struct {

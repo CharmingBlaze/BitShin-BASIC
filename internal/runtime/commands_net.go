@@ -5,25 +5,36 @@ import (
 	"strings"
 	"time"
 
-	"bitshinbasic/internal/netenet"
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/netenet"
+	"moonbasic/internal/value"
 )
+
+const defaultNetPort = 27015
 
 func (w *World) netCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error)) map[string]cmd {
 	host := n(func(a []value.Value) (value.Value, error) {
-		h, err := netenet.Listen(argI(a, 0, 1234))
+		h, err := netenet.Listen(argI(a, 0, defaultNetPort))
 		if err != nil {
 			return value.Value{}, err
 		}
 		w.net = h
+		prev := w.sess
 		w.sess = newNetSess()
+		if prev != nil {
+			if prev.name != "" {
+				w.sess.name = prev.name
+			}
+			w.sess.room = prev.room
+			w.sess.info = prev.info
+		}
 		w.sess.isHost = true
 		w.sess.localID = 0
-		return z()
+		w.startAnnounce(argI(a, 0, defaultNetPort))
+		return value.Num(1), nil
 	})
 	connect := n(func(a []value.Value) (value.Value, error) {
 		if w.net == nil {
-			h, err := netenet.Dial(argS(a, 0), argI(a, 1, 1234))
+			h, err := netenet.Dial(argS(a, 0), argI(a, 1, defaultNetPort))
 			if err != nil {
 				return value.Value{}, err
 			}
@@ -38,7 +49,7 @@ func (w *World) netCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			w.netBroadcastProto("NAME|" + w.sess.name)
 			return value.Num(1), nil
 		}
-		id, err := w.net.Connect(argS(a, 0), argI(a, 1, 1234))
+		id, err := w.net.Connect(argS(a, 0), argI(a, 1, defaultNetPort))
 		return value.Num(float64(id)), err
 	})
 	closeNet := n(func(a []value.Value) (value.Value, error) {
@@ -53,6 +64,7 @@ func (w *World) netCommands(n func(func([]value.Value) (value.Value, error)) cmd
 		w.net.Close()
 		w.net = nil
 		w.netInbox = nil
+		w.stopAnnounce()
 		w.sess = newNetSess()
 		return z()
 	})
@@ -70,9 +82,27 @@ func (w *World) netCommands(n func(func([]value.Value) (value.Value, error)) cmd
 	m := map[string]cmd{
 		"nethost":    host,
 		"hostnet":    host,
+		"hostgame":   host,
 		"netconnect": connect,
 		"connectnet": connect,
-		"netclose":   closeNet,
+		"joingame":   connect,
+		"netsay": n(func(a []value.Value) (value.Value, error) {
+			if w.net == nil {
+				return value.Num(0), nil
+			}
+			msg := argS(a, 0)
+			var err error
+			if w.sess != nil && w.sess.isHost {
+				err = w.net.Broadcast(msg, true)
+			} else {
+				err = w.net.Send(1, msg, true)
+			}
+			if err != nil {
+				return value.Num(0), nil
+			}
+			return value.Num(1), nil
+		}),
+		"netclose": closeNet,
 		"netupdate": n(func(a []value.Value) (value.Value, error) {
 			w.netUpdate()
 			return z()
@@ -170,19 +200,25 @@ func (w *World) netCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			return value.Num(w.netRTT(argI(a, 0, 0))), nil
 		}),
 		"netplayername": n(func(a []value.Value) (value.Value, error) {
+			s := w.ensureSess()
 			peer := argI(a, 0, -1)
 			if peer >= 0 {
-				if p := w.sess.peers[peer]; p != nil {
+				if p := s.peers[peer]; p != nil {
 					return value.Str(p.name), nil
 				}
 				return value.Str(""), nil
 			}
-			return value.Str(w.sess.name), nil
+			return value.Str(s.name), nil
 		}),
 		"setnetplayername": n(func(a []value.Value) (value.Value, error) {
-			w.sess.name = argS(a, 0)
-			if w.net != nil && w.sess.name != "" {
-				w.netBroadcastProto("NAME|" + w.sess.name)
+			s := w.ensureSess()
+			s.name = argS(a, 0)
+			if w.net != nil && s.name != "" {
+				w.netBroadcastProto("NAME|" + s.name)
+			}
+			if s.isHost {
+				w.publishRoster()
+				w.writeBeacon()
 			}
 			return z()
 		}),
@@ -190,16 +226,20 @@ func (w *World) netCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			return value.Num(float64(w.sess.localID)), nil
 		}),
 		"netready": n(func(a []value.Value) (value.Value, error) {
+			s := w.ensureSess()
 			on := true
 			if len(a) > 0 {
 				on = argI(a, 0, 1) != 0
 			}
-			w.sess.ready = on
+			s.ready = on
 			flag := "0"
 			if on {
 				flag = "1"
 			}
 			w.netBroadcastProto("READY|" + flag)
+			if s.isHost {
+				w.publishRoster()
+			}
 			return z()
 		}),
 		"netallready": n(func(a []value.Value) (value.Value, error) {
@@ -212,13 +252,18 @@ func (w *World) netCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			if len(a) > 0 {
 				w.sess.room = argS(a, 0)
 				w.netBroadcastProto("ROOM|" + w.sess.room)
+				w.writeBeacon()
 			}
 			return value.Str(w.sess.room), nil
 		}),
 		"setnetroom": n(func(a []value.Value) (value.Value, error) {
 			w.sess.room = argS(a, 0)
 			w.netBroadcastProto("ROOM|" + w.sess.room)
+			w.writeBeacon()
 			return z()
+		}),
+		"findgames": n(func(a []value.Value) (value.Value, error) {
+			return value.Str(findGames(argI(a, 0, 800))), nil
 		}),
 		"netsendjson": n(func(a []value.Value) (value.Value, error) {
 			if w.net == nil {
@@ -243,6 +288,10 @@ func (w *World) netCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			w.sess.jsonQ = w.sess.jsonQ[1:]
 			w.sess.lastJSON = s
 			return value.Str(s), nil
+		}),
+		"setnetsmooth": n(func(a []value.Value) (value.Value, error) {
+			w.ensureSess().smoothMS = argI(a, 0, 100)
+			return z()
 		}),
 		"netreplicate": n(func(a []value.Value) (value.Value, error) {
 			id := argI(a, 0, 0)
@@ -285,6 +334,27 @@ func (w *World) netCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			}
 			return z()
 		}),
+		"startgame": n(func(a []value.Value) (value.Value, error) {
+			return value.Num(float64(w.startGame())), nil
+		}),
+		"netstarted": n(func(a []value.Value) (value.Value, error) {
+			s := w.ensureSess()
+			w.netUpdate()
+			if s.started {
+				return value.Num(1), nil
+			}
+			return value.Num(0), nil
+		}),
+		"netlobby": n(func(a []value.Value) (value.Value, error) {
+			return value.Str(w.netLobby()), nil
+		}),
+		"setnetinfo": n(func(a []value.Value) (value.Value, error) {
+			w.setNetInfo(argS(a, 0), argS(a, 1))
+			return z()
+		}),
+		"netinfo": n(func(a []value.Value) (value.Value, error) {
+			return value.Str(w.netInfo(argS(a, 0))), nil
+		}),
 		"netregister": n(func(a []value.Value) (value.Value, error) {
 			key := strings.ToLower(strings.TrimSpace(argS(a, 0)))
 			if key != "" {
@@ -294,7 +364,7 @@ func (w *World) netCommands(n func(func([]value.Value) (value.Value, error)) cmd
 		}),
 	}
 	createHost := n(func(a []value.Value) (value.Value, error) {
-		port := argI(a, 0, 27015)
+		port := argI(a, 0, defaultNetPort)
 		max := argI(a, 1, 32)
 		h, err := netenet.ListenMax(port, max)
 		if err != nil {
@@ -303,7 +373,7 @@ func (w *World) netCommands(n func(func([]value.Value) (value.Value, error)) cmd
 		return value.Num(float64(w.bindScriptHost(h))), nil
 	})
 	dialClient := n(func(a []value.Value) (value.Value, error) {
-		h, err := netenet.Dial(argS(a, 0), argI(a, 1, 27015))
+		h, err := netenet.Dial(argS(a, 0), argI(a, 1, defaultNetPort))
 		if err != nil {
 			return value.Value{}, err
 		}
@@ -317,7 +387,7 @@ func (w *World) netCommands(n func(func([]value.Value) (value.Value, error)) cmd
 		if h == nil {
 			return value.Num(0), nil
 		}
-		peer, err := h.Connect(argS(a, 1), argI(a, 2, 27015))
+		peer, err := h.Connect(argS(a, 1), argI(a, 2, defaultNetPort))
 		return value.Num(float64(peer)), err
 	})
 	sendOnHost := n(func(a []value.Value) (value.Value, error) {

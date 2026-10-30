@@ -6,9 +6,9 @@ import (
 	"github.com/g3n/engine/geometry"
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/phys2d"
-	"bitshinbasic/internal/phys3d"
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/phys2d"
+	"moonbasic/internal/phys3d"
+	"moonbasic/internal/value"
 )
 
 func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error), need func(func([]value.Value) (value.Value, error)) cmd) map[string]cmd {
@@ -47,8 +47,12 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 			px, py, pz := blitzPos(id)
 			if shape == 2 {
 				w.phys3.AddBox(id, px, py, pz, r, r, r, dyn)
+				e.collKind = 1
+				e.boxX, e.boxY, e.boxZ = r, r, r
 			} else {
 				w.phys3.AddSphere(id, px, py, pz, r, dyn)
+				e.collKind = 2
+				e.radius = r
 			}
 			if dyn {
 				e.bodyType = 1
@@ -403,8 +407,20 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 			w.ensurePhys3()
 			id := argI(a, 0, 0)
 			px, py, pz := blitzPos(id)
+			halfH := float32(argN(a, 1, 1))
+			r := float32(argN(a, 2, 0.4))
 			massOrDyn := argN(a, 3, 1)
-			w.phys3.AddCapsule(id, px, py, pz, float32(argN(a, 1, 1)), float32(argN(a, 2, 0.4)), massOrDyn != 0)
+			w.phys3.AddCapsule(id, px, py, pz, halfH, r, massOrDyn != 0)
+			if e := w.ents[id]; e != nil {
+				e.collKind = 3
+				e.boxY = halfH
+				e.radius = r
+				if massOrDyn != 0 {
+					e.bodyType = 1
+				} else {
+					e.bodyType = 2
+				}
+			}
 			if massOrDyn > 0 {
 				w.phys3.SetMass(id, float32(massOrDyn))
 			}
@@ -421,6 +437,8 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 			if e := w.ents[id]; e != nil {
 				e.bodyType = motionBodyType(motion)
 				e.collKind = 4
+				e.boxX = r
+				e.boxY = halfH
 				if e.radius < r+halfH {
 					e.radius = r + halfH
 				}
@@ -769,9 +787,11 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 				return value.Num(0), nil
 			}
 			w.ensurePhys3()
-			id := w.phys3.CreateHingeJoint(argI(a, 0, 0), argI(a, 1, 0),
-				float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0)),
-				float32(argN(a, 5, 0)), float32(argN(a, 6, 1)), float32(argN(a, 7, 0)))
+			aa, bb := argI(a, 0, 0), argI(a, 1, 0)
+			px, py, pz := float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0))
+			ax, ay, az := float32(argN(a, 5, 0)), float32(argN(a, 6, 1)), float32(argN(a, 7, 0))
+			id := w.phys3.CreateHingeJoint(aa, bb, px, py, pz, ax, ay, az)
+			w.rememberJoint(id, "hinge", aa, bb, px, py, pz, ax, ay, az)
 			return value.Num(float64(id)), nil
 		}),
 		"createhingejoint": n(func(a []value.Value) (value.Value, error) {
@@ -779,9 +799,11 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 				return value.Num(0), nil
 			}
 			w.ensurePhys3()
-			id := w.phys3.CreateHingeJoint(argI(a, 0, 0), argI(a, 1, 0),
-				float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0)),
-				float32(argN(a, 5, 0)), float32(argN(a, 6, 1)), float32(argN(a, 7, 0)))
+			aa, bb := argI(a, 0, 0), argI(a, 1, 0)
+			px, py, pz := float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0))
+			ax, ay, az := float32(argN(a, 5, 0)), float32(argN(a, 6, 1)), float32(argN(a, 7, 0))
+			id := w.phys3.CreateHingeJoint(aa, bb, px, py, pz, ax, ay, az)
+			w.rememberJoint(id, "hinge", aa, bb, px, py, pz, ax, ay, az)
 			return value.Num(float64(id)), nil
 		}),
 		"createpointjoint": n(func(a []value.Value) (value.Value, error) {
@@ -789,8 +811,10 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 				return value.Num(0), nil
 			}
 			w.ensurePhys3()
-			id := w.phys3.CreatePointJoint(argI(a, 0, 0), argI(a, 1, 0),
-				float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0)))
+			aa, bb := argI(a, 0, 0), argI(a, 1, 0)
+			px, py, pz := float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0))
+			id := w.phys3.CreatePointJoint(aa, bb, px, py, pz)
+			w.rememberJoint(id, "point", aa, bb, px, py, pz)
 			return value.Num(float64(id)), nil
 		}),
 		"createballsocketjoint": n(func(a []value.Value) (value.Value, error) {
@@ -798,8 +822,10 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 				return value.Num(0), nil
 			}
 			w.ensurePhys3()
-			id := w.phys3.CreatePointJoint(argI(a, 0, 0), argI(a, 1, 0),
-				float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0)))
+			aa, bb := argI(a, 0, 0), argI(a, 1, 0)
+			px, py, pz := float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0))
+			id := w.phys3.CreatePointJoint(aa, bb, px, py, pz)
+			w.rememberJoint(id, "point", aa, bb, px, py, pz)
 			return value.Num(float64(id)), nil
 		}),
 		"createsliderjoint": n(func(a []value.Value) (value.Value, error) {
@@ -807,9 +833,11 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 				return value.Num(0), nil
 			}
 			w.ensurePhys3()
-			id := w.phys3.CreateSliderJoint(argI(a, 0, 0), argI(a, 1, 0),
-				float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0)),
-				float32(argN(a, 5, 1)), float32(argN(a, 6, 0)), float32(argN(a, 7, 0)))
+			aa, bb := argI(a, 0, 0), argI(a, 1, 0)
+			px, py, pz := float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0))
+			ax, ay, az := float32(argN(a, 5, 1)), float32(argN(a, 6, 0)), float32(argN(a, 7, 0))
+			id := w.phys3.CreateSliderJoint(aa, bb, px, py, pz, ax, ay, az)
+			w.rememberJoint(id, "slider", aa, bb, px, py, pz, ax, ay, az)
 			return value.Num(float64(id)), nil
 		}),
 		"createspringjoint": n(func(a []value.Value) (value.Value, error) {
@@ -817,9 +845,11 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 				return value.Num(0), nil
 			}
 			w.ensurePhys3()
-			id := w.phys3.CreateSpringJoint(argI(a, 0, 0), argI(a, 1, 0),
-				float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0)),
-				float32(argN(a, 5, 1)), float32(argN(a, 6, 8)), float32(argN(a, 7, 1)))
+			aa, bb := argI(a, 0, 0), argI(a, 1, 0)
+			px, py, pz := float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0))
+			rest, freq, damp := float32(argN(a, 5, 1)), float32(argN(a, 6, 8)), float32(argN(a, 7, 1))
+			id := w.phys3.CreateSpringJoint(aa, bb, px, py, pz, rest, freq, damp)
+			w.rememberJoint(id, "spring", aa, bb, px, py, pz, rest, freq, damp)
 			return value.Num(float64(id)), nil
 		}),
 		"createfixedjoint": n(func(a []value.Value) (value.Value, error) {
@@ -827,8 +857,10 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 				return value.Num(0), nil
 			}
 			w.ensurePhys3()
-			id := w.phys3.CreateFixedJoint(argI(a, 0, 0), argI(a, 1, 0),
-				float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0)))
+			aa, bb := argI(a, 0, 0), argI(a, 1, 0)
+			px, py, pz := float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0))
+			id := w.phys3.CreateFixedJoint(aa, bb, px, py, pz)
+			w.rememberJoint(id, "fixed", aa, bb, px, py, pz)
 			return value.Num(float64(id)), nil
 		}),
 		"createconejoint": n(func(a []value.Value) (value.Value, error) {
@@ -836,10 +868,12 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 				return value.Num(0), nil
 			}
 			w.ensurePhys3()
-			id := w.phys3.CreateConeJoint(argI(a, 0, 0), argI(a, 1, 0),
-				float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0)),
-				float32(argN(a, 5, 0)), float32(argN(a, 6, 1)), float32(argN(a, 7, 0)),
-				float32(argN(a, 8, 45)))
+			aa, bb := argI(a, 0, 0), argI(a, 1, 0)
+			px, py, pz := float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0))
+			ax, ay, az := float32(argN(a, 5, 0)), float32(argN(a, 6, 1)), float32(argN(a, 7, 0))
+			half := float32(argN(a, 8, 45))
+			id := w.phys3.CreateConeJoint(aa, bb, px, py, pz, ax, ay, az, half)
+			w.rememberJoint(id, "cone", aa, bb, px, py, pz, ax, ay, az, half)
 			return value.Num(float64(id)), nil
 		}),
 		"createswingtwistjoint": n(func(a []value.Value) (value.Value, error) {
@@ -847,10 +881,12 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 				return value.Num(0), nil
 			}
 			w.ensurePhys3()
-			id := w.phys3.CreateSwingTwistJoint(argI(a, 0, 0), argI(a, 1, 0),
-				float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0)),
-				float32(argN(a, 5, 0)), float32(argN(a, 6, 1)), float32(argN(a, 7, 0)),
-				float32(argN(a, 8, 45)), float32(argN(a, 9, 30)))
+			aa, bb := argI(a, 0, 0), argI(a, 1, 0)
+			px, py, pz := float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0))
+			ax, ay, az := float32(argN(a, 5, 0)), float32(argN(a, 6, 1)), float32(argN(a, 7, 0))
+			swing, twist := float32(argN(a, 8, 45)), float32(argN(a, 9, 30))
+			id := w.phys3.CreateSwingTwistJoint(aa, bb, px, py, pz, ax, ay, az, swing, twist)
+			w.rememberJoint(id, "swing", aa, bb, px, py, pz, ax, ay, az, swing, twist)
 			return value.Num(float64(id)), nil
 		}),
 		"createjoint": n(func(a []value.Value) (value.Value, error) {
@@ -878,6 +914,7 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 			default:
 				id = w.phys3.CreateHingeJoint(aa, bb, px, py, pz, float32(argN(a, 6, 0)), float32(argN(a, 7, 1)), float32(argN(a, 8, 0)))
 			}
+			w.rememberCreateJoint(id, kind, aa, bb, a)
 			return value.Num(float64(id)), nil
 		}),
 		"createhinge3d": n(func(a []value.Value) (value.Value, error) {
@@ -885,29 +922,44 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 				return value.Num(0), nil
 			}
 			w.ensurePhys3()
-			id := w.phys3.CreateHingeJoint(argI(a, 0, 0), argI(a, 1, 0),
-				float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0)),
-				float32(argN(a, 5, 0)), float32(argN(a, 6, 1)), float32(argN(a, 7, 0)))
+			aa, bb := argI(a, 0, 0), argI(a, 1, 0)
+			px, py, pz := float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0))
+			ax, ay, az := float32(argN(a, 5, 0)), float32(argN(a, 6, 1)), float32(argN(a, 7, 0))
+			id := w.phys3.CreateHingeJoint(aa, bb, px, py, pz, ax, ay, az)
+			w.rememberJoint(id, "hinge", aa, bb, px, py, pz, ax, ay, az)
 			return value.Num(float64(id)), nil
 		}),
 		"freejoint": n(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys3()
-			w.phys3.RemoveJoint(argI(a, 0, 0))
+			id := argI(a, 0, 0)
+			w.phys3.RemoveJoint(id)
+			w.forgetJoint(id)
 			return z()
 		}),
 		"sethingelimits": n(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys3()
-			w.phys3.SetHingeLimits(argI(a, 0, 0), float32(argN(a, 1, -10)), float32(argN(a, 2, 95)))
+			id := argI(a, 0, 0)
+			min := float32(argN(a, 1, -10))
+			max := float32(argN(a, 2, 95))
+			w.phys3.SetHingeLimits(id, min, max)
+			w.noteHingeLimits(id, min, max)
 			return z()
 		}),
 		"sethingefriction": n(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys3()
-			w.phys3.SetHingeFriction(argI(a, 0, 0), float32(argN(a, 1, 15)))
+			id := argI(a, 0, 0)
+			fric := float32(argN(a, 1, 15))
+			w.phys3.SetHingeFriction(id, fric)
+			w.noteHingeFriction(id, fric)
 			return z()
 		}),
 		"sethingemotor": n(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys3()
-			w.phys3.SetHingeMotor(argI(a, 0, 0), float32(argN(a, 1, 0)), float32(argN(a, 2, 20)))
+			id := argI(a, 0, 0)
+			vel := float32(argN(a, 1, 0))
+			torque := float32(argN(a, 2, 20))
+			w.phys3.SetHingeMotor(id, vel, torque)
+			w.noteHingeMotor(id, vel, torque)
 			return z()
 		}),
 		"disablebodycollision": n(func(a []value.Value) (value.Value, error) {
@@ -1157,6 +1209,8 @@ func (w *World) addEntityMeshBody(id int, e *Entity) bool {
 	w.phys3.Remove(id)
 	w.phys3.AddMesh(id, verts, idx, phys3d.MotionTypeStatic)
 	w.phys3.OptimizeBroadPhase()
+	e.bodyType = 2
+	e.collKind = 7
 	return true
 }
 
@@ -1196,6 +1250,7 @@ func (w *World) addEntityConvexBody(id int, e *Entity, motion int) bool {
 	w.phys3.Remove(id)
 	w.phys3.AddConvexHull(id, points, px, py, pz, motion)
 	w.phys3.OptimizeBroadPhase()
+	e.collKind = 8
 	return true
 }
 

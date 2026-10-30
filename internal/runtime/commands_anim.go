@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"fmt"
+	"math"
 	"path/filepath"
 	"strings"
 
@@ -10,7 +11,7 @@ import (
 	"github.com/g3n/engine/loader/gltf"
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 type animState struct {
@@ -27,6 +28,20 @@ type animState struct {
 	prevT  float32
 	dir    float32
 	blend  float32 // 0 = previous clip, 1 = current clip
+	layers []animLayer
+	bind   []localXF
+	bindOK bool
+}
+
+// animLayer is an extra clip on top of the base pose.
+// additive subtracts the bind pose before blending. Otherwise the layer overrides.
+type animLayer struct {
+	seq      int
+	time     float32
+	weight   float32
+	additive bool
+	speed    float32
+	mode     int // 0 off, 1 loop
 }
 
 func (w *World) animCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error), need func(func([]value.Value) (value.Value, error)) cmd) map[string]cmd {
@@ -189,6 +204,12 @@ func (w *World) animCommands(n func(func([]value.Value) (value.Value, error)) cm
 			w.MarkShadowDirty()
 			return value.Num(float64(st.blend)), nil
 		}),
+		"setanimlayer": need(func(a []value.Value) (value.Value, error) {
+			return w.setAnimLayer(a, false)
+		}),
+		"setanimadditive": need(func(a []value.Value) (value.Value, error) {
+			return w.setAnimLayer(a, true)
+		}),
 		"animseqname": need(func(a []value.Value) (value.Value, error) {
 			e, err := w.ent(argI(a, 0, 0))
 			if err != nil {
@@ -230,26 +251,17 @@ func (st *animState) applyPose(root core.INode) {
 	if st.seq < 0 || st.seq >= len(st.clips) {
 		return
 	}
-	eval := func(i int, t float32) {
-		if i < 0 || i >= len(st.clips) {
-			return
-		}
-		cl := st.clips[i]
-		cl.SetSpeed(1)
-		cl.SetLoop(false)
-		cl.SetPaused(false)
-		cl.Reset()
-		cl.Update(t)
-	}
-	eval(st.seq, st.time)
+	st.evalClip(st.seq, st.time)
 	if root == nil || st.prev < 0 || st.prev == st.seq || st.blend >= 0.999 {
+		st.applyLayers(root)
 		return
 	}
 	cur := snapshotLocal(root)
-	eval(st.prev, st.prevT)
+	st.evalClip(st.prev, st.prevT)
 	prev := snapshotLocal(root)
 	if len(cur) != len(prev) {
-		eval(st.seq, st.time)
+		st.evalClip(st.seq, st.time)
+		st.applyLayers(root)
 		return
 	}
 	t := st.blend
@@ -264,6 +276,167 @@ func (st *animState) applyPose(root core.INode) {
 		q := nlerpQuat(prev[i].q, cur[i].q, t)
 		n.SetQuaternion(q.X, q.Y, q.Z, q.W)
 	}
+	st.applyLayers(root)
+}
+
+func (w *World) setAnimLayer(a []value.Value, additive bool) (value.Value, error) {
+	e, err := w.ent(argI(a, 0, 0))
+	if err != nil {
+		return value.Value{}, err
+	}
+	if e.anim == nil || len(e.anim.clips) == 0 {
+		return value.Value{}, fmt.Errorf("SetAnimLayer: no clips")
+	}
+	st := e.anim
+	slot := argI(a, 1, 0)
+	if slot < 0 {
+		return value.Value{}, fmt.Errorf("SetAnimLayer: slot %d", slot)
+	}
+	for len(st.layers) <= slot {
+		st.layers = append(st.layers, animLayer{seq: -1, speed: 1})
+	}
+	L := &st.layers[slot]
+	L.weight = float32(argN(a, 2, 1))
+	if L.weight < 0 {
+		L.weight = 0
+	}
+	if L.weight > 1 {
+		L.weight = 1
+	}
+	L.additive = additive
+	L.speed = 1
+	L.mode = 0
+	if L.weight > 0 {
+		L.mode = 1
+	}
+	if len(a) >= 4 {
+		if a[3].Kind == value.KindStr {
+			seq, err := st.findName(argS(a, 3))
+			if err != nil {
+				return value.Value{}, err
+			}
+			L.seq = seq
+		} else {
+			L.seq = argI(a, 3, 0)
+		}
+		L.time = 0
+		if L.seq >= 0 && L.seq < len(st.first) {
+			L.time = st.first[L.seq]
+		}
+	}
+	if L.seq < 0 || L.seq >= len(st.clips) {
+		return value.Value{}, fmt.Errorf("SetAnimLayer: seq %d missing", L.seq)
+	}
+	if !st.bindOK && e.node != nil {
+		st.bind = snapshotLocal(e.node)
+		st.bindOK = true
+	}
+	st.applyPose(e.node)
+	w.MarkShadowDirty()
+	return value.Num(float64(L.weight)), nil
+}
+
+func (st *animState) findName(name string) (int, error) {
+	want := strings.ToLower(name)
+	for i, n := range st.names {
+		if strings.ToLower(n) == want {
+			return i, nil
+		}
+	}
+	return 0, fmt.Errorf("SetAnimLayer: no clip %q", name)
+}
+
+func (st *animState) applyLayers(root core.INode) {
+	if root == nil || len(st.layers) == 0 {
+		return
+	}
+	if !st.bindOK {
+		st.bind = snapshotLocal(root)
+		st.bindOK = len(st.bind) > 0
+	}
+	for i := range st.layers {
+		L := &st.layers[i]
+		if L.weight <= 0 || L.mode == 0 || L.seq < 0 || L.seq >= len(st.clips) {
+			continue
+		}
+		base := snapshotLocal(root)
+		st.evalClip(L.seq, L.time)
+		layer := snapshotLocal(root)
+		writeLocals(base)
+		if len(layer) != len(base) {
+			continue
+		}
+		for k := range base {
+			n := base[k].n
+			if n == nil {
+				continue
+			}
+			if L.additive {
+				applyAdditive(n, base[k], bindAt(st.bind, k), layer[k], L.weight)
+			} else {
+				u := 1 - L.weight
+				t := L.weight
+				n.SetPosition(base[k].p.X*u+layer[k].p.X*t, base[k].p.Y*u+layer[k].p.Y*t, base[k].p.Z*u+layer[k].p.Z*t)
+				n.SetScale(base[k].s.X*u+layer[k].s.X*t, base[k].s.Y*u+layer[k].s.Y*t, base[k].s.Z*u+layer[k].s.Z*t)
+				q := nlerpQuat(base[k].q, layer[k].q, t)
+				n.SetQuaternion(q.X, q.Y, q.Z, q.W)
+			}
+		}
+	}
+}
+
+func bindAt(bind []localXF, i int) localXF {
+	if i >= 0 && i < len(bind) {
+		return bind[i]
+	}
+	return localXF{q: math32.Quaternion{W: 1}, s: math32.Vector3{X: 1, Y: 1, Z: 1}}
+}
+
+func applyAdditive(n *core.Node, base, bind, layer localXF, w float32) {
+	n.SetPosition(
+		base.p.X+(layer.p.X-bind.p.X)*w,
+		base.p.Y+(layer.p.Y-bind.p.Y)*w,
+		base.p.Z+(layer.p.Z-bind.p.Z)*w,
+	)
+	n.SetScale(
+		base.s.X+(layer.s.X-bind.s.X)*w,
+		base.s.Y+(layer.s.Y-bind.s.Y)*w,
+		base.s.Z+(layer.s.Z-bind.s.Z)*w,
+	)
+	bindInv := bind.q
+	if bindInv.W == 0 && bindInv.X == 0 && bindInv.Y == 0 && bindInv.Z == 0 {
+		bindInv.W = 1
+	}
+	bindInv.Inverse()
+	var delta, blended, out math32.Quaternion
+	delta.MultiplyQuaternions(&bindInv, &layer.q)
+	blended = math32.Quaternion{W: 1}
+	blended.Slerp(&delta, w)
+	out.MultiplyQuaternions(&base.q, &blended)
+	n.SetQuaternion(out.X, out.Y, out.Z, out.W)
+}
+
+func writeLocals(pose []localXF) {
+	for _, xf := range pose {
+		if xf.n == nil {
+			continue
+		}
+		xf.n.SetPosition(xf.p.X, xf.p.Y, xf.p.Z)
+		xf.n.SetScale(xf.s.X, xf.s.Y, xf.s.Z)
+		xf.n.SetQuaternion(xf.q.X, xf.q.Y, xf.q.Z, xf.q.W)
+	}
+}
+
+func (st *animState) evalClip(i int, t float32) {
+	if i < 0 || i >= len(st.clips) {
+		return
+	}
+	cl := st.clips[i]
+	cl.SetSpeed(1)
+	cl.SetLoop(false)
+	cl.SetPaused(false)
+	cl.Reset()
+	cl.Update(t)
 }
 
 type localXF struct {
@@ -307,11 +480,126 @@ func nlerpQuat(a, b math32.Quaternion, t float32) math32.Quaternion {
 	return q
 }
 
+// driveLocomotion plays an idle clip when the character is nearly still and a
+// walk or run clip while it moves. A one-shot clip that is neither of those
+// keeps playing until it finishes. Names come from the glTF file.
+func (w *World) driveLocomotion(id int, hx, hz float32) {
+	e := w.locomotionEntity(id)
+	if e == nil || e.anim == nil {
+		return
+	}
+	st := e.anim
+	if len(st.clips) == 0 {
+		return
+	}
+	idle, walk := locomotionClips(st.names)
+	if st.mode == 3 && st.seq != idle && st.seq != walk {
+		return
+	}
+	speed := float32(math.Hypot(float64(hx), float64(hz)))
+	seq := idle
+	rate := float32(1)
+	if speed >= 0.35 {
+		seq = walk
+		rate = speed / 1.6
+		if rate < 0.65 {
+			rate = 0.65
+		}
+		if rate > 2.2 {
+			rate = 2.2
+		}
+	} else if idle == walk {
+		st.mode = 0
+		st.speed = 1
+		return
+	}
+	if st.seq != seq {
+		st.seq = seq
+		if seq >= 0 && seq < len(st.first) {
+			st.time = st.first[seq]
+		}
+		st.dir = 1
+	}
+	st.mode = 1
+	st.speed = rate
+}
+
+func (w *World) locomotionEntity(id int) *Entity {
+	if e := w.ents[id]; e != nil && e.anim != nil && len(e.anim.clips) > 0 {
+		return e
+	}
+	for _, e := range w.ents {
+		if e != nil && e.parent == id && e.anim != nil && len(e.anim.clips) > 0 {
+			return e
+		}
+	}
+	return nil
+}
+
+func locomotionClips(names []string) (idle, walk int) {
+	idle = clipNamed(names, "idle", "stand", "breath")
+	walk = clipNamed(names, "walk", "run", "jog", "locom")
+	switch {
+	case idle < 0 && walk < 0:
+		idle, walk = 0, 0
+		if len(names) > 1 {
+			walk = 1
+		}
+	case idle < 0:
+		idle = walk
+	case walk < 0:
+		walk = idle
+	}
+	return idle, walk
+}
+
+func clipNamed(names []string, keys ...string) int {
+	for i, n := range names {
+		ln := strings.ToLower(n)
+		for _, k := range keys {
+			if strings.Contains(ln, k) {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
 func (w *World) tickAnims(dt float32) {
 	posed := false
 	for _, e := range w.ents {
 		st := e.anim
-		if st == nil || len(st.clips) == 0 || st.mode == 0 {
+		if st == nil || len(st.clips) == 0 {
+			continue
+		}
+		layerOn := false
+		for i := range st.layers {
+			L := &st.layers[i]
+			if L.mode == 0 || L.weight <= 0 || L.seq < 0 || L.seq >= len(st.clips) {
+				continue
+			}
+			layerOn = true
+			t0, t1 := st.first[L.seq], st.last[L.seq]
+			if t1 <= t0 {
+				t1 = t0 + st.length[L.seq]
+			}
+			L.time += dt * L.speed
+			span := t1 - t0
+			if span > 0 {
+				for L.time > t1 {
+					L.time -= span
+				}
+				for L.time < t0 {
+					L.time += span
+				}
+			}
+		}
+		if st.mode == 0 && !layerOn {
+			continue
+		}
+		if st.mode == 0 {
+			st.applyPose(e.node)
+			posed = true
 			continue
 		}
 		t0, t1 := st.first[st.seq], st.last[st.seq]
@@ -347,6 +635,12 @@ func (w *World) tickAnims(dt float32) {
 		}
 		st.applyPose(e.node)
 		posed = true
+	}
+	for _, e := range w.ents {
+		if e != nil && e.ik != nil {
+			w.solveIK(e)
+			posed = true
+		}
 	}
 	w.tickBoneAttaches()
 	if posed {
@@ -389,6 +683,10 @@ func (w *World) loadAnimMesh(file string, parent int) (int, error) {
 		st.last = append(st.last, ln)
 	}
 	w.ents[id].anim = st
+	if w.ents[id].node != nil {
+		st.bind = snapshotLocal(w.ents[id].node)
+		st.bindOK = len(st.bind) > 0
+	}
 	if len(st.clips) == 0 {
 		return 0, fmt.Errorf("LoadAnimMesh: %s has no animation clips", file)
 	}

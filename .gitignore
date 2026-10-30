@@ -9,8 +9,29 @@
 *.dll
 !third_party/windows/*.dll
 
+# Jolt 5.4 static libs for Linux and macOS, copied from the module cache by
+# internal/joltstage. The linker also searches $GOPATH/pkg/mod.
+third_party/jolt/linux_amd64/
+third_party/jolt/linux_arm64/
+third_party/jolt/darwin_arm64/
+
 # Local-only. Portable zips come from `bs build … -o dist`, not the repo tree.
 scratch/
+
+# Memory Keeper SQLite (config in .cursor/mcp.json is committed)
+.cursor/memory-keeper/
 imgui.ini
 .ide_settings.json
 /dist/
+
+# Ruflo local secrets and runtime data
+.env
+.env.local
+.env.*.local
+.claude-flow/data/
+.claude-flow/logs/
+.claude-flow/sessions/
+.swarm/
+
+# IDE writes this beside the open file on Run
+.moonbasic_run.mb

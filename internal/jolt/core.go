@@ -1,4 +1,4 @@
-//go:build windows
+//go:build windows || (linux && (amd64 || arm64)) || (darwin && arm64)
 
 package jolt
 

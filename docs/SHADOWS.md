@@ -1,6 +1,6 @@
 # Shadows
 
-G3N 0.2 has no shadow, CSM, or shadow-map API. BitShin BASIC owns a **dedicated shadow pass** (depth atlas, then the main camera pass) on OpenGL **3.3**. Lighting still uses G3N scene/renderer/gls. Dummy 1×1 `ShadowMap` when shadows are off.
+G3N 0.2 has no shadow, CSM, or shadow-map API. moonBASIC owns a **dedicated shadow pass** (depth atlas, then the main camera pass) on OpenGL **3.3**. Lighting still uses G3N scene/renderer/gls. Dummy 1×1 `ShadowMap` when shadows are off.
 
 ## Default path
 
@@ -8,7 +8,7 @@ Shadows are **on by default** (World construction and `Graphics3D`), like Blitz3
 
 **PCF on `DEPTH_COMPONENT`**, 4-cascade directional CSM fitted to the **camera frustum** (not a play-plane disc). Default quality is **High**: 4 × 2048, 3×3 PCF (Poisson 16-tap when `SetShadowPCF` ≥ 4). EVSM/MSM remain optional filters; they must not be the Platform 64 default (they can self-shadow a whole plane).
 
-`examples/platform64.bb` uses `SetShadowQuality "high"`. `examples/claw.bb` uses PCF (`SetShadowQuality 0, 4`). `SetShadowEVSM` / `SetShadowFilter "evsm"` still work.
+`examples/platform64.mb` uses `SetShadowQuality "high"`. `examples/claw.mb` uses PCF (`SetShadowQuality 0, 4`). `SetShadowEVSM` / `SetShadowFilter "evsm"` still work.
 
 PCF taps stay inside the cascade tile they started in, and the sample is lifted along the normal only on grazing faces, so shadows stay solid under feet and platform edges. If a contact looks detached from the mesh, lower `SetShadowBias` before raising the map size. `"high"` is PCF.
 

@@ -51,6 +51,13 @@ html, body, #app {
   user-select: none;
   -webkit-user-select: none;
   -webkit-font-smoothing: antialiased;
+  -webkit-app-region: no-drag;
+}
+
+/* WebView2 treats a drag region as covering scrollbars unless every
+   other element, including Monaco's custom bars, opts out. */
+*, *::before, *::after {
+  -webkit-app-region: no-drag;
 }
 
 button {
@@ -110,6 +117,15 @@ select option {
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
+  -webkit-app-region: no-drag;
+}
+
+::-webkit-scrollbar-thumb,
+::-webkit-scrollbar-track,
+::-webkit-scrollbar-corner,
+.monaco-scrollable-element > .scrollbar,
+.monaco-scrollable-element > .scrollbar > .slider {
+  -webkit-app-region: no-drag;
 }
 
 ::-webkit-scrollbar-track {
@@ -179,14 +195,48 @@ select option {
   color: var(--text-secondary);
   font-size: 12px;
   z-index: 50;
-  --wails-draggable: drag;
-  -webkit-app-region: drag;
-}
-
-.ide-nodrag {
-  --wails-draggable: no-drag;
   -webkit-app-region: no-drag;
 }
+
+header.ide-titlebar {
+  cursor: grab;
+}
+
+header.ide-titlebar button,
+header.ide-titlebar .ide-winbtn,
+header.ide-titlebar select,
+header.ide-titlebar input {
+  cursor: default;
+}
+
+.ide-titlebar,
+.ide-titlebar * {
+  -webkit-app-region: no-drag;
+}
+
+.ide-nodrag,
+.ide-titlebar .ide-nodrag,
+.ide-titlebar .ide-nodrag * {
+  -webkit-app-region: no-drag;
+}
+
+.ide-resize {
+  position: fixed;
+  z-index: 80;
+  -webkit-app-region: no-drag;
+}
+.ide-resize.n { top: 0; left: 12px; right: 12px; height: 5px; cursor: ns-resize; }
+.ide-resize.s { bottom: 0; left: 12px; right: 12px; height: 6px; cursor: ns-resize; }
+.ide-resize.e { top: 12px; right: 0; bottom: 12px; width: 6px; cursor: ew-resize; }
+.ide-resize.w { top: 12px; left: 0; bottom: 12px; width: 6px; cursor: ew-resize; }
+.ide-resize.nw,
+.ide-resize.ne,
+.ide-resize.sw,
+.ide-resize.se { width: 12px; height: 12px; z-index: 81; }
+.ide-resize.nw { top: 0; left: 0; cursor: nwse-resize; }
+.ide-resize.ne { top: 0; right: 0; cursor: nesw-resize; }
+.ide-resize.sw { bottom: 0; left: 0; cursor: nesw-resize; }
+.ide-resize.se { bottom: 0; right: 0; cursor: nwse-resize; }
 
 .ide-brand {
   display: flex;

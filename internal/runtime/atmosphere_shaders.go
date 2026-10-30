@@ -67,13 +67,10 @@ void main() {
     float muS = sun.y;
     float mu = dot(rd, sun);
 
-    if (rd.y < -0.02) {
-        float gnd = clamp(-rd.y, 0.0, 1.0);
-        vec3 col = mix(AtmoGround, AtmoGround * 0.45, gnd);
-        col *= AtmoTint;
-        col += vec3(AtmoFlash);
-        FragColor = vec4(col, 1.0);
-        return;
+    // Below the horizon the world is already drawn. A filled ground disc
+    // was covering the ocean with a flat olive colour.
+    if (rd.y < 0.0) {
+        discard;
     }
 
     vec3 sumR = vec3(0.0);
@@ -99,7 +96,7 @@ void main() {
         sumM += dM * tCam * tSun * ds;
     }
     vec3 col = sumR * betaR * AtmoRayleigh * phaseR(mu) + sumM * betaM * AtmoMie * phaseM(mu);
-    col *= 22.0;
+    col *= 8.0;
     float disk = pow(max(mu, 0.0), 220.0);
     float glow = pow(max(mu, 0.0), 12.0);
     col += vec3(1.0, 0.92, 0.72) * disk * 2.2;

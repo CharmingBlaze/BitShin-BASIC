@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"bitshinbasic/internal/glslang"
-	"bitshinbasic/internal/interp"
-	"bitshinbasic/internal/lsp"
-	"bitshinbasic/internal/parse"
-	"bitshinbasic/internal/runtime"
+	"moonbasic/internal/glslang"
+	"moonbasic/internal/interp"
+	"moonbasic/internal/lsp"
+	"moonbasic/internal/parse"
+	"moonbasic/internal/runtime"
 )
 
 const version = "1.0.0"
@@ -18,28 +18,28 @@ const version = "1.0.0"
 func main() {
 	args := os.Args[1:]
 	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" {
-		fmt.Print(`BitShin BASIC — Blitz3D-style BASIC (G3N 3D, Ebiten 2D)
+		fmt.Print(`moonBASIC — Blitz3D-style BASIC (G3N 3D, Ebiten 2D)
 
 Usage:
-  bs <program.bb> [-debug] [-break 10,20]
-                               Run a program. -debug pauses on -break lines (c, s, p name, q)
-  bs run <program.bb>          Same
-  bs compile <program.bb> [-o app.exe] [-os windows|linux|darwin] [-arch amd64|arm64] [-tags tags]
-                               Compile to a standalone game binary (Flip presents frames)
-  bs transpile <program.bb> [-o out.go]
-                               Translate BlitzBasic source code to native Go code
-  bs build <program.bb> [-o dist] [-os windows|linux|darwin] [-arch amd64|arm64] [-tags tags]
-                               Portable package folder: interpreter binary + assets + natives
-  bs lsp                       Language server (stdio JSON-RPC); same as bsls
-  bs version                   Print version
-  bs shader <file.glsl> [stage]  Validate GLSL (optional SPIR-V)
+  moon <program.mb> [-debug] [-break 10,20]
+                                 Run a program. -debug pauses on -break lines (c, s, p name, q)
+  moon run <program.mb>          Same
+  moon compile <program.mb> [-o app.exe] [-os windows|linux|darwin] [-arch amd64|arm64] [-tags tags]
+                                 Compile to a standalone game binary (Flip presents frames)
+  moon transpile <program.mb> [-o out.go]
+                                 Translate moonBASIC source to native Go code
+  moon build <program.mb> [-o dist] [-os windows|linux|darwin] [-arch amd64|arm64] [-tags tags]
+                                 Portable package folder: interpreter binary + assets + natives
+  moon lsp                       Language server (stdio JSON-RPC); same as moonsls
+  moon version                   Print version
+  moon shader <file.glsl> [stage]  Validate GLSL (optional SPIR-V)
 
 Examples live in the examples/ folder.
 `)
 		return
 	}
 	if args[0] == "version" || args[0] == "-v" || args[0] == "--version" {
-		fmt.Println("BitShin BASIC", version)
+		fmt.Println("moonBASIC", version)
 		return
 	}
 	if args[0] == "lsp" {
@@ -79,14 +79,14 @@ Examples live in the examples/ folder.
 	}
 	if args[0] == "run" {
 		if len(args) < 2 {
-			fmt.Fprintln(os.Stderr, "bs run: missing file")
+			fmt.Fprintln(os.Stderr, "moon run: missing file")
 			os.Exit(2)
 		}
 		args = args[1:]
 	}
 	path, debug, breaks := splitRunArgs(args)
 	if path == "" {
-		fmt.Fprintln(os.Stderr, "bs: missing file")
+		fmt.Fprintln(os.Stderr, "moon: missing file")
 		os.Exit(2)
 	}
 	if err := runFile(path, debug, breaks); err != nil {
@@ -158,7 +158,7 @@ func runFile(path string, debug bool, breaks []int) error {
 
 func runShader(args []string) error {
 	if len(args) < 1 {
-		return fmt.Errorf("bs shader: missing file")
+		return fmt.Errorf("moon shader: missing file")
 	}
 	stage := "vert"
 	if len(args) >= 2 {

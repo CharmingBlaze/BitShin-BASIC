@@ -56,7 +56,12 @@ func Dial(ip string, port int) (Host, error) {
 	if err != nil {
 		return nil, err
 	}
+	if _, err = c.Write([]byte("HELLO")); err != nil {
+		_ = c.Close()
+		return nil, err
+	}
 	h := &udpHost{conn: c, peers: map[int]*net.UDPAddr{1: raddr}, rev: map[string]int{raddr.String(): 1}, next: 2, connected: true}
+	h.inbox = append(h.inbox, Event{Kind: EventConnect, Peer: 1, IP: raddr.IP.String()})
 	go h.readLoop()
 	return h, nil
 }
@@ -83,6 +88,10 @@ func (h *udpHost) readLoop() {
 			h.peers[id] = addr
 			h.rev[addr.String()] = id
 			h.inbox = append(h.inbox, Event{Kind: EventConnect, Peer: id, IP: addr.IP.String()})
+			if msg == "HELLO" {
+				h.mu.Unlock()
+				continue
+			}
 		}
 		h.inbox = append(h.inbox, Event{Kind: EventReceive, Peer: id, Message: msg, IP: addr.IP.String()})
 		h.mu.Unlock()
@@ -125,8 +134,12 @@ func (h *udpHost) Send(peer int, msg string, _ bool) error {
 	return err
 }
 
-func (h *udpHost) Broadcast(msg string, _ bool) error {
+func (h *udpHost) Broadcast(msg string, rel bool) error {
 	h.mu.Lock()
+	if h.connected {
+		h.mu.Unlock()
+		return h.Send(1, msg, rel)
+	}
 	defer h.mu.Unlock()
 	var err error
 	for _, addr := range h.peers {

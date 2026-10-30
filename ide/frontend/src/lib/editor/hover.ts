@@ -1,6 +1,6 @@
 import * as monaco from 'monaco-editor';
 import commandsData from '../data/commands.json';
-import { LANGUAGE_ID } from './bitshin-lang';
+import { LANGUAGE_ID } from './moonbasic-lang';
 import { lspReady, lspRequest } from './lspClient';
 
 export function registerHover() {

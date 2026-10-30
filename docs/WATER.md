@@ -4,9 +4,9 @@ Two techniques share one mesh and the `mbwater` shader (**OpenGL 3.3**, `#versio
 
 | Style | What you see | Demo |
 | --- | --- | --- |
-| **Gerstner** (primary) | Rolling trochoidal ocean: steep crests, directional trains, wind, analytic normals, `WaterHeight` for buoys | `examples/gerstner.bb` |
-| **Scenic / LearnOpenGL** | Flat plane + reflection FBO + refraction FBO + DuDv scroll + Fresnel + specular normals + depth tint | `examples/water.bb` |
-| **Ocean** (combo) | Gerstner vertex displace **on** scenic shading | `examples/ocean.bb` |
+| **Gerstner** (primary) | Rolling trochoidal ocean: steep crests, directional trains, wind, analytic normals, `WaterHeight` for buoys | `examples/gerstner.mb` |
+| **Scenic / LearnOpenGL** | Flat plane + reflection FBO + refraction FBO + DuDv scroll + Fresnel + specular normals + depth tint | `examples/water.mb` |
+| **Ocean** (combo) | Gerstner vertex displace **on** scenic shading | `examples/ocean.mb` |
 
 References (behavior reimplemented clean-room in GLSL 330 + Go; no tess/compute):
 
@@ -46,6 +46,7 @@ Sum of up to 4 waves on a **camera-centered LOD grid**. With `SetWaterFollow(Tru
 - `SetWaterWind(dirX, dirZ [, strength])` steers directions and boosts aligned amplitude
 - `SetWeather("storm")` scales amplitude (`WaveStorm`)
 - CPU `WaterHeight(x, z)` matches the shader (including wind) for `CreateBuoy`
+- `EnableFFT on` adds a repeating 32×32 Phillips tile. `WaterHeight` uses the CPU inverse FFT. The water vertex shader samples a texture written by a GL 3.3 fragment-shader inverse DFT of the same spectrum
 
 ## Scenic (fragment + two cameras)
 
@@ -58,7 +59,7 @@ The surface is **opaque**. `SetWaterColor` is the deep-water color. Looking acro
 - DuDv scroll (`SetWaterSpeed` / `SetWaterWaveStrength`), scaled down at the shore and again with camera distance so the far mirror stays readable. Default maps are generated.
 - Fresnel is Schlick (F0 0.02): glancing → reflection, looking down → the body color. The shore mix stays mostly refraction so a cube’s reflection does not ghost onto the sand.
 - Refraction only replaces the body color when the seabed is actually close (about a quarter-metre to a few tens of metres). Sky and the far plane stay the deep color.
-- Specular is a broad sun path plus a tight sparkle (`WaterShine` and a 512 lobe) on the ripple normal, not a flat face normal. Face normals are only a fallback if the analytic normal is broken. `examples/canal.bb` is the low-camera, dark-green, hazy look.
+- Specular is a broad sun path plus a tight sparkle (`WaterShine` and a 512 lobe) on the ripple normal, not a flat face normal. Face normals are only a fallback if the analytic normal is broken. `examples/canal.mb` is the low-camera, dark-green, hazy look.
 - Above the water, back faces are discarded so a wave underside is not a dark wedge in the corner.
 - Alpha is 1, so a reflection does not fade onto the shore.
 
@@ -87,6 +88,7 @@ SetWaterFollow(True)
 SetWaterCaustics(water, True)
 SetWaterSSR(water, True)
 SetWaterAmbientSound(water, "sea.ogg", GetWeatherIntensity())
+EnableFFT(True)
 y# = WaterHeight(x, z)
 CreateBuoy(boat)
 SetWaterFlow(1.5, 0, 0.2)
@@ -103,11 +105,11 @@ Aliases: `GetWaterHeight`, `SetWaterReflection`, `SetWaterRefraction`, `SetWater
 | Foam on Gerstner peaks | Cheap height foam in the fragment shader |
 | Dual scrolling normal maps | `WaterNormal` sampled twice and mixed with Gerstner / dFdx normals |
 | Underwater fog | `SetUnderwaterFog` when the camera is below `WaterHeight` |
-| Buoyancy / splash / wakes | `CreateBuoy` + CPU impulse buffer (`WaterWake`). Auto `ApplyBuoyancyImpulse` for submerged dynamics (`SetBuoyancyFactor`, `SetWaterFlow`). Flag demo: `examples/cloth.bb` |
+| Buoyancy / splash / wakes | `CreateBuoy` + CPU impulse buffer (`WaterWake`). Auto `ApplyBuoyancyImpulse` for submerged dynamics (`SetBuoyancyFactor`, `SetWaterFlow`). Flag demo: `examples/cloth.mb` |
 | Caustics | Animated projected pattern on `mbterrain` / underwater meshes (`SetWaterCaustics`) |
 | Shoreline wetness | Terrain darken + spec near `WaterLevel` using the `Wetness` term |
 | SSR | **Partial** — lite screen march in the planar reflection FBO, fades to planar if off-screen / unstable. Not deferred SSR |
 | FFT / compute ocean | **Never required** (needs GL 4.3+) |
 | Tessellation LOD | **Not required** — banded LOD grid on 3.3 (0.5 m cells near the camera) |
 
-Also: `examples/largeworld.bb`.
+Also: `examples/largeworld.mb`.

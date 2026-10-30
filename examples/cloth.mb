@@ -1,0 +1,70 @@
+; Cloth yard — two flags and a curtain that drapes over a crate.
+; - and = change the wind. A/D orbit. Esc quits.
+
+Graphics3D(1280, 720, 0, 2)
+SetWindowTitle("moonBASIC — Cloth")
+SetCameraClsColor(92, 124, 156)
+SetAmbientLight(78, 86, 98)
+
+cam = CreateCamera()
+SetCameraRange(cam, 0.15, 400)
+
+sun = CreateDirectionalLight()
+SetLightDirection(sun, 48, 36, 0)
+SetLightColor(sun, 255, 236, 210)
+SetLightShadow(sun, True)
+EnableShadows(True)
+
+ground = CreateCube().Scale(18, 0.25, 18).Position([0, -0.25, 6]).Color(68, 92, 64)
+CreateRigidBodyBox(ground, 18, 0.25, 18, 0)
+
+; Crate the curtain has to rest on.
+crate = CreateCube().Scale(0.7, 0.85, 0.7).Position([0.2, 0.85, 6]).Color(176, 122, 64)
+CreateRigidBodyBox(crate, 0.7, 0.85, 0.7, 0)
+
+; Curtain, pinned along the top, long enough to meet the crate.
+curtain = CreateCloth(2.6, 3.4, 12, 14, 1).Position([-1.1, 3.6, 6]).Color(214, 196, 168)
+SetClothWind(curtain, 0.55)
+
+; Flags pinned on the left edge, hung from poles.
+poleL = CreateCube().Scale(0.08, 2.2, 0.08).Position([-4.2, 2.2, 4]).Color(120, 96, 70)
+CreateRigidBodyBox(poleL, 0.08, 2.2, 0.08, 0)
+flagL = CreateCloth(1.8, 1.05, 10, 7, 4).Position([-4.05, 3.7, 4]).Color(196, 48, 42)
+SetClothWind(flagL, 1)
+
+poleR = CreateCube().Scale(0.08, 2.2, 0.08).Position([4.4, 2.2, 8]).Color(120, 96, 70)
+CreateRigidBodyBox(poleR, 0.08, 2.2, 0.08, 0)
+flagR = CreateCloth(1.8, 1.05, 10, 7, 4).Position([4.55, 3.7, 8]).Color(42, 86, 176)
+SetClothWind(flagR, 1)
+
+wind# = 7
+SetWind(1.2, 0, wind, 1)
+yaw# = 0
+frames = 0
+
+While 1
+    frames = frames + 1
+    dt# = Time.Delta()
+    If Input.KeyDown(KEY_A) Then yaw = yaw - 36 * dt
+    If Input.KeyDown(KEY_D) Then yaw = yaw + 36 * dt
+    If Input.KeyHit(KEY_MINUS) Then wind = wind - 2
+    If Input.KeyHit(KEY_EQUALS) Then wind = wind + 2
+    If wind < 0 Then wind = 0
+    If wind > 16 Then wind = 16
+    SetWind(1.2, 0, wind, 1)
+
+    cx# = Math.Sin(yaw) * 11
+    cz# = 6 - Math.Cos(yaw) * 11
+    cam.Position([cx, 4.2, cz])
+    CameraLookAt(cam, 0, 2.1, 6)
+
+    UpdateWorld
+    RenderWorld
+    Text(16, 16, "Cloth  A/D orbit  -/= wind " + Int(wind) + "  Esc quit")
+    Text(16, 36, "Flags are pinned on the hoist. The curtain rests on the crate.")
+    Flip
+    If frames > 8
+        If Input.KeyHit(KEY_ESCAPE) Then End
+    EndIf
+Wend
+End

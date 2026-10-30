@@ -30,7 +30,7 @@ func startG3N(title string, width, height int) (host *g3nHost, err error) {
 		height = 600
 	}
 	if title == "" {
-		title = "BitShin BASIC"
+		title = "moonBASIC"
 	}
 	// Ebiten registers Win32 class GLFW30 at package init. G3N's go-gl
 	// GLFW is a second copy and glfw.Init then fails with "Class already exists".

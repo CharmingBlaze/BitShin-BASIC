@@ -3,7 +3,8 @@ package runtime
 import (
 	"testing"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/syntax"
+	"moonbasic/internal/value"
 )
 
 func TestCommandTablePillars(t *testing.T) {
@@ -23,11 +24,15 @@ func TestCommandTablePillars(t *testing.T) {
 		"getrestitution", "getfriction", "getlineardamping", "getangulardamping", "getgravityscale",
 		"hostnet", "netrecv", "netsend",
 		"jsonload", "jsonparse", "jsonget", "scenesave",
+		"readfile", "writefile", "openfile", "closefile", "readline", "writeline", "eof", "filesize",
 		"createnavmesh", "bakenavmesh", "createagent",
 		"creategrid", "findpath", "pathlength",
 		"guibegin", "guibutton", "guitext", "guislider",
+		"guidrag", "guiprogress", "guicombo", "guiheader", "guiradio",
+		"guicolor", "guicolorg", "guicolorb", "guitooltip", "guibeginmenubar",
 		"ecsentity", "ecscomponent", "ecsquery", "ecsversion",
 		"windowwidth", "setwindowsize", "keydown", "gamepadpresent",
+		"input.keydown", "time.delta", "entity.setpos", "file.read", "json.load", "sound.play", "net.host",
 		"createwindow", "freewindow", "setwindowcamera", "setrenderwindow",
 		"windowclosed", "windowkeydown", "showwindow", "hidewindow",
 		"enableshadows", "shadowmapsize", "shadowcascades",
@@ -52,6 +57,7 @@ func TestCommandTablePillars(t *testing.T) {
 		"createterraingl", "applyterrainsplat", "setterrainsplat", "setterrainoctaves",
 		"setterrainfreq", "setterraindispfactor", "setterraingrasscoverage",
 		"setterraindetail", "setterrainblendmap", "terrainfoliage", "terraintrees", "terrainprops", "terrainscatter",
+		"settreecards", "settreecardcross", "settreecardface",
 		"settimeofday", "gettimeofday", "createroom", "setroom", "roomlink", "roomaudio", "enterroom", "currentroom",
 		"createdoor", "use", "setitem", "setdialogue", "inventoryhas", "dialogueadvance",
 		"savegame", "loadgame", "createactor", "setplayer", "actorstate",
@@ -64,7 +70,11 @@ func TestCommandTablePillars(t *testing.T) {
 		"erodeheightmap", "hydraulicerodeheightmap", "filterheightmap",
 		"createwater", "setwatercolor", "enablewaterreflection", "enablewaterrefraction", "setwaterdudv", "setwaterspeed", "setwaterwavespeed", "setwaterwind", "setwaterstyle", "setgerstner", "waterheight", "createbuoy",
 		"setwatercaustics", "getwatercaustics", "setwaterssr", "getwaterssr", "setwaterambientsound", "getweatherintensity",
-		"createcrowd", "crowdaddagent", "crowdupdate",
+		"createcrowd", "crowdaddagent", "crowdupdate", "crowdsetagentdestination",
+		"optimizemesh", "simplifymesh", "setik", "clearik", "setanimlayer", "setanimadditive",
+		"setfilmgrain", "setvignette", "setchromaticaberration", "setsharpen",
+		"setikchain", "createplanner", "addplanaction", "plan", "exportgltf", "createperson", "enablefft",
+		"createbehavior", "btsequence", "btselector", "btaction", "btcondition", "btadd", "setbehavior",
 		"statsfps", "statschunks", "bodysleep", "physicsasync", "setshadowresolution",
 		"createpbrmaterial", "setmaterialpbr", "enablepbr", "getmaterialpbr",
 		"setmaterial", "setpbrmaterial", "setalbedo", "setbasecolor",
@@ -185,5 +195,50 @@ func TestNetPollAndConstants(t *testing.T) {
 	hinge, err := w.Call("createhinge", nil)
 	if err != nil || hinge.Number() != 0 {
 		t.Fatalf("CreateHinge must return 0, got %v %v", hinge, err)
+	}
+}
+
+func TestCommandPlumbing(t *testing.T) {
+	m := New(".").commandTable()
+	for modern, classic := range modernAliases {
+		if _, ok := m[classic]; !ok {
+			t.Errorf("alias %s -> %s: classic command is not registered", modern, classic)
+			continue
+		}
+		if _, ok := m[modern]; !ok {
+			t.Errorf("alias %s was not installed", modern)
+		}
+	}
+	for method, cmd := range syntax.EntityMethods {
+		if _, ok := m[cmd]; !ok {
+			t.Errorf("entity method %s -> %s: command is not registered", method, cmd)
+		}
+	}
+	for name := range m {
+		if _, ok := namedKeys[name]; ok {
+			t.Errorf("command %s is hidden by a key constant", name)
+		}
+	}
+	// NET_* names are both constants and commands. Call returns the constant
+	// first, so the command must return that same number.
+	for name, n := range syntax.NetConstants {
+		fn, ok := m[name]
+		if !ok {
+			continue
+		}
+		v, err := fn(nil)
+		if err != nil || v.Int() != n {
+			t.Errorf("net constant %s: command returned %v (%v), constant is %d", name, v, err, n)
+		}
+	}
+	for name, s := range syntax.WeatherConstants {
+		fn, ok := m[name]
+		if !ok {
+			continue
+		}
+		v, err := fn(nil)
+		if err != nil || v.String() != s {
+			t.Errorf("weather constant %s: command returned %v (%v), constant is %s", name, v, err, s)
+		}
 	}
 }

@@ -8,8 +8,9 @@ import (
 	"strings"
 	"unicode"
 
-	"bitshinbasic/internal/lex"
-	"bitshinbasic/internal/syntax"
+	"moonbasic/internal/lex"
+	"moonbasic/internal/runtime"
+	"moonbasic/internal/syntax"
 )
 
 type catalog struct {
@@ -20,10 +21,10 @@ type catalog struct {
 func newCatalog() *catalog {
 	c := &catalog{hover: map[string]string{}}
 	for _, k := range keywordList() {
-		c.add(k, "BitShin BASIC keyword")
+		c.add(k, "moonBASIC keyword")
 	}
 	for _, k := range builtinList() {
-		c.add(k, "BitShin BASIC builtin")
+		c.add(k, "moonBASIC builtin")
 	}
 	for k, cmd := range syntax.EntityMethods {
 		c.add(k, "Entity method → "+cmd)
@@ -57,6 +58,7 @@ func (c *catalog) add(name, doc string) {
 }
 
 func (c *catalog) loadRoot(root string) {
+	defer c.seedCommands()
 	if root == "" {
 		return
 	}
@@ -65,29 +67,68 @@ func (c *catalog) loadRoot(root string) {
 	if err != nil {
 		return
 	}
-	tick := regexp.MustCompile("`([A-Za-z][A-Za-z0-9$%#]*)`")
+	tick := regexp.MustCompile("`([^`]+)`")
 	lines := strings.Split(string(b), "\n")
 	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" || strings.HasPrefix(line, "#") {
+		c.ingestDocLine(line, tick)
+	}
+}
+
+// ingestDocLine records the command at the start of each backtick span.
+// Docs write `CameraRange cam, near, far`, so the name is only the first word.
+func (c *catalog) ingestDocLine(line string, tick *regexp.Regexp) {
+	line = strings.TrimSpace(line)
+	if line == "" || strings.HasPrefix(line, "#") || tick == nil {
+		return
+	}
+	matches := tick.FindAllStringSubmatch(line, -1)
+	if len(matches) == 0 {
+		return
+	}
+	doc := strings.TrimSpace(tick.ReplaceAllString(line, ""))
+	doc = strings.Trim(doc, "|- ")
+	for _, m := range matches {
+		name := commandToken(m[1])
+		if name == "" {
 			continue
 		}
-		matches := tick.FindAllStringSubmatch(line, -1)
-		if len(matches) == 0 {
+		c.add(name, strings.TrimSpace(doc))
+	}
+}
+
+func commandToken(span string) string {
+	span = strings.TrimSpace(span)
+	if span == "" || !unicode.IsLetter(rune(span[0])) {
+		return ""
+	}
+	i := 0
+	for i < len(span) {
+		r := rune(span[i])
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '$' || r == '%' || r == '#' {
+			i++
 			continue
 		}
-		doc := strings.TrimSpace(tick.ReplaceAllString(line, ""))
-		doc = strings.Trim(doc, "|- ")
-		for _, m := range matches {
-			name := m[1]
-			if !unicode.IsLetter(rune(name[0])) {
-				continue
-			}
-			if len(name) < 2 && strings.ToLower(name) != "if" {
-				continue
-			}
-			c.add(name, strings.TrimSpace(doc))
+		break
+	}
+	name := span[:i]
+	if len(name) < 2 && strings.ToLower(name) != "if" {
+		return ""
+	}
+	return name
+}
+
+// seedCommands marks every runtime command known, including aliases that
+// the docs mention only with their arguments inside the backticks.
+func (c *catalog) seedCommands() {
+	for _, name := range runtime.CommandNames() {
+		key := lex.IdentKey(name)
+		if key == "" {
+			continue
 		}
+		if _, ok := c.hover[key]; ok {
+			continue
+		}
+		c.add(name, "moonBASIC command")
 	}
 }
 
@@ -109,7 +150,7 @@ func builtinList() []string {
 	return []string{
 		"Print", "Sin", "Cos", "Tan", "ASin", "ACos", "ATan", "ATan2", "Sqr", "Abs",
 		"Int", "Floor", "Ceil", "Float", "Sgn", "Min", "Max", "Rnd", "Rand", "SeedRnd",
-		"MilliSecs", "Len", "Left", "Right", "Mid", "Chr", "Asc", "Str", "Instr",
+		"MilliSecs", "Len", "Left", "Right", "Mid", "Chr", "Asc", "Str", "Instr", "Replace", "String",
 		"Lower", "Upper", "Trim", "Hex", "Clamp", "Lerp", "InvLerp", "SmoothStep",
 		"EaseIn", "EaseOut", "Approach", "WrapAngle", "AngleDelta", "ApproachAngle",
 		"MoveWish", "Accelerate", "TurnToward", "Land", "Material",
@@ -122,6 +163,9 @@ func builtinList() []string {
 		"CreateMap", "MapSet", "MapGet", "MapHas", "MapDelete", "MapCount", "Copy", "Callback",
 		"CreateStateMachine", "AddState", "GoState", "StateName", "UpdateState",
 		"GraphicsApp", "ReadText", "WriteText", "ListDir", "DroppedFile", "DropCount",
+		"ReadFile", "WriteFile", "OpenFile", "CloseFile", "Eof", "FilePos", "SeekFile",
+		"ReadLine", "WriteLine", "ReadByte", "WriteByte", "ReadShort", "WriteShort",
+		"ReadInt", "WriteInt", "ReadFloat", "WriteFloat", "ReadString", "WriteString", "FileSize",
 		"BindAction", "UnbindAction", "ActionDown", "ActionHit", "SaveBinds", "LoadBinds",
 		"TableCreate", "TableInsert", "TableGet", "TableCount", "TableSave", "TableLoad",
 		"SaveSlot", "LoadSlot", "SavePrefab", "SpawnPrefab",

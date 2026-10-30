@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,15 +12,18 @@ import (
 	"strings"
 	"sync"
 	"time"
-
-	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 // App struct
 type App struct {
-	ctx        context.Context
+	hub        *eventHub
+	neuCmd     *exec.Cmd
+	winMu      sync.Mutex
+	winMax     bool
+	winSaved   *winRect
 	cmdMutex   sync.Mutex
 	runningCmd *exec.Cmd
+	runningPID int
 	debugIn    io.WriteCloser
 	breaks     string
 	repoRoot   string
@@ -34,44 +36,12 @@ type App struct {
 func NewApp() *App {
 	repoRoot := findRepoRoot()
 	return &App{
+		hub:      newEventHub(),
 		repoRoot: repoRoot,
 	}
 }
 
-// startup is called when the app starts. The context is saved
-// so we can call the runtime methods
-func (a *App) startup(ctx context.Context) {
-	a.ctx = ctx
-	a.startLanguageServer()
-}
-
-func (a *App) onDomReady(ctx context.Context) {
-	a.ctx = ctx
-	a.fixFramelessBounds()
-	wailsruntime.WindowShow(ctx)
-}
-
-// fixFramelessBounds forces Windows to recalculate the frameless client area.
-// Wails frameless windows keep a hidden caption inset on first paint, so the
-// custom title bar starts off-screen until the user resizes.
-func (a *App) fixFramelessBounds() {
-	ctx := a.ctx
-	if ctx == nil {
-		return
-	}
-	w, h := wailsruntime.WindowGetSize(ctx)
-	if w < 800 {
-		w = 980
-	}
-	if h < 500 {
-		h = 620
-	}
-	wailsruntime.WindowSetSize(ctx, w, h)
-	wailsruntime.WindowCenter(ctx)
-}
-
-// shutdown is called when the app terminates
-func (a *App) shutdown(ctx context.Context) {
+func (a *App) shutdown() {
 	a.StopProgram()
 	a.stopLanguageServer()
 }
@@ -145,14 +115,7 @@ func (a *App) SaveFile(filePath string, content string) error {
 
 // SelectOpenFile opens a file dialog
 func (a *App) SelectOpenFile() (FileResult, error) {
-	chosen, err := wailsruntime.OpenFileDialog(a.ctx, wailsruntime.OpenDialogOptions{
-		Title: "Open BitShin BASIC File",
-		Filters: []wailsruntime.FileFilter{
-			{DisplayName: "BitShin BASIC (*.bb, *.basic)", Pattern: "*.bb;*.basic;*.txt"},
-			{DisplayName: "Shaders (*.glsl, *.vert, *.frag)", Pattern: "*.glsl;*.vert;*.frag"},
-			{DisplayName: "All Files (*.*)", Pattern: "*.*"},
-		},
-	})
+	chosen, err := browseOpenFile()
 	if err != nil || chosen == "" {
 		return FileResult{}, err
 	}
@@ -161,19 +124,12 @@ func (a *App) SelectOpenFile() (FileResult, error) {
 
 // SelectSaveFile opens a save file dialog
 func (a *App) SelectSaveFile(defaultName string, content string) (string, error) {
-	chosen, err := wailsruntime.SaveFileDialog(a.ctx, wailsruntime.SaveDialogOptions{
-		Title:           "Save BitShin BASIC File",
-		DefaultFilename: defaultName,
-		Filters: []wailsruntime.FileFilter{
-			{DisplayName: "BitShin BASIC (*.bb)", Pattern: "*.bb"},
-			{DisplayName: "All Files (*.*)", Pattern: "*.*"},
-		},
-	})
+	chosen, err := browseSaveFile(defaultName)
 	if err != nil || chosen == "" {
 		return "", err
 	}
-	if !strings.HasSuffix(strings.ToLower(chosen), ".bb") && !strings.Contains(filepath.Base(chosen), ".") {
-		chosen += ".bb"
+	if !strings.HasSuffix(strings.ToLower(chosen), ".mb") && !strings.Contains(filepath.Base(chosen), ".") {
+		chosen += ".mb"
 	}
 	err = a.SaveFile(chosen, content)
 	return chosen, err
@@ -181,9 +137,7 @@ func (a *App) SelectSaveFile(defaultName string, content string) (string, error)
 
 // SelectProjectDirectory opens directory dialog
 func (a *App) SelectProjectDirectory() (string, error) {
-	return wailsruntime.OpenDirectoryDialog(a.ctx, wailsruntime.OpenDialogOptions{
-		Title: "Select Project Directory",
-	})
+	return browseDirectory()
 }
 
 // GetProjectTree returns file tree
@@ -242,7 +196,7 @@ func (a *App) GetProjectTree(rootPath string) (*FileNode, error) {
 	return rootNode, nil
 }
 
-// RunProgram runs code or a file with bs.exe
+// RunProgram runs code or a file with moon.exe
 // SetBreakpoints stores comma-separated source lines for the next debug run.
 func (a *App) SetBreakpoints(lines string) {
 	a.cmdMutex.Lock()
@@ -270,7 +224,7 @@ func (a *App) RunProgram(code string, filePath string, debug bool) error {
 
 	bsExe := a.findBsExecutable()
 	if bsExe == "" {
-		return fmt.Errorf("bs.exe not found. Please build bs.exe first using 'go build -o bs.exe ./cmd/bs'")
+		return fmt.Errorf("moon.exe not found. Build it with go build -o moon.exe ./cmd/bs")
 	}
 
 	var runPath string
@@ -279,14 +233,14 @@ func (a *App) RunProgram(code string, filePath string, debug bool) error {
 	if strings.HasPrefix(filePath, "example://") || strings.HasPrefix(filePath, "temp://") {
 		tempDir := filepath.Join(a.repoRoot, "scratch")
 		_ = os.MkdirAll(tempDir, 0o755)
-		runPath = filepath.Join(tempDir, "_temp_run.bb")
+		runPath = filepath.Join(tempDir, "_temp_run.mb")
 		if err := os.WriteFile(runPath, []byte(code), 0o644); err != nil {
 			return fmt.Errorf("failed to write temp file: %w", err)
 		}
 		workDir = a.repoRoot
 	} else if filePath != "" && !strings.HasPrefix(filePath, "temp://") {
 		workDir = filepath.Dir(filePath)
-		runPath = filepath.Join(workDir, ".bitshin_run.bb")
+		runPath = filepath.Join(workDir, ".moonbasic_run.mb")
 		if err := os.WriteFile(runPath, []byte(code), 0o644); err != nil {
 			return fmt.Errorf("failed to write temp run file: %w", err)
 		}
@@ -294,7 +248,7 @@ func (a *App) RunProgram(code string, filePath string, debug bool) error {
 		// Temporary scratch file
 		tempDir := filepath.Join(a.repoRoot, "scratch")
 		_ = os.MkdirAll(tempDir, 0o755)
-		runPath = filepath.Join(tempDir, "_temp_run.bb")
+		runPath = filepath.Join(tempDir, "_temp_run.mb")
 		if err := os.WriteFile(runPath, []byte(code), 0o644); err != nil {
 			return fmt.Errorf("failed to write temp file: %w", err)
 		}
@@ -335,13 +289,20 @@ func (a *App) RunProgram(code string, filePath string, debug bool) error {
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start program: %w", err)
 	}
-
+	pid := 0
+	if cmd.Process != nil {
+		pid = cmd.Process.Pid
+	}
 	a.cmdMutex.Lock()
 	a.runningCmd = cmd
+	a.runningPID = pid
 	a.cmdMutex.Unlock()
+	if pid > 0 {
+		go raiseProcessWindows(pid)
+	}
 
 	startTime := time.Now()
-	wailsruntime.EventsEmit(a.ctx, "run:start", map[string]any{
+	a.emit("run:start", map[string]any{
 		"file": filepath.Base(runPath),
 		"path": runPath,
 		"time": startTime.Format("15:04:05"),
@@ -353,7 +314,7 @@ func (a *App) RunProgram(code string, filePath string, debug bool) error {
 		for {
 			line, err := reader.ReadString('\n')
 			if len(line) > 0 {
-				wailsruntime.EventsEmit(a.ctx, "run:stdout", strings.TrimRight(line, "\r\n"))
+				a.emit("run:stdout", strings.TrimRight(line, "\r\n"))
 			}
 			if err != nil {
 				break
@@ -367,7 +328,7 @@ func (a *App) RunProgram(code string, filePath string, debug bool) error {
 		for {
 			line, err := reader.ReadString('\n')
 			if len(line) > 0 {
-				wailsruntime.EventsEmit(a.ctx, "run:stderr", strings.TrimRight(line, "\r\n"))
+				a.emit("run:stderr", strings.TrimRight(line, "\r\n"))
 			}
 			if err != nil {
 				break
@@ -375,18 +336,27 @@ func (a *App) RunProgram(code string, filePath string, debug bool) error {
 		}
 	}()
 
-	// Wait in background
+	// Wait in background. Only this command may clear the running slot:
+	// a later Run can start before this Wait returns, and wiping the
+	// new handle is why Stop sometimes has nothing to kill.
 	go func() {
 		err := cmd.Wait()
 		elapsed := time.Since(startTime)
 
 		a.cmdMutex.Lock()
-		a.runningCmd = nil
-		if a.debugIn != nil {
-			_ = a.debugIn.Close()
-			a.debugIn = nil
+		current := a.runningCmd == cmd
+		if current {
+			a.runningCmd = nil
+			a.runningPID = 0
+			if a.debugIn != nil {
+				_ = a.debugIn.Close()
+				a.debugIn = nil
+			}
 		}
 		a.cmdMutex.Unlock()
+		if !current {
+			return
+		}
 
 		exitCode := 0
 		if err != nil {
@@ -397,7 +367,7 @@ func (a *App) RunProgram(code string, filePath string, debug bool) error {
 			}
 		}
 
-		wailsruntime.EventsEmit(a.ctx, "run:exit", map[string]any{
+		a.emit("run:exit", map[string]any{
 			"code":    exitCode,
 			"elapsed": elapsed.Seconds(),
 			"time":    time.Now().Format("15:04:05"),
@@ -407,16 +377,31 @@ func (a *App) RunProgram(code string, filePath string, debug bool) error {
 	return nil
 }
 
-// StopProgram kills running instance
+// StopProgram kills the running game and every process it started.
 func (a *App) StopProgram() error {
 	a.cmdMutex.Lock()
-	defer a.cmdMutex.Unlock()
+	cmd := a.runningCmd
+	pid := a.runningPID
+	debugIn := a.debugIn
+	a.runningCmd = nil
+	a.runningPID = 0
+	a.debugIn = nil
+	a.cmdMutex.Unlock()
 
-	if a.runningCmd != nil && a.runningCmd.Process != nil {
-		_ = a.runningCmd.Process.Kill()
-		a.runningCmd = nil
-		wailsruntime.EventsEmit(a.ctx, "run:stopped", "Program stopped by user")
+	if pid <= 0 && (cmd == nil || cmd.Process == nil) {
+		return nil
 	}
+	if pid <= 0 && cmd != nil && cmd.Process != nil {
+		pid = cmd.Process.Pid
+	}
+	killProcessTree(pid)
+	if cmd != nil && cmd.Process != nil {
+		_ = cmd.Process.Kill()
+	}
+	if debugIn != nil {
+		_ = debugIn.Close()
+	}
+	a.emit("run:stopped", "Program stopped by user")
 	return nil
 }
 
@@ -424,7 +409,7 @@ func (a *App) StopProgram() error {
 func (a *App) BuildExecutable(filePath string, outputDir string, targetOS string) (string, error) {
 	bsExe := a.findBsExecutable()
 	if bsExe == "" {
-		return "", fmt.Errorf("bs.exe not found")
+		return "", fmt.Errorf("moon.exe not found")
 	}
 	if outputDir == "" {
 		outputDir = filepath.Join(filepath.Dir(filePath), "dist")
@@ -466,13 +451,13 @@ func (a *App) BuildExecutable(filePath string, outputDir string, targetOS string
 
 func (a *App) findBsExecutable() string {
 	candidates := []string{
-		filepath.Join(a.repoRoot, "bs.exe"),
-		filepath.Join(a.repoRoot, "bs"),
-		filepath.Join(a.repoRoot, "cmd", "bs", "bs.exe"),
-		filepath.Join(a.repoRoot, "cmd", "bs", "bs"),
-		filepath.Join(".", "bs.exe"),
-		filepath.Join(".", "bs"),
-		filepath.Join("..", "bs.exe"),
+		filepath.Join(a.repoRoot, "moon.exe"),
+		filepath.Join(a.repoRoot, "moon"),
+		filepath.Join(a.repoRoot, "cmd", "bs", "moon.exe"),
+		filepath.Join(a.repoRoot, "cmd", "bs", "moon"),
+		filepath.Join(".", "moon.exe"),
+		filepath.Join(".", "moon"),
+		filepath.Join("..", "moon.exe"),
 	}
 	for _, c := range candidates {
 		if st, err := os.Stat(c); err == nil && !st.IsDir() && st.Size() > 0 {
@@ -480,10 +465,10 @@ func (a *App) findBsExecutable() string {
 			return abs
 		}
 	}
-	if p, err := exec.LookPath("bs"); err == nil {
+	if p, err := exec.LookPath("moon"); err == nil {
 		return p
 	}
-	if p, err := exec.LookPath("bs.exe"); err == nil {
+	if p, err := exec.LookPath("moon.exe"); err == nil {
 		return p
 	}
 	return ""
@@ -516,7 +501,7 @@ func (a *App) GetSettings() UserSettings {
 		return s
 	}
 	return UserSettings{
-		Theme:        "bitshin-dark",
+		Theme:        "moonbasic-dark",
 		FontSize:     14,
 		TabSize:      4,
 		Minimap:      true,

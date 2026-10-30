@@ -8,7 +8,7 @@ import (
 	"github.com/g3n/engine/graphic"
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 func TestCommandTableShadows(t *testing.T) {
@@ -500,5 +500,33 @@ func TestCameraFollowSnapsFirstFrame(t *testing.T) {
 	}
 	if !w.ents[camID].camFollowed {
 		t.Fatal("camFollowed")
+	}
+}
+
+func TestCameraFollowPullsInFrontOfWall(t *testing.T) {
+	w := New(".")
+	w.ensurePhys3()
+	camID := w.spawnCamera(0)
+	tgt := w.createCubeMesh(nil)
+	gx, gy, gz := toG3N(0, 1, 0)
+	w.ents[tgt].node.GetNode().SetPosition(gx, gy, gz)
+	wall := w.createCubeMesh(nil)
+	w.phys3.AddBox(wall, 0, 2, -4, 3, 2, 0.25, false)
+	w.delta = 0.016
+	if _, err := w.cameraFollow([]value.Value{
+		value.Num(float64(camID)),
+		value.Num(float64(tgt)),
+		value.Num(10),
+		value.Num(2),
+		value.Num(8),
+		value.Num(0),
+		value.Num(0),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	p := w.ents[camID].node.GetNode().Position()
+	_, _, cz := fromG3N(p.X, p.Y, p.Z)
+	if cz < -6 || cz > -1.5 {
+		t.Fatalf("follow camera should stop in front of the wall at z=-4, got z=%v", cz)
 	}
 }

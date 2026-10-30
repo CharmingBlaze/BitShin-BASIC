@@ -5,7 +5,7 @@ import (
 
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 type fpsCtrl struct {
@@ -40,6 +40,9 @@ type tpsCtrl struct {
 	grounded    bool
 	aimMode     bool
 	coyoteTimer float32
+	camDist     float32
+	camPitch    float32
+	camYaw      float32
 }
 
 type topDownCtrl struct {
@@ -63,6 +66,88 @@ type platformerCtrl struct {
 	onWall      int // -1 left, +1 right, 0 none
 	coyoteTimer float32
 	jumpBuffer  float32
+}
+
+func (w *World) controllerDT() float32 {
+	dt := float32(w.delta)
+	if dt <= 0 {
+		dt = 0.016
+	}
+	if dt > 0.05 {
+		dt = 0.05
+	}
+	return dt
+}
+
+// controllerVY is the vertical speed the physics step left last frame.
+// The step already adds world gravity, so controllers must not add it again.
+func (w *World) controllerVY(id int, stored float32) float32 {
+	if w.phys3 == nil {
+		return stored
+	}
+	_, vy, _, ok := w.phys3.GetVelocity(id)
+	if !ok {
+		return stored
+	}
+	return vy
+}
+
+func (w *World) worldGravityY() float32 {
+	if w.phys3 == nil {
+		return -9.81
+	}
+	_, gy, _ := w.phys3.GetGravity()
+	return gy
+}
+
+func (w *World) characterOwnsFacing(id int) bool {
+	if w.fpsControllers[id] != nil || w.tpsControllers[id] != nil || w.topDownControllers[id] != nil || w.platformerControllers[id] != nil {
+		return true
+	}
+	e := w.ents[id]
+	return e != nil && e.bodyType == 3 && e.parent == 0
+}
+
+func (w *World) characterPos(id int) (float32, float32, float32) {
+	if w.phys3 != nil {
+		if x, y, z, ok := w.phys3.GetPosition(id); ok {
+			return x, y, z
+		}
+	}
+	e := w.ents[id]
+	if e == nil || e.node == nil {
+		return 0, 0, 0
+	}
+	p := e.node.GetNode().Position()
+	return fromG3N(p.X, p.Y, p.Z)
+}
+
+// placeCharacterCameras runs after the physics step so the view matches the
+// body that was just moved, not the pose from the start of the frame.
+func (w *World) placeCharacterCameras() {
+	for id, c := range w.fpsControllers {
+		camE := w.ents[c.camID]
+		if c == nil || camE == nil || camE.node == nil {
+			continue
+		}
+		px, py, pz := w.characterPos(id)
+		eyeH := c.height * c.crouchRatio * 0.92
+		bob := math32.Sin(c.headBobT) * 0.045
+		gx, gy, gz := toG3N(px, py+eyeH+bob, pz)
+		camE.node.GetNode().SetPosition(gx, gy, gz)
+		camE.pitch = c.pitch
+		camE.yaw = c.yaw
+		camE.roll = 0
+		w.applyRot(camE)
+	}
+	for id, c := range w.tpsControllers {
+		camE := w.ents[c.camID]
+		if c == nil || camE == nil || camE.node == nil || c.camDist <= 0 {
+			continue
+		}
+		px, py, pz := w.characterPos(id)
+		w.updateSpringArmCamera(camE, px, py+c.height*0.85, pz, c.camDist, 0.25, 12.0, float64(c.camYaw), float64(c.camPitch))
+	}
 }
 
 func (w *World) characterCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error), need func(func([]value.Value) (value.Value, error)) cmd) map[string]cmd {
@@ -168,19 +253,13 @@ func (w *World) characterCommands(n func(func([]value.Value) (value.Value, error
 			isCrouch := argI(a, 5, 0) != 0
 			mouseSens := float32(argN(a, 6, 0.15))
 
-			dt := float32(w.delta)
-			if dt <= 0 {
-				dt = 0.016
-			}
-			if dt > 0.05 {
-				dt = 0.05
-			}
+			dt := w.controllerDT()
 
-			// Mouse look
-			mxd := w.mxs * mouseSens
-			myd := w.mys * mouseSens
-			c.yaw += mxd
-			c.pitch -= myd
+			// Mouse look. A panel drag must not turn the view.
+			if !w.guiCapturesMouse() {
+				c.yaw += w.mxs * mouseSens
+				c.pitch -= w.mys * mouseSens
+			}
 			if c.pitch > 89.0 {
 				c.pitch = 89.0
 			}
@@ -188,10 +267,23 @@ func (w *World) characterCommands(n func(func([]value.Value) (value.Value, error
 				c.pitch = -89.0
 			}
 
-			// Smooth crouch
+			// Smooth crouch. The collider snaps to the target height and the
+			// center moves so the feet stay on the ground.
 			targetCrouch := float32(1.0)
 			if isCrouch {
 				targetCrouch = 0.55
+			}
+			if c.crouching != isCrouch && w.phys3 != nil {
+				oldH := c.height
+				if c.crouching {
+					oldH *= 0.55
+				}
+				newH := c.height * targetCrouch
+				if px, py, pz, ok := w.phys3.GetPosition(id); ok {
+					w.phys3.SetPosition(id, px, py-(oldH-newH)*0.5, pz)
+				}
+				w.phys3.SetCharacterShape(id, "capsule", newH, c.radius)
+				c.crouching = isCrouch
 			}
 			c.crouchRatio += (targetCrouch - c.crouchRatio) * float32(math.Min(1.0, float64(dt*12.0)))
 
@@ -226,7 +318,9 @@ func (w *World) characterCommands(n func(func([]value.Value) (value.Value, error
 			c.vx += (moveX*spd - c.vx) * float32(math.Min(1.0, float64(dt*accel)))
 			c.vz += (moveZ*spd - c.vz) * float32(math.Min(1.0, float64(dt*accel)))
 
-			// Ground detection & jump
+			// Ground detection & jump. Vertical speed comes from the last
+			// physics step, which already applied world gravity.
+			c.vy = w.controllerVY(id, c.vy)
 			groundState := w.phys3.CharacterGroundState(id)
 			c.grounded = (groundState == 0) // OnGround
 			if c.grounded {
@@ -234,7 +328,6 @@ func (w *World) characterCommands(n func(func([]value.Value) (value.Value, error
 				c.vy = 0
 			} else {
 				c.coyoteTimer -= dt
-				c.vy -= 22.0 * dt // Gravity
 				if c.vy < -35.0 {
 					c.vy = -35.0
 				}
@@ -248,6 +341,8 @@ func (w *World) characterCommands(n func(func([]value.Value) (value.Value, error
 
 			// Move physical character
 			w.phys3.SetVelocity(id, c.vx, c.vy, c.vz)
+			w.driveLocomotion(id, c.vx, c.vz)
+			w.footstep(id, c.vx, c.vz)
 
 			// Step head-bobbing
 			if c.grounded && lenSq > 0.01 {
@@ -345,13 +440,10 @@ func (w *World) characterCommands(n func(func([]value.Value) (value.Value, error
 			camPitch := float32(argN(a, 7, 16.0))
 			camYaw := float32(argN(a, 8, 0.0))
 
-			dt := float32(w.delta)
-			if dt <= 0 {
-				dt = 0.016
-			}
-			if dt > 0.05 {
-				dt = 0.05
-			}
+			dt := w.controllerDT()
+			c.camDist = camDist
+			c.camPitch = camPitch
+			c.camYaw = camYaw
 
 			spd := c.moveSpeed
 			if isSprint {
@@ -393,7 +485,7 @@ func (w *World) characterCommands(n func(func([]value.Value) (value.Value, error
 			c.vx += (worldMoveX*spd - c.vx) * float32(math.Min(1.0, float64(dt*16.0)))
 			c.vz += (worldMoveZ*spd - c.vz) * float32(math.Min(1.0, float64(dt*16.0)))
 
-			// Ground & jump
+			c.vy = w.controllerVY(id, c.vy)
 			groundState := w.phys3.CharacterGroundState(id)
 			c.grounded = (groundState == 0)
 			if c.grounded {
@@ -401,7 +493,6 @@ func (w *World) characterCommands(n func(func([]value.Value) (value.Value, error
 				c.vy = 0
 			} else {
 				c.coyoteTimer -= dt
-				c.vy -= 22.0 * dt
 				if c.vy < -35.0 {
 					c.vy = -35.0
 				}
@@ -414,6 +505,8 @@ func (w *World) characterCommands(n func(func([]value.Value) (value.Value, error
 			}
 
 			w.phys3.SetVelocity(id, c.vx, c.vy, c.vz)
+			w.driveLocomotion(id, c.vx, c.vz)
+			w.footstep(id, c.vx, c.vz)
 
 			// Update entity
 			px, py, pz := blitzPos(id)
@@ -466,6 +559,9 @@ func (w *World) characterCommands(n func(func([]value.Value) (value.Value, error
 			w.ensurePhys3()
 			px, py, pz := blitzPos(id)
 			w.phys3.AddCharacterController(id, px, py, pz, 1.8, 0.45, 50, 80)
+			if e := w.ents[id]; e != nil {
+				e.bodyType = 3
+			}
 			return value.Num(float64(id)), nil
 		}),
 		"updatetopdown": n(func(a []value.Value) (value.Value, error) {
@@ -480,22 +576,26 @@ func (w *World) characterCommands(n func(func([]value.Value) (value.Value, error
 			aimZ := float32(argN(a, 4, 0))
 			isDash := argI(a, 5, 0) != 0
 
-			dt := float32(w.delta)
-			if dt <= 0 {
-				dt = 0.016
-			}
-			if dt > 0.05 {
-				dt = 0.05
-			}
-
+			dt := w.controllerDT()
 			px, py, pz := blitzPos(id)
 
-			// Aim rotation
+			// Aim rotation. rotSpeed is degrees per second of easing.
 			dx := aimX - px
 			dz := aimZ - pz
 			if dx*dx+dz*dz > 0.01 {
 				targetAngle := math32.Atan2(dx, dz) * 180.0 / math32.Pi
-				c.aimYaw = targetAngle
+				diff := targetAngle - c.aimYaw
+				for diff > 180 {
+					diff -= 360
+				}
+				for diff < -180 {
+					diff += 360
+				}
+				rate := c.rotSpeed
+				if rate <= 0 {
+					rate = 18
+				}
+				c.aimYaw += diff * float32(math.Min(1.0, float64(dt*rate)))
 			}
 
 			spd := c.speed
@@ -521,7 +621,17 @@ func (w *World) characterCommands(n func(func([]value.Value) (value.Value, error
 			c.vx += (moveX*spd - c.vx) * float32(math.Min(1.0, float64(dt*18.0)))
 			c.vz += (moveZ*spd - c.vz) * float32(math.Min(1.0, float64(dt*18.0)))
 
-			w.phys3.SetVelocity(id, c.vx, 0, c.vz)
+			// Keep the vertical speed the physics step produced, or a ledge
+			// never becomes a fall. On the floor, stop the sink.
+			c.vy = w.controllerVY(id, c.vy)
+			if w.phys3.CharacterGroundState(id) == 0 {
+				c.vy = 0
+			} else if c.vy < -35 {
+				c.vy = -35
+			}
+			w.phys3.SetVelocity(id, c.vx, c.vy, c.vz)
+			w.driveLocomotion(id, c.vx, c.vz)
+			w.footstep(id, c.vx, c.vz)
 
 			if e := w.ents[id]; e != nil && e.node != nil {
 				gx, gy, gz := toG3N(px, py, pz)
@@ -559,6 +669,9 @@ func (w *World) characterCommands(n func(func([]value.Value) (value.Value, error
 			w.ensurePhys3()
 			px, py, pz := blitzPos(id)
 			w.phys3.AddCharacterController(id, px, py, pz, 1.8, 0.4, 50, 80)
+			if e := w.ents[id]; e != nil {
+				e.bodyType = 3
+			}
 			return value.Num(float64(id)), nil
 		}),
 		"updateplatformer": n(func(a []value.Value) (value.Value, error) {
@@ -571,18 +684,14 @@ func (w *World) characterCommands(n func(func([]value.Value) (value.Value, error
 			jumpPressed := argI(a, 2, 0) != 0
 			jumpHeld := argI(a, 3, 0) != 0
 
-			dt := float32(w.delta)
-			if dt <= 0 {
-				dt = 0.016
-			}
-			if dt > 0.05 {
-				dt = 0.05
-			}
+			dt := w.controllerDT()
 
 			// Horizontal movement
 			c.vx += (moveX*c.speed - c.vx) * float32(math.Min(1.0, float64(dt*20.0)))
 
-			// Ground & coyote time
+			// Ground & coyote time. World gravity is applied in the physics
+			// step; this adds only the extra the platformer wants on top.
+			c.vy = w.controllerVY(id, c.vy)
 			groundState := w.phys3.CharacterGroundState(id)
 			c.grounded = (groundState == 0)
 			if c.grounded {
@@ -591,14 +700,17 @@ func (w *World) characterCommands(n func(func([]value.Value) (value.Value, error
 				c.vy = 0
 			} else {
 				c.coyoteTimer -= dt
-				// Variable jump height: cut gravity if held, stronger gravity if released or falling
 				grav := float32(28.0)
 				if !jumpHeld && c.vy > 0 {
 					grav = 55.0
 				} else if c.vy < 0 {
 					grav = 36.0
 				}
-				c.vy -= grav * dt
+				extra := grav + w.worldGravityY()
+				if extra < 0 {
+					extra = 0
+				}
+				c.vy -= extra * dt
 				if c.vy < -30.0 {
 					c.vy = -30.0
 				}
@@ -625,6 +737,8 @@ func (w *World) characterCommands(n func(func([]value.Value) (value.Value, error
 			}
 
 			w.phys3.SetVelocity(id, c.vx, c.vy, 0)
+			w.driveLocomotion(id, c.vx, 0)
+			w.footstep(id, c.vx, 0)
 
 			px, py, pz := blitzPos(id)
 			if e := w.ents[id]; e != nil && e.node != nil {

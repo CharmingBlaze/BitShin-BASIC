@@ -11,7 +11,7 @@ import (
 	"github.com/go-gl/gl/v3.3-core/gl"
 	"github.com/go-gl/glfw/v3.3/glfw"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 // extraWin is a GLFW window that shares the main G3N OpenGL context.

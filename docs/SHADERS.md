@@ -13,4 +13,4 @@ Typical vertex inputs: `VertexPosition`, `VertexNormal`, `VertexTexcoord`. Typic
 
 `SetShaderUniform name$, …` without a shader handle writes **global** uniforms applied on lit/PBR/terrain. With a handle, uniforms stay on that program.
 
-Example: `examples/shader.bb`.
+Example: `examples/shader.mb`.

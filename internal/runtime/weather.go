@@ -7,7 +7,7 @@ import (
 
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 type weatherSnap struct {

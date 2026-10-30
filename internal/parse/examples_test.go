@@ -15,7 +15,7 @@ func TestExamplesParse(t *testing.T) {
 	}
 	n := 0
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(strings.ToLower(e.Name()), ".bb") {
+		if e.IsDir() || !strings.HasSuffix(strings.ToLower(e.Name()), ".mb") {
 			continue
 		}
 		n++
@@ -27,6 +27,6 @@ func TestExamplesParse(t *testing.T) {
 		})
 	}
 	if n == 0 {
-		t.Fatal("no examples/*.bb files found")
+		t.Fatal("no examples/*.mb files found")
 	}
 }

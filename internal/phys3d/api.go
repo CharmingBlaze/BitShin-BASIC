@@ -42,6 +42,19 @@ func motionFromDynamic(dynamic bool) int {
 // capsuleCylinderHalf is the shaft half-height Jolt's capsule wants.
 // height is the full character (hemispheres included). Passing height/2
 // as the shaft makes the collider height+2*radius and the mesh floats.
+// characterReach is the vertical half-extent used for ground probes and
+// broad-phase padding. The capsule radius stays the horizontal radius.
+func characterReach(height, radius float32) float32 {
+	reach := height * 0.5
+	if radius > reach {
+		reach = radius
+	}
+	if reach < 0.1 {
+		reach = 0.1
+	}
+	return reach
+}
+
 func capsuleCylinderHalf(height, radius float32) float32 {
 	half := height*0.5 - radius
 	if half < 0.02 {
@@ -154,6 +167,7 @@ type World interface {
 	AddCloth(id int, x, y, z, width, height float32, nx, ny, pinFlags int, thickness, damping, gravityFactor float32)
 	ClothVertexCount(id int) int
 	ClothVertices(id int, dst []float32) int
+	SetClothVertices(id int, src []float32)
 	ApplyClothWind(id int, vx, vy, vz float32, start, step uint32)
 	AddCylinder(id int, x, y, z, halfH, r float32, motion int)
 	AddConvexHull(id int, points [][3]float32, x, y, z float32, motion int)

@@ -5,7 +5,7 @@ import (
 
 	"github.com/g3n/engine/core"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 func TestRopeBuildsSaggingConstrainedChain(t *testing.T) {

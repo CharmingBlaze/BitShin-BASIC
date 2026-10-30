@@ -3,7 +3,7 @@ package runtime
 import (
 	"math"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 type vehCtrl struct {
@@ -80,6 +80,8 @@ func (w *World) ensureCtrlBody(id int, hx, hy, hz, mass float32) {
 	w.phys3.SetMass(id, mass)
 	if e := w.ents[id]; e != nil {
 		e.bodyType = 1
+		e.collKind = 1
+		e.boxX, e.boxY, e.boxZ = hx, hy, hz
 	}
 }
 
@@ -637,6 +639,8 @@ func (w *World) vehicleCommands(n func(func([]value.Value) (value.Value, error))
 				} else {
 					w.updateWheeled(c, steer, throttle, brake)
 				}
+				vx, _, vz, _ := w.phys3.GetVelocity(id)
+				w.engineLoop(id, throttle, float32(math.Hypot(float64(vx), float64(vz))))
 			} else {
 				w.phys3.SetVehicleInput(id, steer, throttle, brake)
 			}
@@ -1134,12 +1138,14 @@ func (w *World) updateNamed(kind string, a []value.Value) (value.Value, error) {
 	} else {
 		w.updateWheeled(c, steer, throttle, brake)
 	}
+	vx, _, vz, _ := w.phys3.GetVelocity(id)
+	w.engineLoop(id, throttle, float32(math.Hypot(float64(vx), float64(vz))))
 	_ = kind
 	return value.Num(0), nil
 }
 
 func (w *World) updateWheeled(c *vehCtrl, steer, throttle, brake float32) {
-	fx, _, fz, _, _, _, rx, _, rz := w.physAxes(c.id)
+	fx, _, fz, ux, _, uz, _, _, _ := w.physAxes(c.id)
 	vx, vy, vz, _ := w.phys3.GetVelocity(c.id)
 	ax, _, az, _ := w.phys3.GetAngularVelocity(c.id)
 
@@ -1164,9 +1170,9 @@ func (w *World) updateWheeled(c *vehCtrl, steer, throttle, brake float32) {
 	steerTorque := steer * c.mass * 4.5
 	w.phys3.ApplyTorque(c.id, 0, steerTorque, 0)
 
-	// Anti-rollover stabilization: counteract extreme body roll
-	rightX := -rz * c.mass * 12.0
-	rightZ := rx * c.mass * 12.0
+	// Upright torque from body-up × world-up. It is zero while the hull is already level.
+	rightX := -uz * c.mass * 12.0
+	rightZ := ux * c.mass * 12.0
 	w.phys3.ApplyTorque(c.id, rightX-ax*c.mass*0.5, 0, rightZ-az*c.mass*0.5)
 
 	if brake > 0 {

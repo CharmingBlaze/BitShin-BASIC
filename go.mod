@@ -1,4 +1,4 @@
-module bitshinbasic
+module moonbasic
 
 go 1.25.6
 
@@ -16,6 +16,7 @@ require (
 	github.com/gobwas/pool v0.2.1
 	github.com/hajimehoshi/ebiten/v2 v2.9.9
 	github.com/jakecoffman/cp/v2 v2.4.0
+	github.com/klauspost/compress v1.18.0
 	github.com/quasilyte/pathing v0.0.0-20260809105344-7aa8f8ce2b02
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	golang.org/x/sys v0.36.0

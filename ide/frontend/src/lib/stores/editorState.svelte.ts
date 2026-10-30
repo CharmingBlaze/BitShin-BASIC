@@ -2,11 +2,11 @@ import type { EditorTab, FileNode, ConsoleMessage, UserSettings, SymbolItem } fr
 import { AppAPI } from '../wailsBridge';
 import examplesData from '../data/examples.json';
 
-const defaultCode = `; BitShin BASIC — Modern 3D/2D Game Engine
+const defaultCode = `; moonBASIC — Modern 3D/2D Game Engine
 ; Press F5 to Run, F7 to Build Standalone
 
 Graphics3D(1280, 720, 0, 2)
-SetWindowTitle("BitShin BASIC — 3D Showcase")
+SetWindowTitle("moonBASIC — 3D Showcase")
 
 camera = CreateCamera()
 PositionEntity(camera, 0, 3.2, -8)
@@ -37,7 +37,7 @@ While Not KeyDown(1)
 
     RenderWorld
     Color(230, 236, 245)
-    Text(16, 16, "BitShin BASIC — 3D Showcase")
+    Text(16, 16, "moonBASIC — 3D Showcase")
     Text(16, 40, "ESC to quit")
     Flip
 Wend
@@ -48,8 +48,8 @@ class EditorStore {
   tabs = $state<EditorTab[]>([
     {
       id: 'tab_welcome',
-      name: 'main.bb',
-      path: 'temp://main.bb',
+      name: 'main.mb',
+      path: 'temp://main.mb',
       content: defaultCode,
       isDirty: false,
       isTemporary: true
@@ -73,7 +73,7 @@ class EditorStore {
   isOutputCollapsed = $state<boolean>(false);
   
   settings = $state<UserSettings>({
-    theme: 'bitshin-dark',
+    theme: 'moonbasic-dark',
     fontSize: 14,
     tabSize: 4,
     minimap: true,
@@ -289,7 +289,7 @@ class EditorStore {
   newTab(templateName = 'New Script', initialCode = defaultCode) {
     const newId = 'tab_' + Math.random().toString(36).substring(2, 9);
     const count = this.tabs.filter(t => t.isTemporary).length + 1;
-    const name = `untitled_${count}.bb`;
+    const name = `untitled_${count}.mb`;
     this.tabs.push({
       id: newId,
       name,
@@ -460,6 +460,8 @@ class EditorStore {
   }
 
   async stopProgram() {
+    this.isRunning = false;
+    this.debugPaused = false;
     try {
       await AppAPI.stopProgram();
     } catch (err) {

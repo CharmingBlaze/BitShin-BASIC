@@ -1,4 +1,8 @@
-//go:build !nojolt && ((linux && (amd64 || arm64)) || (darwin && arm64))
+//go:build joltgo && !nojolt && ((linux && (amd64 || arm64)) || (darwin && arm64))
+
+// This file is the older jolt-go backend. The default Linux and macOS build
+// uses the same native Jolt backend as Windows (internal/jolt). Pass -tags joltgo
+// to compile this path instead.
 
 package phys3d
 
@@ -58,6 +62,7 @@ type joltWorld struct {
 	layerOff         [32][32]bool
 	friction         map[int]float32
 	ccd              map[int]bool
+	boxHalf          map[int][3]float32
 	gx, gy, gz       float32
 }
 
@@ -235,6 +240,7 @@ func (w *joltWorld) add(id int, shape *jolt.Shape, x, y, z, r float32, motion in
 }
 
 func (w *joltWorld) addSensor(id int, shape *jolt.Shape, x, y, z, r float32, motion int, sensor bool) {
+	delete(w.boxHalf, id)
 	mt := joltMotion(motion)
 	b := w.bi.CreateBody(shape, jolt.Vec3{X: x, Y: y, Z: z}, mt, sensor)
 	w.bi.ActivateBody(b)
@@ -279,6 +285,10 @@ func (w *joltWorld) AddBoxEx(id int, x, y, z, hx, hy, hz float32, motion int) {
 		r = hz
 	}
 	w.add(id, jolt.CreateBox(jolt.Vec3{X: hx, Y: hy, Z: hz}), x, y, z, r, motion)
+	if w.boxHalf == nil {
+		w.boxHalf = map[int][3]float32{}
+	}
+	w.boxHalf[id] = [3]float32{hx, hy, hz}
 }
 
 func (w *joltWorld) AddSphere(id int, x, y, z, r float32, dynamic bool) {
@@ -390,53 +400,57 @@ func (w *joltWorld) ApplyImpulse(id int, x, y, z float32) {
 	}
 }
 
-func (w *joltWorld) Raycast(ox, oy, oz, dx, dy, dz float32) (int, float32, float32, float32, bool) {
-	hit, ok := w.ps.CastRay(jolt.Vec3{X: ox, Y: oy, Z: oz}, jolt.Vec3{X: dx, Y: dy, Z: dz})
-	if !ok {
-		return 0, 0, 0, 0, false
-	}
+func (w *joltWorld) rayFromJolt(hit jolt.RaycastHit) (RayHit, bool) {
 	id := w.hitEntity(hit.BodyID)
 	if id == 0 {
 		id = w.entityNear(hit.HitPoint.X, hit.HitPoint.Y, hit.HitPoint.Z)
 	}
-	return id, hit.HitPoint.X, hit.HitPoint.Y, hit.HitPoint.Z, true
+	if id == 0 {
+		return RayHit{}, false
+	}
+	return RayHit{
+		ID:       id,
+		X:        hit.HitPoint.X,
+		Y:        hit.HitPoint.Y,
+		Z:        hit.HitPoint.Z,
+		NX:       hit.Normal.X,
+		NY:       hit.Normal.Y,
+		NZ:       hit.Normal.Z,
+		Fraction: hit.Fraction,
+	}, true
+}
+
+func (w *joltWorld) Raycast(ox, oy, oz, dx, dy, dz float32) (int, float32, float32, float32, bool) {
+	h, ok := w.RaycastDetail(ox, oy, oz, dx, dy, dz)
+	if !ok {
+		return 0, 0, 0, 0, false
+	}
+	return h.ID, h.X, h.Y, h.Z, true
 }
 
 func (w *joltWorld) RaycastDetail(ox, oy, oz, dx, dy, dz float32) (RayHit, bool) {
-	id, x, y, z, ok := w.Raycast(ox, oy, oz, dx, dy, dz)
+	hit, ok := w.ps.CastRay(jolt.Vec3{X: ox, Y: oy, Z: oz}, jolt.Vec3{X: dx, Y: dy, Z: dz})
 	if !ok {
 		return RayHit{}, false
 	}
-	h := RayHit{ID: id, X: x, Y: y, Z: z}
-	llen := sqrt32(dx*dx + dy*dy + dz*dz)
-	if llen > 1e-8 {
-		dist := sqrt32((x-ox)*(x-ox) + (y-oy)*(y-oy) + (z-oz)*(z-oz))
-		h.Fraction = dist / llen
-		if h.Fraction > 1 {
-			h.Fraction = 1
-		}
-	}
-	if px, py, pz, okp := w.GetPosition(id); okp {
-		h.NX, h.NY, h.NZ, _ = unit3(x-px, y-py, z-pz)
-		return h, true
-	}
-	if llen > 1e-8 {
-		h.NX, h.NY, h.NZ = -dx/llen, -dy/llen, -dz/llen
-	} else {
-		h.NY = 1
-	}
-	return h, true
+	return w.rayFromJolt(hit)
 }
 
 func (w *joltWorld) RaycastAll(ox, oy, oz, dx, dy, dz float32, max int) []RayHit {
 	if max < 0 {
 		return nil
 	}
-	h, ok := w.RaycastDetail(ox, oy, oz, dx, dy, dz)
-	if !ok {
-		return nil
+	if max == 0 {
+		max = 16
 	}
-	return []RayHit{h}
+	raw := w.ps.CastRayGetHits(jolt.Vec3{X: ox, Y: oy, Z: oz}, jolt.Vec3{X: dx, Y: dy, Z: dz}, max)
+	out := make([]RayHit, 0, len(raw))
+	for _, hit := range raw {
+		if h, ok := w.rayFromJolt(hit); ok {
+			out = append(out, h)
+		}
+	}
+	return out
 }
 
 func (w *joltWorld) entityNear(x, y, z float32) int {

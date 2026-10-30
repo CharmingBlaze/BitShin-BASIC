@@ -5,18 +5,20 @@ import (
 	"bufio"
 	cryptorand "crypto/rand"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"math"
 	"math/rand/v2"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
-	"bitshinbasic/internal/ast"
-	"bitshinbasic/internal/lex"
-	"bitshinbasic/internal/syntax"
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/ast"
+	"moonbasic/internal/lex"
+	"moonbasic/internal/syntax"
+	"moonbasic/internal/value"
 )
 
 type Status int
@@ -28,6 +30,7 @@ const (
 	StatusEnd
 	StatusReturn
 	StatusExit
+	StatusYieldCo
 )
 
 type Builtin func(args []value.Value) (value.Value, error)
@@ -60,6 +63,8 @@ type frame struct {
 	forEach []value.Value
 	forAt   int
 	until   ast.Expr
+	loop    string
+	fn      string
 	env     *env
 	ret     value.Value
 	catch   []ast.Stmt
@@ -74,6 +79,7 @@ type env struct {
 	ints        map[string]bool
 	funcScope   bool
 	globalAlias map[string]bool // Global name inside a function: assign the global
+	statics     map[string]bool
 }
 
 func newEnv(parent *env) *env {
@@ -230,38 +236,54 @@ func (e *env) known(name string) bool {
 }
 
 type Interp struct {
-	global     *env
-	stack      []frame
-	funcs      map[string]*ast.FuncDecl
-	host       Host
-	builtin    map[string]Builtin
-	Out        io.Writer
-	rng        *rand.Rand
-	rngSeed    int64
-	start      time.Time
-	err        error
-	status     Status
-	live       bool // true after the first Flip; in-game command errors must not End
-	ret        value.Value
-	dataSrc    []ast.Expr
-	data       []value.Value
-	dataPC     int
-	lists      map[int][]value.Value
-	nextList   int
-	machines   map[int]*stateMachine
-	nextMach   int
-	strict     bool
-	fastHits   int
-	fastCache  map[string]fastCode
-	debug      bool
-	breaks     map[int]bool
-	stepNext   bool
-	debugIn    *bufio.Reader
-	debugOut   io.Writer
-	types      map[string]*ast.TypeDecl
-	methods    map[string]*ast.FuncDecl
-	namespaces map[string]bool
-	bindEnv    *env // parameter defaults evaluate here
+	global      *env
+	stack       []frame
+	funcs       map[string]*ast.FuncDecl
+	host        Host
+	builtin     map[string]Builtin
+	Out         io.Writer
+	rng         *rand.Rand
+	rngSeed     int64
+	start       time.Time
+	err         error
+	status      Status
+	live        bool // true after the first Flip; in-game command errors must not End
+	ret         value.Value
+	dataSrc     []ast.Expr
+	data        []value.Value
+	dataPC      int
+	lists       map[int][]value.Value
+	nextList    int
+	machines    map[int]*stateMachine
+	nextMach    int
+	strict      bool
+	fastHits    int
+	fastCache   map[string]fastCode
+	debug       bool
+	breaks      map[int]bool
+	stepNext    bool
+	debugIn     *bufio.Reader
+	debugOut    io.Writer
+	types       map[string]*ast.TypeDecl
+	methods     map[string]*ast.FuncDecl
+	namespaces  map[string]bool
+	bindEnv     *env // parameter defaults evaluate here
+	statics     map[string]value.Value
+	exitLoop    string
+	liveInst    map[string][]value.Value
+	coros       []*coro
+	corosBooted bool
+	pendingWait time.Time
+	anonSeq     int
+	coroNames   []string
+}
+
+var errCoYield = errors.New("coroutine yield")
+
+type coro struct {
+	stack []frame
+	wait  time.Time
+	done  bool
 }
 
 func New(prog *ast.Program, host Host) *Interp {
@@ -277,9 +299,11 @@ func New(prog *ast.Program, host Host) *Interp {
 		machines:   map[int]*stateMachine{},
 		nextMach:   1,
 		fastCache:  map[string]fastCode{},
+		statics:    map[string]value.Value{},
 		types:      map[string]*ast.TypeDecl{},
 		methods:    map[string]*ast.FuncDecl{},
 		namespaces: map[string]bool{},
+		liveInst:   map[string][]value.Value{},
 	}
 	s0, s1 := entropySeed()
 	in.rngSeed = int64(s0)
@@ -323,6 +347,9 @@ func (in *Interp) collectFuncsPrefixed(stmts []ast.Stmt, prefix string) {
 		switch t := s.(type) {
 		case *ast.FuncDecl:
 			in.funcs[lex.IdentKey(qual(t.Name))] = t
+			if t.Coroutine && prefix == "" {
+				in.coroNames = append(in.coroNames, lex.IdentKey(t.Name))
+			}
 		case *ast.TypeDecl:
 			tname := lex.IdentKey(qual(t.Name))
 			in.types[tname] = t
@@ -418,12 +445,15 @@ func (in *Interp) ClearLiveError() {
 func (in *Interp) Err() error { return in.err }
 
 func (in *Interp) Run() error {
+	in.bootCoros()
 	for {
 		st := in.Step()
 		if st == StatusYield {
+			in.resumeCoros()
 			return nil
 		}
 		if st == StatusEnd {
+			in.resumeCoros()
 			return in.err
 		}
 	}
@@ -490,8 +520,11 @@ func (in *Interp) Step() Status {
 			continue
 		}
 		if st == StatusExit {
-			in.unwindExit()
+			in.unwindExit(in.exitLoop)
 			continue
+		}
+		if st == StatusYieldCo {
+			return StatusYieldCo
 		}
 		if st == StatusEnd {
 			in.status = StatusEnd
@@ -569,6 +602,7 @@ func (in *Interp) finishFrame(f *frame) bool {
 		}
 	case frameFunc:
 		in.ret = value.Num(0)
+		in.keepStatics(f)
 	case frameTry:
 		// body finished without error; skip Catch
 	}
@@ -581,23 +615,69 @@ func (in *Interp) unwindReturn() {
 		f := in.stack[len(in.stack)-1]
 		in.stack = in.stack[:len(in.stack)-1]
 		if f.kind == frameFunc {
+			in.keepStatics(&f)
 			return
 		}
 	}
 }
 
-func (in *Interp) unwindExit() {
-	for len(in.stack) > 0 {
-		f := in.stack[len(in.stack)-1]
-		in.stack = in.stack[:len(in.stack)-1]
-		if f.kind == frameWhile || f.kind == frameFor || f.kind == frameRepeat {
+func (in *Interp) unwindExit(loop string) {
+	for i := len(in.stack) - 1; i >= 0; i-- {
+		f := in.stack[i]
+		if f.kind == frameFunc {
+			if loop == "function" || loop == "" {
+				in.keepStatics(&f)
+				in.stack = in.stack[:i]
+			}
 			return
 		}
-		if f.kind == frameFunc {
-			in.ret = value.Num(0)
+		if exitMatches(f, loop) {
+			in.stack = in.stack[:i]
 			return
 		}
 	}
+}
+
+func exitMatches(f frame, loop string) bool {
+	switch f.kind {
+	case frameFor:
+		return loop == "" || loop == "for"
+	case frameWhile:
+		if f.loop == "do" {
+			return loop == "" || loop == "do"
+		}
+		return loop == "" || loop == "while"
+	case frameRepeat:
+		if f.loop == "do" {
+			return loop == "" || loop == "do"
+		}
+		return loop == "" || loop == "repeat"
+	default:
+		return false
+	}
+}
+
+func (in *Interp) keepStatics(f *frame) {
+	if f == nil || f.env == nil || f.fn == "" || len(f.env.statics) == 0 {
+		return
+	}
+	if in.statics == nil {
+		in.statics = map[string]value.Value{}
+	}
+	for name := range f.env.statics {
+		if v, ok := f.env.vars[name]; ok {
+			in.statics[f.fn+"."+name] = v
+		}
+	}
+}
+
+func (in *Interp) currentFn() string {
+	for i := len(in.stack) - 1; i >= 0; i-- {
+		if in.stack[i].fn != "" {
+			return in.stack[i].fn
+		}
+	}
+	return ""
 }
 
 func (in *Interp) env() *env {
@@ -656,11 +736,37 @@ func (in *Interp) exec(s ast.Stmt) Status {
 		if err != nil {
 			return in.cmdFail(t, err)
 		}
+		if len(t.Index) > 0 {
+			recv, err := in.lookupIndex(t.Object, t.Index)
+			if err != nil {
+				return in.cmdFail(t, err)
+			}
+			for _, f := range t.Path {
+				next, ok := recv.Field(f)
+				if !ok {
+					next = value.Num(0)
+				}
+				recv = next
+			}
+			if _, err := in.callMethod(recv, t.Method, args, t.Object, t.Path, t.Paren); err != nil {
+				if err == errCoYield {
+					return StatusYieldCo
+				}
+				return in.cmdFail(t, err)
+			}
+			break
+		}
 		if _, err := in.callDotted(t.Object, t.Path, t.Method, args, t.Paren); err != nil {
+			if err == errCoYield {
+				return StatusYieldCo
+			}
 			return in.cmdFail(t, err)
 		}
 	case *ast.CallStmt:
 		name := lex.IdentKey(t.Name)
+		if v, ok := in.env().get(t.Name); ok && v.Kind == value.KindFunc {
+			name = v.TypeName
+		}
 		args, err := in.evalArgs(t.Args)
 		if err != nil {
 			return in.cmdFail(t, err)
@@ -674,7 +780,7 @@ func (in *Interp) exec(s ast.Stmt) Status {
 				in.ret = in.runFast(fn, code, args)
 				return StatusOK
 			}
-			in.push(frame{kind: frameFunc, stmts: filterTop(fn.Body), env: local})
+			in.push(frame{kind: frameFunc, stmts: filterTop(fn.Body), env: local, fn: lex.IdentKey(fn.Name)})
 			return StatusOK
 		}
 		if in.host != nil && in.host.Yields(name) {
@@ -721,9 +827,22 @@ func (in *Interp) exec(s ast.Stmt) Status {
 			return in.cmdFail(t, err)
 		}
 		if ok {
-			in.push(frame{kind: frameWhile, stmts: t.Body, cond: t.Cond, env: in.env()})
+			tag := t.Tag
+			if tag == "" {
+				tag = "while"
+			}
+			in.push(frame{kind: frameWhile, stmts: t.Body, cond: t.Cond, env: in.env(), loop: tag})
 		}
 	case *ast.ForStmt:
+		if t.EachType != "" {
+			elems := append([]value.Value(nil), in.liveInst[lex.IdentKey(t.EachType)]...)
+			if len(elems) == 0 {
+				break
+			}
+			in.env().define(t.Var, elems[0])
+			in.push(frame{kind: frameFor, stmts: t.Body, forVar: t.Var, forEach: elems, env: in.env(), loop: "for"})
+			break
+		}
 		if t.In != nil {
 			seq, err := in.eval(t.In)
 			if err != nil {
@@ -737,7 +856,7 @@ func (in *Interp) exec(s ast.Stmt) Status {
 				break
 			}
 			in.env().define(t.Var, elems[0])
-			in.push(frame{kind: frameFor, stmts: t.Body, forVar: t.Var, forEach: elems, env: in.env()})
+			in.push(frame{kind: frameFor, stmts: t.Body, forVar: t.Var, forEach: elems, env: in.env(), loop: "for"})
 			break
 		}
 		start, err := in.eval(t.Start)
@@ -760,10 +879,14 @@ func (in *Interp) exec(s ast.Stmt) Status {
 		n := start.Number()
 		end := endv.Number()
 		if (step >= 0 && n <= end) || (step < 0 && n >= end) {
-			in.push(frame{kind: frameFor, stmts: t.Body, forVar: t.Var, end: t.End, step: t.Step, env: in.env()})
+			in.push(frame{kind: frameFor, stmts: t.Body, forVar: t.Var, end: t.End, step: t.Step, env: in.env(), loop: "for"})
 		}
 	case *ast.RepeatStmt:
-		in.push(frame{kind: frameRepeat, stmts: t.Body, until: t.Until, env: in.env()})
+		tag := t.Tag
+		if tag == "" {
+			tag = "repeat"
+		}
+		in.push(frame{kind: frameRepeat, stmts: t.Body, until: t.Until, env: in.env(), loop: tag})
 	case *ast.ReturnStmt:
 		if t.Value != nil {
 			v, err := in.eval(t.Value)
@@ -774,7 +897,23 @@ func (in *Interp) exec(s ast.Stmt) Status {
 		} else {
 			in.ret = value.Num(0)
 		}
+		if fn := in.funcs[in.currentFn()]; fn != nil && fn.Ret != "" {
+			in.ret = coerceAs(fn.Ret, in.ret)
+		}
 		return StatusReturn
+	case *ast.EraseStmt:
+		if t.All {
+			in.eraseAll()
+			break
+		}
+		in.env().set(t.Name, value.Num(0))
+	case *ast.DeleteStmt:
+		if v, ok := in.env().get(t.Name); ok {
+			in.untrack(v)
+		}
+		in.env().set(t.Name, value.Num(0))
+	case *ast.YieldStmt:
+		return StatusYieldCo
 	case *ast.DimStmt:
 		sizes := make([]int, len(t.Sizes))
 		for i, e := range t.Sizes {
@@ -830,6 +969,32 @@ func (in *Interp) exec(s ast.Stmt) Status {
 	case *ast.LocalStmt:
 		e := in.env()
 		for i, n := range t.Names {
+			key := lex.IdentKey(n)
+			if t.Static {
+				slot := in.currentFn() + "." + key
+				if prev, ok := in.statics[slot]; ok {
+					e.define(n, prev)
+				} else {
+					v := value.Num(0)
+					if i < len(t.Values) && t.Values[i] != nil {
+						ev, err := in.eval(t.Values[i])
+						if err != nil {
+							return in.cmdFail(t, err)
+						}
+						v = ev
+					}
+					e.define(n, v)
+					if in.statics == nil {
+						in.statics = map[string]value.Value{}
+					}
+					in.statics[slot] = v
+				}
+				if e.statics == nil {
+					e.statics = map[string]bool{}
+				}
+				e.statics[key] = true
+				continue
+			}
 			v := value.Num(0)
 			if i < len(t.Values) && t.Values[i] != nil {
 				ev, err := in.eval(t.Values[i])
@@ -842,6 +1007,7 @@ func (in *Interp) exec(s ast.Stmt) Status {
 		}
 	case *ast.EnumStmt:
 		n := 0.0
+		fields := map[string]value.Value{}
 		for i, name := range t.Names {
 			if i < len(t.Values) && t.Values[i] != nil {
 				ev, err := in.eval(t.Values[i])
@@ -851,10 +1017,14 @@ func (in *Interp) exec(s ast.Stmt) Status {
 				n = ev.Number()
 			}
 			in.global.define(name, value.Num(n))
+			fields[lex.IdentKey(name)] = value.Num(n)
 			if t.Name != "" {
 				in.global.define(t.Name+"_"+name, value.Num(n))
 			}
 			n++
+		}
+		if t.Name != "" {
+			in.global.define(t.Name, value.Value{Kind: value.KindStruct, TypeName: lex.IdentKey(t.Name), Fields: fields})
 		}
 	case *ast.ConstStmt:
 		e := in.env()
@@ -906,6 +1076,7 @@ func (in *Interp) exec(s ast.Stmt) Status {
 			in.ret = value.Num(0)
 			return StatusReturn
 		}
+		in.exitLoop = t.Loop
 		return StatusExit
 	case *ast.FuncDecl, *ast.TypeDecl, *ast.MethodDecl, *ast.NamespaceDecl, *ast.ImportStmt, *ast.IncludeStmt:
 		// already collected / expanded
@@ -921,6 +1092,9 @@ func (in *Interp) wrap(n ast.Node, err error) error {
 }
 
 func (in *Interp) cmdFail(n ast.Node, err error) Status {
+	if errors.Is(err, errCoYield) {
+		return StatusYieldCo
+	}
 	werr := in.wrap(n, err)
 	if in.raise(werr) {
 		return StatusOK
@@ -1093,6 +1267,25 @@ func (in *Interp) evalArgs(args []ast.Expr) ([]value.Value, error) {
 	return out, nil
 }
 
+func formatMoon(v value.Value, spec string) (out string) {
+	if spec == "" {
+		return v.String()
+	}
+	defer func() {
+		if recover() != nil {
+			out = v.String()
+		}
+	}()
+	switch spec[len(spec)-1] {
+	case 's', 'q', 'v':
+		return fmt.Sprintf("%"+spec, v.String())
+	case 'd', 'b', 'o', 'x', 'X', 'c':
+		return fmt.Sprintf("%"+spec, int64(v.Number()))
+	default:
+		return fmt.Sprintf("%"+spec, v.Number())
+	}
+}
+
 func (in *Interp) eval(e ast.Expr) (value.Value, error) {
 	switch t := e.(type) {
 	case *ast.NumberExpr:
@@ -1130,6 +1323,9 @@ func (in *Interp) eval(e ast.Expr) (value.Value, error) {
 			return value.Value{}, err
 		}
 		// array index via ()
+		if v, ok := in.env().get(t.Name); ok && v.Kind == value.KindFunc {
+			return in.call(v.TypeName, args)
+		}
 		if v, ok := in.env().get(t.Name); ok && v.Kind == value.KindArray {
 			return in.indexOf(v, args)
 		}
@@ -1147,6 +1343,16 @@ func (in *Interp) eval(e ast.Expr) (value.Value, error) {
 			return in.construct(td, args), nil
 		}
 		return in.call(lex.IdentKey(t.Name), args)
+	case *ast.FuncRefExpr:
+		return value.Func(t.Name), nil
+	case *ast.FuncExpr:
+		in.anonSeq++
+		name := fmt.Sprintf("__anon%d", in.anonSeq)
+		if t.Decl != nil {
+			t.Decl.Name = name
+			in.funcs[name] = t.Decl
+		}
+		return value.Func(name), nil
 	case *ast.FieldExpr:
 		obj, err := in.eval(t.X)
 		if err != nil {
@@ -1190,6 +1396,12 @@ func (in *Interp) eval(e ast.Expr) (value.Value, error) {
 			return value.Value{}, fmt.Errorf("unknown array %s", t.Name)
 		}
 		return in.indexOf(v, args)
+	case *ast.FmtExpr:
+		x, err := in.eval(t.X)
+		if err != nil {
+			return value.Value{}, err
+		}
+		return value.Str(formatMoon(x, t.Spec)), nil
 	case *ast.UnaryExpr:
 		x, err := in.eval(t.X)
 		if err != nil {
@@ -1630,6 +1842,13 @@ func (in *Interp) prepareCall(fn *ast.FuncDecl, args []value.Value) (*env, []val
 			}
 			v = ev
 		}
+		if i < len(fn.ParamTypes) && fn.ParamTypes[i] != "" {
+			cv, err := coerceAsChecked(fn.ParamTypes[i], v)
+			if err != nil {
+				return nil, nil, err
+			}
+			v = cv
+		}
 		local.define(p, v)
 		full[i] = v
 	}
@@ -1646,13 +1865,17 @@ func (in *Interp) callUser(fn *ast.FuncDecl, args []value.Value) (value.Value, e
 	}
 	saved := in.stack
 	savedStatus := in.status
-	in.stack = []frame{{kind: frameFunc, stmts: filterTop(fn.Body), env: local}}
+	in.stack = []frame{{kind: frameFunc, stmts: filterTop(fn.Body), env: local, fn: lex.IdentKey(fn.Name)}}
 	in.ret = value.Num(0)
 	var yieldErr error
 	for {
 		st := in.Step()
 		if st == StatusYield {
 			yieldErr = fmt.Errorf("Flip, WaitTimer, WaitKey, and Delay are not allowed inside a Function used as an expression")
+			break
+		}
+		if st == StatusYieldCo {
+			yieldErr = errCoYield
 			break
 		}
 		if st == StatusEnd || len(in.stack) == 0 {
@@ -1665,7 +1888,7 @@ func (in *Interp) callUser(fn *ast.FuncDecl, args []value.Value) (value.Value, e
 	in.status = savedStatus
 	in.err = nil
 	if yieldErr != nil {
-		return value.Value{}, yieldErr
+		return ret, yieldErr
 	}
 	return ret, err
 }
@@ -1681,6 +1904,7 @@ func (in *Interp) construct(td *ast.TypeDecl, args []value.Value) value.Value {
 			v.SetField(td.Fields[i].Name, a.Clone())
 		}
 	}
+	in.track(v)
 	return v
 }
 
@@ -1707,7 +1931,73 @@ func (in *Interp) setFields(name string, fields []string, val value.Value) error
 	return nil
 }
 
+func (in *Interp) lookupIndex(name string, idx []ast.Expr) (value.Value, error) {
+	v, ok := in.env().get(name)
+	if !ok {
+		return value.Num(0), nil
+	}
+	args, err := in.evalArgs(idx)
+	if err != nil {
+		return value.Value{}, err
+	}
+	switch v.Kind {
+	case value.KindArray:
+		return in.indexOf(v, args)
+	case value.KindMap:
+		if len(args) == 0 {
+			return value.Num(0), nil
+		}
+		got, ok := v.Field(args[0].String())
+		if !ok {
+			return value.Num(0), nil
+		}
+		return got, nil
+	default:
+		return value.Num(0), nil
+	}
+}
+
 func (in *Interp) callDotted(object string, path []string, method string, args []value.Value, paren bool) (value.Value, error) {
+	if len(path) == 0 {
+		switch lex.IdentKey(object) {
+		case "free":
+			if lex.IdentKey(method) == "all" {
+				in.eraseAll()
+				return value.Num(0), nil
+			}
+		case "string":
+			switch lex.IdentKey(method) {
+			case "interp":
+				return value.Str(stringInterp(args)), nil
+			case "format":
+				if len(args) == 0 {
+					return value.Str(""), nil
+				}
+				spec := ""
+				if len(args) > 1 {
+					spec = strings.TrimPrefix(args[1].String(), "%")
+				}
+				return value.Str(formatMoon(args[0], spec)), nil
+			}
+		}
+	}
+	if lex.IdentKey(object) == "coroutine" && len(path) == 0 {
+		switch lex.IdentKey(method) {
+		case "start":
+			if len(args) == 0 {
+				return value.Value{}, fmt.Errorf("Coroutine.Start expects a function")
+			}
+			id, err := in.startRef(args[0])
+			return value.Num(float64(id)), err
+		case "wait":
+			sec := 0.0
+			if len(args) > 0 {
+				sec = args[0].Number()
+			}
+			in.pendingWait = time.Now().Add(time.Duration(sec * float64(time.Second)))
+			return value.Num(0), errCoYield
+		}
+	}
 	key := lex.IdentKey(object) + "." + lex.IdentKey(method)
 	if len(path) == 0 {
 		if fn, ok := in.funcs[key]; ok {
@@ -1725,6 +2015,11 @@ func (in *Interp) callDotted(object string, path []string, method string, args [
 		if td, ok := in.types[lex.IdentKey(object)]; ok && len(path) == 0 {
 			inst := in.construct(td, nil)
 			return in.callMethod(inst, method, args, "", nil, paren)
+		}
+		if len(path) == 0 {
+			if v, err, ok := in.tryCall(lex.IdentKey(object)+"."+lex.IdentKey(method), args); ok {
+				return v, err
+			}
 		}
 		return value.Value{}, fmt.Errorf("unknown %s.%s", object, method)
 	}
@@ -1767,7 +2062,7 @@ func (in *Interp) callStructMethod(recv value.Value, method string, args []value
 		local.define(p, v)
 	}
 	saved := in.stack
-	in.stack = []frame{{kind: frameFunc, stmts: filterTop(fn.Body), env: local}}
+	in.stack = []frame{{kind: frameFunc, stmts: filterTop(fn.Body), env: local, fn: lex.IdentKey(fn.Name)}}
 	in.ret = value.Num(0)
 	for {
 		st := in.Step()
@@ -1799,6 +2094,16 @@ func (in *Interp) installBuiltins() {
 	n := func(name string, fn func([]value.Value) value.Value) {
 		in.Register(name, func(args []value.Value) (value.Value, error) { return fn(args), nil })
 	}
+	n("format", func(args []value.Value) value.Value {
+		if len(args) == 0 {
+			return value.Str("")
+		}
+		spec := ""
+		if len(args) > 1 {
+			spec = strings.TrimPrefix(args[1].String(), "%")
+		}
+		return value.Str(formatMoon(args[0], spec))
+	})
 	n("print", func(args []value.Value) value.Value {
 		parts := make([]string, len(args))
 		for i, a := range args {
@@ -1914,7 +2219,21 @@ func (in *Interp) installBuiltins() {
 	})
 	n("str", func(a []value.Value) value.Value { return value.Str(a[0].String()) })
 	n("instr", func(a []value.Value) value.Value {
-		return value.Num(float64(strings.Index(str(a, 0), str(a, 1)) + 1))
+		start := 1
+		if len(a) >= 3 {
+			start = int(num(a, 2))
+		}
+		return value.Num(float64(instrAt(str(a, 0), str(a, 1), start)))
+	})
+	n("replace", func(a []value.Value) value.Value {
+		return value.Str(replaceAll(str(a, 0), str(a, 1), str(a, 2)))
+	})
+	n("string", func(a []value.Value) value.Value {
+		n := int(num(a, 0))
+		if n < 0 {
+			n = 0
+		}
+		return value.Str(strings.Repeat(str(a, 1), n))
 	})
 	n("lower", func(a []value.Value) value.Value { return value.Str(strings.ToLower(str(a, 0))) })
 	n("upper", func(a []value.Value) value.Value { return value.Str(strings.ToUpper(str(a, 0))) })
@@ -2104,6 +2423,45 @@ func (in *Interp) installBuiltins() {
 	n("backbuffer", func(a []value.Value) value.Value { return value.Num(0) })
 	n("frontbuffer", func(a []value.Value) value.Value { return value.Num(1) })
 	n("setbuffer", func(a []value.Value) value.Value { return value.Num(0) })
+	in.aliasStdlib()
+}
+
+// aliasStdlib exposes this runtime's plain functions as Math.* and String.*.
+// Raylib namespaces (App, Draw, Render, Model) are not registered.
+func (in *Interp) aliasStdlib() {
+	share := func(dotted, plain string) {
+		if fn, ok := in.builtin[plain]; ok {
+			in.builtin[dotted] = fn
+		}
+	}
+	for _, name := range []string{
+		"sin", "cos", "tan", "asin", "acos", "atan", "atan2", "sqr", "abs",
+		"int", "floor", "ceil", "float", "sgn", "min", "max", "rnd", "rand",
+		"pow", "clamp", "lerp", "invlerp", "smoothstep", "easein", "easeout",
+		"approach", "wrapangle", "angledelta", "approachangle",
+		"distance2d", "distance3d", "pi",
+	} {
+		share("math."+name, name)
+	}
+	share("math.sqrt", "sqr")
+	share("math.sign", "sgn")
+	share("math.anglediff", "angledelta")
+	share("math.dist2d", "distance2d")
+	share("math.dist3d", "distance3d")
+	for _, name := range []string{
+		"len", "left", "right", "mid", "chr", "asc", "str", "instr",
+		"replace", "lower", "upper", "trim", "format",
+	} {
+		share("string."+name, name)
+	}
+	share("string.length", "len")
+	for _, name := range []string{"listadd", "listget", "listset", "listcount", "listremove"} {
+		share("list."+strings.TrimPrefix(name, "list"), name)
+	}
+	for _, name := range []string{"mapset", "mapget", "maphas", "mapdelete", "mapcount"} {
+		share("map."+strings.TrimPrefix(name, "map"), name)
+	}
+	share("array.size", "arraysize")
 }
 
 func aValue(a []value.Value, i int) value.Value {
@@ -2140,8 +2498,213 @@ func str(a []value.Value, i int) string {
 	return a[i].String()
 }
 
+func instrAt(s, sub string, start int) int {
+	if start < 1 {
+		start = 1
+	}
+	if start > len(s)+1 {
+		return 0
+	}
+	if sub == "" {
+		return start
+	}
+	i := strings.Index(s[start-1:], sub)
+	if i < 0 {
+		return 0
+	}
+	return i + start
+}
+
+func replaceAll(s, find, repl string) string {
+	if find == "" {
+		return s
+	}
+	return strings.ReplaceAll(s, find, repl)
+}
+
 func deg(a []value.Value, i int) float64 {
 	return num(a, i) * math.Pi / 180
+}
+
+func (in *Interp) eraseAll() {
+	for name, v := range in.global.vars {
+		if v.Kind == value.KindArray || v.Kind == value.KindStruct || v.Kind == value.KindMap || v.Kind == value.KindFunc {
+			in.global.vars[name] = value.Num(0)
+		}
+	}
+	in.liveInst = map[string][]value.Value{}
+}
+
+func stringInterp(args []value.Value) string {
+	if len(args) == 0 {
+		return ""
+	}
+	s := args[0].String()
+	for i := 1; i < len(args); i++ {
+		key := fmt.Sprintf("{%d", i-1)
+		for {
+			at := strings.Index(s, key)
+			if at < 0 {
+				break
+			}
+			end := strings.Index(s[at:], "}")
+			if end < 0 {
+				break
+			}
+			body := s[at+1 : at+end]
+			repl := args[i].String()
+			if colon := strings.Index(body, ":"); colon >= 0 {
+				repl = formatMoon(args[i], body[colon+1:])
+			}
+			s = s[:at] + repl + s[at+end+1:]
+		}
+	}
+	return s
+}
+
+func (in *Interp) track(v value.Value) {
+	if v.Kind != value.KindStruct || v.Fields == nil || v.TypeName == "" {
+		return
+	}
+	key := lex.IdentKey(v.TypeName)
+	in.liveInst[key] = append(in.liveInst[key], v)
+}
+
+func (in *Interp) untrack(v value.Value) {
+	if v.Kind != value.KindStruct || v.Fields == nil {
+		return
+	}
+	key := lex.IdentKey(v.TypeName)
+	list := in.liveInst[key]
+	id := reflect.ValueOf(v.Fields).Pointer()
+	for i, x := range list {
+		if x.Fields != nil && reflect.ValueOf(x.Fields).Pointer() == id {
+			in.liveInst[key] = append(list[:i], list[i+1:]...)
+			return
+		}
+	}
+}
+
+func coerceAs(typ string, v value.Value) value.Value {
+	out, err := coerceAsChecked(typ, v)
+	if err != nil {
+		return v
+	}
+	return out
+}
+
+func coerceAsChecked(typ string, v value.Value) (value.Value, error) {
+	switch lex.IdentKey(typ) {
+	case "integer", "int":
+		return value.Num(float64(int(v.Number()))), nil
+	case "float", "number", "single", "double":
+		return value.Num(v.Number()), nil
+	case "string":
+		return value.Str(v.String()), nil
+	case "bool", "boolean":
+		if v.Number() != 0 {
+			return value.Num(1), nil
+		}
+		return value.Num(0), nil
+	default:
+		if v.Kind == value.KindStruct && lex.IdentKey(v.TypeName) == lex.IdentKey(typ) {
+			return v, nil
+		}
+		if v.Kind == value.KindNum && v.Num == 0 && v.TypeName == "" {
+			return v, nil
+		}
+		return value.Value{}, fmt.Errorf("expected %s", typ)
+	}
+}
+
+func (in *Interp) bootCoros() {
+	if in.corosBooted {
+		return
+	}
+	in.corosBooted = true
+	for _, name := range in.coroNames {
+		_, _ = in.launch(name)
+	}
+}
+
+func (in *Interp) launch(name string) (int, error) {
+	fn := in.funcs[lex.IdentKey(name)]
+	if fn == nil {
+		return 0, fmt.Errorf("unknown function %s", name)
+	}
+	local := newEnv(in.global)
+	c := &coro{stack: []frame{{kind: frameFunc, stmts: filterTop(fn.Body), env: local, fn: lex.IdentKey(fn.Name)}}}
+	in.coros = append(in.coros, c)
+	in.pump(c)
+	return len(in.coros), nil
+}
+
+func (in *Interp) startRef(v value.Value) (int, error) {
+	name := ""
+	switch v.Kind {
+	case value.KindFunc:
+		name = v.TypeName
+	case value.KindStr:
+		name = v.Str
+	default:
+		return 0, fmt.Errorf("Coroutine.Start expects a function")
+	}
+	return in.launch(name)
+}
+
+func (in *Interp) pump(c *coro) {
+	if c == nil || c.done {
+		return
+	}
+	savedStack := in.stack
+	savedStatus := in.status
+	savedRet := in.ret
+	savedErr := in.err
+	in.stack = c.stack
+	in.status = StatusOK
+	in.err = nil
+	for {
+		if len(in.stack) == 0 {
+			c.done = true
+			break
+		}
+		st := in.Step()
+		if st == StatusYieldCo {
+			c.wait = in.pendingWait
+			in.pendingWait = time.Time{}
+			break
+		}
+		if st == StatusEnd {
+			c.done = true
+			break
+		}
+		if st == StatusYield {
+			break
+		}
+	}
+	c.stack = in.stack
+	coroErr := in.err
+	in.stack = savedStack
+	in.status = savedStatus
+	in.ret = savedRet
+	in.err = savedErr
+	if coroErr != nil && in.err == nil {
+		in.err = coroErr
+	}
+}
+
+func (in *Interp) resumeCoros() {
+	now := time.Now()
+	for _, c := range in.coros {
+		if c.done {
+			continue
+		}
+		if !c.wait.IsZero() && now.Before(c.wait) {
+			continue
+		}
+		c.wait = time.Time{}
+		in.pump(c)
+	}
 }
 
 func radToDeg(r float64) float64 { return r * 180 / math.Pi }

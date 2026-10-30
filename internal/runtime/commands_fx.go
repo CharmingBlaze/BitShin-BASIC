@@ -8,9 +8,9 @@ import (
 
 	"github.com/g3n/engine/camera"
 
-	"bitshinbasic/internal/parse"
-	"bitshinbasic/internal/syntax"
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/parse"
+	"moonbasic/internal/syntax"
+	"moonbasic/internal/value"
 )
 
 func (w *World) fxCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error), need func(func([]value.Value) (value.Value, error)) cmd) map[string]cmd {
@@ -209,11 +209,11 @@ func (w *World) fxCommands(n func(func([]value.Value) (value.Value, error)) cmd,
 			for i := 0; i < 6; i++ {
 				paths[i] = argS(a, i)
 			}
-			faces, err := w.loadSkyFaces(paths)
+			imgs, err := w.loadSkyImages(paths)
 			if err != nil {
 				return value.Value{}, err
 			}
-			id, err := w.createSkyBoxFromFaces(faces)
+			id, err := w.publishSky(imgs)
 			if err != nil {
 				return value.Value{}, err
 			}
@@ -270,7 +270,7 @@ func (w *World) fxCommands(n func(func([]value.Value) (value.Value, error)) cmd,
 		"setskygradient": need(func(a []value.Value) (value.Value, error) {
 			w.skyTop = *rgb(argN(a, 0, 134), argN(a, 1, 187), argN(a, 2, 214))
 			w.skyBot = *rgb(argN(a, 3, 230), argN(a, 4, 230), argN(a, 5, 242))
-			id, err := w.createSkyBoxFromFaces(generateSkyFaces(w.skyTop, w.skyBot, -0.5, 0.55, 0.75))
+			id, err := w.publishSky(generateSkyImages(w.skyTop, w.skyBot, -0.5, 0.55, 0.75))
 			if err != nil {
 				return z()
 			}
@@ -662,22 +662,46 @@ func (w *World) findSceneFile(rel string) string {
 		return rel
 	}
 	cwd, _ := os.Getwd()
-	cands := []string{w.resolve(rel)}
-	for _, root := range []string{w.base, cwd} {
-		p := root
-		for i := 0; i < 6; i++ {
-			cands = append(cands, filepath.Join(p, rel), filepath.Join(p, "examples", rel))
-			next := filepath.Dir(p)
-			if next == p {
-				break
+	try := func(rel string) (string, bool) {
+		list := []string{w.resolve(rel)}
+		for _, root := range []string{w.base, cwd} {
+			p := root
+			for i := 0; i < 6; i++ {
+				list = append(list, filepath.Join(p, rel), filepath.Join(p, "examples", rel))
+				next := filepath.Dir(p)
+				if next == p {
+					break
+				}
+				p = next
 			}
-			p = next
 		}
+		for _, p := range list {
+			if st, err := os.Stat(p); err == nil && !st.IsDir() {
+				return p, true
+			}
+		}
+		return "", false
 	}
-	for _, p := range cands {
-		if st, err := os.Stat(p); err == nil && !st.IsDir() {
-			return p
+	if got, ok := try(rel); ok {
+		return got
+	}
+	if alt := scriptAltPath(rel); alt != "" {
+		if got, ok := try(alt); ok {
+			return got
 		}
 	}
 	return w.resolve(rel)
+}
+
+func scriptAltPath(rel string) string {
+	ext := strings.ToLower(filepath.Ext(rel))
+	base := strings.TrimSuffix(rel, filepath.Ext(rel))
+	switch ext {
+	case ".mb":
+		return base + ".bb"
+	case ".bb":
+		return base + ".mb"
+	default:
+		return ""
+	}
 }

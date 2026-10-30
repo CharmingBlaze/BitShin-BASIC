@@ -1,130 +1,201 @@
 # Network
 
-Two layers, same backends:
+One player hosts. Friends join that game. Everything below is that one room.
 
-1. **Session** — one implicit host: `NetHost` / `NetConnect` / `NetSend` / `NetRecv`.
-2. **Handles** — `CreateNetworkHost` returns an id; `PollNetwork` returns a **`netevent` struct**.
+Call `NetUpdate` once each frame so messages, the lobby, and movement stay current.
 
-Default build is **UDP**. `go build -tags enet` uses **ENet** (`GetNetBackend$()` / `NetBackend$()` is `"udp"` or `"enet"`).
+The game port is **27015**. The normal build is UDP. `go build -tags enet` uses ENet, which keeps packets that UDP might drop. `NetBackend$()` is `"udp"` or `"enet"`.
 
-## `PollNetwork` return value
+Examples: `examples/net_lobby.mb`, `examples/net_echo.mb`.
 
-`PollNetwork` does **not** return a bare type integer. It returns a **struct** (`packNetEvent` in the runtime):
-
-| Field | Also | Meaning |
-| --- | --- | --- |
-| `Type` | | `NET_NONE` 0, `NET_CONNECT` 1, `NET_DISCONNECT` 2, `NET_RECEIVE` / `NET_RECV` 3 |
-| `PeerID` | `Peer` | Peer handle |
-| `Data` | `Message` / `Msg` | Payload string (empty on connect/disconnect) |
-| `PeerIP` | `IP` | Remote address string |
-
-The same poll also stores the last event for:
-
-`GetNetworkEventType()` / `GetNetEventType()`  
-`GetNetworkPeerID()`  
-`GetNetworkData$()`  
-`GetNetworkPeerIP()` / `GetNetPeerIP()` / `NetPeerIP(peer)`
-
-`PollNetwork(host)` uses that host handle. `PollNetwork()` (no args) uses host **0**, which is the active / World host.
-
-Idle poll: `Type = NET_NONE` (0). Always poll once per frame; do not assume a client connected.
-
-## Host commands
-
-| Command | Meaning |
-| --- | --- |
-| `CreateNetworkHost(port [, maxPeers])` | Listen. Alias `CreateHost`. Default port 27015, max 32 |
-| `CreateNetworkClient(ip$, port)` | Dial. Aliases `Connect` / `ConnectNetwork` |
-| `ConnectHost(host, ip$, port)` | Connect an **existing** host handle. `ConnectHost(ip$, port)` is the same as dial |
-| `PollNetwork(host)` | Next event **struct** (see above) |
-| `SendNetworkMessage peer, data$ [, reliable]` | On the World / active host. Default reliable |
-| `SendNetwork host, peer, data$ [, reliable]` | Named host. Also `SendNet` |
-| `SendNetwork peer, data$ [, reliable]` | Active host (when the third arg is not a string) |
-| `DisconnectNetwork peer` or `DisconnectNetwork host, peer` | |
-| `CloseNetworkHost host` | Also `CloseHost` / `CloseNetwork` |
+## Host
 
 ```basic
-; examples/net_host.bb — build with -tags enet for ENet, else UDP.
-Graphics3D(800, 600)
-cam = CreateCamera()
-CreateLight()
+SetNetPlayerName("Ada")
+If Not Net.Host() Then
+    Print("Could not open the room")
+    End
+EndIf
+SetNetRoom("harbor")
+```
 
-host = CreateNetworkHost(27015, 32)
-Print("backend=" + GetNetBackend())
-Print("NET_CONNECT=", NET_CONNECT, " DISCONNECT=", NET_DISCONNECT, " RECEIVE=", NET_RECEIVE)
+`Net.Host()` returns 1. It listens on 27015 and announces the room on the local network. `SetNetPlayerName` and `SetNetRoom` before or just after `HostGame` set the name friends will see.
 
-frames = 0
-While 1
-    frames = frames + 1
-    netEvent = PollNetwork(host)
-    If netEvent.Type = NET_CONNECT Then
-        Print("Player joined: " + netEvent.PeerIP)
-    ElseIf netEvent.Type = NET_RECEIVE Then
-        Print("recv peer=" + Str(netEvent.PeerID) + " data=" + netEvent.Data)
-        SendNetworkMessage(netEvent.PeerID, "ack", True)
-    ElseIf netEvent.Type = NET_DISCONNECT Then
-        Print("Player left: " + Str(netEvent.PeerID))
-    EndIf
-    UpdateWorld
-    RenderWorld
-    Flip
-    If frames > 8
-        If KeyHit(KEY_ESCAPE) Then End
-    EndIf
+`Net.Host(1973)` uses another game port. `NetClose` shuts the room and stops the announcement. `NetClose peer` or `NetDisconnect peer` drops one player.
+
+## Find a game and join
+
+On the same network, `FindGames$()` listens for about 800 milliseconds and returns one line per room:
+
+```text
+192.168.1.20|27015|harbor|Ada
+```
+
+That is `ip|port|room|name`. An empty string means nobody is hosting nearby. `Net.Find(2000)` waits longer. The longest wait is 5 seconds.
+
+```basic
+list$ = Net.Find()
+Print(list$)
+Net.Join("192.168.1.20", 27015)
+```
+
+`Net.Join("192.168.1.20")` uses port 27015. Call `SetNetPlayerName("Bo")` before joining.
+
+`FindGames$` only hears rooms on the local network. A friend on another network needs the host's IP and an open game port.
+
+## Waiting room
+
+```basic
+NetReady(1)
+
+While Not NetStarted()
+    NetUpdate()
+    Print(NetLobby())
+    If NetAllReady() Then StartGame()
 Wend
 ```
 
-Client sketch:
+`NetLobby$()` looks like this:
+
+```text
+room harbor
+started 0
+0 Ada 1
+1 Bo 0
+```
+
+The first line is the room name. `started` is 1 after the match begins. Each player line is `id name ready`. The host's id is 0.
+
+`NetReady(1)` marks this player ready. `NetAllReady()` is 1 when every joined player is ready. Only the host should call `StartGame()`. It returns 1 on the host and 0 on a client. Everyone else sees `NetStarted()` become 1.
+
+A host with no friends yet is all-ready as soon as they call `NetReady(1)`.
+
+## Chat
 
 ```basic
-client = CreateNetworkClient("127.0.0.1", 27015)
-; …
-ev = PollNetwork(client)
-If ev.Type = NET_CONNECT Then
-    SendNetwork(client, ev.PeerID, "hello", True)
+Net.Say("hello")
+
+While 1
+    NetUpdate()
+    If NetRecv() And NetEvent() = NET_RECEIVE Then
+        Print(NetPlayerName(NetPeer()) + ": " + NetMsg())
+    EndIf
+    Flip
+Wend
+```
+
+`NetSay` reaches the room. The host sends it to every player. A client sends it to the host. `NetRecv()` returns 1 when a chat line is waiting, then `NetMsg$()` is the text and `NetPeer()` is who sent it. `NetEvent()` is 1 for connect, 2 for disconnect, and 3 for a message.
+
+## Score, map, and other short facts
+
+```basic
+SetNetInfo("map", "harbor")
+SetNetInfo("score", "3")
+Print(NetInfo("map"))
+```
+
+The host keeps these values and sends them to players who join. A client's `SetNetInfo` goes to the host, then out to the room. Keys are short names such as `map` or `score`. Values are short strings.
+
+## Who is where
+
+Create the same entities in the same order on every machine. The first `CreateCube` is id 1 on every machine, the second is id 2, and so on. Each machine calls `NetReplicate` only for the entity it moves. The host passes the other players' positions on.
+
+```basic
+ada = CreateCube()
+bo = CreateCube()
+hosting = 1
+
+If hosting Then
+    NetReplicate(ada)
+Else
+    NetReplicate(bo)
+EndIf
+
+While 1
+    NetUpdate()
+    RenderWorld()
+    Flip
+Wend
+```
+
+Remote entities glide for 100 milliseconds between updates. `SetNetSmooth(0)` makes them jump to the latest position. `SetNetSmooth(200)` glides more slowly.
+
+This follows poses that arrive. It does not predict a move that has not been sent yet.
+
+## A JSON file
+
+Small JSON can be sent as one message. Keep it under about 4KB.
+
+```basic
+doc = Json.Load("level.json")
+NetSendJSON(JSON$(doc))
+
+raw$ = NetRecvJSON()
+If raw$ <> "" Then
+    got = Json.Parse(raw$)
+    Json.Save(got, "level.json")
 EndIf
 ```
 
-## Session API (still works)
+`NetSendJSON(json$)` sends to the whole room. `NetSendJSON(json$, peer)` sends to one player. `NetRecvJSON$()` returns the next JSON string, or `""` when none is waiting.
 
-One `w.net` slot. Fine for a single room.
+`JSONLoad` and `JSONSave` only touch the local disk. The network commands move the text.
 
-| Command | Meaning |
+## Commands
+
+`NetHost` is `HostGame`. `NetConnect` is `JoinGame`.
+
+| What you want | Command |
 | --- | --- |
-| `NetHost` / `HostNet port` | Listen (default 1234) |
-| `NetConnect` / `ConnectNet host$, port` | Dial |
-| `NetClose` | Close session (or `NetClose peer` to drop one) |
-| `NetSend peer, msg$ [, reliable]` | |
-| `NetSendReliable peer, msg$` | |
-| `NetBroadcast msg$ [, reliable]` | |
-| `NetRecv()` | 1 if an event was taken; then use `NetMsg$` / `NetPeer` / `NetEvent` |
-| `NetUpdate` | Pump without taking |
-| `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()` | Last payload |
-| `NetPeer()` / `GetNetPeer()` | Last peer |
-| `NetEvent()` / `GetNetEvent()` | 1 connect, 2 disconnect, 3 receive |
-| `NetPeerCount()` / `NetConnected()` | |
-| `NetDisconnect peer` | |
-| `NetPing [peer]` / `NetRTT([peer])` | App-level ping (`PING\|seq\|ms`) |
-| `SetNetPlayerName s$` / `NetPlayerName$([peer])` | Omit peer = local |
-| `NetLocalID()` | |
-| `NetReady [on]` / `NetAllReady()` | |
-| `NetRoom$()` / `SetNetRoom s$` | |
-| `NetSendJSON json$ [, peer]` / `NetRecvJSON$()` | |
-| `NetReplicate e [, on]` / `NetSnapshot$()` / `NetApplySnapshot json$` | Transform snapshot |
-| `NetTick()` | |
-| `NetRegister name$` / `NetCall name$ [, arg$] [, peer]` | RPC; local if no net |
+| Open the room | `Net.Host([port])` |
+| List LAN rooms | `FindGames$([ms])` |
+| Join | `Net.Join(ip$ [, port])` |
+| Leave, or drop one player | `NetClose` / `NetDisconnect peer` |
+| Pump the room | `NetUpdate` |
+| Your name | `SetNetPlayerName s$` / `NetPlayerName$([peer])` |
+| Room name | `SetNetRoom s$` / `NetRoom$()` |
+| Who is waiting | `NetLobby$()` |
+| Ready | `NetReady [on]` / `NetAllReady()` |
+| Start | `StartGame()` / `NetStarted()` |
+| Your id | `NetLocalID()` |
+| How many players | `NetPeerCount()` / `NetConnected()` |
+| Ping | `NetPing [peer]` / `NetRTT([peer])` |
+| Chat | `NetSay msg$` |
+| Read chat | `NetRecv()` / `NetMsg$()` / `NetPeer()` / `NetEvent()` |
+| Any short text | `NetSend peer, msg$` / `NetBroadcast msg$` |
+| Shared fact | `SetNetInfo key$, value$` / `NetInfo$(key$)` |
+| JSON text | `NetSendJSON json$ [, peer]` / `NetRecvJSON$()` |
+| Positions | `NetReplicate entity [, on]` / `SetNetSmooth(ms)` |
+| Call a function on another machine | `NetRegister name$` / `NetCall name$ [, arg$] [, peer]` |
 
-`NetRecv` returns **1 or 0**, not a struct. Use `PollNetwork` if you want `netEvent.Type`.
+`NetRegister("hit")` marks a function. `NetCall("hit", "12")` runs it there with the text argument and the sender's peer id. With no session, `NetCall` runs the function locally.
 
-## Constants
+`NetSendReliable` is the same as `NetSend` on UDP. ENet is the build that treats the reliable flag as delivery you can count on.
 
-| Name | Value |
-| --- | --- |
-| `NET_NONE` | 0 |
-| `NET_CONNECT` | 1 |
-| `NET_DISCONNECT` | 2 |
-| `NET_RECEIVE` / `NET_RECV` | 3 |
+## Several connections
 
-Same order as ENet (none, connect, disconnect, receive).
+`HostGame` is the room above. `CreateNetworkHost` is a lower-level socket. It does not run the lobby, `FindGames$`, shared facts, or `NetReplicate`. You send and read raw text yourself. See `examples/net_host.mb` and `examples/net_physics.mb`.
 
-Also: `examples/net_echo.bb`.
+```basic
+host = CreateNetworkHost(27015, 32)
+ev = PollNetwork(host)
+If ev.Type = NET_RECEIVE Then
+    Print(ev.Data)
+    SendNetworkMessage(ev.PeerID, "ack", True)
+EndIf
+```
+
+`PollNetwork` returns a struct:
+
+| Field | Also called | Meaning |
+| --- | --- | --- |
+| `Type` | | `NET_NONE` 0, `NET_CONNECT` 1, `NET_DISCONNECT` 2, `NET_RECEIVE` 3 |
+| `PeerID` | `Peer` | Who |
+| `Data` | `Message`, `Msg` | Text. Empty on connect and disconnect |
+| `PeerIP` | `IP` | Their address |
+
+`PollNetwork()` with no arguments uses the active host. An idle poll has `Type` 0. Poll once a frame.
+
+`CreateNetworkClient(ip$, port)` dials. `ConnectHost(host, ip$, port)` dials from a host you already opened. `CloseNetworkHost host` closes it. `GetNetworkData$()`, `GetNetworkPeerID()`, and `GetNetworkPeerIP$()` repeat the last poll.
+
+`NET_NONE` is 0, `NET_CONNECT` is 1, `NET_DISCONNECT` is 2, `NET_RECEIVE` is 3.

@@ -1,4 +1,4 @@
-//go:build windows
+//go:build windows || (linux && (amd64 || arm64)) || (darwin && arm64)
 
 package jolt
 
@@ -24,11 +24,17 @@ func CreateSphere(radius float32) *Shape {
 // CreateBoxShape creates a box collision shape
 // halfExtent: half-size of the box in each dimension (e.g., Vec3{5,0.5,5} creates 10x1x10 box)
 func CreateBox(halfExtent Vec3) *Shape {
-	handle := C.JoltCreateBox(
-		C.float(halfExtent.X),
-		C.float(halfExtent.Y),
-		C.float(halfExtent.Z),
-	)
+	hx, hy, hz := halfExtent.X, halfExtent.Y, halfExtent.Z
+	if hx < 1e-3 {
+		hx = 1e-3
+	}
+	if hy < 1e-3 {
+		hy = 1e-3
+	}
+	if hz < 1e-3 {
+		hz = 1e-3
+	}
+	handle := C.JoltCreateBox(C.float(hx), C.float(hy), C.float(hz))
 	return &Shape{handle: handle}
 }
 

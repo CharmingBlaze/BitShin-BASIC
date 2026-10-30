@@ -6,7 +6,7 @@ Topic pages for script authors. Command lists stay in [COMMANDS.md](COMMANDS.md)
 | --- | --- |
 | [PHYSICS.md](PHYSICS.md) | Bodies, joints, forces, CharacterVirtual, contacts, first `Flip` / Escape |
 | [VEHICLES.md](VEHICLES.md) | Landed controllers. **`CreatePlane` = mesh**; aircraft is `CreatePlaneController` |
-| [NETWORK.md](NETWORK.md) | `CreateNetworkHost`, `PollNetwork` **struct**, `NET_*`, ENet vs UDP |
+| [NETWORK.md](NETWORK.md) | Host a room, find it on the LAN, wait, then play |
 | [SHADOWS.md](SHADOWS.md) | CSM, quality 0–3 (grid PCF / PCSS / EVSM / MSM) |
 | [WATER.md](WATER.md) | Gerstner + scenic water, `WaterHeight`, buoys |
 | [WEATHER.md](WEATHER.md) | Rain / snow / fog / storm |
@@ -17,13 +17,13 @@ Topic pages for script authors. Command lists stay in [COMMANDS.md](COMMANDS.md)
 | [GEO.md](GEO.md) / [STREAM.md](STREAM.md) / [ECS.md](ECS.md) | Map, chunks, Flecs |
 | [ASSETS.md](ASSETS.md) / [ARCHITECTURE.md](ARCHITECTURE.md) | Pack / Flip loop |
 | [STATUS.md](STATUS.md) | Honest feature table |
-| [RELEASE.md](RELEASE.md) | Portable `bs build`, natives, 1.0 version |
+| [RELEASE.md](RELEASE.md) | Portable `moon build`, natives, 1.0 version |
 
 Pathfinding (this file) is below.
 
 # Pathfinding
 
-Two systems, no planner or behavior-tree libraries.
+Detour and grid A* for paths. Behavior trees are a third system (`CreateBehavior`). There is no GOAP library.
 
 ## 3D — Detour (`github.com/arl/go-detour` v0.1.3)
 
@@ -44,11 +44,15 @@ Two systems, no planner or behavior-tree libraries.
 | `SetNavMaxSlope(deg)` / `GetNavMaxSlope()` | Skip faces steeper than `deg` when baking (terrain + mesh). Unset getter reports 45 without writing. |
 | `BakeTerrainNav([terrain])` | Bake from **loaded chunk triangles**, not AABBs |
 
-## Crowd (no DetourCrowd)
+## Crowd (ORCA, no DetourCrowd)
 
-`go-detour` v0.1.3 does not ship DetourCrowd. `CreateCrowd` / `CrowdAddAgent` / `CrowdSetDestination` / `CrowdUpdate` / `SetCrowdRadius` / `GetCrowdRadius` run Detour paths plus local separation, a time-to-collision sidestep, and yaw toward travel. `SetNavMaxSlope(deg)` drops steep triangles when writing the bake OBJ (G3N Y-up). Hierarchical: coarse grid A* is still available via `CreateGrid`.
+`go-detour` v0.1.3 does not ship DetourCrowd. `CreateCrowd` / `CrowdAddAgent` / `CrowdSetDestination` / `CrowdSetAgentDestination` / `CrowdUpdate` / `SetCrowdRadius` / `GetCrowdRadius` run Detour paths, a Detour-style adaptive velocity sample, a time-to-collision sidestep, and yaw toward travel. The Recast C API is not linked. Crowd members are skipped by `UpdateNav` so they are not stepped twice. `SetNavMaxSlope(deg)` drops steep triangles when writing the bake OBJ (G3N Y-up). Hierarchical: coarse grid A* is still available via `CreateGrid`.
 
-See `examples/nav.bb`, `examples/crowd.bb`, `examples/ecs_crowd.bb`.
+## Behavior trees
+
+`CreateBehavior()` returns a tree. `BTSequence`, `BTSelector`, and `BTParallel` are composite nodes. `BTCondition(tree, fn$)` succeeds when `Function fn(entity)` returns nonzero. `BTAction(tree, fn$)` treats `0` as success, a positive number as still running, and a negative number as failure. `BTAdd(tree, parent, child)` links them. `SetBehavior(entity, tree, root)` ticks that root every frame. `ClearBehavior(entity)` stops that entity. The leaf is called with the entity id. Do not `Flip` inside a leaf. `examples/largeworld.mb` uses one tree for eight named people.
+
+See `examples/nav.mb`, `examples/crowd.mb`, `examples/ecs_crowd.mb`.
 
 ## Grid A* (`github.com/quasilyte/pathing`)
 

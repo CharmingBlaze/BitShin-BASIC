@@ -20,8 +20,8 @@ func TestWaterShaderIsGLSL330Scenic(t *testing.T) {
 		"WaterRefractDepth", "out vec4 FragColor",
 		"dFdx", "dFdy", "dx_pos", "dy_pos", "gl_FrontFacing", "deepWaterColor", "shallowWaterColor",
 		"512.0", "sunGlint", "foamStart", "foamNoise", "6.0", "depthMix", "finalRGB",
-		"Time", "WaveSpeed", "0.90", "detail * 0.15", "tex * 1.5",
-		"WaterSSROn", "WaterWake", "WakeSpan",
+		"Time", "WaveSpeed", "0.90", "detailAmt", "texture(WaterNormal, nUV2)",
+		"WaterSSROn", "WaterWake", "WakeSpan", "WaterFFT", "fftHeight",
 		"texture(WaterRefract", "PointLightPosition", "SpotLightPosition", "WaterReflectivity",
 	}
 	for _, s := range need {

@@ -1,3 +1,5 @@
+//go:build ignore
+
 // Generates original CC0 splat textures for examples/assets/terrain.
 // Not copied from Terrain-OpenGL JPGs.
 package main

@@ -87,7 +87,7 @@
           {#if editorStore.panelTab === 'problems'}
             No problems reported.
           {:else}
-            Ready. Press F5 or Run to execute with bs.exe.
+            Ready. Press F5 or Run to execute with moon.exe.
           {/if}
         </div>
       {:else}

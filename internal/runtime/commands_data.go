@@ -13,7 +13,7 @@ import (
 	"github.com/vmihailenco/msgpack/v5"
 	"gopkg.in/yaml.v3"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 type dataDoc struct {
@@ -465,14 +465,57 @@ func (w *World) sceneJSON() map[string]any {
 			row["near"] = e.cam.Near()
 			row["far"] = e.cam.Far()
 		}
+		if e.bodyType != 0 && e.collKind >= 1 && e.collKind <= 8 {
+			row["body"] = e.bodyType
+			row["shape"] = e.collKind
+			row["hx"] = e.boxX
+			row["hy"] = e.boxY
+			row["hz"] = e.boxZ
+			row["rad"] = e.radius
+			if w.phys3 != nil {
+				if mass := w.phys3.GetMass(id); mass > 0 {
+					row["mass"] = mass
+				}
+			}
+		}
+		if ctrl := w.sceneController(id); ctrl != nil {
+			row["ctrl"] = ctrl
+		}
+		if c := w.cloths[id]; c != nil {
+			row["cw"] = c.width
+			row["ch"] = c.height
+			row["cnx"] = c.nx
+			row["cny"] = c.ny
+			row["cpin"] = c.pin
+			row["cwind"] = c.wind
+			if w.phys3 != nil {
+				n := w.phys3.ClothVertexCount(id)
+				if n > 0 && n <= 24*24 {
+					buf := make([]float32, n*3)
+					if got := w.phys3.ClothVertices(id, buf); got > 0 {
+						row["cverts"] = buf[:got*3]
+					}
+				}
+			}
+		}
+		if look := sceneMaterial(e); look != nil {
+			row["mat"] = look
+		}
+		if joints := sceneSkinJoints(e); len(joints) > 0 {
+			row["joints"] = joints
+		}
 		ents = append(ents, row)
 	}
-	return map[string]any{"entities": ents}
+	out := map[string]any{"entities": ents}
+	if joints := w.sceneJointRows(); len(joints) > 0 {
+		out["joints"] = joints
+	}
+	return out
 }
 
 func spawnKindName(kind string) string {
 	switch strings.ToLower(kind) {
-	case "sphere", "box", "plane", "quad", "cylinder", "cone", "capsule", "torus", "pyramid", "cloth", "mesh", "disk", "wedge", "tube", "light", "camera":
+	case "sphere", "box", "plane", "quad", "cylinder", "cone", "capsule", "torus", "pyramid", "cloth", "mesh", "skin", "disk", "wedge", "tube", "light", "camera":
 		return strings.ToLower(kind)
 	default:
 		return "cube"
@@ -526,7 +569,7 @@ func (w *World) spawnSceneKind(kind, src string, parent int) int {
 		return w.makeLight(lk, parent)
 	case "camera":
 		return w.spawnCamera(parent)
-	case "mesh":
+	case "mesh", "skin":
 		if src != "" {
 			if id, err := w.loadMeshFile(src, parent); err == nil {
 				return id
@@ -562,7 +605,24 @@ func (w *World) applySceneJSON(root any) {
 			}
 		}
 		old := int(anyToValue(em["id"]).Number())
-		id := w.spawnSceneKind(kind, src, 0)
+		var id int
+		if strings.ToLower(kind) == "cloth" && em["cnx"] != nil {
+			id = w.createCloth(
+				float32(anyToValue(em["cw"]).Number()),
+				float32(anyToValue(em["ch"]).Number()),
+				int(anyToValue(em["cnx"]).Number()),
+				int(anyToValue(em["cny"]).Number()),
+				int(anyToValue(em["cpin"]).Number()),
+			)
+			if c := w.cloths[id]; c != nil {
+				c.wind = float32(anyToValue(em["cwind"]).Number())
+				if verts := floatList(em["cverts"]); len(verts) >= 3 && w.phys3 != nil {
+					w.phys3.SetClothVertices(id, verts)
+				}
+			}
+		} else {
+			id = w.spawnSceneKind(kind, src, 0)
+		}
 		if id == 0 {
 			continue
 		}
@@ -634,5 +694,120 @@ func (w *World) applySceneJSON(root any) {
 				e.cam.SetFar(float32(far))
 			}
 		}
+		w.restoreSceneBody(row.id, em)
+		w.restoreSceneMaterial(e, em)
+		w.restoreSceneSkin(e, em)
+		w.restoreSceneController(row.id, em, remap)
+	}
+	for _, row := range rows {
+		w.restoreSceneCompound(row.id, row.em)
+	}
+	w.restoreSceneJoints(root, remap)
+}
+
+// restoreSceneBody rebuilds a collider from a scene dump. Shapes 1–5 are the
+// primitive bodies. 6 is a compound rebuilt once every child is parented.
+// 7 is a mesh collider and 8 is a convex hull, both taken from the mesh that
+// was just spawned. Controllers and joints are restored beside this.
+func (w *World) restoreSceneBody(id int, em map[string]any) {
+	if em == nil {
+		return
+	}
+	if _, ok := em["shape"]; !ok {
+		return
+	}
+	shape := int(anyToValue(em["shape"]).Number())
+	body := int(anyToValue(em["body"]).Number())
+	if body == 0 || shape < 1 || shape > 8 {
+		return
+	}
+	e := w.ents[id]
+	if e == nil {
+		return
+	}
+	w.ensurePhys3()
+	if shape >= 6 {
+		w.restoreSceneMeshBody(id, e, em, shape, body)
+		return
+	}
+	x := float32(anyToValue(em["x"]).Number())
+	y := float32(anyToValue(em["y"]).Number())
+	z := float32(anyToValue(em["z"]).Number())
+	hx := float32(anyToValue(em["hx"]).Number())
+	hy := float32(anyToValue(em["hy"]).Number())
+	hz := float32(anyToValue(em["hz"]).Number())
+	rad := float32(anyToValue(em["rad"]).Number())
+	mass := float32(anyToValue(em["mass"]).Number())
+	motion := 2
+	switch body {
+	case 2:
+		motion = 0
+	case 3:
+		motion = 1
+	}
+	switch shape {
+	case 2:
+		if rad <= 0 {
+			rad = 1
+		}
+		w.phys3.AddSphereEx(id, x, y, z, rad, motion)
+		e.radius = rad
+	case 3:
+		if hy <= 0 {
+			hy = 1
+		}
+		if rad <= 0 {
+			rad = 0.4
+		}
+		w.phys3.AddCapsule(id, x, y, z, hy, rad, motion != 0)
+		e.boxY = hy
+		e.radius = rad
+	case 4:
+		if hy <= 0 {
+			hy = 1
+		}
+		r := hx
+		if r <= 0 {
+			r = rad
+		}
+		if r <= 0 {
+			r = 0.4
+		}
+		w.phys3.AddCylinder(id, x, y, z, hy, r, motion)
+		e.boxX, e.boxY = r, hy
+		e.radius = r
+	case 5:
+		if hx <= 0 {
+			hx = 1
+		}
+		if hy <= 0 {
+			hy = 1
+		}
+		if hz <= 0 {
+			hz = 1
+		}
+		w.phys3.AddSensorBox(id, x, y, z, hx, hy, hz, motion)
+		e.boxX, e.boxY, e.boxZ = hx, hy, hz
+	default:
+		if hx <= 0 {
+			hx = 1
+		}
+		if hy <= 0 {
+			hy = 1
+		}
+		if hz <= 0 {
+			hz = 1
+		}
+		w.phys3.AddBoxEx(id, x, y, z, hx, hy, hz, motion)
+		e.boxX, e.boxY, e.boxZ = hx, hy, hz
+	}
+	e.bodyType = body
+	e.collKind = shape
+	if motion == 2 && mass > 0 {
+		w.phys3.SetMass(id, mass)
+	}
+	if e.node != nil && (shape == 1 || shape == 4) {
+		wq := worldQuat(e.node.GetNode())
+		w.phys3.SetRotation(id, wq.X, wq.Y, -wq.Z, wq.W)
 	}
 }

@@ -1,0 +1,62 @@
+; Scene widgets — G3N gui nodes on the same window (not Dear ImGui).
+; The button, slider, checkbox, and edit live on a panel. Esc quits.
+
+Graphics3D(800, 600)
+SetWindowTitle("moonBASIC — Scene widgets")
+SetCameraClsColor(18, 22, 32)
+SetAmbientLight(70, 80, 100)
+
+camera = CreateCamera().Position([0, 2, -6])
+camera.Point(0, 0.4, 0)
+CreateLight().Rotate(50, 30, 0)
+
+ground = CreatePlane(16, 16).Position([0, -1, 0]).Color(36, 42, 52)
+cube = CreateCube().Position([0, 0.4, 0]).Color(90, 170, 240)
+
+spinOn = 1
+
+panel = CreatePanel(220, 230)
+SetWidgetPos(panel, 16, 16)
+
+title = CreateLabel("Scene widgets", panel)
+SetWidgetPos(title, 16, 12)
+
+btn = CreateButton("Stop", panel)
+SetWidgetPos(btn, 16, 44)
+SetOnClick(btn, "ToggleSpin")
+
+slide = CreateSlider(180, 22, panel)
+SetWidgetPos(slide, 16, 92)
+SetWidgetValue(slide, 0.35)
+
+chk = CreateCheckbox("Wireframe", panel)
+SetWidgetPos(chk, 16, 132)
+
+ed = CreateEdit(180, panel)
+SetWidgetPos(ed, 16, 168)
+SetWidgetText(ed, "crate")
+
+info = CreateLabel("speed", panel)
+SetWidgetPos(info, 16, 200)
+
+Function ToggleSpin(id)
+    Global spinOn
+    spinOn = 1 - spinOn
+    If spinOn Then
+        SetWidgetText(id, "Stop")
+    Else
+        SetWidgetText(id, "Spin")
+    EndIf
+End Function
+
+While Not Input.KeyDown(1)
+    dt# = Time.Delta() * 60
+    spd# = WidgetValue(slide) * 5
+    If spinOn Then cube.Turn(0, spd# * dt, 0)
+    Wireframe(WidgetValue(chk))
+    cube.Name(WidgetText(ed))
+    SetWidgetText(info, "speed " + Str(spd#))
+    RenderWorld
+    Flip
+Wend
+End

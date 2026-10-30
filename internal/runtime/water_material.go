@@ -31,7 +31,7 @@ func (m *WaterMaterial) Configure() {
 	m.SetShader("mbwater")
 	m.SetShaderUnique(true)
 	m.SetUseLights(material.UseLightNone)
-	m.SetSide(material.SideFront)
+	m.SetSide(material.SideDouble)
 	m.SetTransparent(true)
 	m.SetOpacity(1)
 	m.SetBlending(material.BlendNormal)
@@ -182,6 +182,21 @@ func (m *WaterMaterial) Bind(gs *gls.GLS) {
 	}
 	peak *= storm
 	setUni1f(gs, "WaterPeak", peak)
+	fftTex := dummy
+	fftOn := 0
+	if wb.fftOn && m.w != nil {
+		if id := m.w.uploadWaterFFT(wb, m.clock()); id != 0 {
+			fftTex = id
+			fftOn = 1
+		}
+	}
+	bindWaterSampler(gs, 11, fftTex, "WaterFFT")
+	setUni1i(gs, "WaterFFTOn", fftOn)
+	fftSize := float32(32)
+	if wb.fft != nil && wb.fft.size > 0 {
+		fftSize = wb.fft.size
+	}
+	setUni1f(gs, "WaterFFTSize", fftSize)
 	if m.w != nil {
 		m.w.bindWaterShadows(gs)
 		m.bindWakeSSR(gs)

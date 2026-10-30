@@ -4,7 +4,7 @@ import (
 	"github.com/g3n/engine/window"
 	"github.com/go-gl/glfw/v3.3/glfw"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 func (w *World) fireHook(name string, args ...value.Value) {

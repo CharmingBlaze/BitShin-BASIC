@@ -1,9 +1,9 @@
 # Outdoor and indoor play
 
-One world. The terrain streams the outdoors. Rooms stream the indoors. `examples/outdoor.bb` is the whole loop in one file. Run it with:
+One world. The terrain streams the outdoors. Rooms stream the indoors. `examples/outdoor.mb` is the whole loop in one file. Run it with:
 
 ```powershell
-.\bs.exe examples\outdoor.bb
+.\moon.exe examples\outdoor.mb
 ```
 
 | Key | What it does |
@@ -48,14 +48,14 @@ What each density means:
 | Call | Density `1` | Density `0` | Where it plants |
 | --- | --- | --- | --- |
 | `TerrainFoliage(t [, density])` | A light meadow of crossed cards | Clears the cards | Flat ground, above the shore, below the snow |
-| `TerrainTrees(t, mesh [, density])` | Spaced copies of `mesh` | Clears that mesh | Same flat-ground test as grass |
+| `TerrainTrees(t, mesh [, density])` | Spaced copies of `mesh`. A texture becomes a card | Clears that mesh | `SetTreeCards` sets size, crossed cards, and camera facing |
 | `TerrainProps(t, mesh [, density])` | A sparser layer of that mesh | Clears that mesh | Shore, dirt, and moderate slopes. Not cliffs, not snow |
 
-Call `TerrainProps` again with a different mesh to add a second layer (bushes, then crates). Near trees and props are instances. On a far chunk they become one vertical quad turned toward the camera at the moment the chunk is built. Near grass cards are two crossed quads. Far grass is one quad.
+Call `TerrainProps` again with a different mesh to add a second layer (bushes, then crates). Trees stay instances of the mesh. Far props become one vertical quad. Near grass cards are two crossed quads. Far grass is one quad.
 
 These copies are not in the heightfield, not in collision, and not in `BakeTerrainNav`. A tree does not stop a character unless you give that character your own collision. `CreateWorldStream` is still how you stream a hand-built town, and it still fills new cells with the demo slabs and cones. `LoadChunk` still forces one cell.
 
-`SetPlayer(cam)` is still the body that actors chase and that footsteps follow. It also turns the world bubble on: the terrain window, water (if you have not set follow yourself), near-chunk collision, and a shift past 4 km. `SetStreamOrigin` every frame, as `examples/outdoor.bb` does, still pins the window on the camera and overrides that follow. `SetWorldBubble(0)` before `SetPlayer` keeps this call as footsteps only. Details: [STREAM.md](STREAM.md).
+`SetPlayer(cam)` is still the body that actors chase and that footsteps follow. It also turns the world bubble on: the terrain window, water (if you have not set follow yourself), near-chunk collision, and a shift past 4 km. `SetStreamOrigin` every frame, as `examples/outdoor.mb` does, still pins the window on the camera and overrides that follow. `SetWorldBubble(0)` before `SetPlayer` keeps this call as footsteps only. Details: [STREAM.md](STREAM.md).
 
 Snap the camera to the ground yourself:
 
@@ -63,7 +63,7 @@ Snap the camera to the ground yourself:
 SetPlayer(cam)
 SetStreamOrigin(EntityX(cam), 0, EntityZ(cam))
 h# = TerrainHeight(EntityX(cam), EntityZ(cam))
-SetPosition(cam, EntityX(cam), h + 1.75, EntityZ(cam))
+Entity.SetPos(cam, EntityX(cam), h + 1.75, EntityZ(cam))
 ```
 
 ## 2. Time of day
@@ -89,8 +89,8 @@ In the example, hold `[` or `]` and the hour moves:
 
 ```basic
 hour# = GetTimeOfDay()
-If KeyDown(KEY_LBRACKET) Then hour = hour - 4 * dt
-If KeyDown(KEY_RBRACKET) Then hour = hour + 4 * dt
+If Input.KeyDown(KEY_LBRACKET) Then hour = hour - 4 * dt
+If Input.KeyDown(KEY_RBRACKET) Then hour = hour + 4 * dt
 SetTimeOfDay(hour)
 ```
 
@@ -142,7 +142,7 @@ From `hall` you also see `kitchen`, because they are linked. You do not see a th
 
 ```basic
 lamp = CreatePointLight()
-SetPosition(lamp, hx, hy + 2.2, hz)
+Entity.SetPos(lamp, hx, hy + 2.2, hz)
 SetRoom(lamp, hall)
 ```
 
@@ -153,7 +153,7 @@ SetRoom(lamp, hall)
 ```basic
 door = CreateCube()
 SetScale(door, 0.08, 1.1, 0.55)
-SetPosition(door, hx + 2.1, hy + 1.1, hz)
+Entity.SetPos(door, hx + 2.1, hy + 1.1, hz)
 CreateDoor(door, hall, kitchen, doorSnd)
 ```
 
@@ -198,7 +198,7 @@ SetDialogue(npc, "The key is outside.|Bring it back.")
 Lines split on `|` or a newline. While a conversation is open, E should advance it instead of picking again:
 
 ```basic
-If KeyHit(KEY_E) Then
+If Input.KeyHit(KEY_E) Then
     If DialogueOn() Then
         DialogueAdvance()
     Else
@@ -218,7 +218,7 @@ If InventoryHas("key") Then Text(12, 72, "You have the key")
 `SetPlayer` is who the steps measure, and it also starts the world bubble described in [STREAM.md](STREAM.md). `SetWorldBubble(0)` keeps it as the footstep body only. `RoomAudio` is the clip for the room you are in, including room `0` if you want outdoor steps.
 
 ```basic
-stepSnd = LoadSound("assets/step.wav")
+stepSnd = Sound.Load("assets/step.wav")
 RoomAudio(hall, stepSnd, 0.4)
 ```
 
@@ -236,17 +236,17 @@ Three states. `ActorState(ent)` returns the number.
 
 ```basic
 wolf = CreateCube()
-SetPosition(wolf, 28, TerrainHeight(28, 24) + 0.4, 24)
+Entity.SetPos(wolf, 28, TerrainHeight(28, 24) + 0.4, 24)
 CreateActor(wolf, 11, 4)
 ```
 
-`11` is the aggro distance. `4` is the speed. Defaults are `8` and `3.2` if you omit them. `Use` on the wolf starts a chase even when you are still outside aggro. This is not a behavior tree and not inverse kinematics. Attack does not deal damage. You read `ActorState` and apply damage yourself.
+`11` is the aggro distance. `4` is the speed. Defaults are `8` and `3.2` if you omit them. `Use` on the wolf starts a chase even when you are still outside aggro. Attack does not deal damage. You read `ActorState` and apply damage yourself. Scripted towns use `CreateBehavior` instead (`docs/NAV.md`). Two-bone aiming is `SetIK`.
 
 ## 9. Save and load
 
 ```basic
-If KeyHit(KEY_F5) Then SaveGame("outdoor.json")
-If KeyHit(KEY_F9) Then LoadGame("outdoor.json")
+If Input.KeyHit(KEY_F5) Then SaveGame("outdoor.json")
+If Input.KeyHit(KEY_F9) Then LoadGame("outdoor.json")
 ```
 
 The file is JSON next to the program when the path is relative. It stores the hour, the player position, the inventory names, which doors are open, visited terrain-chunk keys, the current room, and the dialogue line. It does not store the whole scene. `SaveScene` is the full dump. `LoadGame` of a missing file returns `0` and an error.

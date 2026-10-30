@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 func TestAlpineHeightmapHasRelief(t *testing.T) {

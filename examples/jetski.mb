@@ -1,0 +1,193 @@
+; JetSki — arcade ride on Gerstner ocean with Jolt buoyancy.
+; W/Up throttle, S reverse, A/D or arrows steer, mouse look.
+; Esc quits after a few frames.
+
+; window
+SetWindowTitle("moonBASIC — JetSki")
+Graphics3D(1280, 720, 0, 2)
+SetBuffer(BackBuffer())
+SetCameraClsColor(74, 151, 211)
+SetAmbientLight(82, 94, 112)
+HidePointer()
+MoveMouse(640, 360)
+
+; camera
+cam = CreateCamera()
+SetCameraRange(cam, 0.2, 2600)
+CreateSkyBox("default")
+; A few small fair-weather puffs. Created before SetWeather so clear
+; weather does not spawn the wide deck.
+CreateVolumetricClouds(24, 140)
+CameraFogMode(cam, 1)
+CameraFogColor(cam, 142, 188, 220)
+CameraFogRange(cam, 150, 620)
+SetWeather("clear")
+SetClouds(0.34, 0.7, 0.08)
+
+sun = CreateDirectionalLight()
+SetLightDirection(sun, 48, 34, 0)
+SetLightColor(sun, 255, 237, 202)
+SetLightShadow(sun, True)
+EnableShadows(True)
+
+; world
+; Rolling ocean: enough chop to launch from a crest without hammering the hull.
+water = CreateWater(520, 520, 160)
+SetWaterStyle("ocean")
+SetWaterColor(16, 108, 158)
+SetWaterWaves(4, 0.58)
+SetGerstner(0, 0.94, 0.25, 0.30, 0.70, 22, 0.9)
+SetGerstner(1, -0.20, 0.98, 0.24, 0.26, 11, 1.2)
+SetGerstner(2, 0.62, -0.72, 0.18, 0.08, 6, 1.55)
+SetGerstner(3, 0.18, 0.98, 0.12, 0.025, 3.2, 2.1)
+SetWaterWind(0.90, 0.28, 0.45)
+SetWaterWaveStrength(0.018)
+SetWaterFollow(True)
+SetWaterLevel(0)
+EnableWaterReflection(True)
+EnableWaterRefraction(True)
+SetWaterCaustics(water, True)
+
+; Sand island, with the palms planted on it. The buoy lap stays out in the water.
+sand = CreateSphere(10).Scale(14, 2.4, 11).Position([0, 0.35, 70]).Color(214, 186, 112)
+CreateBodyBox(sand, 13, 2.2, 10, 0)
+grass = CreateSphere(8).Scale(7, 1.3, 5.5).Position([0, 1.7, 70]).Color(62, 140, 58)
+
+For i = 0 To 7
+    ang = i * 45 + 18
+    px# = Math.Sin(ang) * 6.5
+    pz# = 70 + Math.Cos(ang) * 5
+    nx# = px / 14
+    nz# = (pz - 70) / 11
+    lift# = 1 - nx * nx - nz * nz
+    If lift < 0.08 Then lift = 0.08
+    ground# = 0.35 + 2.4 * Math.Sqr(lift)
+    trunk = CreateCylinder(6).Scale(0.22, 2.15, 0.22).Position([px, ground + 2.15, pz]).Color(112, 70, 38)
+    CreateBodyBox(trunk, 0.4, 2.15, 0.4, 0)
+    crown = CreateSphere(6).Scale(0.55, 0.32, 0.55).Position([px, ground + 4.55, pz]).Color(24, 122, 42)
+    For f = 0 To 4
+        fang = f * 72 + ang
+        frond = CreateCone(5).Scale(0.28, 1.35, 0.12)
+        frond.Position([px + Math.Sin(fang) * 0.85, ground + 4.35, pz + Math.Cos(fang) * 0.85])
+        frond.Rotate(68, fang, 0)
+        frond.Color(36, 148, 52)
+    Next
+Next
+
+; Buoys outside the palms, so the lap goes around the island.
+For i = 0 To 9
+    ang = i * 36
+    cx# = Math.Sin(ang) * 42
+    cz# = 70 + Math.Cos(ang) * 36
+    tx# = Math.Cos(ang)
+    tz# = -Math.Sin(ang)
+    flen# = Math.Sqr(tx * tx + tz * tz)
+    If flen < 0.001 Then flen = 1
+    tx = tx / flen
+    tz = tz / flen
+    rx# = tz
+    rz# = -tx
+    leftM = CreateSphere(8).Scale(0.7, 0.7, 0.7)
+    leftM.Position([cx - rx * 5.5, WaterHeight(cx - rx * 5.5, cz - rz * 5.5) + 0.6, cz - rz * 5.5])
+    leftM.Color(255, 92, 34)
+    CreateBuoy(leftM)
+    rightM = CreateSphere(8).Scale(0.7, 0.7, 0.7)
+    rightM.Position([cx + rx * 5.5, WaterHeight(cx + rx * 5.5, cz + rz * 5.5) + 0.6, cz + rz * 5.5])
+    rightM.Color(255, 218, 52)
+    CreateBuoy(rightM)
+Next
+
+; vehicle
+; The physics body is the pivot; all visible parts are children.
+; South of the island, heading west through the first gate.
+jetski = CreatePivot().Position([16, 1.35, 34])
+SetRotation(jetski, 0, -90, 0)
+
+hull = CreateCube(jetski).Scale(0.58, 0.25, 1.52).Position([0, -0.02, 0]).Color(236, 48, 34)
+deck = CreateCube(jetski).Scale(0.49, 0.13, 1.04).Position([0, 0.28, -0.10]).Color(248, 82, 38)
+nose = CreateCone(10, jetski).Scale(0.56, 0.72, 0.42).Position([0, 0.06, 1.30]).Rotate(90, 0, 0).Color(248, 88, 38)
+seat = CreateCube(jetski).Scale(0.35, 0.12, 0.52).Position([0, 0.48, -0.55]).Color(28, 32, 38)
+column = CreateCylinder(8, jetski).Scale(0.08, 0.42, 0.08).Position([0, 0.62, 0.38]).Rotate(-16, 0, 0).Color(42, 46, 50)
+bars = CreateCube(jetski).Scale(0.48, 0.035, 0.035).Position([0, 0.98, 0.30]).Color(28, 30, 34)
+
+; Simple rider silhouette, leaning visually with the steering input.
+rider = CreatePivot(jetski).Position([0, 0.52, -0.48])
+
+body = CreateCylinder(10, rider).Scale(0.25, 0.46, 0.21).Position([0, 0.52, 0]).Color(28, 68, 172)
+head = CreateSphere(10, rider).Scale(0.19, 0.19, 0.19).Position([0, 1.15, 0.06]).Color(255, 194, 142)
+helmet = CreateSphere(10, rider).Scale(0.205, 0.14, 0.205).Position([0, 1.24, 0.04]).Color(244, 238, 224)
+armL = CreateCube(rider).Scale(0.055, 0.055, 0.40).Position([-0.24, 0.70, 0.40]).Rotate(-22, 9, 0).Color(255, 194, 142)
+armR = CreateCube(rider).Scale(0.055, 0.055, 0.40).Position([0.24, 0.70, 0.40]).Rotate(-22, -9, 0).Color(255, 194, 142)
+
+; White stern spray. Its rate follows speed.
+spray = CreateEmitter(jetski)
+spray.Position([0, -0.18, -1.48])
+SetEmitterRate(spray, 0)
+SetEmitterMax(spray, 90)
+SetEmitterLife(spray, 0.55)
+SetEmitterSpeed(spray, 4.2)
+SetEmitterSize(spray, 0.10, 0.38)
+SetEmitterColor(spray, 225, 244, 255, 0.82, 190, 226, 246, 0)
+SetEmitterVelocity(spray, 0, 1.5, -3.8)
+SetEmitterCone(spray, 30)
+SetEmitterGravity(spray, 0, -5.5, 0)
+
+CreateJetSkiController(jetski, 0.60, 0.35, 1.55, 380)
+SetCCD(jetski, True)
+
+; loop
+camYaw# = 0
+camPitch# = 13
+steerSmooth# = 0
+frames = 0
+
+While 1
+    frames = frames + 1
+    If frames > 8 And Input.KeyHit(KEY_ESCAPE) Then Exit
+    dt# = Time.Delta()
+    If dt <= 0 Then dt = 0.016
+    If dt > 0.05 Then dt = 0.05
+
+    camYaw = camYaw + MouseDeltaX() * 0.15
+    camPitch = camPitch + MouseDeltaY() * 0.11
+    If camPitch < -4 Then camPitch = -4
+    If camPitch > 34 Then camPitch = 34
+    MoveMouse(640, 360)
+
+    throttle# = 0
+    If Input.KeyDown(KEY_W) Or Input.KeyDown(KEY_UP) Then throttle = 1
+    If Input.KeyDown(KEY_S) Or Input.KeyDown(KEY_DOWN) Then throttle = -0.42
+
+    steer# = GetAxis(KEY_A, KEY_D)
+    If Input.KeyDown(KEY_LEFT) Then steer = -1
+    If Input.KeyDown(KEY_RIGHT) Then steer = 1
+    steerSmooth = steerSmooth + (steer - steerSmooth) * 0.18
+
+    UpdateJetSki(jetski, throttle, steerSmooth)
+
+    speed# = BodyVelocity(jetski)
+    SetEmitterRate(spray, Int(speed * 2.2))
+    SetRotation(rider, 5, 0, -steerSmooth * 18)
+
+    ; Recover if the player travels beyond the streamed course or sinks.
+    wx# = EntityX(jetski)
+    wz# = EntityZ(jetski)
+    wy# = WaterHeight(wx, wz)
+    If EntityY(jetski) < wy - 3 Or Math.Abs(wx) > 220 Or Math.Abs(wz - 70) > 160
+        Entity.SetPos(jetski, 16, WaterHeight(16, 34) + 1.2, 34)
+        SetRotation(jetski, 0, -90, 0)
+        SetVelocity(jetski, 0, 0, 0)
+    EndIf
+
+    chaseYaw# = EntityYaw(jetski) + camYaw
+    CameraFollow(cam, jetski, 9.4, 2.9, 12, chaseYaw, camPitch)
+
+    Cls
+    UpdateWorld
+    RenderWorld
+    Text(20, 18, "JETSKI")
+    Text(20, 42, "W throttle    A/D steer    race around the island    Esc quit")
+    Text(20, 66, "Speed " + Int(speed * 1.94) + " knots")
+    Flip
+Wend
+End

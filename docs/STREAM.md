@@ -15,7 +15,7 @@ SetStreamFollow(player)
 
 `SetStreamFollow(ent)` moves that center to the entity every Flip. `SetStreamOrigin(x, y, z)` pins the center instead (y is ignored). An origin call wins over follow until the next `SetStreamFollow`.
 
-`examples/stream.bb` is this path. `examples/largeworld.bb` uses it with a procedural terrain.
+`examples/stream.mb` is this path. `examples/largeworld.mb` uses it with a procedural terrain.
 
 Terrain has its own window, and it always did:
 
@@ -56,7 +56,7 @@ On top of the old follow, the bubble adds:
 | Morph | In the last third of a LOD band, verts slide toward the next grid | `SetWorldMorph(0)` |
 | Shift | Past 4096 units the world moves so the player is near zero. `EntityX` stays local. `WorldOriginX` / `WorldOriginZ` is the shift. Heights add it. | `SetWorldShift(0)` |
 
-`SetStreamOrigin` and `SetStreamFollow` still override the center after `SetPlayer`. `examples/outdoor.bb` does this: `SetPlayer(cam)` for footsteps, then `SetStreamOrigin` every frame so the terrain window is the camera.
+`SetStreamOrigin` and `SetStreamFollow` still override the center after `SetPlayer`. `examples/outdoor.mb` does this: `SetPlayer(cam)` for footsteps, then `SetStreamOrigin` every frame so the terrain window is the camera.
 
 To keep `SetPlayer` as footsteps only:
 

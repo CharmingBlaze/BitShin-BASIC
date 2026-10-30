@@ -3,8 +3,8 @@ package runtime
 import (
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/mathx"
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/mathx"
+	"moonbasic/internal/value"
 )
 
 type lightProbe struct {

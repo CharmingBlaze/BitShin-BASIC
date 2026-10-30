@@ -5,10 +5,10 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"bitshinbasic/internal/ast"
-	"bitshinbasic/internal/lex"
-	"bitshinbasic/internal/parse"
-	"bitshinbasic/internal/syntax"
+	"moonbasic/internal/ast"
+	"moonbasic/internal/lex"
+	"moonbasic/internal/parse"
+	"moonbasic/internal/syntax"
 )
 
 type document struct {
@@ -44,7 +44,7 @@ func parseDiagnostics(text string) []diagnostic {
 	return []diagnostic{{
 		Range:    lspRange{Start: start, End: end},
 		Severity: severityError,
-		Source:   "bitshin",
+		Source:   "moonbasic",
 		Message:  msg,
 	}}
 }
@@ -249,7 +249,7 @@ func semanticDiags(cat *catalog, doc *document) []diagnostic {
 					out = append(out, diagnostic{
 						Range:    rangeFromSrc(t.Src, t.Name),
 						Severity: severityWarning,
-						Source:   "bitshin",
+						Source:   "moonbasic",
 						Message:  fmt.Sprintf("function %s is already declared (line %d)", t.Name, prev),
 					})
 				} else {
@@ -308,7 +308,7 @@ func semanticDiags(cat *catalog, doc *document) []diagnostic {
 			out = append(out, diagnostic{
 				Range:    rangeFromSrc(t.Src, t.Name),
 				Severity: severityWarning,
-				Source:   "bitshin",
+				Source:   "moonbasic",
 				Message:  "unknown function " + t.Name,
 			})
 		case *ast.BinaryExpr:

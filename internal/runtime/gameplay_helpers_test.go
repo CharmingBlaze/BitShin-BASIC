@@ -6,8 +6,8 @@ import (
 
 	"github.com/g3n/engine/core"
 
-	"bitshinbasic/internal/phys3d"
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/phys3d"
+	"moonbasic/internal/value"
 )
 
 func TestGameplayMathHelpers(t *testing.T) {

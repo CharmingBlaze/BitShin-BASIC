@@ -1,13 +1,13 @@
-# BitShin BASIC
+# moonBASIC
 
-Blitz3D-style BASIC for small 3D and 2D games, implemented in Go. `bs version` is **1.0.0**.
+BASIC for small 3D and 2D games. The window, meshes, and physics are this runtime (G3N, Ebiten, Jolt). `moon version` is **1.0.0**. Raylib command names are not part of this language.
 
 - **3D graphics:** [G3N](https://github.com/g3n/engine) + go-gl. **Runs on OpenGL 3.3.** GL 4.x (compute, SSBO, tessellation) is optional and feature-detected — old GPUs skip those commands instead of refusing to start. See [docs/GRAPHICS.md](docs/GRAPHICS.md).
 - **Numerics:** [Gonum](https://www.gonum.org/) for FBM / SH / batch transforms. G3N scene types stay `math32`.
 - **2D graphics:** [Ebiten](https://github.com/hajimehoshi/ebiten)
-- **3D physics:** [jolt-go](https://github.com/bbitechnologies/jolt-go) on Linux amd64/arm64 and macOS ARM; Windows uses the same API plus `third_party/jolt/windows_amd64`. `-tags nojolt` or other OS/arch: software fallback (`PhysicsBackend$()` = `fallback`)
+- **3D physics:** native Jolt on Windows, Linux amd64/arm64, and macOS ARM (cars, tanks, bikes, cloth, and rotated colliders). Linux and macOS link the Jolt 5.4 libraries from [jolt-go](https://github.com/bbitechnologies/jolt-go). `-tags nojolt` or another OS/arch: software fallback (`PhysicsBackend$()` = `fallback`)
 - **2D physics:** [jakecoffman/cp](https://github.com/jakecoffman/cp) (Chipmunk2D, pure Go)
-- **Network:** [go-enet](https://github.com/codecat/go-enet) with `-tags enet`, otherwise UDP
+- **Network:** one player hosts, friends join on the same network. [go-enet](https://github.com/codecat/go-enet) with `-tags enet`, otherwise UDP. See [docs/NETWORK.md](docs/NETWORK.md)
 - **Audio:** [Oto](https://github.com/ebitengine/oto) v3 for `.wav` / `.ogg` (no OpenAL)
 - **UI:** [cimgui-go](https://github.com/AllenDang/cimgui-go) v1.6.0 on the same G3N GLFW window
 - **ECS:** Flecs 4.1.6 (`github.com/SanderMertens/flecs-go` → `third_party/flecs-go`)
@@ -18,17 +18,17 @@ Graphics3D(960, 600, 0, 2)
 camera = CreateCamera()
 light = CreateLight()
 cube = CreateCube()
-SetPosition(cube, 0, 0, 5)
+Entity.SetPos(cube, 0, 0, 5)
 
-While Not KeyDown(1)
-    dt# = DeltaTime() * 60
+While Not Input.KeyDown(1)
+    dt# = Time.Delta() * 60
     TurnEntity(cube, 0.4 * dt, 0.7 * dt, 0)
     RenderWorld
     Flip
 Wend
 ```
 
-`KeyDown(1)` is Escape. 3D axes match Blitz3D (Y up, +Z forward from the origin).
+`Input.KeyDown(1)` is Escape. 3D axes match Blitz3D (Y up, +Z forward from the origin).
 
 ## Install
 
@@ -37,31 +37,31 @@ Need Go 1.25+ and, to **build the windowed CLI**, a C compiler plus **OpenGL 3.3
 ```powershell
 git clone <this-repo>
 cd <repo-root>
-go build -o bs.exe ./cmd/bs
-go build -o bsls.exe ./cmd/bsls
+go build -o moon.exe ./cmd/bs
+go build -o moonsls.exe ./cmd/bsls
 ```
 
-### BitShin BASIC IDE (Wails + Svelte 5)
+### moonBASIC IDE (Neutralino + Svelte 5)
 
 Modern desktop IDE with Monaco code editor, full IntelliSense autocomplete, instant F5 run & real-time console, 790+ searchable command reference browser, symbol outline, demo gallery, and standalone game packager:
 
 ```powershell
 .\scripts\build_ide.ps1
-.\BitShinIDE.exe
+.\moonbasic.exe
 ```
 
 ### Run spinning_cube (3D / G3N)
 
 ```powershell
-.\bs.exe examples\spinning_cube.bb
+.\moon.exe examples\spinning_cube.mb
 ```
 
-A window opens with a turning cube. Esc (`KeyDown(1)`) quits.
+A window opens with a turning cube. Esc (`Input.KeyDown(1)`) quits.
 
 ### Run draw2d (2D / Ebiten)
 
 ```powershell
-.\bs.exe examples\draw2d.bb
+.\moon.exe examples\draw2d.mb
 ```
 
 A bouncing oval and a rectangle. Esc quits.
@@ -69,53 +69,56 @@ A bouncing oval and a rectangle. Esc quits.
 ### Other examples
 
 ```powershell
-.\bs.exe examples\hello_console.bb
-.\bs.exe examples\platform64.bb
-.\bs.exe examples\windows.bb
-.\bs.exe examples\lights.bb
-.\bs.exe examples\playground.bb
-.\bs.exe examples\shadows.bb
-.\bs.exe examples\pbr.bb
-.\bs.exe examples\nav.bb
-.\bs.exe examples\platform2d.bb
-.\bs.exe examples\tiles.bb
-.\bs.exe examples\particles.bb
-.\bs.exe examples\splitscreen.bb
-.\bs.exe examples\scenes.bb
-.\bs.exe examples\gui_demo.bb
-.\bs.exe examples\hud_demo.bb
-.\bs.exe examples\ssao_demo.bb
-.\bs.exe examples\trigger_zone_demo.bb
-.\bs.exe examples\ecs.bb
-.\bs.exe examples\terrain.bb
-.\bs.exe examples\terrain_gl.bb
-.\bs.exe examples\heightmap.bb
-.\bs.exe examples\geo.bb
-.\bs.exe examples\water.bb
-.\bs.exe examples\stream.bb
-.\bs.exe examples\crowd.bb
-.\bs.exe examples\editor.bb
-.\bs.exe examples\largeworld.bb
+.\moon.exe examples\hello_console.mb
+.\moon.exe examples\platform64.mb
+.\moon.exe examples\windows.mb
+.\moon.exe examples\lights.mb
+.\moon.exe examples\playground.mb
+.\moon.exe examples\shadows.mb
+.\moon.exe examples\pbr.mb
+.\moon.exe examples\nav.mb
+.\moon.exe examples\platform2d.mb
+.\moon.exe examples\tiles.mb
+.\moon.exe examples\particles.mb
+.\moon.exe examples\splitscreen.mb
+.\moon.exe examples\scenes.mb
+.\moon.exe examples\gui_demo.mb
+.\moon.exe examples\gui_panels.mb
+.\moon.exe examples\gui_scene.mb
+.\moon.exe examples\gui_3d.mb
+.\moon.exe examples\hud_demo.mb
+.\moon.exe examples\ssao_demo.mb
+.\moon.exe examples\trigger_zone_demo.mb
+.\moon.exe examples\ecs.mb
+.\moon.exe examples\terrain.mb
+.\moon.exe examples\terrain_gl.mb
+.\moon.exe examples\heightmap.mb
+.\moon.exe examples\geo.mb
+.\moon.exe examples\water.mb
+.\moon.exe examples\stream.mb
+.\moon.exe examples\crowd.mb
+.\moon.exe examples\editor.mb
+.\moon.exe examples\largeworld.mb
 ```
 
 ### Standalone Ahead-of-Time (AOT) Native Compiler
 
-Modern Blitz includes its own native compiler. You can compile any `.bb` script directly into a standalone machine-code binary with zero interpreter overhead:
+moonBASIC includes its own native compiler. You can compile any `.mb` script directly into a standalone machine-code binary with zero interpreter overhead:
 
 ```powershell
 # Compile directly to a standalone native binary (.exe on Windows, ELF/Mach-O on Linux/macOS)
-.\bs.exe compile examples\hud_demo.bb -o dist\game.exe
+.\moon.exe compile examples\hud_demo.mb -o dist\game.exe
 
-# Transpile BlitzBasic code into clean, formatted native Go source code
-.\bs.exe transpile examples\hud_demo.bb -o game.go
+# Transpile a script into Go source
+.\moon.exe transpile examples\hud_demo.mb -o game.go
 
 # Export standalone HTML5 Web Player bundle (WASM)
-.\bs.exe build examples\hud_demo.bb -o dist\web -os wasm
+.\moon.exe build examples\hud_demo.mb -o dist\web -os wasm
 ```
 
-You can also package a portable folder using `bs build examples\scenes.bb -o dist`. That writes the binary, assets, and natives from `third_party/windows|linux|darwin` next to it. Run from that folder.
+You can also package a portable folder using `moon build examples\scenes.mb -o dist`. That writes the binary, assets, and natives from `third_party/windows|linux|darwin` next to it. Run from that folder.
 
-The built game keeps its window until the script ends, you press Escape (after the first frames; a focus ghost does not quit on frame 0), or you close the window. `Flip` presents the frame. Shaders, water, shadows, particles, and physics live in this runtime, so an exe you already compiled does not pick up a newer `bs.exe` until you compile that game again.
+The built game keeps its window until the script ends, you press Escape (after the first frames; a focus ghost does not quit on frame 0), or you close the window. `Flip` presents the frame. Shaders, water, shadows, particles, and physics live in this runtime, so an exe you already compiled does not pick up a newer `moon.exe` until you compile that game again.
 
 **Windows:** MinGW `gcc` on `PATH`. Dist copies `libc++.dll` and `libunwind.dll` (ImGui). Audio is Oto — no OpenAL DLL.  
 **Linux / macOS:** a C compiler and an OpenGL driver. Audio is Oto — no OpenAL package.
@@ -140,81 +143,87 @@ Do not mix `Graphics3D` and `Graphics2D` in one program.
 
 | File | Mode |
 | --- | --- |
-| `examples/hello_console.bb` | Language only |
-| `examples/math.bb` | Degrees math library |
-| `examples/spinning_cube.bb` | 3D cube |
-| `examples/lights.bb` | Lights + fog + shadows |
-| `examples/parent.bb` | `SetEntityParent` |
-| `examples/playground.bb` | 3D primitives |
-| `examples/primitives.bb` | Extra mesh primitives |
-| `examples/mario64.bb` | Extra 3D platformer |
-| `examples/windows.bb` | Extra GLFW window (shared context) |
-| `examples/shadows.bb` | Directional + point/spot + EVSM/MSM |
-| `examples/pbr.bb` | Opt-in metallic-roughness (GL 3.3) |
-| `examples/rover.bb` | FPS walk |
-| `examples/bounce.bb` | Collisions |
-| `examples/jolt_drop.bb` | 3D rigid body |
-| `examples/cloth.bb` | Soft-body flag + water flow |
-| `examples/grab_beam.bb` | Convex hull, cylinder, grab/throw, laser |
-| `examples/physics3d.bb` | Raycast, impulse, character |
-| `examples/draw2d.bb` | 2D `Rect` / `Oval` (Ebiten) |
-| `examples/platform64.bb` | 3D platformer (WASD + jump + coins, skybox, weather, shadows) |
-| `examples/platform2d.bb` | Ebiten + Chipmunk |
-| `examples/chipmunk2d.bb` | Chipmunk in a 3D view |
-| `examples/net_echo.bb` | `HostNet` / `NetRecv` |
-| `examples/net_host.bb` | `CreateNetworkHost` / `PollNetwork` |
-| `examples/anim.bb` | `LoadAnimation` (needs `hero.glb`) |
-| `examples/tiles.bb` | Tilemap |
-| `examples/particles.bb` | 3D particles: `SetEmitterShape` `"soft"` or `"cube"` |
-| `examples/particles2d.bb` | 2D `CreateEmitter2D` |
-| `examples/splitscreen.bb` | `SetCameraViewport` / `CameraPick` |
-| `examples/struct.bb` | Struct / Method / Import / Namespace |
-| `examples/scenes.bb` | `ClearWorld` / `LoadScene` |
-| `examples/gui_demo.bb` | ImGui on the G3N window |
-| `examples/hud_demo.bb` | 2D HUD / canvas overlay on 3D (`Rect`, `Oval`, `Line`, `Text`) |
-| `examples/ssao_demo.bb` | Screen-Space Ambient Occlusion (SSAO) post-processing |
-| `examples/trigger_zone_demo.bb` | Physics trigger sensor zones + 3D audio |
-| `examples/ecs.bb` | Flecs (console) |
-| `examples/ecs_crowd.bb` | 2000 Flecs Position+Velocity |
-| `examples/nav.bb` | Detour (mesh bake) + grid A* |
-| `examples/crowd.bb` | Crowd separation + Detour agents |
-| `examples/stream.bb` | World chunk stream (WASD) |
-| `examples/terrain.bb` | Proc terrain + splat + height snap |
-| `examples/outdoor.bb` | Grass, trees, props, time of day, rooms, use, save (`docs/PLAY.md`) |
-| `examples/terrain_gl.bb` | Terrain-OpenGL port (splat, water, sky, clouds) |
-| `examples/heightmap.bb` | Generate / erode / save PNG / mesh |
-| `examples/geo.bb` | GeoJSON path + geo-bounded heightmap (WASD) |
-| `examples/water.bb` | Scenic / LearnOpenGL-style water (DuDv, Fresnel, dual FBO) |
-| `examples/gerstner.bb` | Gerstner ocean, wind, buoyancy, orbit cam |
-| `examples/ocean.bb` | Gerstner + scenic reflect/refract combo |
-| `examples/editor.bb` | ImGui scene list + profiler |
-| `examples/largeworld.bb` | Terrain + water + instances + stats |
-| `examples/glmodern.bb` | GL caps, instancing, UBO, optional compute/SSBO |
-| `examples/weather.bb` | Atmosphere + clouds + rain/snow/fog/storm + lightning |
-| `examples/postfx.bb` | Tonemap / bloom / FXAA blit |
-| `examples/shader.bb` | `CreateShader` + `SetShader` |
-| `examples/input.bb` | Keys, mouse look, gamepad |
+| `examples/hello_console.mb` | Language only |
+| `examples/math.mb` | Degrees math library |
+| `examples/spinning_cube.mb` | 3D cube |
+| `examples/lights.mb` | Lights + fog + shadows |
+| `examples/parent.mb` | `SetEntityParent` |
+| `examples/playground.mb` | 3D primitives |
+| `examples/primitives.mb` | Extra mesh primitives |
+| `examples/mario64.mb` | Extra 3D platformer |
+| `examples/windows.mb` | Extra GLFW window (shared context) |
+| `examples/shadows.mb` | Directional + point/spot + EVSM/MSM |
+| `examples/pbr.mb` | Opt-in metallic-roughness (GL 3.3) |
+| `examples/rover.mb` | FPS walk |
+| `examples/bounce.mb` | Collisions |
+| `examples/jolt_drop.mb` | 3D rigid body |
+| `examples/cloth.mb` | Soft-body flag + water flow |
+| `examples/grab_beam.mb` | Convex hull, cylinder, grab/throw, laser |
+| `examples/physics3d.mb` | Raycast, impulse, character |
+| `examples/draw2d.mb` | 2D `Rect` / `Oval` (Ebiten) |
+| `examples/platform64.mb` | 3D platformer (WASD + jump + coins, skybox, weather, shadows) |
+| `examples/platform2d.mb` | Ebiten + Chipmunk |
+| `examples/chipmunk2d.mb` | Chipmunk in a 3D view |
+| `examples/net_echo.mb` | `HostGame` / `JoinGame` / `NetSay` |
+| `examples/net_lobby.mb` | Waiting room: `NetLobby$`, `NetReady`, `StartGame` |
+| `examples/net_host.mb` | `CreateNetworkHost` / `PollNetwork` |
+| `examples/net_physics.mb` | Handle API plus a physics kick |
+| `examples/anim.mb` | `LoadAnimation` (needs `hero.glb`) |
+| `examples/tiles.mb` | Tilemap |
+| `examples/particles.mb` | 3D particles: `SetEmitterShape` `"soft"` or `"cube"` |
+| `examples/particles2d.mb` | 2D `CreateEmitter2D` |
+| `examples/splitscreen.mb` | `SetCameraViewport` / `CameraPick` |
+| `examples/struct.mb` | Struct / Method / Import / Namespace |
+| `examples/scenes.mb` | `ClearWorld` / `LoadScene` |
+| `examples/gui_demo.mb` | ImGui inspector on the G3N window |
+| `examples/gui_panels.mb` | ImGui tabs, tree, list, radio, drag, popup |
+| `examples/gui_scene.mb` | G3N scene widgets: panel, button, slider, edit |
+| `examples/gui_3d.mb` | ImGui panel on a lit 3D scene. Right-drag orbits |
+| `examples/hud_demo.mb` | 2D HUD / canvas overlay on 3D (`Rect`, `Oval`, `Line`, `Text`) |
+| `examples/ssao_demo.mb` | Screen-Space Ambient Occlusion (SSAO) post-processing |
+| `examples/trigger_zone_demo.mb` | Physics trigger sensor zones + 3D audio |
+| `examples/ecs.mb` | Flecs (console) |
+| `examples/ecs_crowd.mb` | 2000 Flecs Position+Velocity |
+| `examples/nav.mb` | Detour (mesh bake) + grid A* |
+| `examples/crowd.mb` | Crowd separation + Detour agents |
+| `examples/stream.mb` | World chunk stream (WASD) |
+| `examples/terrain.mb` | Proc terrain + splat + height snap |
+| `examples/outdoor.mb` | Grass, trees, props, time of day, rooms, use, save (`docs/PLAY.md`) |
+| `examples/terrain_gl.mb` | Terrain-OpenGL port (splat, water, sky, clouds) |
+| `examples/heightmap.mb` | Generate / erode / save PNG / mesh |
+| `examples/geo.mb` | GeoJSON path + geo-bounded heightmap (WASD) |
+| `examples/water.mb` | Scenic / LearnOpenGL-style water (DuDv, Fresnel, dual FBO) |
+| `examples/gerstner.mb` | Gerstner ocean, wind, buoyancy, orbit cam |
+| `examples/ocean.mb` | Gerstner + scenic reflect/refract combo |
+| `examples/editor.mb` | ImGui scene list + profiler |
+| `examples/largeworld.mb` | Terrain + water + instances + stats |
+| `examples/glmodern.mb` | GL caps, instancing, UBO, optional compute/SSBO |
+| `examples/weather.mb` | Atmosphere + clouds + rain/snow/fog/storm + lightning |
+| `examples/postfx.mb` | Tonemap / bloom / FXAA blit |
+| `examples/shader.mb` | `CreateShader` + `SetShader` |
+| `examples/input.mb` | Keys, mouse look, gamepad |
 
 ## Language server (Cursor / VS Code)
 
 Stdio JSON-RPC. No G3N window. Diagnostics come from the parser; hover/completion use keywords, builtins, `docs/COMMANDS.md` (when the workspace root is this repo), and same-file functions.
 
 ```powershell
-go build -o bsls.exe ./cmd/bsls
-.\bsls.exe
-# or: .\bs.exe lsp
+go build -o moonsls.exe ./cmd/bsls
+.\moonsls.exe
+# or: .\moon.exe lsp
 ```
 
-This workspace maps `*.bb` → language id `bitshinbasic` (`.vscode/settings.json`). Point the editor at `bsls.exe`, or install the local extension in `editors/vscode` (**Install Extension from Location…**). Then open a `.bb` file.
+This workspace maps `*.mb` → language id `moonbasic` (`.vscode/settings.json`). Point the editor at `moonsls.exe`, or install the local extension in `editors/vscode` (**Install Extension from Location…**). Then open a `.mb` file.
 
 ## Docs
 
 - [docs/LANGUAGE.md](docs/LANGUAGE.md) — syntax
+- [docs/NETWORK.md](docs/NETWORK.md) — host a game, find a room, wait, play
 - [docs/PHYSICS.md](docs/PHYSICS.md) — Jolt bodies, joints, grab, cloth, CharacterVirtual
 - [docs/MODERN_GAME_HELPERS.md](docs/MODERN_GAME_HELPERS.md) — FPS/TPS, tweens, grab / beam / projectile
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — packages and Flip
 - [docs/STATUS.md](docs/STATUS.md) — Real / Partial / not in product (**1.0.0**)
-- [docs/RELEASE.md](docs/RELEASE.md) — portable `bs build` folders
+- [docs/RELEASE.md](docs/RELEASE.md) — portable `moon build` folders
 - [docs/COMPAT.md](docs/COMPAT.md) — OpenGL 3.3 required / 4.x optional
 - [docs/GRAPHICS.md](docs/GRAPHICS.md) — optional compute / SSBO / tess / GPU instances
 - [docs/LIGHTING.md](docs/LIGHTING.md) — Phong lights, falloff, indoor / outdoor, time of day

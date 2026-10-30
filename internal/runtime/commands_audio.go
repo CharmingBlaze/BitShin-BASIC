@@ -3,8 +3,8 @@ package runtime
 import (
 	"fmt"
 
-	bsaudio "bitshinbasic/internal/audio"
-	"bitshinbasic/internal/value"
+	bsaudio "moonbasic/internal/audio"
+	"moonbasic/internal/value"
 )
 
 func (w *World) audioCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error)) map[string]cmd {

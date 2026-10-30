@@ -1,6 +1,6 @@
 # Modern Game Helpers & Character Controllers
 
-BitShin BASIC provides a high-level suite of modern character controllers, camera helpers, math utilities, spatial audio, and time controls.
+moonBASIC provides a high-level suite of modern character controllers, camera helpers, math utilities, spatial audio, and time controls.
 
 ---
 
@@ -17,9 +17,9 @@ CreateFPSController(player, cam, 1.8, 0.4, 6.0, 10.5, 9.5)
 While 1
     walkX# = GetAxis(KEY_A, KEY_D)
     walkZ# = GetAxis(KEY_S, KEY_W)
-    jump = KeyHit(KEY_SPACE)
-    sprint = KeyDown(KEY_LEFT_SHIFT)
-    crouch = KeyDown(KEY_LEFT_CONTROL)
+    jump = Input.KeyHit(KEY_SPACE)
+    sprint = Input.KeyDown(KEY_LEFT_SHIFT)
+    crouch = Input.KeyDown(KEY_LEFT_CONTROL)
 
     UpdateFPS(player, walkX#, walkZ#, jump, sprint, crouch, 0.15)
     UpdateWorld
@@ -47,9 +47,9 @@ CreateTPSController(player, cam, 1.8, 0.45, 6.5, 11.0, 10.0)
 While 1
     moveX# = GetAxis(KEY_A, KEY_D)
     moveZ# = GetAxis(KEY_S, KEY_W)
-    jump = KeyHit(KEY_SPACE)
-    sprint = KeyDown(KEY_LEFT_SHIFT)
-    aim = MouseDown(2)
+    jump = Input.KeyHit(KEY_SPACE)
+    sprint = Input.KeyDown(KEY_LEFT_SHIFT)
+    aim = Input.MouseDown(2)
 
     camYaw# = camYaw# + MouseDeltaX() * 0.2
     camPitch# = Clamp(camPitch# + MouseDeltaY() * 0.15, -15, 60)
@@ -82,7 +82,7 @@ While 1
     moveZ# = GetAxis(KEY_S, KEY_W)
     aimX# = GetMouseWorldX(cam, 0)
     aimZ# = GetMouseWorldZ(cam, 0)
-    dash = KeyHit(KEY_SPACE)
+    dash = Input.KeyHit(KEY_SPACE)
 
     UpdateTopDown(player, moveX#, moveZ#, aimX#, aimZ#, dash)
     CameraFollow(cam, player, 16, 20, 10, 0, 55)
@@ -108,8 +108,8 @@ CreatePlatformerController(player, 8.5, 12.0, 2)
 
 While 1
     moveX# = GetAxis(KEY_A, KEY_D)
-    jumpPressed = KeyHit(KEY_SPACE)
-    jumpHeld = KeyDown(KEY_SPACE)
+    jumpPressed = Input.KeyHit(KEY_SPACE)
+    jumpHeld = Input.KeyDown(KEY_SPACE)
 
     UpdatePlatformer(player, moveX#, jumpPressed, jumpHeld)
     UpdateWorld
@@ -217,7 +217,7 @@ Supported ease modes: `"linear"`, `"in"`, `"out"`, `"inout"`, `"smooth"`, `"smoo
 
 ## 7. Grab, projectiles, beams, bones
 
-ezEngine-style helpers. Physics details and platforms: [PHYSICS.md](PHYSICS.md). Demo: `examples/grab_beam.bb`.
+ezEngine-style helpers. Physics details and platforms: [PHYSICS.md](PHYSICS.md). Demo: `examples/grab_beam.mb`.
 
 ### Grab / throw
 
@@ -267,4 +267,4 @@ Animate(hero, 1)
 AttachToBone(gun, hero, "mixamorig:RightHand")
 ```
 
-Looks up a glTF node name (case-insensitive), then a `NameEntity` child, then the mesh root. Alias `AttachBone`. `SetAnimBlend e, w [, clip]` nlerps the previous clip’s local pose into the current one. Not two-bone IK.
+Looks up a glTF node name (case-insensitive), then a `NameEntity` child, then the mesh root. Alias `AttachBone`. `SetAnimBlend e, w [, clip]` nlerps the previous clip’s local pose into the current one. `SetIK` is two-bone IK on three named joints. `SetAnimAdditive` adds a clip on top of the bind pose.

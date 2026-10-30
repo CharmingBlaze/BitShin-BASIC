@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 	"github.com/g3n/engine/core"
 	"github.com/g3n/engine/geometry"
 	"github.com/g3n/engine/graphic"

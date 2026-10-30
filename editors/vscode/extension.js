@@ -10,24 +10,24 @@ const pending = new Map();
 let diagCol = null;
 
 function activate(context) {
-  diagCol = vscode.languages.createDiagnosticCollection("bitshinbasic");
+  diagCol = vscode.languages.createDiagnosticCollection("moonbasic");
   context.subscriptions.push(diagCol);
   startServer(context);
 
   context.subscriptions.push(
     vscode.workspace.onDidOpenTextDocument((d) => {
-      if (d.languageId === "bitshinbasic") didOpen(d);
+      if (d.languageId === "moonbasic") didOpen(d);
     }),
     vscode.workspace.onDidChangeTextDocument((e) => {
-      if (e.document.languageId === "bitshinbasic") didChange(e.document);
+      if (e.document.languageId === "moonbasic") didChange(e.document);
     }),
     vscode.workspace.onDidCloseTextDocument((d) => {
-      if (d.languageId === "bitshinbasic") {
+      if (d.languageId === "moonbasic") {
         notify("textDocument/didClose", { textDocument: { uri: d.uri.toString() } });
         diagCol.delete(d.uri);
       }
     }),
-    vscode.languages.registerHoverProvider("bitshinbasic", {
+    vscode.languages.registerHoverProvider("moonbasic", {
       provideHover: async (doc, pos) => {
         const r = await request("textDocument/hover", docPos(doc, pos));
         if (!r || !r.contents) return null;
@@ -36,7 +36,7 @@ function activate(context) {
       },
     }),
     vscode.languages.registerCompletionItemProvider(
-      "bitshinbasic",
+      "moonbasic",
       {
         provideCompletionItems: async (doc, pos) => {
           const r = await request("textDocument/completion", docPos(doc, pos));
@@ -51,14 +51,14 @@ function activate(context) {
       },
       "."
     ),
-    vscode.languages.registerDefinitionProvider("bitshinbasic", {
+    vscode.languages.registerDefinitionProvider("moonbasic", {
       provideDefinition: async (doc, pos) => {
         const r = await request("textDocument/definition", docPos(doc, pos));
         const locs = Array.isArray(r) ? r : r ? [r] : [];
         return locs.map((l) => new vscode.Location(vscode.Uri.parse(l.uri), toRange(l.range)));
       },
     }),
-    vscode.languages.registerDocumentSymbolProvider("bitshinbasic", {
+    vscode.languages.registerDocumentSymbolProvider("moonbasic", {
       provideDocumentSymbols: async (doc) => {
         const r = await request("textDocument/documentSymbol", { textDocument: { uri: doc.uri.toString() } });
         const list = r || [];
@@ -68,7 +68,7 @@ function activate(context) {
   );
 
   for (const d of vscode.workspace.textDocuments) {
-    if (d.languageId === "bitshinbasic") didOpen(d);
+    if (d.languageId === "moonbasic") didOpen(d);
   }
 }
 
@@ -81,15 +81,15 @@ function deactivate() {
 }
 
 function startServer(context) {
-  const cfg = vscode.workspace.getConfiguration("bitshinbasic");
+  const cfg = vscode.workspace.getConfiguration("moonbasic");
   const folders = vscode.workspace.workspaceFolders || [];
   const root = folders.length ? folders[0].uri.fsPath : "";
   const exe = resolveServer(cfg.get("serverPath") || "", root);
   if (!exe) {
-    vscode.window.showWarningMessage("BitShin BASIC: could not find bsls.exe / bsls / bs. Build with go build -o bsls.exe ./cmd/bsls");
+    vscode.window.showWarningMessage("moonBASIC: could not find moonsls.exe. Build with go build -o moonsls.exe ./cmd/bsls");
     return;
   }
-  const args = path.basename(exe).toLowerCase().startsWith("bs") && !path.basename(exe).toLowerCase().startsWith("bsls")
+  const args = path.basename(exe).toLowerCase().startsWith("moon") && !path.basename(exe).toLowerCase().startsWith("moonsls")
     ? ["lsp"]
     : [];
   child = spawn(exe, args, { stdio: ["pipe", "pipe", "pipe"], cwd: root || undefined });
@@ -105,7 +105,7 @@ function startServer(context) {
   }).then(() => {
     notify("initialized", {});
     for (const d of vscode.workspace.textDocuments) {
-      if (d.languageId === "bitshinbasic") didOpen(d);
+      if (d.languageId === "moonbasic") didOpen(d);
     }
   });
   context.subscriptions.push({ dispose: deactivate });
@@ -115,20 +115,20 @@ function resolveServer(configured, root) {
   const candidates = [];
   if (configured) candidates.push(configured.replace(/\$\{workspaceFolder\}/g, root));
   if (root) {
-    candidates.push(path.join(root, "bsls.exe"), path.join(root, "bsls"));
-    candidates.push(path.join(root, "bs.exe"), path.join(root, "bs"));
+    candidates.push(path.join(root, "moonsls.exe"), path.join(root, "moonsls"));
+    candidates.push(path.join(root, "moon.exe"), path.join(root, "moon"));
   }
   for (const p of candidates) {
     if (p && fs.existsSync(p)) return p;
   }
-  return configured || (process.platform === "win32" ? "bsls.exe" : "bsls");
+  return configured || (process.platform === "win32" ? "moonsls.exe" : "moonsls");
 }
 
 function didOpen(doc) {
   notify("textDocument/didOpen", {
     textDocument: {
       uri: doc.uri.toString(),
-      languageId: "bitshinbasic",
+      languageId: "moonbasic",
       version: doc.version,
       text: doc.getText(),
     },

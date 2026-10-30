@@ -185,6 +185,27 @@ func (w *fallback) ClothVertexCount(id int) int {
 	return len(c.pos)
 }
 
+func setClothSimVertices(c *clothSim, xyz []float32) {
+	if c == nil || len(xyz) < 3 {
+		return
+	}
+	cx, cy, cz := c.com()
+	n := len(c.pos)
+	if n*3 > len(xyz) {
+		n = len(xyz) / 3
+	}
+	for i := 0; i < n; i++ {
+		c.pos[i][0] = xyz[i*3+0] + cx
+		c.pos[i][1] = xyz[i*3+1] + cy
+		c.pos[i][2] = xyz[i*3+2] + cz
+		c.prev[i] = c.pos[i]
+	}
+}
+
+func (w *fallback) SetClothVertices(id int, src []float32) {
+	setClothSimVertices(w.cloths[id], src)
+}
+
 func (w *fallback) ClothVertices(id int, dst []float32) int {
 	c := w.cloths[id]
 	if c == nil {

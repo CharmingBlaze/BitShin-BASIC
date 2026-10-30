@@ -2,7 +2,7 @@
 
 Opt-in metallic-roughness on G3N OpenGL **3.3** (`#version 330 core`). Default primitives stay Phong (`material.Standard` + `mbshadow`) so Platform 64 is unchanged.
 
-See `docs/COMMANDS.md` for the full command list. Demo: `examples/pbr.bb`.
+See `docs/COMMANDS.md` for the full command list. Demo: `examples/pbr.mb`.
 
 ## Model
 
@@ -42,7 +42,7 @@ Fog (linear / exp / exp²) is the same uniforms as `mbshadow`.
 Analytic hemisphere (sky / ground) plus **UE4 EnvBRDF split-sum** (`scale * F + bias`) so rough metals lose the old `gloss²` sparkle. That hemisphere is the IBL term itself: it is not added again on top. With `SetIBL` off, one sky/ground fill remains. A prefiltered sky cubemap is sampled with `textureLod` (roughness picks the mip). The nearest light probe, once its six faces have been drawn, replaces that cubemap so nearby meshes pick up the scene. Optional `SetEnvMap tex` still samples a **2D** lat-long. Point and spot lights use the same windowed range and soft cone as `mbshadow`.
 
 - **Default:** `SetIBL True` is on for PBR.
-- Skybox faces are not a cubemap sampler. A visible skybox only tints the analytic sky color.
+- The visible skybox faces are copied into that cubemap, so a metal reflects the same sky. A light probe still replaces it once its six faces have been drawn.
 
 `SetIBL 0` / `SetIBL e, 0` turns this off. Direct sun + hemi + GGX still run.
 

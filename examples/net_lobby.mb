@@ -1,0 +1,25 @@
+; Waiting room. This process is the host.
+; A friend, in their own game: SetNetPlayerName("Bo") : Net.Join("your-ip")
+; Call NetUpdate every frame. NetLobby$() lists the room. StartGame is host-only.
+
+SetNetPlayerName("Ada")
+If Not Net.Host() Then
+    Print("host failed")
+    End
+EndIf
+SetNetRoom("harbor")
+SetNetInfo("map", "harbor")
+Print("Waiting room on port 27015")
+NetReady(1)
+
+frames = 0
+While Not NetStarted() And frames < 30
+    frames = frames + 1
+    NetUpdate()
+    If NetAllReady() Then StartGame()
+Wend
+
+Print(NetLobby())
+Print("map", NetInfo("map"), "started", NetStarted())
+NetClose()
+End

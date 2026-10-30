@@ -1,23 +1,29 @@
-// Package syntax holds shared BitShin BASIC QoL mappings (dot methods, vec/hex, constants).
+// Package syntax holds shared moonBASIC QoL mappings (dot methods, vec/hex, constants).
 package syntax
 
 import (
 	"strconv"
 	"strings"
 
-	"bitshinbasic/internal/lex"
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/lex"
+	"moonbasic/internal/value"
 )
 
 // EntityMethods maps a short method name to a command (handle is prepended).
 // Only used when the call is written as recv.Name(args). Field access recv.Name stays a field.
 var EntityMethods = map[string]string{
-	"position":  "setposition",
-	"scale":     "setscale",
-	"rotate":    "setrotation",
-	"rotation":  "setrotation",
-	"color":     "entitycolor",
-	"alpha":     "entityalpha",
+	"position":    "setposition",
+	"setpos":      "setposition",
+	"setposition": "setposition",
+	"scale":       "setscale",
+	"setscale":    "setscale",
+	"rotate":      "setrotation",
+	"rotation":    "setrotation",
+	"setrotation": "setrotation",
+	"color":       "entitycolor",
+	"setcolor":    "entitycolor",
+	"alpha":       "entityalpha",
+	"setalpha":    "entityalpha",
 	"move":      "moveentity",
 	"translate": "translateentity",
 	"turn":      "turnentity",

@@ -20,7 +20,7 @@ import (
 	"github.com/g3n/engine/renderer"
 	"github.com/go-gl/gl/v3.3-core/gl"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 type gerstnerWave struct {
@@ -69,6 +69,12 @@ type waterBody struct {
 	flowY        float32
 	flowZ        float32
 	style        string
+	fftOn        bool
+	fft          *fftTile
+	fftGL        uint32
+	fftFBO       uint32
+	fftPix       []byte
+	fftGPUTime   float32
 	underFog     math32.Color
 	underDen     float32
 	savedFog     bool
@@ -251,7 +257,9 @@ func newWaterGrid(width, depth float32, segs int) *geometry.Geometry {
 			b := a + 1
 			c := a + uint32(stride)
 			d := c + 1
-			idx.Append(a, b, d, a, d, c)
+			// toG3N flips Z and mirrors the quad, so the opposite winding
+			// keeps the top of the water as the front face.
+			idx.Append(a, d, b, a, c, d)
 		}
 	}
 	g := geometry.NewGeometry()
@@ -369,7 +377,9 @@ func newWaterLODGrid(radius float32, segs int) *geometry.Geometry {
 			b := a + 1
 			c := a + uint32(stride)
 			d := c + 1
-			idx.Append(a, b, d, a, d, c)
+			// toG3N flips Z and mirrors the quad, so the opposite winding
+			// keeps the top of the water as the front face.
+			idx.Append(a, d, b, a, c, d)
 		}
 	}
 	g := geometry.NewGeometry()
@@ -485,7 +495,7 @@ func (w *World) applyWaterStyle(wb *waterBody, style string) {
 		wb.refractOn = true
 		wb.waveStr = 0.04
 		wb.shine = 56
-		wb.reflectivity = 0.92
+		wb.reflectivity = 0.42
 		if wb.color.R+wb.color.G+wb.color.B < 0.05 {
 			wb.color = math32.Color{0.03, 0.16, 0.24}
 		}
@@ -517,7 +527,12 @@ func (w *World) waterHeight(x, z float32) float32 {
 	if wb.mat != nil {
 		t = wb.mat.clock()
 	}
-	return wb.y + gerstnerHeightWind(wb.waves[:], wb.nWaves, x, z, t, storm, wb.windX, wb.windZ, wb.windStr)
+	h := wb.y + gerstnerHeightWind(wb.waves[:], wb.nWaves, x, z, t, storm, wb.windX, wb.windZ, wb.windStr)
+	if wb.fftOn {
+		wb.ensureFFT()
+		h += wb.fft.sample(x, z, t)
+	}
+	return h
 }
 
 func (w *World) tickWater() {
@@ -986,13 +1001,16 @@ func (w *World) renderWaterFBO(rend *renderer.Renderer, cam *camera.Camera, t *w
 		return
 	}
 	var prevFBO int32
+	var prevVP [4]int32
 	gl.GetIntegerv(gl.FRAMEBUFFER_BINDING, &prevFBO)
+	gl.GetIntegerv(gl.VIEWPORT, &prevVP[0])
 	gl.BindFramebuffer(gl.FRAMEBUFFER, t.fbo)
 	gl.Viewport(0, 0, t.w, t.h)
 	gl.ClearColor(clear.R, clear.G, clear.B, 1)
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 	_ = rend.Render(w.scene, cam)
 	gl.BindFramebuffer(gl.FRAMEBUFFER, uint32(prevFBO))
+	gl.Viewport(prevVP[0], prevVP[1], prevVP[2], prevVP[3])
 }
 
 func (w *World) reflectionCamera(cam *camera.Camera, waterY float32) *camera.Camera {
@@ -1242,6 +1260,22 @@ func (w *World) waterCommands(n func(func([]value.Value) (value.Value, error)) c
 			}
 			w.applyWaterStyle(wb, argS(a, 0))
 			return z()
+		}),
+		"enablefft": n(func(a []value.Value) (value.Value, error) {
+			wb := w.currentWater()
+			on := argI(a, 0, 1) != 0
+			if len(a) >= 2 {
+				wb = w.waters[argI(a, 0, w.curWater)]
+				on = argI(a, 1, 1) != 0
+			}
+			if wb == nil {
+				return value.Num(0), nil
+			}
+			wb.fftOn = on
+			if on {
+				wb.ensureFFT()
+			}
+			return value.Num(float64(b01(wb.fftOn))), nil
 		}),
 		"setgerstner": n(func(a []value.Value) (value.Value, error) {
 			wb := w.currentWater()

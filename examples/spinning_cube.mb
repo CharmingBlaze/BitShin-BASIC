@@ -1,0 +1,41 @@
+; Spinning Cube — CreateCube with modern Set* helpers
+; Esc quits after a few frames.
+
+Graphics3D(800, 600, 0, 2)
+SetBuffer(BackBuffer())
+SetWindowTitle("moonBASIC — Spinning cube")
+SetCameraClsColor(18, 22, 32)
+SetAmbientLight(70, 80, 100)
+
+; Camera
+camera = CreateCamera()
+Entity.SetPos(camera, 0, 2, -6)
+PointEntity(camera, 0, 0, 0)
+
+; Light
+light = CreateLight()
+SetRotation(light, 50, 30, 0)
+
+; Scene — SetPosition / SetEntityColor
+ground = CreatePlane(16, 16)
+Entity.SetPos(ground, 0, -1, 0)
+SetEntityColor(ground, 36, 42, 52)
+
+cube = CreateCube()
+Entity.SetPos(cube, 0, 0.2, 0)
+SetEntityColor(cube, 70, 160, 255)
+
+; Loop — TurnEntity spin; Esc after frame 8
+frames = 0
+While True
+    frames = frames + 1
+    dt# = Time.Delta() * 60
+    TurnEntity(cube, 0.5 * dt, 1 * dt, 0)
+    RenderWorld
+    Text(16, 16, "moonBASIC — Spinning cube  |  Esc quit")
+    Flip
+    If frames > 8
+        If Input.KeyHit(KEY_ESCAPE) Then End
+    EndIf
+Wend
+End

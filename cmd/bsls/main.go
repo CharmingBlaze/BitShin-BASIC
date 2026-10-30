@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"bitshinbasic/internal/lsp"
+	"moonbasic/internal/lsp"
 )
 
 func main() {

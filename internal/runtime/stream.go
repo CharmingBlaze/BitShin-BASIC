@@ -3,7 +3,7 @@ package runtime
 import (
 	"math"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 type chunkKey struct{ X, Z int }

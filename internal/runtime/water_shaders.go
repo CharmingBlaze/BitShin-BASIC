@@ -23,6 +23,12 @@ uniform sampler2D WaterWake;
 uniform int WaterHasWake;
 uniform float WakeAmp;
 uniform float WakeSpan;
+uniform sampler2D WaterFFT;
+uniform int WaterFFTOn;
+uniform float WaterFFTSize;
+float fftHeight(vec2 uv) {
+    return (texture(WaterFFT, uv).r - 0.5) * 4.0;
+}
 out vec4 Position;
 out vec3 Normal;
 out vec2 FragTexcoord;
@@ -65,6 +71,19 @@ void main() {
         n.x -= d.x * k * amp * cf;
         n.z -= d.y * k * amp * cf;
         n.y -= steep * k * amp * sf;
+    }
+    if (WaterFFTOn != 0) {
+        float sz = max(WaterFFTSize, 1.0);
+        vec4 baseWorld = ModelMatrix * vec4(VertexPosition, 1.0);
+        vec2 uv = fract(vec2(baseWorld.x, -baseWorld.z) / sz);
+        float h = fftHeight(uv);
+        float stepUV = 1.0 / 32.0;
+        float dx = sz * stepUV;
+        float hx = fftHeight(uv + vec2(stepUV, 0.0));
+        float hz = fftHeight(uv + vec2(0.0, stepUV));
+        p.y += h;
+        n.x -= (hx - h) / dx;
+        n.z += (hz - h) / dx;
     }
     if (WaterHasWake != 0) {
         vec2 wuv = VertexPosition.xz / max(WakeSpan, 8.0) + 0.5;
@@ -159,7 +178,7 @@ float waterShadow(vec3 worldPos, vec3 fragNormal, vec3 lightDir) {
     vec2 uv = vec2((clamp(proj.x, pad, 1.0 - pad)) / float(cols), (clamp(proj.y, pad, 1.0 - pad)) / float(rows));
     float d = texture(ShadowMap, uv).r;
     float lit = (proj.z - dynamicBias > d) ? 0.0 : 1.0;
-    return mix(0.55, 1.0, lit);
+    return mix(0.82, 1.0, lit);
 }
 ` + shadeLightGLSL + `
 void main() {
@@ -181,15 +200,13 @@ void main() {
     if (any(isnan(waveNormal)) || dot(waveNormal, waveNormal) < 1e-6) {
         waveNormal = faceN;
     }
-    if (!gl_FrontFacing && CamWorldPos.y > WaterLevel + 0.35) {
-        discard;
-    }
-
     vec2 ndc = (ClipSpace.xy / max(ClipSpace.w, 0.0001)) * 0.5 + 0.5;
     vec2 reflectUV = vec2(ndc.x, 1.0 - ndc.y);
     vec2 refractUV = vec2(ndc.x, ndc.y);
     vec2 tex = FragTexcoord;
-    float meters = 12.0;
+    // Open ocean has no seabed. 12 m sat inside the "bottom is close" window
+    // and painted the whole surface with the refraction image.
+    float meters = 80.0;
     if (WaterHasDepth != 0) {
         float n = max(CamNear, 0.05);
         float f = max(CamFar, n + 1.0);
@@ -205,18 +222,20 @@ void main() {
         vec2 distorted = tex + vec2(d1.x, d1.y + WaterMove);
         distort = (texture(WaterDuDv, distorted).rg * 2.0 - 1.0) * WaterWaveStrength;
         distort *= clamp(meters / 20.0, 0.0, 1.0);
-        distort *= mix(0.18, 1.0, exp(-length(CamWorldPos - WorldPos) * 0.028));
+        distort *= mix(0.08, 0.45, exp(-length(CamWorldPos - WorldPos) * 0.02));
     }
     reflectUV = clamp(reflectUV + distort, 0.001, 0.999);
     refractUV = clamp(refractUV + distort, 0.001, 0.999);
+    float camDist = length(CamWorldPos - WorldPos);
     if (WaterHasNormal != 0) {
-        vec2 nUV1 = tex * 6.0 + vec2(WaterMove * 0.7, WaterMove * 0.22);
-        vec2 nUV2 = tex * 1.5 + vec2(-WaterMove * 0.4, WaterMove * 0.18);
+        vec2 nUV1 = tex * 4.0 + vec2(WaterMove * 0.7, WaterMove * 0.22);
+        vec2 nUV2 = tex * 1.1 + vec2(-WaterMove * 0.4, WaterMove * 0.18);
         vec3 n1 = texture(WaterNormal, nUV1).rgb * 2.0 - 1.0;
         vec3 n2 = texture(WaterNormal, nUV2).rgb * 2.0 - 1.0;
         vec3 detail = normalize(n1 + n2);
-        vec3 rippled = vec3(waveNormal.x + detail.x * 0.95, waveNormal.y, waveNormal.z + detail.z * 0.95);
-        waveNormal = normalize(rippled + detail * 0.15);
+        float detailAmt = mix(0.05, 0.28, exp(-camDist * 0.012));
+        vec3 rippled = vec3(waveNormal.x + detail.x * detailAmt, waveNormal.y, waveNormal.z + detail.z * detailAmt);
+        waveNormal = normalize(rippled);
     }
     if (WaterHasWake != 0) {
         vec2 localXZ = FragTexcoord / 0.04;
@@ -228,10 +247,9 @@ void main() {
         }
     }
 
-    float camDist = length(CamWorldPos - WorldPos);
     float nearRipple = exp(-camDist * 0.02);
-    reflectUV = clamp(reflectUV + waveNormal.xz * (0.05 * nearRipple), 0.001, 0.999);
-    refractUV = clamp(refractUV + waveNormal.xz * (0.02 * nearRipple), 0.001, 0.999);
+    reflectUV = clamp(reflectUV + waveNormal.xz * (0.016 * nearRipple), 0.001, 0.999);
+    refractUV = clamp(refractUV + waveNormal.xz * (0.008 * nearRipple), 0.001, 0.999);
 
     vec3 viewDir = normalize(CamWorldPos - WorldPos);
     float NdotV = max(dot(waveNormal, viewDir), 0.0);
@@ -243,7 +261,7 @@ void main() {
     if (dot(deepWaterColor, deepWaterColor) < 0.004) {
         deepWaterColor = vec3(0.02, 0.16, 0.28);
     }
-    vec3 shallowWaterColor = deepWaterColor * vec3(1.2, 1.45, 1.08);
+    vec3 shallowWaterColor = deepWaterColor * vec3(1.45, 1.75, 1.25) + vec3(0.015, 0.04, 0.03);
     vec3 refrColor = mix(shallowWaterColor, deepWaterColor, depthMix);
     if (WaterRefractOn != 0) {
         vec3 grabbedR = texture(WaterRefract, refractUV).rgb;

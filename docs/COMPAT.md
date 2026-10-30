@@ -47,7 +47,7 @@ If the driver cannot make a 3.3 core context, `Graphics3D` fails (same as stock 
 
 ## glslang / SPIR-V
 
-No Vulkan runtime. Native Khronos C++ is not shipped. `internal/glslang` always validates. SPIR-V is optional (`glslangValidator` on PATH). `bs shader file.glsl [stage]`. `-tags glslang` is reserved for a future C binding.
+No Vulkan runtime. Native Khronos C++ is not shipped. `internal/glslang` always validates. SPIR-V is optional (`glslangValidator` on PATH). `moon shader file.glsl [stage]`. `-tags glslang` is reserved for a future C binding.
 
 ## Gonum vs math32
 

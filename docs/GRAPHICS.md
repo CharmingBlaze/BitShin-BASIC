@@ -1,6 +1,6 @@
 # Graphics (OpenGL + G3N)
 
-BitShin BASIC stays on **G3N + go-gl OpenGL**. There is no bgfx, Vulkan, or wgpu path.
+moonBASIC stays on **G3N + go-gl OpenGL**. There is no bgfx, Vulkan, or wgpu path.
 
 ## Required baseline: OpenGL 3.3
 
@@ -59,7 +59,7 @@ The skip is printed once per feature.
 
 ## G3N vs wrappers
 
-G3N already uses go-gl internally (`github.com/go-gl/gl`). BitShin BASIC adds wrappers only for what G3N does not expose (compute, SSBO, UBO bind, instanced draw, geom/tess programs).
+G3N already uses go-gl internally (`github.com/go-gl/gl`). moonBASIC adds wrappers only for what G3N does not expose (compute, SSBO, UBO bind, instanced draw, geom/tess programs).
 
 Do not fight GLS blindly: `saveModernGL` / restore around raw calls, like shadows.
 
@@ -109,4 +109,4 @@ Used today: probe SH (`SHEval`), crowd push-apart, `NoiseFBM`, `JobXform`.
 
 ## Commands
 
-Every command in this file is registered and listed in `docs/COMMANDS.md` (Modern OpenGL + Instancing). Demo: `examples/glmodern.bb`.
+Every command in this file is registered and listed in `docs/COMMANDS.md` (Modern OpenGL + Instancing). Demo: `examples/glmodern.mb`.

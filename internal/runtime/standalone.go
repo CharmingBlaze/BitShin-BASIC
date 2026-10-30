@@ -8,7 +8,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 // hopJob is one runtime command sent from a compiled script goroutine to the

@@ -155,6 +155,18 @@
 
   <StatusBar />
 
+  {#each ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'] as edge}
+    <div
+      class="ide-resize {edge}"
+      onpointerdown={(e) => {
+        if (e.button !== 0) return
+        e.preventDefault()
+        e.stopPropagation()
+        window.runtime?.WindowStartResize?.(edge)
+      }}
+    ></div>
+  {/each}
+
   {#if editorStore.showNewModal}
     <NewFileModal />
   {/if}

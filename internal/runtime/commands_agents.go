@@ -5,7 +5,7 @@ import (
 
 	"github.com/quasilyte/pathing"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 type gridMap struct {

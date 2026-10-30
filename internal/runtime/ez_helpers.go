@@ -8,7 +8,7 @@ import (
 	"github.com/g3n/engine/geometry"
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 type grabHold struct {
@@ -84,6 +84,7 @@ func (w *World) dropGrab(holder int) {
 	}
 	if g.joint != 0 && w.phys3 != nil {
 		w.phys3.RemoveJoint(g.joint)
+		w.forgetJoint(g.joint)
 	}
 	if g.parented {
 		if te := w.ents[g.target]; te != nil {
@@ -118,6 +119,7 @@ func (w *World) grabTarget(holder, target int, freq, damp float32, px, py, pz fl
 		damp = 1
 	}
 	joint := w.phys3.CreateGrabJoint(holder, target, px, py, pz, freq, damp)
+	w.rememberJoint(joint, "grab", holder, target, px, py, pz, freq, damp)
 	hold := grabHold{joint: joint, target: target}
 	if joint == 0 {
 		child, err := w.ent(target)

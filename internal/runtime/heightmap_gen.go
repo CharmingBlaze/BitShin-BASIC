@@ -12,7 +12,7 @@ import (
 
 	"github.com/g3n/engine/texture"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 // Procedural heightmaps (clean-room). Behavior matches the documented

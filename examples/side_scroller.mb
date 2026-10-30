@@ -1,0 +1,83 @@
+; Side scroller — tile floor, camera follow, jump.
+; Arrows run, Space jumps. Esc or X quits.
+
+SetWindowTitle("moonBASIC — Side scroller")
+Graphics2D(800, 480)
+SetClsColor(24, 32, 48)
+
+; 40 by 15 cells, 32 px. Id 0 is empty. Id > 0 blocks unless SetTileSolid says otherwise.
+level = CreateTileMap(32, 32, 40, 15)
+For x = 0 To 39
+    SetTile(level, x, 12, 1)
+Next
+For x = 8 To 12
+    SetTile(level, x, 9, 1)
+Next
+For x = 18 To 23
+    SetTile(level, x, 7, 1)
+Next
+For y = 8 To 11
+    SetTile(level, 30, y, 1)
+Next
+; Tile 2 is paint only. It does not block the player.
+SetTileSolid(level, 2, 0)
+For x = 14 To 16
+    SetTile(level, x, 11, 2)
+Next
+
+SetColor(240, 196, 64)
+heroImg = CreateImage(24, 32)
+hero = CreateSprite(heroImg)
+PositionSprite(hero, 80, 352)
+SpriteLayer(hero, 1)
+
+SetColor(255, 220, 80)
+coinImg = CreateImage(14, 14)
+coin = CreateSprite(coinImg)
+PositionSprite(coin, 640, 180)
+SpriteLayer(coin, 2)
+SpriteAlpha(coin, 0.9)
+
+vx# = 0
+vy# = 0
+grounded = 0
+
+While Not Input.KeyDown(1) And Not Input.KeyDown(KEY_X)
+    dt# = Time.Delta()
+    If dt <= 0 Then dt = 0.016
+    If dt > 0.05 Then dt = 0.05
+
+    vx = 0
+    If Input.KeyDown(KEY_LEFT) Then vx = -190
+    If Input.KeyDown(KEY_RIGHT) Then vx = 190
+    If vx < 0 Then FlipSprite(hero, 1, 0)
+    If vx > 0 Then FlipSprite(hero, 0, 0)
+
+    vy = vy + 1100 * dt
+    If grounded And Input.KeyHit(KEY_SPACE) Then vy = -430
+
+    PositionSprite(hero, SpriteX(hero) + vx * dt, SpriteY(hero))
+    If SpriteHitTile(hero, level) Then
+        PositionSprite(hero, SpriteX(hero) - vx * dt, SpriteY(hero))
+    EndIf
+
+    PositionSprite(hero, SpriteX(hero), SpriteY(hero) + vy * dt)
+    If SpriteHitTile(hero, level) Then
+        PositionSprite(hero, SpriteX(hero), SpriteY(hero) - vy * dt)
+        vy = 0
+        grounded = 1
+    Else
+        grounded = 0
+    EndIf
+
+    If SpriteY(hero) > 700 Then PositionSprite(hero, 80, 352) : vy = 0
+
+    CameraFollow2D(hero, 80, 20)
+    Cls
+    DrawTileMap(level, 0, 0)
+    SetColor(230, 232, 240)
+    Text(16, 16, "Arrows run   Space jump   Esc/X quit")
+    If SpritesOverlap(hero, coin) Then Text(16, 40, "Coin!")
+    Flip
+Wend
+End

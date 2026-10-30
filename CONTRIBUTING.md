@@ -23,13 +23,13 @@
 | 2D Ebiten commands | `internal/runtime/commands_2d.go`, `graphics2d.go` |
 | Jolt / 3D bodies | `internal/phys3d`, `commands_phys.go` |
 | Chipmunk 2D | `internal/phys2d`, `commands_phys.go` |
-| Networking | `internal/netenet`, `commands_net.go` |
+| Networking | `internal/netenet`, `commands_net.go`, `net_session.go`, `net_discover.go`. Author docs in `docs/NETWORK.md` |
 | Animation / particles / scenes | `commands_anim.go`, `commands_fx.go` |
 | Tiles / fonts | `commands_tiles.go` |
 | Zip pak | `pak.go` |
-| `bs build` | `cmd/bs/build.go` |
+| `moon build` | `cmd/bs/build.go` |
 | CLI | `cmd/bs` |
-| Samples | `examples/*.bb` |
+| Samples | `examples/*.mb` |
 
 New builtins are registered by name (lowercase) in the relevant `*Commands` map. The interpreter is case-insensitive.
 

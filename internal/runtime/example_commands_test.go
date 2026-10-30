@@ -6,17 +6,17 @@ import (
 	"strings"
 	"testing"
 
-	"bitshinbasic/internal/ast"
-	"bitshinbasic/internal/lex"
-	"bitshinbasic/internal/parse"
-	"bitshinbasic/internal/syntax"
+	"moonbasic/internal/ast"
+	"moonbasic/internal/lex"
+	"moonbasic/internal/parse"
+	"moonbasic/internal/syntax"
 )
 
 func TestFindSceneFileFindsExamples(t *testing.T) {
 	w := New(".")
-	got := w.findSceneFile("level_setup.bb")
+	got := w.findSceneFile("level_setup.mb")
 	if _, err := os.Stat(got); err != nil {
-		t.Fatalf("LoadScene must find examples/level_setup.bb, got %s: %v", got, err)
+		t.Fatalf("LoadScene must find examples/level_setup.mb, got %s: %v", got, err)
 	}
 }
 
@@ -31,7 +31,7 @@ func TestSetMassIsRegistered(t *testing.T) {
 }
 
 func TestClawExampleCommandsExist(t *testing.T) {
-	checkExampleCommands(t, filepath.Join("..", "..", "examples", "claw.bb"))
+	checkExampleCommands(t, filepath.Join("..", "..", "examples", "claw.mb"))
 }
 
 func TestAllExampleCommandsExist(t *testing.T) {
@@ -42,7 +42,7 @@ func TestAllExampleCommandsExist(t *testing.T) {
 	}
 	n := 0
 	for _, e := range entries {
-		if e.IsDir() || !strings.HasSuffix(strings.ToLower(e.Name()), ".bb") {
+		if e.IsDir() || !strings.HasSuffix(strings.ToLower(e.Name()), ".mb") || strings.HasPrefix(e.Name(), ".") {
 			continue
 		}
 		n++
@@ -52,7 +52,7 @@ func TestAllExampleCommandsExist(t *testing.T) {
 		})
 	}
 	if n == 0 {
-		t.Fatal("no examples/*.bb files found")
+		t.Fatal("no examples/*.mb files found")
 	}
 }
 
@@ -67,7 +67,7 @@ func exampleKnownCommands() map[string]bool {
 		"createmap": true, "mapset": true, "mapget": true, "maphas": true, "mapdelete": true, "mapcount": true,
 		"copy": true, "callback": true,
 		"createstatemachine": true, "addstate": true, "gostate": true, "statename": true, "updatestate": true,
-		"instr": true, "lower": true, "upper": true, "trim": true,
+		"instr": true, "replace": true, "string": true, "lower": true, "upper": true, "trim": true,
 		"millisecs":  true,
 		"backbuffer": true, "frontbuffer": true, "setbuffer": true,
 		"clamp": true, "lerp": true, "invlerp": true, "smoothstep": true,
@@ -86,6 +86,31 @@ func exampleKnownCommands() map[string]bool {
 		"createlist": true, "listadd": true, "listget": true, "listset": true,
 		"listcount": true, "listremove": true, "arraysize": true,
 	}
+	for _, name := range []string{
+		"sin", "cos", "tan", "asin", "acos", "atan", "atan2", "sqr", "abs",
+		"int", "floor", "ceil", "float", "sgn", "min", "max", "rnd", "rand",
+		"pow", "clamp", "lerp", "invlerp", "smoothstep", "easein", "easeout",
+		"approach", "wrapangle", "angledelta", "approachangle",
+		"distance2d", "distance3d", "pi",
+	} {
+		known["math."+name] = true
+	}
+	known["math.sqrt"] = true
+	known["math.sign"] = true
+	known["math.anglediff"] = true
+	known["math.dist2d"] = true
+	known["math.dist3d"] = true
+	for _, name := range []string{"len", "left", "right", "mid", "chr", "asc", "str", "instr", "replace", "lower", "upper", "trim", "format"} {
+		known["string."+name] = true
+	}
+	known["string.length"] = true
+	for _, name := range []string{"add", "get", "set", "count", "remove"} {
+		known["list."+name] = true
+	}
+	for _, name := range []string{"set", "get", "has", "delete", "count"} {
+		known["map."+name] = true
+	}
+	known["array.size"] = true
 	table := New(".").commandTable()
 	for k := range table {
 		known[k] = true
@@ -179,6 +204,13 @@ func (w *exampleCmdWalker) collect(stmts []ast.Stmt) {
 	}
 }
 
+func (w *exampleCmdWalker) checkDotted(object, method string) {
+	switch lex.IdentKey(object) {
+	case "math", "input", "time", "entity", "string", "json", "file", "sound", "net", "list", "map", "array":
+		w.checkCall(lex.IdentKey(object) + "." + lex.IdentKey(method))
+	}
+}
+
 func (w *exampleCmdWalker) checkCall(name string) {
 	key := lex.IdentKey(name)
 	if w.user[key] || w.known[key] {
@@ -213,6 +245,9 @@ func (w *exampleCmdWalker) walkExpr(e ast.Expr) {
 	case *ast.FieldExpr:
 		w.walkExpr(n.X)
 	case *ast.MethodExpr:
+		if id, ok := n.X.(*ast.IdentExpr); ok {
+			w.checkDotted(id.Name, n.Name)
+		}
 		w.walkExpr(n.X)
 		for _, a := range n.Args {
 			w.walkExpr(a)
@@ -277,6 +312,7 @@ func (w *exampleCmdWalker) walkStmts(stmts []ast.Stmt) {
 		case *ast.NamespaceDecl:
 			w.walkStmts(n.Stmts)
 		case *ast.MethodStmt:
+			w.checkDotted(n.Object, n.Method)
 			for _, a := range n.Args {
 				w.walkExpr(a)
 			}

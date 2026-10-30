@@ -1,0 +1,31 @@
+; Net echo — HostGame and JoinGame in one process, then NetSay.
+; ENet when built with -tags enet; otherwise UDP.
+
+SetWindowTitle("moonBASIC — Net echo")
+
+Print("HostGame on 1973")
+If Not Net.Host(1973) Then
+    Print("host failed")
+    End
+EndIf
+Print("backend", GetNetBackend())
+
+If Not Net.Join("127.0.0.1", 1973) Then
+    Print("join failed")
+    End
+EndIf
+Net.Say("hello from moonBASIC")
+
+ticks = 0
+got = 0
+While ticks < 50 And got = 0
+    ticks = ticks + 1
+    If NetRecv() And NetEvent() = NET_RECEIVE Then
+        Print("msg", NetMsg())
+        got = 1
+    EndIf
+Wend
+If got = 0 Then Print("no message")
+
+NetClose()
+End

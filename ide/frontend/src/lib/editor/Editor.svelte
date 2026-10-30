@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import * as monaco from 'monaco-editor';
-  import { registerBitShinLanguage, LANGUAGE_ID } from './bitshin-lang';
+  import { registerMoonbasicLanguage, LANGUAGE_ID } from './moonbasic-lang';
   import { registerCompletions } from './completions';
   import { registerHover } from './hover';
   import { editorStore } from '../stores/editorState.svelte';
@@ -29,7 +29,7 @@
       range: new monaco.Range(line, 1, line, 1),
       options: {
         isWholeLine: true,
-        glyphMarginClassName: 'bitshin-bp',
+        glyphMarginClassName: 'moonbasic-bp',
         overviewRuler: {
           color: 'rgba(196, 72, 64, 0.95)',
           position: monaco.editor.OverviewRulerLane.Left
@@ -45,7 +45,7 @@
   let unsubDiagnostics: (() => void) | null = null;
 
   onMount(async () => {
-    registerBitShinLanguage();
+    registerMoonbasicLanguage();
     registerCompletions();
     registerHover();
     registerDefinition();
@@ -200,7 +200,7 @@
       endLineNumber: (d.range?.end?.line ?? 0) + 1,
       endColumn: (d.range?.end?.character ?? 0) + 1
     }));
-    monaco.editor.setModelMarkers(model, 'bsls', markers);
+    monaco.editor.setModelMarkers(model, 'moonsls', markers);
   }
 
   function getOrCreateModel(tab: typeof editorStore.activeTab) {
@@ -278,8 +278,8 @@
     {#if !editorStore.activeTab}
       <div class="ide-empty">
         <div class="ide-mark" style="width:36px;height:36px;font-size:18px;">B</div>
-        <h1>BitShin BASIC</h1>
-        <p>Open a .bb file, start from a template, or browse the built-in examples.</p>
+        <h1>moonBASIC</h1>
+        <p>Open a .mb file, start from a template, or browse the built-in examples.</p>
         <div class="ide-empty-actions">
           <button class="ide-btn primary" onclick={() => editorStore.showNewModal = true}>
             <FilePlus size={13} /> New file

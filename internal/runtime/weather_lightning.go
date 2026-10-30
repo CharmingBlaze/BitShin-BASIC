@@ -13,7 +13,7 @@ import (
 	"github.com/g3n/engine/material"
 	"github.com/g3n/engine/math32"
 
-	bsaudio "bitshinbasic/internal/audio"
+	bsaudio "moonbasic/internal/audio"
 )
 
 // Midpoint-displacement bolts after fogleman/lightning (MIT-style algorithm).

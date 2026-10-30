@@ -1,0 +1,115 @@
+; GUI + 3D — cimgui-go panel on a lit G3N scene.
+; Right-drag orbits when the pointer is off the panel. Wheel zooms. Esc quits.
+
+Graphics3D(1100, 700)
+SetWindowTitle("moonBASIC — GUI + 3D")
+SetCameraClsColor(22, 28, 40)
+SetAmbientLight(48, 54, 64)
+
+cam = CreateCamera()
+SetCameraRange(cam, 0.1, 200)
+pivot = CreateCube().Scale(0.05, 0.05, 0.05).Position([0, 0.5, 0.6]).Hide()
+
+sun = CreateDirectionalLight()
+SetLightColor(sun, 255, 236, 210)
+SetLightShadow(sun, True)
+EnableShadows(True)
+SetShadowResolution(1024)
+SetShadowFilter("pcf")
+
+lamp = CreatePointLight().Position([2, 3, 2])
+SetLightColor(lamp, 80, 160, 255)
+SetLightRange(lamp, 14)
+
+ground = CreatePlane(24, 24).Position([0, 0, 0]).Color(42, 48, 58)
+cube = CreateCube().Position([-2, 0.5, 0]).Color(70, 160, 255)
+sphere = CreateSphere().Position([0, 0.6, 0]).Color(240, 180, 70)
+cyl = CreateCylinder(0.45, 1.3, 16).Position([2, 0.65, 0]).Color(90, 200, 140)
+torus = CreateTorus(0.7, 0.22).Position([0, 0.7, 2]).Color(220, 90, 140)
+
+sel = 0
+spin = 1
+lightYaw# = 40
+dist# = 9
+yaw# = 28
+pitch# = 22
+lastWheel = MouseZ()
+
+While Not Input.KeyDown(1)
+    dt# = Time.Delta() * 60
+
+    sx# = EntityX(cube)
+    sy# = EntityY(cube)
+    sz# = EntityZ(cube)
+    If sel = 1 Then
+        sx# = EntityX(sphere)
+        sy# = EntityY(sphere)
+        sz# = EntityZ(sphere)
+    EndIf
+    If sel = 2 Then
+        sx# = EntityX(cyl)
+        sy# = EntityY(cyl)
+        sz# = EntityZ(cyl)
+    EndIf
+    If sel = 3 Then
+        sx# = EntityX(torus)
+        sy# = EntityY(torus)
+        sz# = EntityZ(torus)
+    EndIf
+
+    GuiBegin("Scene")
+    GuiText("fps " + Str(Int(StatsFPS())))
+    If WantCaptureMouse() Then
+        GuiText("Pointer is on the panel")
+    Else
+        GuiText("Right-drag orbits, wheel zooms")
+    EndIf
+    GuiSeparator()
+    If GuiSelectable("Cube") Then sel = 0
+    If GuiSelectable("Sphere") Then sel = 1
+    If GuiSelectable("Cylinder") Then sel = 2
+    If GuiSelectable("Torus") Then sel = 3
+    GuiSeparator()
+    GuiSetWidth(180)
+    sx# = GuiDrag("X", -6, 6, sx#)
+    GuiSetWidth(180)
+    sy# = GuiDrag("Y", 0, 4, sy#)
+    GuiSetWidth(180)
+    sz# = GuiDrag("Z", -6, 6, sz#)
+    spin = GuiCheckbox("Spin", spin)
+    lightYaw# = GuiSlider("Sun yaw", 0, 360, lightYaw#)
+    GuiEnd()
+
+    If sel = 0 Then cube.Position(sx, sy, sz)
+    If sel = 1 Then sphere.Position(sx, sy, sz)
+    If sel = 2 Then cyl.Position(sx, sy, sz)
+    If sel = 3 Then torus.Position(sx, sy, sz)
+
+    If spin Then
+        cube.Turn(0, 0.5 * dt, 0)
+        sphere.Turn(0, 0.7 * dt, 0.2 * dt)
+        cyl.Turn(0, 0.4 * dt, 0)
+        torus.Turn(0.3 * dt, 0.5 * dt, 0)
+    EndIf
+
+    SetLightDirection(sun, 50, lightYaw, 0)
+
+    wheel = MouseZ()
+    If Not WantCaptureMouse() Then
+        If MouseDown(2) Then
+            yaw# = yaw# + MouseXSpeed() * 0.35
+            pitch# = pitch# - MouseYSpeed() * 0.25
+        EndIf
+        dist# = dist# - (wheel - lastWheel) * 0.35
+    EndIf
+    lastWheel = wheel
+    If pitch# > 75 Then pitch# = 75
+    If pitch# < -10 Then pitch# = -10
+    If dist# < 3 Then dist# = 3
+    If dist# > 24 Then dist# = 24
+    CameraOrbit(cam, pivot, dist, 0.4, yaw, pitch)
+
+    RenderWorld
+    Flip
+Wend
+End

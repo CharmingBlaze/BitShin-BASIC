@@ -6,9 +6,9 @@ import (
 
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/glslang"
-	"bitshinbasic/internal/mathx"
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/glslang"
+	"moonbasic/internal/mathx"
+	"moonbasic/internal/value"
 )
 
 func (w *World) glmodernCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error), need func(func([]value.Value) (value.Value, error)) cmd) map[string]cmd {

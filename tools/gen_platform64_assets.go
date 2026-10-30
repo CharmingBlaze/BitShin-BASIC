@@ -1,4 +1,6 @@
-// Generates tiny original CC0 textures and a coin beep for examples/platform64.bb.
+//go:build ignore
+
+// Generates tiny original CC0 textures and a coin beep for examples/platform64.mb.
 package main
 
 import (

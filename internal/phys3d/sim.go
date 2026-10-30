@@ -296,6 +296,19 @@ func (w *fallback) separateBoxes(ia, ib int, a, b *body) {
 		b.y += ny * pen
 		b.z += nz * pen
 	}
+	// n points from a toward b, so a floor under a has a negative Y.
+	if a.character && ny < -0.5 {
+		a.onGround = true
+		if a.vy < 0 {
+			a.vy = 0
+		}
+	}
+	if b.character && ny > 0.5 {
+		b.onGround = true
+		if b.vy < 0 {
+			b.vy = 0
+		}
+	}
 	if aMove {
 		vn := a.vx*nx + a.vy*ny + a.vz*nz
 		if vn > 0 {
@@ -400,12 +413,17 @@ func (w *fallback) AddCharacter(id int, x, y, z, halfH, r float32) {
 func (w *fallback) AddCharacterController(id int, x, y, z, height, radius, maxSlopeDeg, maxStrength float32) {
 	_ = maxSlopeDeg
 	_ = maxStrength
-	rad := height * 0.5
-	if rad < 0.4 {
-		rad = 0.4
+	if height <= 0 {
+		height = 1.8
 	}
+	if radius <= 0 {
+		radius = 0.4
+	}
+	half := height * 0.5
 	w.bodies[id] = &body{
-		x: x, y: y, z: z, r: rad, mass: 70, gScale: 1,
+		x: x, y: y, z: z,
+		r: half, hx: radius, hy: half, hz: radius,
+		box: true, mass: 70, gScale: 1,
 		dynamic: true, kinematic: true, character: true,
 	}
 }
@@ -415,15 +433,19 @@ func (w *fallback) SetCharacterShape(id int, shapeType string, height, radius fl
 	if b == nil || !b.character {
 		return
 	}
-	halfH := height * 0.5
-	rad := radius + halfH
+	if height <= 0 {
+		height = 1.8
+	}
+	if radius <= 0 {
+		radius = 0.4
+	}
+	half := height * 0.5
+	b.hx, b.hy, b.hz = radius, half, radius
+	b.r = half
+	b.box = true
 	if shapeType == "box" || shapeType == "Box" || shapeType == "BOX" {
-		rad = height*0.5 + radius
+		b.hx, b.hz = radius, radius
 	}
-	if rad < 0.2 {
-		rad = 0.2
-	}
-	b.r = rad
 }
 
 func (w *fallback) CharacterGround(id int) int {

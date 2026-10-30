@@ -1,0 +1,61 @@
+; Road — drive a car between walls. The follow camera stops at the barrier.
+; WASD throttle and steer, Space brake. Esc quits.
+
+Graphics3D(1280, 720, 0, 2)
+SetWindowTitle("moonBASIC — Road")
+SetCameraClsColor(28, 34, 44)
+SetAmbientLight(64, 72, 84)
+
+cam = CreateCamera()
+SetCameraRange(cam, 0.2, 800)
+
+sun = CreateDirectionalLight()
+SetLightDirection(sun, 42, 28, 0)
+SetLightColor(sun, 255, 238, 214)
+SetLightShadow(sun, True)
+EnableShadows(True)
+
+road = CreateCube().Scale(8, 0.2, 48).Position([0, -0.2, 20]).Color(58, 62, 68)
+CreateRigidBodyBox(road, 8, 0.2, 48, 0)
+
+; Shoulders
+left = CreateCube().Scale(0.35, 0.45, 48).Position([-6.2, 0.45, 20]).Color(72, 78, 70)
+CreateRigidBodyBox(left, 0.35, 0.45, 48, 0)
+right = CreateCube().Scale(0.35, 0.45, 48).Position([6.2, 0.45, 20]).Color(72, 78, 70)
+CreateRigidBodyBox(right, 0.35, 0.45, 48, 0)
+
+; A gate the camera has to pull in front of when the car passes close.
+gate = CreateCube().Scale(2.4, 1.1, 0.18).Position([2.2, 1.1, 16]).Color(150, 86, 48)
+CreateRigidBodyBox(gate, 2.4, 1.1, 0.18, 0)
+
+For i = 0 To 5
+    cone = CreateCone(0.28, 0.7, 8).Position([-3.2 + (i Mod 2) * 6.4, 0.7, 6 + i * 7]).Color(230, 140, 30)
+    CreateRigidBodyBox(cone, 0.28, 0.35, 0.28, 0)
+Next
+
+car = CreateCube().Scale(1.05, 0.38, 1.9).Position([0, 0.7, 2]).Color(196, 64, 52)
+CreateCarController(car)
+
+frames = 0
+While 1
+    frames = frames + 1
+    steer# = 0
+    throttle# = 0
+    brake# = 0
+    If Input.KeyDown(KEY_A) Then steer = -1
+    If Input.KeyDown(KEY_D) Then steer = 1
+    If Input.KeyDown(KEY_W) Then throttle = 1
+    If Input.KeyDown(KEY_S) Then throttle = -0.45
+    If Input.KeyDown(KEY_SPACE) Then brake = 1
+    UpdateCar(car, steer, throttle, brake)
+    UpdateWorld
+    CameraFollow(cam, car, 11, 3.4, 8, EntityYaw(car), 14)
+    RenderWorld
+    Text(16, 16, "Road  WASD drive  Space brake  Esc quit")
+    Text(16, 36, "The camera shortens its arm when the gate is in the way.")
+    Flip
+    If frames > 8
+        If Input.KeyHit(KEY_ESCAPE) Then End
+    EndIf
+Wend
+End

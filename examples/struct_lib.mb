@@ -1,0 +1,5 @@
+; Struct Lib — imported by struct.mb (Function Double)
+
+Function Double(n)
+    Return n * 2
+End Function

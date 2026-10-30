@@ -1,6 +1,8 @@
 package runtime
 
 import (
+	"fmt"
+
 	"github.com/g3n/engine/camera"
 	"github.com/g3n/engine/math32"
 	"github.com/go-gl/gl/v3.3-core/gl"
@@ -70,6 +72,8 @@ func (w *World) drawGPUInstances(viewProj *math32.Matrix4, depth bool) int {
 	} else if !w.ensureInstProgram() {
 		return 0
 	}
+	// An error still pending here came from the scene pass, not instancing.
+	drainGL("before GPU instances")
 	drew := 0
 	gl.UseProgram(prog)
 	loc := gl.GetUniformLocation(prog, gl.Str("ViewProj\x00"))
@@ -93,9 +97,28 @@ func (w *World) drawGPUInstances(viewProj *math32.Matrix4, depth bool) int {
 		}
 	}
 	if !depth {
-		cl := gl.GetUniformLocation(prog, gl.Str("Color\x00"))
-		if cl >= 0 {
-			gl.Uniform3f(cl, 0.35, 0.62, 0.28)
+		if cl := gl.GetUniformLocation(prog, gl.Str("CamPos\x00")); cl >= 0 {
+			cx, cy, cz := float32(0), float32(0), float32(0)
+			if w.cam != nil {
+				p := worldPos(w.cam.GetNode())
+				cx, cy, cz = p.X, p.Y, p.Z
+			}
+			gl.Uniform3f(cl, cx, cy, cz)
+		}
+		if loc := gl.GetUniformLocation(prog, gl.Str("FogMode\x00")); loc >= 0 {
+			gl.Uniform1i(loc, int32(w.fogMode))
+		}
+		if loc := gl.GetUniformLocation(prog, gl.Str("FogColor\x00")); loc >= 0 {
+			gl.Uniform3f(loc, w.fogRGB.R, w.fogRGB.G, w.fogRGB.B)
+		}
+		if loc := gl.GetUniformLocation(prog, gl.Str("FogNear\x00")); loc >= 0 {
+			gl.Uniform1f(loc, w.fogNear)
+		}
+		if loc := gl.GetUniformLocation(prog, gl.Str("FogFar\x00")); loc >= 0 {
+			gl.Uniform1f(loc, w.fogFar)
+		}
+		if loc := gl.GetUniformLocation(prog, gl.Str("FogDensity\x00")); loc >= 0 {
+			gl.Uniform1f(loc, w.fogDensity)
 		}
 	}
 	for _, im := range w.instances {
@@ -105,16 +128,43 @@ func (w *World) drawGPUInstances(viewProj *math32.Matrix4, depth bool) int {
 		if im.vao == 0 {
 			continue
 		}
+		if !depth {
+			if cl := gl.GetUniformLocation(prog, gl.Str("Color\x00")); cl >= 0 {
+				c := im.color
+				if c.R == 0 && c.G == 0 && c.B == 0 {
+					c = math32.Color{0.35, 0.62, 0.28}
+				}
+				gl.Uniform3f(cl, c.R, c.G, c.B)
+			}
+		}
 		gl.BindVertexArray(im.vao)
 		if im.indexN > 0 {
 			gl.DrawElementsInstanced(gl.TRIANGLES, im.indexN, gl.UNSIGNED_INT, nil, int32(im.count))
 		} else if im.vertN > 0 {
 			gl.DrawArraysInstanced(gl.TRIANGLES, 0, im.vertN, int32(im.count))
 		}
+		if err := gl.GetError(); err != gl.NO_ERROR {
+			// The batch mesh is hidden while the GPU path owns it. A failed
+			// draw would leave nothing on screen, so hand it back to the CPU.
+			w.instanceGPUFailed(im, "draw", err)
+			continue
+		}
 		drew++
 	}
 	gl.BindVertexArray(0)
 	return drew
+}
+
+func (w *World) deleteInstanceGL(im *instancedMesh) {
+	if im == nil || im.vao == 0 {
+		return
+	}
+	gl.DeleteVertexArrays(1, &im.vao)
+	gl.DeleteBuffers(1, &im.vbo)
+	gl.DeleteBuffers(1, &im.ebo)
+	gl.DeleteBuffers(1, &im.instVBO)
+	im.vao = 0
+	im.gpuOK = false
 }
 
 func (w *World) uploadInstanceGPU(im *instancedMesh) {
@@ -161,6 +211,7 @@ func (w *World) uploadInstanceGPU(im *instancedMesh) {
 		gl.GenBuffers(1, &im.ebo)
 		gl.GenBuffers(1, &im.instVBO)
 	}
+	drainGL("before instance upload")
 	gl.BindVertexArray(im.vao)
 	stride := int32(6 * 4)
 	inter := make([]float32, len(im.tris)*6*3)
@@ -191,6 +242,21 @@ func (w *World) uploadInstanceGPU(im *instancedMesh) {
 	im.indexN = int32(len(idx))
 	im.vertN = int32(len(im.tris) * 3)
 	im.gpuOK = im.vao != 0
+	if err := gl.GetError(); err != gl.NO_ERROR {
+		w.instanceGPUFailed(im, "upload", err)
+	}
+}
+
+// instanceGPUFailed names the GL error and moves one batch to the merged CPU
+// mesh for good. tickInstances rebuilds that mesh before the next frame.
+func (w *World) instanceGPUFailed(im *instancedMesh, stage string, err uint32) {
+	for gl.GetError() != gl.NO_ERROR {
+	}
+	fmt.Printf("GPU instances: %s failed (%s, %d tris x %d); drawing the mesh batch instead\n",
+		stage, glErrName(err), len(im.tris), im.count)
+	im.gpuOK = false
+	im.preferCPU = true
+	im.dirty = true
 }
 
 func (w *World) drawGeomPoints(cam *camera.Camera, viewProj *math32.Matrix4) {

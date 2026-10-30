@@ -8,9 +8,9 @@ import (
 	"github.com/g3n/engine/camera"
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/ast"
-	"bitshinbasic/internal/lex"
-	"bitshinbasic/internal/parse"
+	"moonbasic/internal/ast"
+	"moonbasic/internal/lex"
+	"moonbasic/internal/parse"
 )
 
 func TestShowcaseCameraProjectsOrigin(t *testing.T) {
@@ -151,7 +151,7 @@ func TestCommandTableHasShowcaseNames(t *testing.T) {
 }
 
 func TestShowcaseExampleCommandsExist(t *testing.T) {
-	path := filepath.Join("..", "..", "examples", "showcase.bb")
+	path := filepath.Join("..", "..", "examples", "showcase.mb")
 	if _, err := os.Stat(path); err != nil {
 		t.Fatal(err)
 	}

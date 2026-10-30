@@ -80,7 +80,7 @@ export function lspDidOpen(uri: string, text: string) {
   notify('textDocument/didOpen', {
     textDocument: {
       uri,
-      languageId: 'bitshinbasic',
+      languageId: 'moonbasic',
       version,
       text
     }

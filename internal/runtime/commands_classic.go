@@ -8,7 +8,7 @@ import (
 	"github.com/go-gl/glfw/v3.3/glfw"
 	"github.com/hajimehoshi/ebiten/v2"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 func (w *World) classic3DCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error), need func(func([]value.Value) (value.Value, error)) cmd) map[string]cmd {
@@ -157,9 +157,11 @@ func (w *World) classic3DCommands(n func(func([]value.Value) (value.Value, error
 				if t := w.texs[id]; t != nil && e.mat != nil {
 					e.mat.AddTexture(t.tex)
 					e.albedoTex = t.tex
+					e.albedoPath = t.path
 				}
 				if t := w.texs[id]; t != nil && e.pbr != nil {
 					e.pbr.SetBaseColorMap(t.tex)
+					e.albedoPath = t.path
 				}
 			}
 			if e.mat != nil {
@@ -236,6 +238,7 @@ func (w *World) classic3DCommands(n func(func([]value.Value) (value.Value, error
 			}
 			e.collided = e.collided[:0]
 			e.hitID = 0
+			e.hitX, e.hitY, e.hitZ = 0, 0, 0
 			return z()
 		}),
 		"collisionentity": need(func(a []value.Value) (value.Value, error) {

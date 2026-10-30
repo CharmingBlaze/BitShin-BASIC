@@ -1,4 +1,4 @@
-// Package geo is a thin, pure-Go subset of flywave/go-geo for BitShin BASIC.
+// Package geo is a thin, pure-Go subset of flywave/go-geo for moonBASIC.
 //
 // Upstream go-geo (https://github.com/flywave/go-geo) is a tile-proxy helper:
 // EPSG/SRS via PROJ, GEOS coverages, TMS/XYZ grids, GCJ-02, geoid, geometry

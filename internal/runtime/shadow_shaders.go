@@ -177,6 +177,10 @@ void main() {
             #endif
         #endif
     #endif
+    #if MAT_TEXTURES > 0
+        float aa = fwidth(texMixed.a);
+        if (texMixed.a < 0.45 - aa) discard;
+    #endif
     vec4 matDiffuse = vec4(MatDiffuseColor, MatOpacity) * texMixed;
     vec4 matAmbient = vec4(MatAmbientColor, MatOpacity) * texMixed;
     vec3 fragNormal = normalize(Normal);

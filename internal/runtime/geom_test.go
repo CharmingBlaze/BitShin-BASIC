@@ -3,7 +3,7 @@ package runtime
 import (
 	"testing"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 func nums(n ...float64) []value.Value {

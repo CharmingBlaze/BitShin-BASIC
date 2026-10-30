@@ -1,0 +1,143 @@
+; Large world — streaming terrain, a harbor town, and eight named people.
+; WASD walk. E talks. Esc quits.
+; Each person is their own entity with a behavior tree and their own lines.
+; Meshes are still primitives; the town is scripted, not a unique model per citizen.
+
+Graphics3D(1200, 720)
+SetWindowTitle("moonBASIC — Large world")
+SetCameraClsColor(80, 130, 190)
+SetAmbientLight(45, 55, 68)
+CreateSkyBox("default")
+
+; Camera / light
+cam = CreateCamera()
+sun = CreateDirectionalLight()
+SetLightDirection(sun, 48, 30, 0)
+SetLightShadow(sun, True)
+EnableShadows(True)
+SetShadowResolution(1024)
+SetShadowFilter("pcf")
+
+; Terrain / water
+land = CreateProcTerrain(11, 15, 5, 8, 36)
+SetTerrainStreamRadius(land, 2)
+CreateWorldStream(36, 1)
+water = CreateWater(120, 120, 40)
+SetWaterLevel(-1.2)
+SetWaterColor(16, 64, 88)
+EnableWaterReflection(True)
+SetProbeGrid(-30, 8, -30, 2, 1, 2, 30)
+
+; Instanced trees
+proto = CreateCone().Hide()
+trees = CreateInstancedMesh(proto, 80)
+For i = 0 To 79
+    ang# = i * 17
+    rx# = Math.Sin(ang#) * (12 + i * 0.35)
+    rz# = Math.Cos(ang#) * (12 + i * 0.35)
+    SetInstanceTransform(trees, i, rx#, TerrainHeight(rx#, rz#) + 1.1, rz#, 0, ang#, 0, 0.5, 2.0, 0.5)
+Next
+BatchInstances(trees)
+
+player = CreateCube().Scale(0.55, 1.1, 0.55).Position([8, 6, 8]).Color(255, 210, 70)
+SetStreamFollow(player)
+
+; Harbor town. Buildings sit on the terrain. People are unique entities.
+Function PlaceBox(x#, z#, sx#, sy#, sz#, r, g, b)
+    box = CreateCube().Scale(sx, sy, sz)
+    box.Position(x, TerrainHeight(x, z) + sy, z)
+    box.Color(r, g, b)
+    Return box
+End Function
+
+PlaceBox(8, 24, 6, 2.2, 4, 150, 142, 128)
+PlaceBox(18, 20, 3.2, 1.6, 3.2, 120, 96, 78)
+PlaceBox(-2, 18, 2.4, 3.4, 2.4, 96, 104, 112)
+PlaceBox(16, 30, 4, 1.2, 2.5, 168, 154, 130)
+PlaceBox(4, 32, 2, 1.4, 2, 132, 118, 102)
+
+Function PlacePerson(name$, x#, z#, r, g, b)
+    who = CreateCube().Scale(0.45, 0.95, 0.45)
+    who.Position(x, TerrainHeight(x, z) + 0.95, z)
+    who.Color(r, g, b)
+    NameEntity(who, name)
+    Return who
+End Function
+
+mara = PlacePerson("Mara", 8, 20, 220, 90, 90)
+owen = PlacePerson("Owen", 14, 18, 230, 180, 80)
+ivo = PlacePerson("Ivo", 2, 16, 80, 140, 200)
+ness = PlacePerson("Ness", 11, 26, 180, 120, 200)
+bram = PlacePerson("Bram", 20, 24, 90, 90, 90)
+sera = PlacePerson("Sera", 6, 28, 240, 220, 120)
+holt = PlacePerson("Holt", -1, 22, 70, 110, 70)
+pia = PlacePerson("Pia", 17, 28, 200, 160, 140)
+
+Function CloseEnough(e)
+    If EntityDistance(e, player) < 4.5 Then Return 1
+    Return 0
+End Function
+
+Function Greet(e)
+    If EntityDistance(e, player) > 4.5 Then Return -1
+    If DialogueOn() Then Return 1
+    name$ = EntityName(e)
+    line$ = name + " waves."
+    If name = "Mara" Then line = "Mara: The harbor road stays lit after dusk.|Mara: Keep to the pale stones."
+    If name = "Owen" Then line = "Owen: The loaf you smell is still warm.|Owen: Come back before the bell."
+    If name = "Ivo" Then line = "Ivo: I count the boats, not the people.|Ivo: Two are still past the bar."
+    If name = "Ness" Then line = "Ness: This crate is mine.|Ness: The blue one is the baker's."
+    If name = "Bram" Then line = "Bram: Gate is open. Don't lean on it.|Bram: The night watch starts at the tower."
+    If name = "Sera" Then line = "Sera: I am writing who came in today.|Sera: Tell me your name when you leave."
+    If name = "Holt" Then line = "Holt: The trees past the water are not for cutting.|Holt: Birds nest in the third row."
+    If name = "Pia" Then line = "Pia: Tide turns before supper.|Pia: If the water climbs the steps, go uphill."
+    SetDialogue(e, line)
+    Return 1
+End Function
+
+Function TownIdle(e)
+    Return 0
+End Function
+
+ai = CreateBehavior()
+root = BTSelector(ai)
+talk = BTSequence(ai)
+BTAdd(ai, talk, BTCondition(ai, "CloseEnough"))
+BTAdd(ai, talk, BTAction(ai, "Greet"))
+BTAdd(ai, root, talk)
+BTAdd(ai, root, BTAction(ai, "TownIdle"))
+SetBehavior(mara, ai, root)
+SetBehavior(owen, ai, root)
+SetBehavior(ivo, ai, root)
+SetBehavior(ness, ai, root)
+SetBehavior(bram, ai, root)
+SetBehavior(sera, ai, root)
+SetBehavior(holt, ai, root)
+SetBehavior(pia, ai, root)
+
+; Loop
+yaw# = 30
+While Not Input.KeyDown(1)
+    dt# = Time.Delta()
+    If Input.KeyDown(KEY_A) Then yaw = yaw - 85 * dt
+    If Input.KeyDown(KEY_D) Then yaw = yaw + 85 * dt
+    If Input.KeyDown(KEY_W) Then player.Position(EntityX(player) + Math.Sin(yaw) * 11 * dt, EntityY(player), EntityZ(player) + Math.Cos(yaw) * 11 * dt)
+    If Input.KeyDown(KEY_S) Then player.Position(EntityX(player) - Math.Sin(yaw) * 8 * dt, EntityY(player), EntityZ(player) - Math.Cos(yaw) * 8 * dt)
+    player.Position(EntityX(player), TerrainHeight(EntityX(player), EntityZ(player)) + 0.75, EntityZ(player))
+    cam.Follow(player, 13, 5.5, 8, yaw, 14)
+
+    If Input.KeyHit(KEY_E) Then
+        If DialogueOn() Then DialogueAdvance()
+    EndIf
+
+    GuiBegin("Scale")
+    GuiText("fps " + Str(Int(StatsFPS())) + "  draws " + Str(StatsDraws()))
+    GuiText("chunks " + Str(StatsChunks()) + "  jobs " + Str(StatsJobs()))
+    GuiText("ents " + Str(EntityCount()) + "  water " + Str(WaterHeight(EntityX(player), EntityZ(player))))
+    If DialogueOn() Then GuiText(DialogueLine())
+    GuiEnd()
+
+    RenderWorld
+    Flip
+Wend
+End

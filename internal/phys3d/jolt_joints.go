@@ -1,4 +1,4 @@
-//go:build !nojolt && ((linux && (amd64 || arm64)) || (darwin && arm64))
+//go:build joltgo && !nojolt && ((linux && (amd64 || arm64)) || (darwin && arm64))
 
 package phys3d
 
@@ -71,14 +71,10 @@ func (w *joltWorld) PollContacts(max int) []ContactEvent {
 		if !ok {
 			continue
 		}
-		r := w.rad[id]
-		if r < 0.1 {
-			r = 0.1
-		}
-		hits := w.OverlapSphereAll(x, y, z, r, 12)
+		hits := w.contactOverlap(x, y, z, id, 12)
 		for i := 0; i < len(hits); i++ {
-			oid := hits[i]
-			if oid == id {
+			oid := hits[i].id
+			if oid == id || oid == 0 {
 				continue
 			}
 			k := pairKey(id, oid)
@@ -89,17 +85,68 @@ func (w *joltWorld) PollContacts(max int) []ContactEvent {
 			if !w.layersCollide(id, oid) {
 				continue
 			}
-			ox, oy, oz, _ := w.GetPosition(oid)
+			cx, cy, cz := hits[i].x, hits[i].y, hits[i].z
+			if cx == 0 && cy == 0 && cz == 0 {
+				ox, oy, oz, _ := w.GetPosition(oid)
+				cx, cy, cz = (x+ox)*0.5, (y+oy)*0.5, (z+oz)*0.5
+			}
+			ny := hits[i].ny
+			if ny == 0 && hits[i].nx == 0 && hits[i].nz == 0 {
+				ny = 1
+			}
 			out = append(out, ContactEvent{
 				Kind: ContactPersisted,
 				A:    id, B: oid,
-				X: (x + ox) * 0.5, Y: (y + oy) * 0.5, Z: (z + oz) * 0.5,
-				NY: 1,
+				X: cx, Y: cy, Z: cz,
+				NX: hits[i].nx, NY: ny, NZ: hits[i].nz,
 			})
 			if len(out) >= max {
 				return out
 			}
 		}
+	}
+	return out
+}
+
+type contactOverlapHit struct {
+	id         int
+	x, y, z    float32
+	nx, ny, nz float32
+}
+
+func (w *joltWorld) contactOverlap(x, y, z float32, self, max int) []contactOverlapHit {
+	if max <= 0 {
+		max = 12
+	}
+	var shape *jolt.Shape
+	if h, ok := w.boxHalf[self]; ok {
+		shape = jolt.CreateBox(jolt.Vec3{X: h[0], Y: h[1], Z: h[2]})
+	} else {
+		r := w.rad[self]
+		if r < 0.1 {
+			r = 0.1
+		}
+		shape = jolt.CreateSphere(r)
+	}
+	if shape == nil {
+		ids := w.OverlapSphereAll(x, y, z, w.rad[self], max)
+		out := make([]contactOverlapHit, 0, len(ids))
+		for _, oid := range ids {
+			out = append(out, contactOverlapHit{id: oid, ny: 1})
+		}
+		return out
+	}
+	defer shape.Destroy()
+	raw := w.ps.CollideShapeGetHits(shape, jolt.Vec3{X: x, Y: y, Z: z}, max, 0)
+	out := make([]contactOverlapHit, 0, len(raw))
+	for i := 0; i < len(raw); i++ {
+		oid := w.hitEntity(raw[i].BodyID)
+		if oid == 0 {
+			cp := raw[i].ContactPoint
+			oid = w.entityNear(cp.X, cp.Y, cp.Z)
+		}
+		cp := raw[i].ContactPoint
+		out = append(out, contactOverlapHit{id: oid, x: cp.X, y: cp.Y, z: cp.Z})
 	}
 	return out
 }
@@ -321,6 +368,10 @@ func (w *joltWorld) AddSensorBox(id int, x, y, z, hx, hy, hz float32, motion int
 		r = hz
 	}
 	w.addSensor(id, jolt.CreateBox(jolt.Vec3{X: hx, Y: hy, Z: hz}), x, y, z, r, motion, true)
+	if w.boxHalf == nil {
+		w.boxHalf = map[int][3]float32{}
+	}
+	w.boxHalf[id] = [3]float32{hx, hy, hz}
 }
 
 func (w *joltWorld) collideHits(shape *jolt.Shape, x, y, z float32, max int) []int {
@@ -410,6 +461,10 @@ func (w *joltWorld) ClothVertexCount(id int) int {
 		return 0
 	}
 	return len(c.pos)
+}
+
+func (w *joltWorld) SetClothVertices(id int, src []float32) {
+	setClothSimVertices(w.cloths[id], src)
 }
 
 func (w *joltWorld) ClothVertices(id int, dst []float32) int {

@@ -10,7 +10,7 @@ import (
 
 	"github.com/hajimehoshi/ebiten/v2/text/v2"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 type tileMap struct {
@@ -18,6 +18,7 @@ type tileMap struct {
 	cells              []int
 	atlas              int
 	atlasCols          int
+	open               map[int]bool // tile ids that do not block, even when id > 0
 }
 
 type fontSlot struct {
@@ -124,8 +125,8 @@ func (w *World) tileCommands(n func(func([]value.Value) (value.Value, error)) cm
 					if id <= 0 {
 						continue
 					}
-					px := float32(ox) + float32(x*tm.tw)
-					py := float32(oy) + float32(y*tm.th)
+					px := float32(ox + float64(x*tm.tw) - w.cam2X)
+					py := float32(oy + float64(y*tm.th) - w.cam2Y)
 					if im != nil {
 						acols := tm.atlasCols
 						if acols < 1 {
@@ -189,6 +190,40 @@ func (w *World) tileCommands(n func(func([]value.Value) (value.Value, error)) cm
 			w.tiles[id] = tm
 			return value.Num(float64(id)), nil
 		}),
+		"gettile": n(func(a []value.Value) (value.Value, error) {
+			return value.Num(float64(tileCell(w.tiles[argI(a, 0, 0)], argI(a, 1, 0), argI(a, 2, 0)))), nil
+		}),
+		"tileat": n(func(a []value.Value) (value.Value, error) {
+			tm := w.tiles[argI(a, 0, 0)]
+			if tm == nil {
+				return value.Num(0), nil
+			}
+			return value.Num(float64(tileCell(tm, floorCell(argN(a, 1, 0), tm.tw), floorCell(argN(a, 2, 0), tm.th)))), nil
+		}),
+		"settilesolid": n(func(a []value.Value) (value.Value, error) {
+			tm := w.tiles[argI(a, 0, 0)]
+			if tm == nil {
+				return z()
+			}
+			id := argI(a, 1, 0)
+			if argI(a, 2, 1) != 0 {
+				if tm.open != nil {
+					delete(tm.open, id)
+				}
+				return z()
+			}
+			if tm.open == nil {
+				tm.open = map[int]bool{}
+			}
+			tm.open[id] = true
+			return z()
+		}),
+		"spritehittile": need2(func(a []value.Value) (value.Value, error) {
+			if w.spriteHitsTile(w.sprites[argI(a, 0, 0)], w.tiles[argI(a, 1, 0)]) {
+				return value.Num(1), nil
+			}
+			return value.Num(0), nil
+		}),
 		"loadfont": n(func(a []value.Value) (value.Value, error) {
 			path, err := w.openPath(argS(a, 0))
 			if err != nil {
@@ -217,4 +252,48 @@ func (w *World) tileCommands(n func(func([]value.Value) (value.Value, error)) cm
 			return z()
 		}),
 	}
+}
+
+func tileCell(tm *tileMap, x, y int) int {
+	if tm == nil || x < 0 || y < 0 || x >= tm.cols || y >= tm.rows {
+		return 0
+	}
+	return tm.cells[y*tm.cols+x]
+}
+
+func tileBlocks(tm *tileMap, id int) bool {
+	if tm == nil || id <= 0 {
+		return false
+	}
+	return tm.open == nil || !tm.open[id]
+}
+
+func floorCell(p float64, size int) int {
+	if size < 1 {
+		return 0
+	}
+	v := p / float64(size)
+	i := int(v)
+	if v < float64(i) {
+		i--
+	}
+	return i
+}
+
+func (w *World) spriteHitsTile(s *ebiSprite, tm *tileMap) bool {
+	if s == nil || tm == nil || tm.tw < 1 || tm.th < 1 {
+		return false
+	}
+	ww, hh := spriteSize(s)
+	x0, y0 := s.x-ww/2, s.y-hh/2
+	tx0, ty0 := floorCell(x0, tm.tw), floorCell(y0, tm.th)
+	tx1, ty1 := floorCell(x0+ww-0.001, tm.tw), floorCell(y0+hh-0.001, tm.th)
+	for ty := ty0; ty <= ty1; ty++ {
+		for tx := tx0; tx <= tx1; tx++ {
+			if tileBlocks(tm, tileCell(tm, tx, ty)) {
+				return true
+			}
+		}
+	}
+	return false
 }

@@ -5,7 +5,7 @@ import (
 
 	"github.com/g3n/engine/core"
 
-	"bitshinbasic/internal/phys3d"
+	"moonbasic/internal/phys3d"
 )
 
 func TestResolveDrivenOverlapsPushesPrizeFromMesh(t *testing.T) {

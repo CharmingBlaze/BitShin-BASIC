@@ -8,7 +8,7 @@ import (
 	"github.com/g3n/engine/material"
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 func clampSegs(n, lo, def int) int {

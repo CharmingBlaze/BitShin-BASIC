@@ -13,6 +13,8 @@ declare global {
       EventsEmit?: (eventName: string, ...optionalData: any[]) => void;
       WindowMinimise?: () => void;
       WindowToggleMaximise?: () => void;
+      WindowStartResize?: (edge: string) => void;
+      WindowStartMove?: () => void;
       Quit?: () => void;
     };
   }
@@ -82,7 +84,7 @@ export const AppAPI = {
     if (window.go?.main?.App?.RunProgram) {
       return await window.go.main.App.RunProgram(code, filePath, debug);
     }
-    throw new Error('Runner requires BitShin IDE desktop backend');
+    throw new Error('Runner requires moonBASIC IDE desktop backend');
   },
 
   async stopProgram() {
@@ -96,19 +98,19 @@ export const AppAPI = {
     if (window.go?.main?.App?.BuildExecutable) {
       return await window.go.main.App.BuildExecutable(filePath, outputDir, targetOS);
     }
-    throw new Error('Builder requires BitShin IDE desktop backend');
+    throw new Error('Builder requires moonBASIC IDE desktop backend');
   },
 
   async getSettings() {
     if (window.go?.main?.App?.GetSettings) {
       return await window.go.main.App.GetSettings();
     }
-    const saved = localStorage.getItem('bitshin_settings');
+    const saved = localStorage.getItem('moonbasic_settings');
     if (saved) {
       try { return JSON.parse(saved); } catch {}
     }
     return {
-      theme: 'bitshin-dark',
+      theme: 'moonbasic-dark',
       fontSize: 14,
       tabSize: 4,
       minimap: true,
@@ -124,7 +126,7 @@ export const AppAPI = {
     if (window.go?.main?.App?.SaveSettings) {
       return await window.go.main.App.SaveSettings(settings);
     }
-    localStorage.setItem('bitshin_settings', JSON.stringify(settings));
+    localStorage.setItem('moonbasic_settings', JSON.stringify(settings));
   },
 
   async getRepoRoot() {
@@ -138,7 +140,7 @@ export const AppAPI = {
     if (window.go?.main?.App?.SendLSP) {
       return await window.go.main.App.SendLSP(body);
     }
-    throw new Error('Language server requires BitShin IDE desktop backend');
+    throw new Error('Language server requires moonBASIC IDE desktop backend');
   },
 
   async isLspRunning() {

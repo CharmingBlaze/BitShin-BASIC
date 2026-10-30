@@ -57,10 +57,23 @@
 
 <svelte:window onclick={() => closeMenus()} />
 
-<header class="ide-titlebar">
+<header
+  class="ide-titlebar"
+  onpointerdown={(e) => {
+    if (e.button !== 0) return
+    const t = e.target as HTMLElement
+    if (t.closest('button, .ide-menu, .ide-winbtn, select, input, a')) return
+    window.runtime?.WindowStartMove?.()
+  }}
+  ondblclick={(e) => {
+    const t = e.target as HTMLElement
+    if (t.closest('button, .ide-menu, .ide-nodrag')) return
+    toggleMaximize()
+  }}
+>
   <div class="ide-brand ide-nodrag">
     <div class="ide-mark" aria-hidden="true">B</div>
-    <span class="ide-brand-name">BitShin BASIC</span>
+    <span class="ide-brand-name">moonBASIC</span>
   </div>
 
   <nav class="ide-menu ide-nodrag" aria-label="Application">
@@ -124,7 +137,7 @@
       <span class="name">{editorStore.activeTab.name}</span>
       {#if editorStore.activeTab.isDirty}<span class="ide-dirty" title="Unsaved changes"></span>{/if}
     {:else}
-      BitShin BASIC
+      moonBASIC
     {/if}
   </div>
 

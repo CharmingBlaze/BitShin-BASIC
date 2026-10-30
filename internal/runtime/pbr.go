@@ -246,6 +246,7 @@ func (w *World) attachLoadedPBR(e *Entity) {
 	if e.mesh == nil {
 		e.mesh = firstMesh
 	}
+	w.enableGrade()
 }
 
 func (w *World) convertEntityPBR(e *Entity) *pbrMat {
@@ -291,6 +292,7 @@ func (w *World) convertEntityPBR(e *Entity) *pbrMat {
 	e.pbr = first.Physical
 	e.pbrWrap = first
 	e.usePBR = true
+	w.enableGrade()
 	return first
 }
 
@@ -350,6 +352,7 @@ func (w *World) applyPBRMaterial(e *Entity, matID int) bool {
 	e.pbrWrap = pm
 	e.usePBR = true
 	e.tint = pm.albedo
+	w.enableGrade()
 	return true
 }
 
@@ -462,6 +465,11 @@ func (w *World) bindPBRUniforms(gs *gls.GLS, m *pbrMat) {
 	}
 	setUni1f(gs, "uAO", ao)
 	setUni1f(gs, "uOcclusionStrength", 1)
+	grade := 0
+	if w.post.on {
+		grade = 1
+	}
+	setUni1i(gs, "uPostGrade", grade)
 }
 
 func (w *World) setPBREnvMap(m *pbrMat, tex *texture.Texture2D) {

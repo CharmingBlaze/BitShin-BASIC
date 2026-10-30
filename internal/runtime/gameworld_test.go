@@ -9,7 +9,7 @@ import (
 
 	"github.com/g3n/engine/core"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 func TestLODStepFollowsDetail(t *testing.T) {
@@ -24,6 +24,42 @@ func TestLODStepFollowsDetail(t *testing.T) {
 	coarse := &terrain{lod: 1, detailPx: 16}
 	if coarse.lodStep(3) != 4 {
 		t.Fatalf("coarser pixels should drop to step 4 quickly, got %d", coarse.lodStep(3))
+	}
+}
+
+func TestTreeCardSetup(t *testing.T) {
+	w := New(".")
+	w.terrains = map[int]*terrain{1: {id: 1, cardFace: true}}
+	w.curTerrain = 1
+	fn := w.commandTable()["settreecards"]
+	if _, err := fn([]value.Value{value.Num(1), value.Num(4), value.Num(8), value.Num(1), value.Num(0)}); err != nil {
+		t.Fatal(err)
+	}
+	tr := w.terrains[1]
+	if tr.cardW != 4 || tr.cardH != 8 || !tr.cardCross || tr.cardFace {
+		t.Fatalf("cards w=%v h=%v cross=%v face=%v", tr.cardW, tr.cardH, tr.cardCross, tr.cardFace)
+	}
+	width, height := tr.treeDims(nil)
+	if width != 4 || height != 8 || !tr.treeCross() || tr.treeFace() {
+		t.Fatalf("dims %v %v cross %v face %v", width, height, tr.treeCross(), tr.treeFace())
+	}
+}
+
+func TestTreeBudgetFillsAChunk(t *testing.T) {
+	n, _ := scatterBudget("tree", 0.7, 24, 1)
+	if n < 6 {
+		t.Fatalf("a chunk should hold a stand, got %d", n)
+	}
+	far, _ := scatterBudget("tree", 0.7, 24, 2)
+	if far < 1 {
+		t.Fatalf("far tiles should still plant trees, got %d", far)
+	}
+}
+
+func TestScatterSitsOnTheGround(t *testing.T) {
+	y := scatterPlantY(5, -1.2, 1)
+	if y < 6.1 || y > 6.3 {
+		t.Fatalf("cone base should sit on the ground, y=%v", y)
 	}
 }
 

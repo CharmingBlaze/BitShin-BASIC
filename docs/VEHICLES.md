@@ -4,7 +4,7 @@ Controllers are **landed**. Each `CreateXxxController(entity [, hx, hy, hz])` at
 
 Optional `hx, hy, hz` are half-extents. If omitted, the mesh box / default hull for that kind is used.
 
-Quit: `While 1` + `Flip` + `If frames > 8` then `KeyHit(KEY_ESCAPE)`. See [PHYSICS.md](PHYSICS.md).
+Quit: `While 1` + `Flip` + `If frames > 8` then `Input.KeyHit(KEY_ESCAPE)`. See [PHYSICS.md](PHYSICS.md).
 
 ## `CreatePlane` is the mesh — not the aircraft
 
@@ -21,12 +21,12 @@ ground = CreatePlane()                 ; flat mesh
 CreateRigidBodyBox(ground, 40, 0.25, 40, 0)
 
 craft = CreateCube()
-SetPosition(craft, 0, 8, 20)
+Entity.SetPos(craft, 0, 8, 20)
 CreatePlaneController(craft)           ; NOT CreatePlane(craft)
 UpdatePlane(craft, 0.55, 0, 0, 0)
 ```
 
-Demo of the aircraft: `examples/plane.bb`.
+Demo of the aircraft: `examples/plane.mb`.
 
 ## Two physics paths
 
@@ -34,9 +34,9 @@ Demo of the aircraft: `examples/plane.bb`.
 
 | Create | Update / input | Demo |
 | --- | --- | --- |
-| `CreateCarController(e)` / `CreateVehicle(e)` | `UpdateCar e, steer, throttle, brake` — also `UpdateVehicle`, `SetVehicleInput e, steer, throttle, brake` (`SetCarInput`) | `examples/car.bb` |
-| `CreateMotorcycleController(e)` (`CreateBike`) | `UpdateMotorcycle e, steer, throttle, brake` | `examples/motorcycle.bb` |
-| `CreateTankController(e)` / `CreateTrackedController(e)` (`CreateTank`) | `UpdateTank` / `UpdateTracked e, steer, throttle, brake` | `examples/tank.bb` |
+| `CreateCarController(e)` / `CreateVehicle(e)` | `UpdateCar e, steer, throttle, brake` — also `UpdateVehicle`, `SetVehicleInput e, steer, throttle, brake` (`SetCarInput`) | `examples/car.mb` |
+| `CreateMotorcycleController(e)` (`CreateBike`) | `UpdateMotorcycle e, steer, throttle, brake` | `examples/motorcycle.mb` |
+| `CreateTankController(e)` / `CreateTrackedController(e)` (`CreateTank`) | `UpdateTank` / `UpdateTracked e, steer, throttle, brake` | `examples/tank.mb` |
 
 `SetVehicleInput` writes Jolt wheel/track input when a native vehicle exists. If native is 0, it applies the wheeled force fallback for car / moto / tank.
 
@@ -44,19 +44,19 @@ Demo of the aircraft: `examples/plane.bb`.
 
 | Create | Update | Demo |
 | --- | --- | --- |
-| `CreatePlaneController(e)` | `UpdatePlane e, throttle, pitch, roll, yaw` | `examples/plane.bb` |
-| `CreateJetController(e)` (`CreateJet`) | `UpdateJet e, throttle, pitch, roll, yaw` | `examples/jet.bb` |
-| `CreateSpaceshipController(e)` (`CreateSpaceship`) | `UpdateSpaceship e, throttle, pitch, roll, yaw` | `examples/spaceship.bb` |
-| `CreateBoatController(e)` (`CreateBoat`) | `UpdateBoat e, throttle, steer` | `examples/boat.bb` |
-| `CreateJetSkiController(e)` (`CreateJetSki`) | `UpdateJetSki e, throttle, steer` | `examples/jetski.bb` |
-| `CreateHelicopterController(e)` (`CreateHeli`) | `UpdateHelicopter e, collective, cyclicP, cyclicR, yaw` | `examples/helicopter.bb` |
-| `CreateHovercraftController(e)` (`CreateHover`) | `UpdateHovercraft e, throttle, steer` | `examples/hovercraft.bb` |
-| `CreateSubmarineController(e)` (`CreateSub`) | `UpdateSubmarine e, throttle, steer, dive` | `examples/submarine.bb` |
-| `CreateDroneController(e)` (`CreateDrone`) | `UpdateDrone e, throttle, pitch, roll, yaw` | `examples/drone.bb` |
-| `CreateMechController(e)` (`CreateMech`) | `UpdateMech e, throttle, turn, strafe` | `examples/mech.bb` |
-| `CreateLanderController(e)` (`CreateLander`) | `UpdateLander e, mainThrust, pitch, roll, yaw` | `examples/lander.bb` |
+| `CreatePlaneController(e)` | `UpdatePlane e, throttle, pitch, roll, yaw` | `examples/plane.mb` |
+| `CreateJetController(e)` (`CreateJet`) | `UpdateJet e, throttle, pitch, roll, yaw` | `examples/jet.mb` |
+| `CreateSpaceshipController(e)` (`CreateSpaceship`) | `UpdateSpaceship e, throttle, pitch, roll, yaw` | `examples/spaceship.mb` |
+| `CreateBoatController(e)` (`CreateBoat`) | `UpdateBoat e, throttle, steer` | `examples/boat.mb` |
+| `CreateJetSkiController(e)` (`CreateJetSki`) | `UpdateJetSki e, throttle, steer` | `examples/jetski.mb` |
+| `CreateHelicopterController(e)` (`CreateHeli`) | `UpdateHelicopter e, collective, cyclicP, cyclicR, yaw` | `examples/helicopter.mb` |
+| `CreateHovercraftController(e)` (`CreateHover`) | `UpdateHovercraft e, throttle, steer` | `examples/hovercraft.mb` |
+| `CreateSubmarineController(e)` (`CreateSub`) | `UpdateSubmarine e, throttle, steer, dive` | `examples/submarine.mb` |
+| `CreateDroneController(e)` (`CreateDrone`) | `UpdateDrone e, throttle, pitch, roll, yaw` | `examples/drone.mb` |
+| `CreateMechController(e)` (`CreateMech`) | `UpdateMech e, throttle, turn, strafe` | `examples/mech.mb` |
+| `CreateLanderController(e)` (`CreateLander`) | `UpdateLander e, mainThrust, pitch, roll, yaw` | `examples/lander.mb` |
 
-Also registered (same pattern): `CreateGliderController` / `UpdateGlider` (aero, no thrust), `CreateSkiController` / `UpdateSki` (low friction). All kinds together: `examples/vehicles_more.bb`.
+Also registered (same pattern): `CreateGliderController` / `UpdateGlider` (aero, no thrust), `CreateSkiController` / `UpdateSki` (low friction). All kinds together: `examples/vehicles_more.mb`.
 
 Controller creation also accepts optional hull and mass values: `CreateBoatController(e, halfWidth, halfHeight, halfLength, mass)`. The same optional form works for the other controllers; omitted values use that vehicle type's defaults.
 
@@ -107,17 +107,17 @@ ApplyBuoyancy(crate, y#, 1)
 ```basic
 Graphics3D(960, 540, 0, 2)
 cam = CreateCamera()
-SetPosition(cam, 0, 8, -16)
+Entity.SetPos(cam, 0, 8, -16)
 CreateLight()
 
 ground = CreateCube()
 SetScale(ground, 40, 0.25, 40)
-SetPosition(ground, 0, 0, 10)
+Entity.SetPos(ground, 0, 0, 10)
 CreateRigidBodyBox(ground, 40, 0.25, 40, 0)
 
 car = CreateCube()
 SetScale(car, 1.1, 0.35, 2.0)
-SetPosition(car, 0, 1.2, 10)
+Entity.SetPos(car, 0, 1.2, 10)
 CreateCarController(car)
 ; same as CreateVehicle(car)
 
@@ -127,18 +127,18 @@ While 1
     steer# = 0
     throttle# = 0
     brake# = 0
-    If KeyDown(KEY_A) Then steer = -1
-    If KeyDown(KEY_D) Then steer = 1
-    If KeyDown(KEY_W) Then throttle = 1
-    If KeyDown(KEY_S) Then throttle = -0.4
-    If KeyDown(KEY_SPACE) Then brake = 1
+    If Input.KeyDown(KEY_A) Then steer = -1
+    If Input.KeyDown(KEY_D) Then steer = 1
+    If Input.KeyDown(KEY_W) Then throttle = 1
+    If Input.KeyDown(KEY_S) Then throttle = -0.4
+    If Input.KeyDown(KEY_SPACE) Then brake = 1
     UpdateCar(car, steer, throttle, brake)
     ; or: SetVehicleInput(car, steer, throttle, brake)
     UpdateWorld
     RenderWorld
     Flip
     If frames > 8
-        If KeyHit(KEY_ESCAPE) Then End
+        If Input.KeyHit(KEY_ESCAPE) Then End
     EndIf
 Wend
 ```
@@ -177,4 +177,4 @@ UpdateSubmarine(sub, throttle, steer, dive)
 
 ## Demos
 
-`examples/car.bb` `plane.bb` `jet.bb` `spaceship.bb` `boat.bb` `motorcycle.bb` `helicopter.bb` `hovercraft.bb` `submarine.bb` `tank.bb` `drone.bb` `vehicles_more.bb`
+`examples/car.mb` `plane.mb` `jet.mb` `spaceship.mb` `boat.mb` `motorcycle.mb` `helicopter.mb` `hovercraft.mb` `submarine.mb` `tank.mb` `drone.mb` `vehicles_more.mb`

@@ -7,8 +7,8 @@ import (
 	"github.com/g3n/engine/geometry"
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/geo"
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/geo"
+	"moonbasic/internal/value"
 )
 
 type geoFrame struct {

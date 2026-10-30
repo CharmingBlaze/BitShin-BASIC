@@ -4,10 +4,10 @@ Phong is the default on every primitive. PBR is opt-in (`docs/PBR.md`). Shadows 
 
 Colors are **0–255**, or **0–1 when every channel is ≤ 1**. Angles are **degrees**. Light handles are integers.
 
-Runnable scene: `examples/lights.bb`.
+Runnable scene: `examples/lights.mb`.
 
 ```powershell
-.\bs.exe examples\lights.bb
+.\moon.exe examples\lights.mb
 ```
 
 Space switches that scene between outdoor daylight and an indoor room.
@@ -44,7 +44,7 @@ EntityShininess cube, 48
 
 AmbientLight 40, 44, 52
 
-While Not KeyDown(1)
+While Not Input.KeyDown(1)
     RenderWorld
     Flip
 Wend
@@ -173,7 +173,7 @@ OutdoorLighting()
 - Ambient is a dim blue-grey. A sky / ground hemisphere fills the shadows (sky blue, earth brown).
 - Linear fog from `48` to `220`, clear color a daylight blue.
 - Shadow distance `240`.
-- Exposure `1.05` and the Khronos neutral tonemap, used once you `EnablePostFX`.
+- Exposure `1.05`, the Khronos neutral tonemap, and a small bloom. The preset turns post FX on.
 
 **Indoor**
 
@@ -181,11 +181,11 @@ OutdoorLighting()
 - Point and spot lights switch to `physical` falloff. If a lamp’s intensity is under `20`, a point becomes `110` and a spot becomes `160` (candela). Going back outdoors restores the intensity and the falloff you had.
 - Ambient is a dark room. Hemisphere is a dim ceiling and floor. Fog turns off. Clear color is nearly black.
 - Shadow distance `40`.
-- Exposure `1.45` and the same neutral tonemap.
+- Exposure `1.45` and the same neutral tonemap and bloom. Post FX stays on.
 
-`examples/lights.bb` toggles these with Space. The classic-attenuation bulb in that scene is restored when you return outdoors; the preset does not force every lamp back to the smooth window.
+`examples/lights.mb` toggles these with Space. The classic-attenuation bulb in that scene is restored when you return outdoors; the preset does not force every lamp back to the smooth window.
 
-These presets do not turn post FX on. Call `EnablePostFX True` when you want the exposure and the tonemap.
+These presets turn post FX on with the neutral curve and bloom `0.22`. `SetBloom 0` after the preset removes the bloom.
 
 ## 6. Time of day
 
@@ -196,8 +196,8 @@ sun = CreateDirectionalLight()
 SetTimeOfDay(15)
 
 hour# = GetTimeOfDay()
-If KeyDown(KEY_LBRACKET) Then hour = hour - 4 * DeltaTime()
-If KeyDown(KEY_RBRACKET) Then hour = hour + 4 * DeltaTime()
+If Input.KeyDown(KEY_LBRACKET) Then hour = hour - 4 * Time.Delta()
+If Input.KeyDown(KEY_RBRACKET) Then hour = hour + 4 * Time.Delta()
 SetTimeOfDay(hour)
 ```
 

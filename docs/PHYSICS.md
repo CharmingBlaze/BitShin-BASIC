@@ -24,26 +24,26 @@ Materials: `ice`, `glass`, `rubber`, `wood`, `metal`, `stone` (`concrete`), `pla
 Print PhysicsBackend$()
 Graphics3D(960, 540, 0, 2)
 cam = CreateCamera()
-SetPosition(cam, 0, 6, -14)
+Entity.SetPos(cam, 0, 6, -14)
 CreateLight()
 
 ground = CreateCube()
 SetScale(ground, 10, 0.2, 10)
-SetPosition(ground, 0, 0, 8)
+Entity.SetPos(ground, 0, 0, 8)
 Collide(ground, STATIC)
 
 ball = CreateSphere()
-SetPosition(ball, 0, 6, 8)
+Entity.SetPos(ball, 0, 6, 8)
 Collide(ball)
 SetPhysicsMaterial(ball, "rubber")
 
 frames = 0
 While 1
     frames = frames + 1
-    If KeyHit(KEY_SPACE) Then ApplyImpulse(ball, 0, 8, 0)
+    If Input.KeyHit(KEY_SPACE) Then ApplyImpulse(ball, 0, 8, 0)
     RenderWorld
     Flip
-    If frames > 8 And KeyHit(KEY_ESCAPE) Then End
+    If frames > 8 And Input.KeyHit(KEY_ESCAPE) Then End
 Wend
 ```
 
@@ -51,7 +51,7 @@ Wend
 
 Experts keep `CreateBodyBox`, `CreateBodyMesh`, `CreateBodyConvex`, layers, CCD, motors, and `OptimizePhysics`. `Collide` returns the same entity id those commands use, and `SetFriction` after `SetPhysicsMaterial` overrides that one channel.
 
-Quit loops: `While Not KeyDown(1)` works after the first-frame Escape fix. Still put `Flip` in the loop. Demos use `While 1` + `Flip` + `If frames > 8 And KeyHit(KEY_ESCAPE) Then End` so a phantom Esc cannot close the window on frame 0.
+Quit loops: `While Not Input.KeyDown(1)` works after the first-frame Escape fix. Still put `Flip` in the loop. Demos use `While 1` + `Flip` + `If frames > 8 And Input.KeyHit(KEY_ESCAPE) Then End` so a phantom Esc cannot close the window on frame 0.
 
 ## Bodies
 
@@ -84,7 +84,7 @@ Quit loops: `While Not KeyDown(1)` works after the first-frame Escape fix. Still
 | `Explode x,y,z, r, imp` | Overlap all dynamics in the sphere and apply falloff impulse. Alias `AreaDamage`. |
 | `CreateBodyMesh(e)` | Static mesh collider from the entity’s triangles (world space). Windows Jolt also enables enhanced internal-edge removal. Linux/macOS uses jolt-go `CreateMesh`. |
 | `CreateBodyHeightField(e [, n])` | Static height field from the current terrain (`n` samples on a side, power of two, default 64). Linux/macOS cooks that grid as a triangle mesh. |
-| `CreateSensor(e, hx,hy,hz [, motion])` | Trigger volume (no contact force). Default motion = kinematic. Linux/macOS Jolt sets the sensor flag at create; `SetBodySensor` rebuilds a sphere of the same radius. Fallback reports overlap contacts but does not shove. |
+| `CreateSensor(e, hx,hy,hz [, motion])` | Trigger volume (no contact force). It still appears in `EntityCollided`. Default motion = kinematic. Linux/macOS Jolt sets the sensor flag at create; `SetBodySensor` rebuilds a sphere of the same radius. Fallback reports the overlap and does not shove. |
 | `EnablePhysicsDebug [on]` | Wire AABB overlay: cyan colliders, green hitboxes. |
 | `SetCollisionLayer e, layer` | Layer 0–31 (default 0). |
 | `SetLayerCollides a, b, on` | Whether two layers generate contacts (default all collide). Pairwise `DisableBodyCollision` still exists. |
@@ -97,33 +97,33 @@ Quit loops: `While Not KeyDown(1)` works after the first-frame Escape fix. Still
 ```basic
 Graphics3D(960, 540, 0, 2)
 cam = CreateCamera()
-SetPosition(cam, 0, 6, -14)
+Entity.SetPos(cam, 0, 6, -14)
 CreateLight()
 
 ground = CreateCube()
 SetScale(ground, 10, 0.2, 10)
-SetPosition(ground, 0, 0, 8)
+Entity.SetPos(ground, 0, 0, 8)
 CreateBodyBox(ground, 10, 0.2, 10, 0)
 
 ball = CreateSphere()
-SetPosition(ball, 0, 6, 8)
+Entity.SetPos(ball, 0, 6, 8)
 CreateBodySphere(ball, 1, 1)
 SetBodyCCD(ball, True)
 
 frames = 0
 While 1
     frames = frames + 1
-    If KeyHit(KEY_SPACE) Then ApplyImpulse(ball, 0, 8, 0)
+    If Input.KeyHit(KEY_SPACE) Then ApplyImpulse(ball, 0, 8, 0)
     UpdateWorld
     RenderWorld
     Flip
     If frames > 8
-        If KeyHit(KEY_ESCAPE) Then End
+        If Input.KeyHit(KEY_ESCAPE) Then End
     EndIf
 Wend
 ```
 
-See `examples/jolt_drop.bb`, `examples/physics_body.bb`, `examples/physics_pile.bb`, `examples/grab_beam.bb`.
+See `examples/jolt_drop.mb`, `examples/physics_body.mb`, `examples/physics_pile.mb`, `examples/grab_beam.mb`.
 
 ## Forces
 
@@ -197,7 +197,7 @@ There is **no** `CreateDistanceJoint` command. A springy distance constraint is 
 
 `CreateHinge` / `CreateHingeJoint` with fewer than two args returns **0**.
 
-**Grab platforms:** Windows Jolt is a real `SixDOFConstraint`. Linux/macOS Jolt extras use the same **position spring** as fallback `CreateGrabJoint` (not a 6DOF constraint). Fallback (`-tags nojolt`) uses a stiff spring joint. `claw.bb` is still the kinematic-parent claw; `Grab` is the spring/6DOF path.
+**Grab platforms:** Windows Jolt is a real `SixDOFConstraint`. Linux/macOS Jolt extras use the same **position spring** as fallback `CreateGrabJoint` (not a 6DOF constraint). Fallback (`-tags nojolt`) uses a stiff spring joint. `claw.mb` is still the kinematic-parent claw; `Grab` is the spring/6DOF path.
 
 Linux/macOS `GetRotation` / `ApplyTorque` / `ApplyBuoyancy` / `SetGravityScale` are a software pose on top of jolt-go (no native `SetLinearVelocity` or rotated collision shapes). Fallback (`-tags nojolt`) now integrates the same software quaternion, so `GetRotation` / `ApplyLocalImpulse` / vehicle yaw work without Jolt. Visual yaw and force-vehicle `Update*` use that pose; hulls stay axis-aligned. Soft sliders keep the rail axis; cone / hinge limits / hinge motor clamp or rotate the A→B vector (not a Jolt `Constraint`). Hinge friction damps planar speed; swing-twist also stops spin around the axis after `twistDeg`. `SetCollisionLayer` / `SetLayerCollides` filter overlap queries; software joints still run if you `DisableBodyCollision` a pair. `OffsetCenterOfMass` adds gravity torque from that offset. `SetCCD` is a ray sweep, not `LinearCast`. Native `VehicleConstraint` stays Windows-only.
 
@@ -214,22 +214,22 @@ Linux/macOS `GetRotation` / `ApplyTorque` / `ApplyBuoyancy` / `SetGravityScale` 
 ; Hinge door — Space shoves it. Esc after Flip (frames>8).
 Graphics3D(960, 600, 0, 2)
 cam = CreateCamera()
-SetPosition(cam, 0, 6, -14)
+Entity.SetPos(cam, 0, 6, -14)
 CreateLight()
 
 ground = CreateCube()
 SetScale(ground, 10, 0.2, 10)
-SetPosition(ground, 0, 0, 8)
+Entity.SetPos(ground, 0, 0, 8)
 CreateBodyBox(ground, 10, 0.2, 10, 0)
 
 wall = CreateCube()
 SetScale(wall, 0.2, 2, 2)
-SetPosition(wall, -2, 2, 8)
+Entity.SetPos(wall, -2, 2, 8)
 wallBody = CreateBodyBox(wall, 0.2, 2, 2, 0)
 
 door = CreateCube()
 SetScale(door, 0.08, 1.6, 0.9)
-SetPosition(door, -0.9, 1.7, 8)
+Entity.SetPos(door, -0.9, 1.7, 8)
 doorBody = CreateBodyBox(door, 0.08, 1.6, 0.9, 2)
 
 doorHinge = CreateHingeJoint(wallBody, doorBody, EntityX(wall), EntityY(wall), EntityZ(wall), 0, 1, 0)
@@ -238,11 +238,11 @@ doorHinge = CreateHingeJoint(wallBody, doorBody, EntityX(wall), EntityY(wall), E
 frames = 0
 While 1
     frames = frames + 1
-    If KeyHit(KEY_SPACE) Then ApplyImpulse(doorBody, 4, 0, 0)
+    If Input.KeyHit(KEY_SPACE) Then ApplyImpulse(doorBody, 4, 0, 0)
     UpdateWorld()
     RenderWorld()
     Flip()
-    If frames > 8 And KeyHit(KEY_ESCAPE) Then End
+    If frames > 8 And Input.KeyHit(KEY_ESCAPE) Then End
 Wend
 ```
 
@@ -255,7 +255,7 @@ spring = CreateSpringJoint(a, b, midX, midY, midZ, 2, 12, 1)
 FreeJoint(spring)
 ```
 
-Demo: `examples/physics_joints.bb`.
+Demo: `examples/physics_joints.mb`.
 
 ## Physical ropes
 
@@ -270,20 +270,20 @@ SetRopeStrength(rope, 4000, 500, 3500)
 Text(12, 12, "Tension " + Int(RopeTension(rope) * 100) + "%")
 ```
 
-Use `CreateRope(a,b,length,segments,radius)` for center-to-center attachment. `CreateRopeAnchored` accepts local offsets for each body; offsets attached to body `0` are world positions. `SetRopeStrength` tunes the taut-line stiffness, velocity damping, and force cap for unusually light or heavy endpoints. `ResetRope` rebuilds its sag after teleporting an endpoint, and `FreeRope` safely removes its bodies and constraints. See `examples/rope.bb` and `examples/waterski.bb`.
+Use `CreateRope(a,b,length,segments,radius)` for center-to-center attachment. `CreateRopeAnchored` accepts local offsets for each body; offsets attached to body `0` are world positions. `SetRopeStrength` tunes the taut-line stiffness, velocity damping, and force cap for unusually light or heavy endpoints. `ResetRope` rebuilds its sag after teleporting an endpoint, and `FreeRope` safely removes its bodies and constraints. See `examples/rope.mb` and `examples/waterski.mb`.
 
-`CreateCloth` is a pinned rectangle (default top edge). Windows uses Jolt soft bodies; Linux/macOS Jolt and `-tags nojolt` use Verlet. See `examples/cloth.bb`.
+`CreateCloth` is a pinned rectangle (default top edge). Windows uses Jolt soft bodies; Linux/macOS Jolt and `-tags nojolt` use Verlet. See `examples/cloth.mb`.
 
 ## Grab, projectiles, beams
 
-Demos: `examples/grab_beam.bb` (Space grab, T throw, G drop, laser via `PlaceAtRay`).
+Demos: `examples/grab_beam.mb` (Space grab, T throw, G drop, laser via `PlaceAtRay`).
 
 | Command | Meaning |
 | --- | --- |
 | `CreateProjectile e, speed [, gravity, life, radius, bounce, impulse, ignore]` | Flies along the entity’s local +Z each `UpdateWorld`. Defaults: speed 20, gravity 0, life 4 s, radius 0.1 (stored), bounce 0, impulse 1, ignore 0. If `e` has a body: CCD on, gravity scale 0, velocity set. A physics ray along this step’s motion hits another body → `ApplyImpulse` on the victim (scaled by `impulse`), sets `Picked*`, then stops (or reverses velocity × `bounce` if bounce > 0). `ignore` skips that entity (the gun). When `life` expires the flyer is forgotten; the mesh stays. |
 | `CreateBeam a, b [, width]` | Visual only: a cube stretched between two entities each `UpdateWorld`. Default width 0.08. Returns the beam mesh handle. |
 | `PlaceAtRay src, dest [, maxDist]` | Move `dest` to the first physics hit along `src`’s +Z, or to `maxDist` (default 40) if nothing is hit. Sets `Picked*`. Alias `RayPlace`. Pair with `CreateBeam(src, dest)` for a laser. |
-| `AttachToBone child, mesh, bone$` | Parent `child` to a named node under `mesh` (glTF joint name, case-insensitive). If no node matches, uses a child entity whose `NameEntity` equals `bone$`. If still none, parents to the mesh root. `GetParent(child)` is the mesh entity. Alias `AttachBone`. `NameEntity` also writes the G3N node name, which helps lookup. **Not** skeletal IK; clip play still drives the bones. |
+| `AttachToBone child, mesh, bone$` | Parent `child` to a named node under `mesh` (glTF joint name, case-insensitive). If no node matches, uses a child entity whose `NameEntity` equals `bone$`. If still none, parents to the mesh root. `GetParent(child)` is the mesh entity. Alias `AttachBone`. `NameEntity` also writes the G3N node name, which helps lookup. Clip play still drives the bones. `SetIK` is a separate two-bone solve on three named joints. |
 
 `CreateProjectile` / `PlaceAtRay` / `GrabPick` share `PickedEntity` / `PickedX` / `PickedY` / `PickedZ` with `Raycast`.
 
@@ -328,19 +328,19 @@ Same numbers as Jolt `CharacterVirtual::EGroundState`:
 | 3 | In air | No ground |
 
 ```basic
-; examples/character_virt.bb — WASD, Esc after a few frames.
+; examples/character_virt.mb — WASD, Esc after a few frames.
 Graphics3D(960, 540, 0, 2)
 cam = CreateCamera()
-SetPosition(cam, 0, 6, -14)
+Entity.SetPos(cam, 0, 6, -14)
 CreateLight()
 
 ground = CreateCube()
 SetScale(ground, 12, 0.2, 12)
-SetPosition(ground, 0, 0, 8)
+Entity.SetPos(ground, 0, 0, 8)
 CreateRigidBodyBox(ground, 12, 0.2, 12, 0)
 
 hero = CreateCapsule(0.4, 0.9, 8)
-SetPosition(hero, 0, 2.2, 8)
+Entity.SetPos(hero, 0, 2.2, 8)
 CreateCharacterController(hero, 1.8, 0.4, 50, 100)
 SetCharacterShape(hero, "capsule", 1.8, 0.4)
 
@@ -349,55 +349,54 @@ While 1
     frames = frames + 1
     vx# = 0
     vz# = 0
-    If KeyDown(KEY_A) Then vx = -5
-    If KeyDown(KEY_D) Then vx = 5
-    If KeyDown(KEY_W) Then vz = 5
-    If KeyDown(KEY_S) Then vz = -5
+    If Input.KeyDown(KEY_A) Then vx = -5
+    If Input.KeyDown(KEY_D) Then vx = 5
+    If Input.KeyDown(KEY_W) Then vz = 5
+    If Input.KeyDown(KEY_S) Then vz = -5
     MoveCharacter(hero, vx, vz)
     UpdateWorld
     RenderWorld
     Text(12, 12, "ground=" + GetCharacterGroundState(hero) + " hit=" + GetCharacterContact(hero))
     Flip
     If frames > 8
-        If KeyHit(KEY_ESCAPE) Then End
+        If Input.KeyHit(KEY_ESCAPE) Then End
     EndIf
 Wend
 ```
 
 ## Contacts
 
-Jolt’s `ContactListener` runs on **physics threads**. The wrapper **does not `//export` into Go from those threads**. C++ pushes added/persisted/removed events onto a mutex queue. `UpdateWorld` calls `PollContacts` and fills each entity’s collide list. Linux/macOS Jolt and fallback synthesize persist events from overlapping spheres (no native listener).
-
-| Command | Meaning |
-| --- | --- |
-| `EntityCollided(e)` | First other entity this step (0 = none) |
-| `EntityCollided(e, other)` | `other` if that pair hit |
-| `EntityCollided(e, type)` | First hit whose `EntityType` is `type` |
-| `CountCollisions(e)` | How many others this step |
-| `CollisionEntity(e)` | Last hit id |
-| `CollisionX/Y/Z(e)` | Contact point |
-| `EntityType e, n` / `GetEntityType(e)` | Filter id for `EntityCollided` |
-| `ResetEntity e` | Clear this frame’s list |
-| `Collisions srcType, destType` | Extra radius overlap rule (classic) |
-
-Removed contacts are ignored when filling the list (you only see current/persisted hits).
+Call `UpdateWorld` first. That step clears last frame’s hits, then records who is touching now. A pair is listed once even if the engine reports several points. When two bodies separate, `EntityCollided` and `CollisionEntity` are 0 and `CollisionX/Y/Z` are 0.
 
 ```basic
-SetEntityType(hazard, 2)
-SetEntityType(ball, 1)
-; …
 UpdateWorld()
-other = EntityCollided(ball, hazard)
+other = EntityCollided(ball)
 If other Then
-    Text(16, 36, "hit x=" + Int(CollisionX(ball)))
+    Text(16, 36, "hit y=" + Int(CollisionY(ball)))
 EndIf
 ```
 
-Demo: `examples/physics_contacts.bb`.
+| Command | Meaning |
+| --- | --- |
+| `EntityCollided(e)` | First other entity this step, or 0 |
+| `EntityCollided(e, other)` | `other` if that entity touched `e` |
+| `EntityCollided(e, type)` | First hit whose `EntityType` is `type` |
+| `CountCollisions(e)` | How many different entities touched `e` |
+| `CollisionEntity(e)` | The last one |
+| `CollisionX/Y/Z(e)` | That contact point, in world units |
+| `EntityType e, n` / `GetEntityType(e)` | Number used by `EntityCollided(e, type)` |
+| `ResetEntity e` | Clear this frame’s list and point |
+| `Collisions srcType, destType, method, response` | Extra sphere rule. If the two radii overlap, `response` 1 or 2 pushes the source apart |
+
+A sensor still shows up in this list. It does not push the other body.
+
+Windows reads Jolt’s contact listener. The listener runs on physics threads and queues events in C++; `UpdateWorld` drains that queue on the main thread. Linux and macOS ask Jolt whether each box or sphere overlaps anything. The software fallback overlaps boxes and spheres itself. A mesh on Linux is tested with a bounding sphere.
+
+Demo: `examples/physics_contacts.mb`.
 
 ## First Flip / Escape
 
-GLFW often injects Escape (or a close flag) while the window is created. The runtime **ignores Escape and `WindowShouldClose` until the first `Flip`**. After that, `While Not KeyDown(1)` is a normal quit loop.
+GLFW often injects Escape (or a close flag) while the window is created. The runtime **ignores Escape and `WindowShouldClose` until the first `Flip`**. After that, `While Not Input.KeyDown(1)` is a normal quit loop.
 
 Still **call `Flip` every frame**. For demos that must not die on a leftover key, wait a few presented frames:
 
@@ -408,14 +407,14 @@ While 1
     UpdateWorld
     RenderWorld
     Flip
-    If frames > 8 And KeyHit(KEY_ESCAPE) Then End
+    If frames > 8 And Input.KeyHit(KEY_ESCAPE) Then End
 Wend
 ```
 
 Or:
 
 ```basic
-While Not KeyDown(1)
+While Not Input.KeyDown(1)
     UpdateWorld
     RenderWorld
     Flip
@@ -431,7 +430,7 @@ Landed. Full names and demos: [VEHICLES.md](VEHICLES.md).
 - **Jolt vehicle:** `CreateCarController` / `CreateVehicle` + `UpdateCar` / `SetVehicleInput(steer, throttle, brake)`. `CreateMotorcycleController`. `CreateTankController` / `CreateTrackedController`.
 - **Force / torque:** `CreatePlaneController` `UpdatePlane(th, pitch, roll, yaw)`. `CreateJetController`. `CreateSpaceshipController`. `CreateBoatController` `UpdateBoat`. `CreateHelicopterController` `UpdateHelicopter(collective, cyclicP, cyclicR, yaw)`. `CreateHovercraftController`. `CreateSubmarineController` `UpdateSubmarine(throttle, steer, dive)`. `CreateDroneController`.
 
-Demos: `examples/car.bb` `plane.bb` `jet.bb` `spaceship.bb` `boat.bb` `motorcycle.bb` `helicopter.bb` `hovercraft.bb` `submarine.bb` `tank.bb` `drone.bb` `vehicles_more.bb`.
+Demos: `examples/car.mb` `plane.mb` `jet.mb` `spaceship.mb` `boat.mb` `motorcycle.mb` `helicopter.mb` `hovercraft.mb` `submarine.mb` `tank.mb` `drone.mb` `vehicles_more.mb`.
 
 ## 2D (Chipmunk)
 

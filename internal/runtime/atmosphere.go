@@ -12,7 +12,7 @@ import (
 	"github.com/g3n/engine/math32"
 	"github.com/g3n/engine/texture"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 // Simplified Bruneton-style atmosphere (GLSL 330).
@@ -231,9 +231,8 @@ func (w *World) ensureAtmosphere() int {
 	std := material.NewStandard(&math32.Color{0.4, 0.6, 0.9})
 	std.SetUseLights(material.UseLightNone)
 	std.SetSide(material.SideBack)
-	std.SetDepthMask(true)
+	std.SetDepthMask(false)
 	std.SetDepthTest(true)
-	std.SetDepthFunc(gls.LEQUAL)
 	std.SetShader("mbatmo")
 	a := &atmoDome{
 		tex: lut, sunX: -0.35, sunY: 0.62, sunZ: 0.70,
@@ -243,10 +242,9 @@ func (w *World) ensureAtmosphere() int {
 	mat := &atmoMat{Standard: std, w: w, a: a}
 	mesh := graphic.NewMesh(geom, mat)
 	mesh.SetCullable(false)
-	// G3N opaque pass draws high RenderOrder first. Draw last so terrain
-	// depth is in the buffer; LEQUAL + depth mask lets early-Z skip sky
-	// fragments behind mountains.
-	mesh.SetRenderOrder(-20)
+	// High order is drawn first. The dome must sit behind the world, or the
+	// inside of the sphere paints over the ocean.
+	mesh.SetRenderOrder(110)
 	w.scene.Add(mesh)
 	id := w.addEntity(&Entity{node: mesh, mesh: mesh, mat: std, sky: true}, 0)
 	if e := w.ents[id]; e != nil {

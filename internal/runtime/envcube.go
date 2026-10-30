@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"image"
 	"math"
 
 	"github.com/g3n/engine/camera"
@@ -18,8 +19,12 @@ const (
 )
 
 func (w *World) ensureSkyCube() {
-	if w.skyCube != 0 {
+	if w.skyCube != 0 && w.skyCubeRev == w.skyRev {
 		return
+	}
+	if w.skyCube != 0 {
+		gl.DeleteTextures(1, &w.skyCube)
+		w.skyCube = 0
 	}
 	var cube uint32
 	gl.GenTextures(1, &cube)
@@ -35,7 +40,7 @@ func (w *World) ensureSkyCube() {
 			for y := 0; y < sz; y++ {
 				for x := 0; x < sz; x++ {
 					dx, dy, dz := envFaceDir(face, x, y, sz)
-					r, g, b := prefilterSky(dx, dy, dz, radius)
+					r, g, b := w.prefilterEnv(dx, dy, dz, radius)
 					i := (y*sz + x) * 4
 					pix[i] = toByte(r)
 					pix[i+1] = toByte(g)
@@ -54,6 +59,35 @@ func (w *World) ensureSkyCube() {
 	gl.TexParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAX_LEVEL, skyCubeMips-1)
 	gl.BindTexture(gl.TEXTURE_CUBE_MAP, 0)
 	w.skyCube = cube
+	w.skyCubeRev = w.skyRev
+}
+
+func (w *World) prefilterEnv(dx, dy, dz, radius float32) (float32, float32, float32) {
+	if radius < 0.02 {
+		return w.envColor(dx, dy, dz)
+	}
+	tx, ty, tz, bx, by, bz := tangentBasis(dx, dy, dz)
+	var r, g, b float32
+	const n = 8
+	for i := 0; i < n; i++ {
+		ang := float64(i) * 2.399963
+		rad := float64(radius) * float64(i+1) / n
+		ox := float32(math.Cos(ang) * rad)
+		oy := float32(math.Sin(ang) * rad)
+		sx, sy, sz := norm3(dx+tx*ox+bx*oy, dy+ty*ox+by*oy, dz+tz*ox+bz*oy)
+		cr, cg, cb := w.envColor(sx, sy, sz)
+		r += cr
+		g += cg
+		b += cb
+	}
+	return r / n, g / n, b / n
+}
+
+func (w *World) envColor(dx, dy, dz float32) (float32, float32, float32) {
+	if r, g, b, ok := sampleSkyImages(w.skyImgs, dx, dy, dz); ok {
+		return r, g, b
+	}
+	return skyColor(dx, dy, dz)
 }
 
 func (w *World) bindEnvCube(gs *gls.GLS) {
@@ -221,25 +255,92 @@ func envFaceDir(face, x, y, size int) (float32, float32, float32) {
 	return norm3(dx, dy, dz)
 }
 
-func prefilterSky(dx, dy, dz, radius float32) (float32, float32, float32) {
-	if radius < 0.02 {
-		return skyColor(dx, dy, dz)
+func sampleSkyImages(imgs [6]*image.RGBA, dx, dy, dz float32) (float32, float32, float32, bool) {
+	for i := range imgs {
+		if imgs[i] == nil {
+			return 0, 0, 0, false
+		}
 	}
-	tx, ty, tz, bx, by, bz := tangentBasis(dx, dy, dz)
-	var r, g, b float32
-	const n = 8
-	for i := 0; i < n; i++ {
-		ang := float64(i) * 2.399963
-		rad := float64(radius) * float64(i+1) / n
-		ox := float32(math.Cos(ang) * rad)
-		oy := float32(math.Sin(ang) * rad)
-		sx, sy, sz := norm3(dx+tx*ox+bx*oy, dy+ty*ox+by*oy, dz+tz*ox+bz*oy)
-		cr, cg, cb := skyColor(sx, sy, sz)
-		r += cr
-		g += cg
-		b += cb
+	dx, dy, dz = norm3(dx, dy, dz)
+	face, u, v := skyDirToFace(dx, dy, dz)
+	r, g, b := bilinearSky(imgs[face], u, v)
+	return r, g, b, true
+}
+
+func skyDirToFace(dx, dy, dz float32) (int, float32, float32) {
+	ax, ay, az := math32.Abs(dx), math32.Abs(dy), math32.Abs(dz)
+	switch {
+	case ax >= ay && ax >= az:
+		if dx >= 0 {
+			return 0, -dz / dx, -dy / dx
+		}
+		return 1, dz / -dx, -dy / -dx
+	case ay >= ax && ay >= az:
+		if dy >= 0 {
+			return 2, dx / dy, dz / dy
+		}
+		return 3, dx / -dy, -dz / -dy
+	default:
+		if dz >= 0 {
+			return 4, dx / dz, -dy / dz
+		}
+		return 5, -dx / -dz, -dy / -dz
 	}
-	return r / n, g / n, b / n
+}
+
+func bilinearSky(img *image.RGBA, u, v float32) (float32, float32, float32) {
+	b := img.Bounds()
+	nw, nh := b.Dx(), b.Dy()
+	if nw < 1 || nh < 1 {
+		return 0, 0, 0
+	}
+	if nw > 1 {
+		u *= float32(nw-1) / float32(nw)
+	}
+	if nh > 1 {
+		v *= float32(nh-1) / float32(nh)
+	}
+	fx := (u+1)*0.5*float32(nw) - 0.5
+	fy := (v+1)*0.5*float32(nh) - 0.5
+	x0, y0 := int(math.Floor(float64(fx))), int(math.Floor(float64(fy)))
+	tx, ty := fx-float32(x0), fy-float32(y0)
+	r, g, bl := float32(0), float32(0), float32(0)
+	for oy := 0; oy <= 1; oy++ {
+		wy := 1 - ty
+		if oy == 1 {
+			wy = ty
+		}
+		for ox := 0; ox <= 1; ox++ {
+			wx := 1 - tx
+			if ox == 1 {
+				wx = tx
+			}
+			pr, pg, pb := skyTexel(img, x0+ox, y0+oy)
+			wgt := wx * wy
+			r += pr * wgt
+			g += pg * wgt
+			bl += pb * wgt
+		}
+	}
+	return r, g, bl
+}
+
+func skyTexel(img *image.RGBA, x, y int) (float32, float32, float32) {
+	b := img.Bounds()
+	if x < b.Min.X {
+		x = b.Min.X
+	}
+	if y < b.Min.Y {
+		y = b.Min.Y
+	}
+	if x >= b.Max.X {
+		x = b.Max.X - 1
+	}
+	if y >= b.Max.Y {
+		y = b.Max.Y - 1
+	}
+	i := img.PixOffset(x, y)
+	return float32(img.Pix[i]) / 255, float32(img.Pix[i+1]) / 255, float32(img.Pix[i+2]) / 255
 }
 
 func skyColor(dx, dy, dz float32) (float32, float32, float32) {

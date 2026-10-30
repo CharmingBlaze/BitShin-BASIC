@@ -1,0 +1,31 @@
+{
+  "applicationId": "js.moonbasic.ide",
+  "version": "1.0.0",
+  "defaultMode": "window",
+  "port": 0,
+  "enableServer": true,
+  "enableNativeAPI": true,
+  "url": "/",
+  "documentRoot": "/resources/",
+  "nativeAllowList": ["window.*", "app.*"],
+  "logging": {
+    "enabled": false,
+    "writeToLogFile": false
+  },
+  "modes": {
+    "window": {
+      "title": "moonBASIC",
+      "width": 980,
+      "height": 620,
+      "minWidth": 800,
+      "minHeight": 500,
+      "center": true,
+      "borderless": true,
+      "resizable": true,
+      "exitProcessOnClose": true,
+      "useSavedState": false,
+      "injectGlobals": true,
+      "injectClientLibrary": true
+    }
+  }
+}

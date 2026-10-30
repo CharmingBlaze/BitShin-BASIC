@@ -8,26 +8,28 @@ import (
 	"github.com/g3n/engine/graphic"
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 type instXform struct {
-	x, y, z                float32
-	pitch, yaw, roll       float32
-	sx, sy, sz             float32
+	x, y, z          float32
+	pitch, yaw, roll float32
+	sx, sy, sz       float32
 }
 
 type instancedMesh struct {
-	src                *geometry.Geometry
-	tris               [][3]math32.Vector3
-	count              int
-	xforms             []instXform
-	batch              int // entity id of merged mesh (CPU fallback / shadows)
-	dirty              bool
-	gpuOK              bool
-	vao, vbo, ebo      uint32
-	instVBO            uint32
-	indexN, vertN      int32
+	src           *geometry.Geometry
+	tris          [][3]math32.Vector3
+	count         int
+	xforms        []instXform
+	batch         int // entity id of merged mesh (CPU fallback / shadows)
+	color         math32.Color
+	preferCPU     bool
+	dirty         bool
+	gpuOK         bool
+	vao, vbo, ebo uint32
+	instVBO       uint32
+	indexN, vertN int32
 }
 
 func (w *World) createInstanced(srcID, count int) (int, error) {
@@ -56,7 +58,11 @@ func (w *World) createInstanced(srcID, count int) (int, error) {
 		e.node.GetNode().SetVisible(false)
 		e.name = "instances"
 	}
-	im := &instancedMesh{src: srcGeom, tris: tris, count: count, xforms: xf, dirty: true}
+	col := math32.Color{0.35, 0.62, 0.28}
+	if e := w.ents[srcID]; e != nil && e.mat != nil {
+		col = e.mat.AmbientColor()
+	}
+	im := &instancedMesh{src: srcGeom, tris: tris, count: count, xforms: xf, color: col, dirty: true}
 	if w.instances == nil {
 		w.instances = map[int]*instancedMesh{}
 	}
@@ -108,7 +114,7 @@ func (w *World) rebuildInstanceBatch(id int) {
 	if im == nil || len(im.tris) == 0 {
 		return
 	}
-	if w.glmod.gpuInst && w.glmod.caps.instance {
+	if !im.preferCPU && w.glmod.gpuInst && w.glmod.caps.instance && w.ensureInstProgram() {
 		w.uploadInstanceGPU(im)
 		if im.gpuOK {
 			if e := w.ents[im.batch]; e != nil && e.node != nil {
@@ -160,6 +166,10 @@ func (w *World) rebuildInstanceBatch(id int) {
 	bid := w.meshEnt(g, 0)
 	if e := w.ents[bid]; e != nil {
 		e.name = "instanced"
+		if e.mat != nil {
+			c := im.color
+			e.mat.SetColor(&c)
+		}
 	}
 	im.batch = bid
 	im.dirty = false

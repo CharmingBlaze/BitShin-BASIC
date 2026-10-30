@@ -6,7 +6,7 @@ import (
 	"io"
 	"strings"
 
-	"bitshinbasic/internal/ast"
+	"moonbasic/internal/ast"
 )
 
 // SetDebug pauses on the given source lines. in and out carry continue/step/print commands.

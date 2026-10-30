@@ -96,7 +96,7 @@
         {
           "syntax": "LoadScene file$",
           "name": "LoadScene",
-          "description": "Run a setup `.bb` (no `Flip`/`End`) on the same variables",
+          "description": "Run a setup `.mb` (no `Flip`/`End`) on the same variables",
           "category": "Display / loop"
         },
         {
@@ -143,7 +143,7 @@
         {
           "syntax": "UpdateFreeLook cam [, speed]",
           "name": "UpdateFreeLook",
-          "description": "UpdateFreeLook cam [, speed] \u2014 WASD + mouse look (`speed` units/sec, default 8). `examples/freelook.bb`",
+          "description": "UpdateFreeLook cam [, speed] \u2014 WASD + mouse look (`speed` units/sec, default 8). `examples/freelook.mb`",
           "category": "3D scene (G3N)"
         },
         {
@@ -1024,6 +1024,60 @@
           "category": "2D (Ebiten)"
         },
         {
+          "syntax": "SetSpriteSheet s, img, frameW, frameH",
+          "name": "SetSpriteSheet",
+          "description": "Grid on the image. Frame 0 is the top left.",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetSpriteFrame s, index",
+          "name": "SetSpriteFrame",
+          "description": "Hold one frame of the sprite sheet.",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "AnimateSprite s, first, count, fps",
+          "name": "AnimateSprite",
+          "description": "Loop count frames starting at first, at fps.",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "FlipSprite s, horiz, vert",
+          "name": "FlipSprite",
+          "description": "1 flips that axis.",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SpriteAlpha s, a",
+          "name": "SpriteAlpha",
+          "description": "0 invisible, 1 solid.",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SpriteColor s, r, g, b",
+          "name": "SpriteColor",
+          "description": "Tint the sprite.",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SpriteLayer s, n",
+          "name": "SpriteLayer",
+          "description": "Higher layers draw on top.",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetCamera2D x, y",
+          "name": "SetCamera2D",
+          "description": "World point at the top-left of the screen. Sprites and DrawTileMap scroll. Rect, Text, and DrawImage stay on screen.",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "CameraFollow2D sprite [, ox, oy]",
+          "name": "CameraFollow2D",
+          "description": "Keep the sprite at screen center, plus an optional nudge.",
+          "category": "2D (Ebiten)"
+        },
+        {
           "syntax": "Rect x, y, w, h [, filled]",
           "name": "Rect",
           "description": "Rect x, y, w, h [, filled], `Oval`, `Line`",
@@ -1054,9 +1108,33 @@
           "category": "2D (Ebiten)"
         },
         {
+          "syntax": "GetTile map, tx, ty",
+          "name": "GetTile",
+          "description": "Cell id. 0 outside the map.",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "TileAt map, x, y",
+          "name": "TileAt",
+          "description": "Cell under a world pixel.",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetTileSolid map, id, on",
+          "name": "SetTileSolid",
+          "description": "Ids above 0 block by default. on 0 lets the player pass through that id.",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SpriteHitTile sprite, map",
+          "name": "SpriteHitTile",
+          "description": "1 when the sprite box overlaps a blocking cell.",
+          "category": "2D (Ebiten)"
+        },
+        {
           "syntax": "DrawTileMap map, x, y [, atlas]",
           "name": "DrawTileMap",
-          "description": "DrawTileMap map, x, y [, atlas] \u2014 colored cells if no atlas",
+          "description": "Colored cells if no atlas. Scrolls with SetCamera2D.",
           "category": "2D (Ebiten)"
         },
         {
@@ -1520,13 +1598,13 @@
         {
           "syntax": "CreateFreeCamera()",
           "name": "CreateFreeCamera",
-          "description": "CreateFreeCamera() + `UpdateFreeLook cam [, speed]` \u2014 same look plus WASD. Do not bind Escape; use `WindowShouldClose`. `examples/freelook.bb`",
+          "description": "CreateFreeCamera() + `UpdateFreeLook cam [, speed]` \u2014 same look plus WASD. Do not bind Escape; use `WindowShouldClose`. `examples/freelook.mb`",
           "category": "Input"
         },
         {
           "syntax": "UpdateFreeLook cam [, speed]",
           "name": "UpdateFreeLook",
-          "description": "`CreateFreeCamera()` + UpdateFreeLook cam [, speed] \u2014 same look plus WASD. Do not bind Escape; use `WindowShouldClose`. `examples/freelook.bb`",
+          "description": "`CreateFreeCamera()` + UpdateFreeLook cam [, speed] \u2014 same look plus WASD. Do not bind Escape; use `WindowShouldClose`. `examples/freelook.mb`",
           "category": "Input"
         },
         {
@@ -2941,7 +3019,7 @@
         {
           "syntax": "third_party/$GOOS",
           "name": "third_party/$GOOS",
-          "description": "Writes `dist/` with the `bs` binary, the `.bb`, copied `Load*` files, `assets/` if present, and natives from third_party/$GOOS (on Windows: `libc++.dll` + `libunwind.dll`). Audio is Oto \u2014 OpenAL DLLs are not copied. Zip `dist` and run from that folder.",
+          "description": "Writes `dist/` with the `moon` binary, the `.mb`, copied `Load*` files, `assets/` if present, and natives from third_party/$GOOS (on Windows: `libc++.dll` + `libunwind.dll`). Audio is Oto \u2014 OpenAL DLLs are not copied. Zip `dist` and run from that folder.",
           "category": "Packaging"
         }
       ]
@@ -3171,9 +3249,9 @@
       "name": "Dear ImGui (cimgui-go v1.6.0)",
       "commands": [
         {
-          "syntax": "GuiBegin(title$)",
+          "syntax": "GuiBegin(title$ [, menu])",
           "name": "GuiBegin",
-          "description": "Start a panel. Auto-closed on `Flip` if you skip `GuiEnd`",
+          "description": "Start a panel. menu nonzero reserves a menu bar. Auto-closed on Flip if you skip GuiEnd",
           "category": "Dear ImGui (cimgui-go v1.6.0)"
         },
         {
@@ -3222,6 +3300,180 @@
           "syntax": "WantCaptureMouse()` / `WantCaptureKeyboard()",
           "name": "WantCaptureMouse",
           "description": "1 when the panel wants that device",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiBullet(s$)",
+          "name": "GuiBullet",
+          "description": "Bulleted label",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiDrag(label$, lo, hi [, v])",
+          "name": "GuiDrag",
+          "description": "Drag box. Returns the current value",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiProgress(fraction [, overlay$])",
+          "name": "GuiProgress",
+          "description": "Bar from 0 to 1",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiRadio(label$, group$, id [, current])",
+          "name": "GuiRadio",
+          "description": "1 when this id is selected in the group",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiCombo(label$, items$ [, index])",
+          "name": "GuiCombo",
+          "description": "Items separated by a vertical bar. Returns the index",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiColor(label$ [, r, g, b])",
+          "name": "GuiColor",
+          "description": "Color picker, channels 0-255. Returns red",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiColorG(label$)",
+          "name": "GuiColorG",
+          "description": "Green from the last GuiColor with that label",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiColorB(label$)",
+          "name": "GuiColorB",
+          "description": "Blue from the last GuiColor with that label",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiHeader(label$)",
+          "name": "GuiHeader",
+          "description": "Collapsing header. 1 when open",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiSpacing",
+          "name": "GuiSpacing",
+          "description": "Vertical gap",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiSetWidth(n)",
+          "name": "GuiSetWidth",
+          "description": "Width of the next widget. -1 fills the row",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiTooltip(s$)",
+          "name": "GuiTooltip",
+          "description": "Tip for the previous widget while the pointer is over it",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiBeginMenuBar",
+          "name": "GuiBeginMenuBar",
+          "description": "Menu bar. GuiBegin needs menu set",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiEndMenuBar",
+          "name": "GuiEndMenuBar",
+          "description": "Close the menu bar",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiMenu(label$)",
+          "name": "GuiMenu",
+          "description": "1 when the menu is open",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiEndMenu",
+          "name": "GuiEndMenu",
+          "description": "Close the menu",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiMenuItem(label$)",
+          "name": "GuiMenuItem",
+          "description": "1 if chosen",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiBeginTabBar(id$)",
+          "name": "GuiBeginTabBar",
+          "description": "Tab bar",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiEndTabBar",
+          "name": "GuiEndTabBar",
+          "description": "Close the tab bar",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiTabItem(label$)",
+          "name": "GuiTabItem",
+          "description": "1 when that tab is selected",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiEndTabItem",
+          "name": "GuiEndTabItem",
+          "description": "Close the tab item",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiTree(label$)",
+          "name": "GuiTree",
+          "description": "Tree node. 1 when expanded",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiTreePop",
+          "name": "GuiTreePop",
+          "description": "Close the tree node",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiBeginChild(id$)",
+          "name": "GuiBeginChild",
+          "description": "Scrolling region",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiEndChild",
+          "name": "GuiEndChild",
+          "description": "Close the region",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiOpenPopup(id$)",
+          "name": "GuiOpenPopup",
+          "description": "Open a popup",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiBeginPopup(id$)",
+          "name": "GuiBeginPopup",
+          "description": "1 while the popup is open",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiEndPopup",
+          "name": "GuiEndPopup",
+          "description": "Close the popup",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiSelectable(label$)",
+          "name": "GuiSelectable",
+          "description": "1 if clicked",
           "category": "Dear ImGui (cimgui-go v1.6.0)"
         },
         {
@@ -4767,19 +5019,19 @@
         {
           "syntax": "EntityShininess",
           "name": "EntityShininess",
-          "description": "See `examples/editor.bb`. Material sliders: `GuiSlider` + EntityShininess / `EntityColor` / `EntitySpecular`.",
+          "description": "See `examples/editor.mb`. Material sliders: `GuiSlider` + EntityShininess / `EntityColor` / `EntitySpecular`.",
           "category": "Editor / stats"
         },
         {
           "syntax": "EntityColor",
           "name": "EntityColor",
-          "description": "See `examples/editor.bb`. Material sliders: `GuiSlider` + `EntityShininess` / EntityColor / `EntitySpecular`.",
+          "description": "See `examples/editor.mb`. Material sliders: `GuiSlider` + `EntityShininess` / EntityColor / `EntitySpecular`.",
           "category": "Editor / stats"
         },
         {
           "syntax": "EntitySpecular",
           "name": "EntitySpecular",
-          "description": "See `examples/editor.bb`. Material sliders: `GuiSlider` + `EntityShininess` / `EntityColor` / EntitySpecular.",
+          "description": "See `examples/editor.mb`. Material sliders: `GuiSlider` + `EntityShininess` / `EntityColor` / EntitySpecular.",
           "category": "Editor / stats"
         }
       ]
@@ -4920,7 +5172,7 @@
         {
           "syntax": "LoadScene file$",
           "name": "LoadScene",
-          "description": "LoadScene file$ \u2014 `.bb` setup script, **or** `.json` / `.yaml` scene dump",
+          "description": "LoadScene file$ \u2014 `.mb` setup script, **or** `.json` / `.yaml` scene dump",
           "category": "Data"
         },
         {
@@ -5067,7 +5319,7 @@
     {
       "syntax": "LoadScene file$",
       "name": "LoadScene",
-      "description": "Run a setup `.bb` (no `Flip`/`End`) on the same variables",
+      "description": "Run a setup `.mb` (no `Flip`/`End`) on the same variables",
       "category": "Display / loop"
     },
     {
@@ -5109,7 +5361,7 @@
     {
       "syntax": "UpdateFreeLook cam [, speed]",
       "name": "UpdateFreeLook",
-      "description": "UpdateFreeLook cam [, speed] \u2014 WASD + mouse look (`speed` units/sec, default 8). `examples/freelook.bb`",
+      "description": "UpdateFreeLook cam [, speed] \u2014 WASD + mouse look (`speed` units/sec, default 8). `examples/freelook.mb`",
       "category": "3D scene (G3N)"
     },
     {
@@ -5965,6 +6217,60 @@
       "category": "2D (Ebiten)"
     },
     {
+      "syntax": "SetSpriteSheet s, img, frameW, frameH",
+      "name": "SetSpriteSheet",
+      "description": "Grid on the image. Frame 0 is the top left.",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetSpriteFrame s, index",
+      "name": "SetSpriteFrame",
+      "description": "Hold one frame of the sprite sheet.",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "AnimateSprite s, first, count, fps",
+      "name": "AnimateSprite",
+      "description": "Loop count frames starting at first, at fps.",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "FlipSprite s, horiz, vert",
+      "name": "FlipSprite",
+      "description": "1 flips that axis.",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SpriteAlpha s, a",
+      "name": "SpriteAlpha",
+      "description": "0 invisible, 1 solid.",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SpriteColor s, r, g, b",
+      "name": "SpriteColor",
+      "description": "Tint the sprite.",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SpriteLayer s, n",
+      "name": "SpriteLayer",
+      "description": "Higher layers draw on top.",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetCamera2D x, y",
+      "name": "SetCamera2D",
+      "description": "World point at the top-left of the screen. Sprites and DrawTileMap scroll. Rect, Text, and DrawImage stay on screen.",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "CameraFollow2D sprite [, ox, oy]",
+      "name": "CameraFollow2D",
+      "description": "Keep the sprite at screen center, plus an optional nudge.",
+      "category": "2D (Ebiten)"
+    },
+    {
       "syntax": "Rect x, y, w, h [, filled]",
       "name": "Rect",
       "description": "Rect x, y, w, h [, filled], `Oval`, `Line`",
@@ -5995,9 +6301,33 @@
       "category": "2D (Ebiten)"
     },
     {
+      "syntax": "GetTile map, tx, ty",
+      "name": "GetTile",
+      "description": "Cell id. 0 outside the map.",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "TileAt map, x, y",
+      "name": "TileAt",
+      "description": "Cell under a world pixel.",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetTileSolid map, id, on",
+      "name": "SetTileSolid",
+      "description": "Ids above 0 block by default. on 0 lets the player pass through that id.",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SpriteHitTile sprite, map",
+      "name": "SpriteHitTile",
+      "description": "1 when the sprite box overlaps a blocking cell.",
+      "category": "2D (Ebiten)"
+    },
+    {
       "syntax": "DrawTileMap map, x, y [, atlas]",
       "name": "DrawTileMap",
-      "description": "DrawTileMap map, x, y [, atlas] \u2014 colored cells if no atlas",
+      "description": "Colored cells if no atlas. Scrolls with SetCamera2D.",
       "category": "2D (Ebiten)"
     },
     {
@@ -6441,13 +6771,13 @@
     {
       "syntax": "CreateFreeCamera()",
       "name": "CreateFreeCamera",
-      "description": "CreateFreeCamera() + `UpdateFreeLook cam [, speed]` \u2014 same look plus WASD. Do not bind Escape; use `WindowShouldClose`. `examples/freelook.bb`",
+      "description": "CreateFreeCamera() + `UpdateFreeLook cam [, speed]` \u2014 same look plus WASD. Do not bind Escape; use `WindowShouldClose`. `examples/freelook.mb`",
       "category": "Input"
     },
     {
       "syntax": "UpdateFreeLook cam [, speed]",
       "name": "UpdateFreeLook",
-      "description": "`CreateFreeCamera()` + UpdateFreeLook cam [, speed] \u2014 same look plus WASD. Do not bind Escape; use `WindowShouldClose`. `examples/freelook.bb`",
+      "description": "`CreateFreeCamera()` + UpdateFreeLook cam [, speed] \u2014 same look plus WASD. Do not bind Escape; use `WindowShouldClose`. `examples/freelook.mb`",
       "category": "Input"
     },
     {
@@ -7827,7 +8157,7 @@
     {
       "syntax": "third_party/$GOOS",
       "name": "third_party/$GOOS",
-      "description": "Writes `dist/` with the `bs` binary, the `.bb`, copied `Load*` files, `assets/` if present, and natives from third_party/$GOOS (on Windows: `libc++.dll` + `libunwind.dll`). Audio is Oto \u2014 OpenAL DLLs are not copied. Zip `dist` and run from that folder.",
+      "description": "Writes `dist/` with the `moon` binary, the `.mb`, copied `Load*` files, `assets/` if present, and natives from third_party/$GOOS (on Windows: `libc++.dll` + `libunwind.dll`). Audio is Oto \u2014 OpenAL DLLs are not copied. Zip `dist` and run from that folder.",
       "category": "Packaging"
     },
     {
@@ -8047,9 +8377,9 @@
       "category": "Window / input (G3N GLFW)"
     },
     {
-      "syntax": "GuiBegin(title$)",
+      "syntax": "GuiBegin(title$ [, menu])",
       "name": "GuiBegin",
-      "description": "Start a panel. Auto-closed on `Flip` if you skip `GuiEnd`",
+      "description": "Start a panel. menu nonzero reserves a menu bar. Auto-closed on Flip if you skip GuiEnd",
       "category": "Dear ImGui (cimgui-go v1.6.0)"
     },
     {
@@ -8098,6 +8428,180 @@
       "syntax": "WantCaptureMouse()` / `WantCaptureKeyboard()",
       "name": "WantCaptureMouse",
       "description": "1 when the panel wants that device",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiBullet(s$)",
+      "name": "GuiBullet",
+      "description": "Bulleted label",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiDrag(label$, lo, hi [, v])",
+      "name": "GuiDrag",
+      "description": "Drag box. Returns the current value",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiProgress(fraction [, overlay$])",
+      "name": "GuiProgress",
+      "description": "Bar from 0 to 1",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiRadio(label$, group$, id [, current])",
+      "name": "GuiRadio",
+      "description": "1 when this id is selected in the group",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiCombo(label$, items$ [, index])",
+      "name": "GuiCombo",
+      "description": "Items separated by a vertical bar. Returns the index",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiColor(label$ [, r, g, b])",
+      "name": "GuiColor",
+      "description": "Color picker, channels 0-255. Returns red",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiColorG(label$)",
+      "name": "GuiColorG",
+      "description": "Green from the last GuiColor with that label",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiColorB(label$)",
+      "name": "GuiColorB",
+      "description": "Blue from the last GuiColor with that label",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiHeader(label$)",
+      "name": "GuiHeader",
+      "description": "Collapsing header. 1 when open",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiSpacing",
+      "name": "GuiSpacing",
+      "description": "Vertical gap",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiSetWidth(n)",
+      "name": "GuiSetWidth",
+      "description": "Width of the next widget. -1 fills the row",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiTooltip(s$)",
+      "name": "GuiTooltip",
+      "description": "Tip for the previous widget while the pointer is over it",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiBeginMenuBar",
+      "name": "GuiBeginMenuBar",
+      "description": "Menu bar. GuiBegin needs menu set",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiEndMenuBar",
+      "name": "GuiEndMenuBar",
+      "description": "Close the menu bar",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiMenu(label$)",
+      "name": "GuiMenu",
+      "description": "1 when the menu is open",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiEndMenu",
+      "name": "GuiEndMenu",
+      "description": "Close the menu",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiMenuItem(label$)",
+      "name": "GuiMenuItem",
+      "description": "1 if chosen",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiBeginTabBar(id$)",
+      "name": "GuiBeginTabBar",
+      "description": "Tab bar",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiEndTabBar",
+      "name": "GuiEndTabBar",
+      "description": "Close the tab bar",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiTabItem(label$)",
+      "name": "GuiTabItem",
+      "description": "1 when that tab is selected",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiEndTabItem",
+      "name": "GuiEndTabItem",
+      "description": "Close the tab item",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiTree(label$)",
+      "name": "GuiTree",
+      "description": "Tree node. 1 when expanded",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiTreePop",
+      "name": "GuiTreePop",
+      "description": "Close the tree node",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiBeginChild(id$)",
+      "name": "GuiBeginChild",
+      "description": "Scrolling region",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiEndChild",
+      "name": "GuiEndChild",
+      "description": "Close the region",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiOpenPopup(id$)",
+      "name": "GuiOpenPopup",
+      "description": "Open a popup",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiBeginPopup(id$)",
+      "name": "GuiBeginPopup",
+      "description": "1 while the popup is open",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiEndPopup",
+      "name": "GuiEndPopup",
+      "description": "Close the popup",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiSelectable(label$)",
+      "name": "GuiSelectable",
+      "description": "1 if clicked",
       "category": "Dear ImGui (cimgui-go v1.6.0)"
     },
     {
@@ -9573,19 +10077,19 @@
     {
       "syntax": "EntityShininess",
       "name": "EntityShininess",
-      "description": "See `examples/editor.bb`. Material sliders: `GuiSlider` + EntityShininess / `EntityColor` / `EntitySpecular`.",
+      "description": "See `examples/editor.mb`. Material sliders: `GuiSlider` + EntityShininess / `EntityColor` / `EntitySpecular`.",
       "category": "Editor / stats"
     },
     {
       "syntax": "EntityColor",
       "name": "EntityColor",
-      "description": "See `examples/editor.bb`. Material sliders: `GuiSlider` + `EntityShininess` / EntityColor / `EntitySpecular`.",
+      "description": "See `examples/editor.mb`. Material sliders: `GuiSlider` + `EntityShininess` / EntityColor / `EntitySpecular`.",
       "category": "Editor / stats"
     },
     {
       "syntax": "EntitySpecular",
       "name": "EntitySpecular",
-      "description": "See `examples/editor.bb`. Material sliders: `GuiSlider` + `EntityShininess` / `EntityColor` / EntitySpecular.",
+      "description": "See `examples/editor.mb`. Material sliders: `GuiSlider` + `EntityShininess` / `EntityColor` / EntitySpecular.",
       "category": "Editor / stats"
     },
     {
@@ -9711,7 +10215,7 @@
     {
       "syntax": "LoadScene file$",
       "name": "LoadScene",
-      "description": "LoadScene file$ \u2014 `.bb` setup script, **or** `.json` / `.yaml` scene dump",
+      "description": "LoadScene file$ \u2014 `.mb` setup script, **or** `.json` / `.yaml` scene dump",
       "category": "Data"
     },
     {

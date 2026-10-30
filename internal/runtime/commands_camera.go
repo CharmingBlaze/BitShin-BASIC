@@ -5,7 +5,7 @@ import (
 
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 func (w *World) updateSpringArmCamera(camE *Entity, tx, ty, tz, dist, radius, damp float32, yaw, pitch float64) {

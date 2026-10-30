@@ -9,8 +9,9 @@ import (
 	"github.com/g3n/engine/graphic"
 	"github.com/g3n/engine/material"
 	"github.com/g3n/engine/math32"
+	"github.com/g3n/engine/texture"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 // scatterLayer is one repeated mesh on a terrain (grass cards, trees, or props).
@@ -26,6 +27,16 @@ type scatterPt struct {
 	x, y, z float32
 	yaw     float32
 	scale   float32
+}
+
+// treeCard is one batch of tree sprites. face turns them toward the camera.
+// crossed adds a second card at 90 degrees.
+type treeCard struct {
+	ent           int
+	pts           []scatterPt
+	width, height float32
+	crossed       bool
+	face          bool
 }
 
 // lodStep is the CPU stand-in for a screen-space triangle target.
@@ -112,7 +123,24 @@ func scatterBudget(kind string, density, size float32, step int) (n int, spacing
 	spacing = 1.15
 	switch kind {
 	case "tree":
-		cell, cap, spacing = 8, 8, 6
+		// A stand, not one trunk: spacing across the chunk, halved on far tiles.
+		spacing = 6
+		if size > 0 {
+			n = int(density * (size / spacing) * (size / spacing))
+		}
+		if step >= 2 {
+			n = n / 2
+		}
+		if step >= 4 {
+			n = n / 2
+		}
+		if n > 24 {
+			n = 24
+		}
+		if n < 1 && density > 0 {
+			n = 1
+		}
+		return n, spacing
 	case "prop":
 		cell, cap, spacing = 4.5, 12, 2.8
 	case "any":
@@ -211,9 +239,9 @@ func (w *World) freeScatter(t *terrain, key chunkKey) {
 	if t == nil || t.scatterIDs == nil {
 		return
 	}
+	w.dropTreeCards(t, t.scatterIDs[key])
 	for _, id := range t.scatterIDs[key] {
-		delete(w.instances, id)
-		w.freeEntityID(id)
+		w.releaseInstance(id)
 	}
 	delete(t.scatterIDs, key)
 }
@@ -227,6 +255,9 @@ func (w *World) refreshScatter(t *terrain) {
 		x0 := float32(k.X) * cw
 		z0 := float32(k.Z) * cw
 		w.placeScatter(t, k, x0, z0, cw, w.scatterStep(t, k))
+	}
+	if t.horizonN > 0 {
+		w.placeHorizonTrees(t, cw, t.horizonAt, t.horizonN)
 	}
 }
 
@@ -263,29 +294,32 @@ func (w *World) placeScatter(t *terrain, key chunkKey, x0, z0, size float32, ste
 			continue
 		}
 		far := step >= 2
-		if layer.kind == "grass" || far || layer.mesh == 0 {
-			id := w.addCardScatter(t, layer.kind, pts, !far && layer.kind == "grass")
+		if layer.kind == "tree" || layer.kind == "grass" || far || layer.mesh == 0 {
+			var tex *texture.Texture2D
+			crossed := !far && layer.kind == "grass"
+			if layer.kind == "tree" {
+				crossed = t.treeCross()
+				if src := w.ents[layer.mesh]; src != nil {
+					tex = src.albedoTex
+				}
+			}
+			id := w.addCardScatter(t, layer.kind, pts, crossed, nil, tex)
 			if id != 0 {
 				ids = append(ids, id)
+				if layer.kind == "tree" {
+					tw, th := t.treeDims(tex)
+					t.cards = append(t.cards, treeCard{
+						ent: id, pts: append([]scatterPt(nil), pts...),
+						width: tw, height: th, crossed: crossed, face: t.treeFace(),
+					})
+				}
 			}
 			continue
 		}
-		id, err := w.createInstanced(layer.mesh, len(pts))
-		if err != nil || id == 0 {
-			continue
+		id := w.plantInstances(layer.mesh, pts)
+		if id != 0 {
+			ids = append(ids, id)
 		}
-		im := w.instances[id]
-		if im != nil {
-			for pi, p := range pts {
-				im.xforms[pi] = instXform{x: p.x, y: p.y, z: p.z, yaw: p.yaw, sx: p.scale, sy: p.scale, sz: p.scale}
-			}
-			im.dirty = true
-			w.rebuildInstanceBatch(id)
-		}
-		if e := w.ents[id]; e != nil {
-			e.name = "scatter"
-		}
-		ids = append(ids, id)
 	}
 	if len(ids) > 0 {
 		t.scatterIDs[key] = ids
@@ -332,7 +366,7 @@ func (w *World) scatterPoints(t *terrain, layer scatterLayer, key chunkKey, salt
 			scale: 0.85 + rng.Float32()*0.3,
 		})
 	}
-	if step >= 2 && w.cam != nil && len(pts) > 0 {
+	if step >= 2 && w.cam != nil && len(pts) > 0 && (layer.kind != "tree" || t.treeFace()) {
 		p := worldPos(w.cam.GetNode())
 		cx, _, cz := fromG3N(p.X, p.Y, p.Z)
 		for i := range pts {
@@ -344,16 +378,208 @@ func (w *World) scatterPoints(t *terrain, layer scatterLayer, key chunkKey, salt
 	return pts
 }
 
-func (w *World) addCardScatter(t *terrain, kind string, pts []scatterPt, crossed bool) int {
+// scatterPlantY puts the bottom of a centered mesh on the ground.
+// A cone's base sits at -height/2, so planting at the sample height buries it.
+func scatterPlantY(ground, minY, scale float32) float32 {
+	if scale == 0 {
+		scale = 1
+	}
+	return ground - minY*scale
+}
+
+func geomMinY(tris [][3]math32.Vector3) float32 {
+	if len(tris) == 0 {
+		return 0
+	}
+	m := tris[0][0].Y
+	for _, tri := range tris {
+		for _, v := range tri {
+			if v.Y < m {
+				m = v.Y
+			}
+		}
+	}
+	return m
+}
+
+func (w *World) freeHorizonTrees(t *terrain) {
+	if t == nil {
+		return
+	}
+	w.dropTreeCards(t, t.horizonTrees)
+	for _, id := range t.horizonTrees {
+		w.releaseInstance(id)
+	}
+	t.horizonTrees = nil
+}
+
+func (w *World) dropTreeCards(t *terrain, ids []int) {
+	if t == nil || len(ids) == 0 || len(t.cards) == 0 {
+		return
+	}
+	drop := map[int]bool{}
+	for _, id := range ids {
+		drop[id] = true
+	}
+	keep := t.cards[:0]
+	for _, c := range t.cards {
+		if !drop[c.ent] {
+			keep = append(keep, c)
+		}
+	}
+	t.cards = keep
+}
+
+func (w *World) releaseInstance(id int) {
+	if im := w.instances[id]; im != nil {
+		w.deleteInstanceGL(im)
+		if im.batch != 0 {
+			w.freeEntityID(im.batch)
+			im.batch = 0
+		}
+		delete(w.instances, id)
+	}
+	w.freeEntityID(id)
+}
+
+func (w *World) plantInstances(mesh int, pts []scatterPt) int {
+	if mesh == 0 || len(pts) == 0 {
+		return 0
+	}
+	if len(pts) > 8000 {
+		pts = pts[:8000]
+	}
+	id, err := w.createInstanced(mesh, len(pts))
+	if err != nil || id == 0 {
+		return 0
+	}
+	im := w.instances[id]
+	if im == nil {
+		return id
+	}
+	minY := geomMinY(im.tris)
+	for i, p := range pts {
+		im.xforms[i] = instXform{
+			x: p.x, y: scatterPlantY(p.y, minY, p.scale), z: p.z,
+			yaw: p.yaw, sx: p.scale, sy: p.scale, sz: p.scale,
+		}
+	}
+	im.preferCPU = true
+	im.gpuOK = false
+	im.dirty = true
+	w.rebuildInstanceBatch(id)
+	if e := w.ents[id]; e != nil {
+		e.name = "scatter"
+	}
+	return id
+}
+
+// placeHorizonTrees keeps the same tree picture on the coarse ring, out to the fog.
+func (w *World) placeHorizonTrees(t *terrain, cw float32, cam chunkKey, n int) {
+	if t == nil {
+		return
+	}
+	w.freeHorizonTrees(t)
+	reach := t.radius + 6
+	if reach > n {
+		reach = n
+	}
+	for li, layer := range t.scatters {
+		if layer.kind != "tree" || layer.density <= 0 || layer.mesh == 0 {
+			continue
+		}
+		var pts []scatterPt
+		count, _ := scatterBudget(layer.kind, layer.density, cw, 2)
+		for z := cam.Z - reach; z < cam.Z+reach; z++ {
+			for x := cam.X - reach; x < cam.X+reach; x++ {
+				if !inHorizonRing(cam, chunkKey{X: x, Z: z}, t.radius, reach) {
+					continue
+				}
+				for i := 0; i < count; i++ {
+					u := chunkHash01(x, z, li*17+i)
+					v := chunkHash01(x, z, li*17+i+101)
+					px := (float32(x) + 0.12 + 0.76*u) * cw
+					pz := (float32(z) + 0.12 + 0.76*v) * cw
+					h := w.sampleHeight(&t.hf, px, pz)
+					if !scatterAccept(layer.kind, scatterFlat(t, px, pz), h, t.waterY, t.snowH, t.snowOn) {
+						continue
+					}
+					pts = append(pts, scatterPt{
+						x: px, y: h, z: pz,
+						yaw:   chunkHash01(x, z, i+3) * 360,
+						scale: 0.85 + chunkHash01(x, z, i+9)*0.3,
+					})
+				}
+			}
+		}
+		var tex *texture.Texture2D
+		if src := w.ents[layer.mesh]; src != nil {
+			tex = src.albedoTex
+		}
+		tw, th := t.treeDims(tex)
+		crossed := t.treeCross()
+		if id := w.addCardScatter(t, "tree", pts, crossed, nil, tex); id != 0 {
+			t.horizonTrees = append(t.horizonTrees, id)
+			t.cards = append(t.cards, treeCard{
+				ent: id, pts: append([]scatterPt(nil), pts...),
+				width: tw, height: th, crossed: crossed, face: t.treeFace(),
+			})
+		}
+	}
+}
+
+func chunkHash01(x, z, salt int) float32 {
+	h := uint32(x)*374761393 ^ uint32(z)*668265263 ^ uint32(salt+1)*2246822519
+	h = (h ^ (h >> 13)) * 1274126177
+	h ^= h >> 16
+	return float32(h%10000) / 10000
+}
+
+func treeSpriteSize(tex *texture.Texture2D) (width, height float32) {
+	if tex != nil {
+		return 3.6, 4.4
+	}
+	return 1.1, 2.4
+}
+
+func (t *terrain) treeDims(tex *texture.Texture2D) (width, height float32) {
+	width, height = treeSpriteSize(tex)
+	if t == nil {
+		return width, height
+	}
+	if t.cardW > 0 {
+		width = t.cardW
+	}
+	if t.cardH > 0 {
+		height = t.cardH
+	}
+	return width, height
+}
+
+func (t *terrain) treeCross() bool {
+	return t != nil && t.cardCross
+}
+
+func (t *terrain) treeFace() bool {
+	return t == nil || t.cardFace
+}
+
+func (w *World) addCardScatter(t *terrain, kind string, pts []scatterPt, crossed bool, tint *math32.Color, tex *texture.Texture2D) int {
 	width, height := float32(0.55), float32(0.9)
 	col := &math32.Color{0.22, 0.48, 0.16}
 	switch kind {
 	case "tree":
-		width, height = 1.7, 3.4
-		col = &math32.Color{0.18, 0.32, 0.14}
+		width, height = t.treeDims(tex)
+		col = &math32.Color{1, 1, 1}
+		if tex == nil {
+			col = &math32.Color{0.14, 0.43, 0.19}
+		}
 	case "prop":
 		width, height = 1.1, 1.2
 		col = &math32.Color{0.42, 0.40, 0.36}
+	}
+	if tint != nil {
+		col = tint
 	}
 	g := cardGeometry(pts, crossed, width, height)
 	if g == nil {
@@ -361,14 +587,92 @@ func (w *World) addCardScatter(t *terrain, kind string, pts []scatterPt, crossed
 	}
 	mat := w.newMat()
 	mat.SetColor(col)
+	mat.SetAmbientColor(col)
 	mat.SetSide(material.SideDouble)
+	if tex != nil {
+		tex.SetWrapS(gls.CLAMP_TO_EDGE)
+		tex.SetWrapT(gls.CLAMP_TO_EDGE)
+		// The card's V already puts the image top at the top of the quad.
+		// The default flip turns the trunk into the sky.
+		tex.SetFlipY(false)
+		mat.AddTexture(tex)
+	}
 	mesh := graphic.NewMesh(g, mat)
 	parent := 0
 	if t != nil {
 		parent = t.root
 	}
-	id := w.addEntity(&Entity{node: mesh, mesh: mesh, mat: mat, name: "foliage", kind: "scatter"}, parent)
+	id := w.addEntity(&Entity{node: mesh, mesh: mesh, mat: mat, name: "foliage", kind: "scatter", albedoTex: tex}, parent)
 	return id
+}
+
+// faceTreeCards turns each tree sprite toward the camera so the picture stays front-on.
+func (w *World) faceTreeCards(t *terrain) {
+	if t == nil || w.cam == nil || len(t.cards) == 0 {
+		return
+	}
+	p := worldPos(w.cam.GetNode())
+	cx, _, cz := fromG3N(p.X, p.Y, p.Z)
+	keep := t.cards[:0]
+	for _, c := range t.cards {
+		e := w.ents[c.ent]
+		if e == nil || e.mesh == nil {
+			continue
+		}
+		keep = append(keep, c)
+		geom := e.mesh.GetGeometry()
+		if geom == nil {
+			continue
+		}
+		pos := geom.VBO(gls.VertexPosition)
+		nor := geom.VBO(gls.VertexNormal)
+		if pos == nil || nor == nil {
+			continue
+		}
+		if !c.face {
+			continue
+		}
+		writeTreeSprite(pos.Buffer(), nor.Buffer(), c.pts, c.width, c.height, c.crossed, cx, cz)
+		pos.Update()
+		nor.Update()
+	}
+	t.cards = keep
+}
+
+func writeTreeSprite(pos, nor *math32.ArrayF32, pts []scatterPt, width, height float32, crossed bool, cx, cz float32) {
+	if pos == nil || nor == nil {
+		return
+	}
+	pdst, ndst := []float32(*pos), []float32(*nor)
+	vi := 0
+	put := func(p scatterPt, yaw float32) {
+		c := math32.Cos(yaw)
+		s := math32.Sin(yaw)
+		hw := width * p.scale * 0.5
+		hh := height * p.scale
+		nx, ny, nz := toG3N(s, 0, c)
+		xs := [4]float32{-hw, hw, hw, -hw}
+		ys := [4]float32{0, 0, hh, hh}
+		for i := 0; i < 4; i++ {
+			rx := xs[i] * c
+			rz := -xs[i] * s
+			gx, gy, gz := toG3N(p.x+rx, p.y+ys[i], p.z+rz)
+			if vi+2 < len(pdst) {
+				pdst[vi], pdst[vi+1], pdst[vi+2] = gx, gy, gz
+			}
+			if vi+2 < len(ndst) {
+				ndst[vi], ndst[vi+1], ndst[vi+2] = nx, ny, nz
+			}
+			vi += 3
+		}
+	}
+	for _, p := range pts {
+		yaw := float32(math.Atan2(float64(cx-p.x), float64(cz-p.z)))
+		put(p, yaw)
+		if crossed {
+			put(p, yaw+math32.Pi/2)
+		}
+	}
 }
 
 func cardGeometry(pts []scatterPt, crossed bool, width, height float32) *geometry.Geometry {
@@ -469,6 +773,45 @@ func (w *World) scatterCommands(n func(func([]value.Value) (value.Value, error))
 			}
 			off := terrainArgOff(w, a)
 			t.blendTex = argI(a, off, 0)
+			return z()
+		}),
+		"settreecards": n(func(a []value.Value) (value.Value, error) {
+			t := w.pickTerrain(a)
+			if t == nil {
+				return z()
+			}
+			off := terrainArgOff(w, a)
+			if ww := float32(argN(a, off, 0)); ww > 0 {
+				t.cardW = ww
+			}
+			if hh := float32(argN(a, off+1, 0)); hh > 0 {
+				t.cardH = hh
+			}
+			if len(a) > off+2 {
+				t.cardCross = argI(a, off+2, 0) != 0
+			}
+			if len(a) > off+3 {
+				t.cardFace = argI(a, off+3, 1) != 0
+			}
+			w.refreshScatter(t)
+			return z()
+		}),
+		"settreecardcross": n(func(a []value.Value) (value.Value, error) {
+			t := w.pickTerrain(a)
+			if t == nil {
+				return z()
+			}
+			t.cardCross = argI(a, terrainArgOff(w, a), 0) != 0
+			w.refreshScatter(t)
+			return z()
+		}),
+		"settreecardface": n(func(a []value.Value) (value.Value, error) {
+			t := w.pickTerrain(a)
+			if t == nil {
+				return z()
+			}
+			t.cardFace = argI(a, terrainArgOff(w, a), 1) != 0
+			w.refreshScatter(t)
 			return z()
 		}),
 		"setterraindetail": n(func(a []value.Value) (value.Value, error) {

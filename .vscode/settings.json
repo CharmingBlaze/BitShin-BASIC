@@ -1,6 +1,6 @@
 {
   "files.associations": {
-    "*.bb": "bitshinbasic"
+    "*.mb": "moonbasic"
   },
-  "bitshinbasic.serverPath": "${workspaceFolder}/bsls.exe"
+  "moonbasic.serverPath": "${workspaceFolder}/moonsls.exe"
 }

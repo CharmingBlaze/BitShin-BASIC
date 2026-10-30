@@ -1,9 +1,9 @@
 package interp
 
 import (
-	"bitshinbasic/internal/ast"
-	"bitshinbasic/internal/lex"
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/ast"
+	"moonbasic/internal/lex"
+	"moonbasic/internal/value"
 )
 
 type stateMachine struct {
@@ -108,6 +108,14 @@ func (in *Interp) runFast(fn *ast.FuncDecl, code fastCode, args []value.Value) v
 }
 
 func compileFast(fn *ast.FuncDecl) fastCode {
+	if fn.Coroutine || fn.Ret != "" {
+		return fastCode{}
+	}
+	for _, typ := range fn.ParamTypes {
+		if typ != "" {
+			return fastCode{}
+		}
+	}
 	slots := map[string]int{}
 	for _, p := range fn.Params {
 		slots[lex.IdentKey(p)] = len(slots)
@@ -170,6 +178,9 @@ func compileFast(fn *ast.FuncDecl) fastCode {
 	for _, s := range fn.Body {
 		switch t := s.(type) {
 		case *ast.LocalStmt:
+			if t.Static {
+				return fastCode{}
+			}
 			for i, name := range t.Names {
 				ix := slotOf(name)
 				if i < len(t.Values) && t.Values[i] != nil {

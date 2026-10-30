@@ -81,6 +81,7 @@ func Load(path string) (*Clip, error) {
 // Voice is one playing instance.
 type Voice struct {
 	p     *oto.Player
+	src   *rateReader
 	vol   float64
 	pitch float64
 }
@@ -105,7 +106,7 @@ func (c *Clip) play(loop bool, vol, pitch, pan float64) (*Voice, error) {
 	p := ctx.NewPlayer(src)
 	p.SetVolume(vol)
 	p.Play()
-	return &Voice{p: p, vol: vol, pitch: pitch}, nil
+	return &Voice{p: p, src: src, vol: vol, pitch: pitch}, nil
 }
 
 func (c *Clip) Play(loop bool) (*Voice, error) {
@@ -153,6 +154,78 @@ func GenerateThunder(seconds float64) *Clip {
 	return &Clip{PCM: pcm}
 }
 
+// GenerateEngine is a seamless low loop. Pitch follows throttle.
+func GenerateEngine() *Clip {
+	const freq = 55.0
+	period := float64(SampleRate) / freq
+	cycles := 28
+	n := int(period * float64(cycles))
+	if n < SampleRate/8 {
+		n = SampleRate / 8
+	}
+	pcm := make([]byte, n*FrameBytes)
+	for i := 0; i < n; i++ {
+		t := float64(i) / float64(SampleRate)
+		phase := t * freq
+		frac := phase - math.Floor(phase)
+		saw := 2*frac - 1
+		hum := math.Sin(t*freq*2*math.Pi)*0.35 + math.Sin(t*freq*4*math.Pi)*0.12
+		s := saw*0.22 + hum
+		v := int16(clamp16(s * 14000))
+		o := i * FrameBytes
+		pcm[o] = byte(v)
+		pcm[o+1] = byte(v >> 8)
+		pcm[o+2] = byte(v)
+		pcm[o+3] = byte(v >> 8)
+	}
+	return &Clip{PCM: pcm}
+}
+
+// GenerateFootstep is a short thud.
+func GenerateFootstep() *Clip {
+	n := int(0.09 * float64(SampleRate))
+	pcm := make([]byte, n*FrameBytes)
+	for i := 0; i < n; i++ {
+		t := float64(i) / float64(SampleRate)
+		env := math.Exp(-t * 48)
+		thud := math.Sin(t*90*2*math.Pi)*0.7 + (randN(i*3)*2-1)*0.3
+		s := thud * env
+		v := int16(clamp16(s * 18000))
+		o := i * FrameBytes
+		pcm[o] = byte(v)
+		pcm[o+1] = byte(v >> 8)
+		pcm[o+2] = byte(v)
+		pcm[o+3] = byte(v >> 8)
+	}
+	return &Clip{PCM: pcm}
+}
+
+// GenerateCloth is a soft air loop for a flag or curtain.
+func GenerateCloth() *Clip {
+	n := SampleRate / 2
+	pcm := make([]byte, n*FrameBytes)
+	var brown float64
+	for i := 0; i < n; i++ {
+		t := float64(i) / float64(n)
+		edge := 1.0
+		if t < 0.08 {
+			edge = t / 0.08
+		} else if t > 0.92 {
+			edge = (1 - t) / 0.08
+		}
+		white := randN(i*5)*2 - 1
+		brown = brown*0.96 + white*0.04
+		s := (brown*0.8 + white*0.05) * edge
+		v := int16(clamp16(s * 9000))
+		o := i * FrameBytes
+		pcm[o] = byte(v)
+		pcm[o+1] = byte(v >> 8)
+		pcm[o+2] = byte(v)
+		pcm[o+3] = byte(v >> 8)
+	}
+	return &Clip{PCM: pcm}
+}
+
 func randN(i int) float64 {
 	x := uint32(i)*1664525 + 1013904223
 	return float64(x&0x7fffffff) / float64(0x7fffffff)
@@ -167,6 +240,22 @@ func (v *Voice) Play() {
 func (v *Voice) Pause() {
 	if v != nil && v.p != nil {
 		v.p.Pause()
+	}
+}
+
+func (v *Voice) SetPitch(pitch float64) {
+	if v == nil {
+		return
+	}
+	if pitch < 0.25 {
+		pitch = 0.25
+	}
+	if pitch > 3 {
+		pitch = 3
+	}
+	v.pitch = pitch
+	if v.src != nil {
+		v.src.setRate(pitch)
 	}
 }
 
@@ -192,18 +281,34 @@ func (v *Voice) Close() {
 }
 
 type rateReader struct {
+	mu   sync.Mutex
 	pcm  []byte
 	pos  float64
 	rate float64
 	loop bool
 }
 
+func (r *rateReader) setRate(v float64) {
+	if r == nil {
+		return
+	}
+	if v <= 0 {
+		v = 1
+	}
+	r.mu.Lock()
+	r.rate = v
+	r.mu.Unlock()
+}
+
 func (r *rateReader) Read(p []byte) (int, error) {
 	if len(r.pcm) < FrameBytes {
 		return 0, io.EOF
 	}
-	if r.rate <= 0 {
-		r.rate = 1
+	r.mu.Lock()
+	rate := r.rate
+	r.mu.Unlock()
+	if rate <= 0 {
+		rate = 1
 	}
 	n := 0
 	for n+FrameBytes <= len(p) {
@@ -219,7 +324,7 @@ func (r *rateReader) Read(p []byte) (int, error) {
 			i = 0
 		}
 		copy(p[n:n+FrameBytes], r.pcm[i:i+FrameBytes])
-		r.pos += r.rate
+		r.pos += rate
 		n += FrameBytes
 	}
 	return n, nil

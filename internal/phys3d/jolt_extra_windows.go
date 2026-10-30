@@ -1,8 +1,8 @@
-//go:build !nojolt && windows
+//go:build !nojolt && (windows || (!joltgo && ((linux && (amd64 || arm64)) || (darwin && arm64))))
 
 package phys3d
 
-import "bitshinbasic/internal/jolt"
+import "moonbasic/internal/jolt"
 
 func (w *joltWorld) hitEntity(hit jolt.RaycastHit) int {
 	if hit.BodyID == nil {
@@ -169,6 +169,15 @@ func (w *joltWorld) ClothVertices(id int, dst []float32) int {
 		return 0
 	}
 	return w.ps.ClothVertices(b, dst)
+}
+
+func (w *joltWorld) SetClothVertices(id int, src []float32) {
+	id = w.resolvePhysID(id)
+	b, ok := w.body[id]
+	if !ok {
+		return
+	}
+	w.ps.SetClothVertices(b, src)
 }
 
 func (w *joltWorld) ApplyClothWind(id int, vx, vy, vz float32, start, step uint32) {

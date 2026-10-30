@@ -1,36 +1,36 @@
 {
-  "name": "bitshin-basic",
-  "displayName": "BitShin BASIC",
-  "description": "Language support and LSP client for BitShin BASIC (.bb)",
+  "name": "moonbasic",
+  "displayName": "moonBASIC",
+  "description": "Language support and LSP client for moonBASIC (.mb)",
   "version": "1.0.0",
-  "publisher": "bitshin",
+  "publisher": "moonbasic",
   "engines": { "vscode": "^1.80.0" },
   "categories": ["Programming Languages"],
-  "activationEvents": ["onLanguage:bitshinbasic"],
+  "activationEvents": ["onLanguage:moonbasic"],
   "main": "./extension.js",
   "contributes": {
     "languages": [
       {
-        "id": "bitshinbasic",
-        "aliases": ["BitShin BASIC", "BitShin", "bitshin"],
-        "extensions": [".bb"],
+        "id": "moonbasic",
+        "aliases": ["moonBASIC", "moonbasic"],
+        "extensions": [".mb"],
         "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
       {
-        "language": "bitshinbasic",
-        "scopeName": "source.bitshinbasic",
-        "path": "./syntaxes/bitshinbasic.tmLanguage.json"
+        "language": "moonbasic",
+        "scopeName": "source.moonbasic",
+        "path": "./syntaxes/moonbasic.tmLanguage.json"
       }
     ],
     "configuration": {
-      "title": "BitShin BASIC",
+      "title": "moonBASIC",
       "properties": {
-        "bitshinbasic.serverPath": {
+        "moonbasic.serverPath": {
           "type": "string",
           "default": "",
-          "description": "Path to bsls / bsls.exe (empty = search workspace then PATH, then bs lsp)"
+          "description": "Path to moonsls.exe (empty = search the workspace, then PATH, then moon lsp)"
         }
       }
     }

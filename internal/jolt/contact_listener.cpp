@@ -143,6 +143,10 @@ public:
 private:
 	void queueContact(int kind, const Body &inBody1, const Body &inBody2, const ContactManifold &inManifold)
 	{
+		if (inManifold.mRelativeContactPointsOn1.empty())
+		{
+			return;
+		}
 		RVec3 p = inManifold.GetWorldSpaceContactPointOn1(0);
 		Vec3 n = inManifold.mWorldSpaceNormal;
 		JoltContactEvent ev{};

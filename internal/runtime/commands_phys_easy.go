@@ -5,8 +5,8 @@ import (
 	"math"
 	"strings"
 
-	"bitshinbasic/internal/phys3d"
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/phys3d"
+	"moonbasic/internal/value"
 )
 
 // physicsMaterials is friction, restitution, linear damping, angular damping.

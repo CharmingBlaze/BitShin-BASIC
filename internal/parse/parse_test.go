@@ -3,7 +3,7 @@ package parse
 import (
 	"testing"
 
-	"bitshinbasic/internal/ast"
+	"moonbasic/internal/ast"
 )
 
 func TestParseClassicLoop(t *testing.T) {
@@ -146,5 +146,28 @@ Print Add(2, 3)
 `
 	if _, err := Parse(src); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestIndexedMethodCall(t *testing.T) {
+	src := "foe(0).Hide()\nfoe(i).Position(1, 2, 3)\nfoe(i).x = 4\n"
+	prog, err := Parse(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(prog.Stmts) != 3 {
+		t.Fatalf("stmts: %#v", prog.Stmts)
+	}
+	hide, ok := prog.Stmts[0].(*ast.MethodStmt)
+	if !ok || hide.Method != "Hide" || !hide.Paren || len(hide.Index) != 1 {
+		t.Fatalf("hide: %#v", prog.Stmts[0])
+	}
+	pos, ok := prog.Stmts[1].(*ast.MethodStmt)
+	if !ok || pos.Method != "Position" || !pos.Paren || len(pos.Args) != 3 {
+		t.Fatalf("position: %#v", prog.Stmts[1])
+	}
+	as, ok := prog.Stmts[2].(*ast.AssignStmt)
+	if !ok || len(as.Fields) != 1 || as.Fields[0] != "x" {
+		t.Fatalf("assign: %#v", prog.Stmts[2])
 	}
 }

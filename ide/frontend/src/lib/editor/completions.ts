@@ -1,6 +1,6 @@
 import * as monaco from 'monaco-editor';
 import commandsData from '../data/commands.json';
-import { LANGUAGE_ID } from './bitshin-lang';
+import { LANGUAGE_ID } from './moonbasic-lang';
 import { lspReady, lspRequest } from './lspClient';
 
 export function registerCompletions() {
@@ -114,7 +114,7 @@ export function registerCompletions() {
           'While Not KeyDown(1)',
           '    Cls',
           '    Color(255, 255, 255)',
-          '    Text(10, 10, "Hello BitShin BASIC 2D")',
+          '    Text(10, 10, "Hello moonBASIC 2D")',
           '    Flip',
           'Wend',
           'End'

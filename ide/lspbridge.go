@@ -9,8 +9,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-
-	wailsruntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
 func (a *App) startLanguageServer() {
@@ -64,18 +62,18 @@ func (a *App) stopLanguageServer() {
 	}
 }
 
-// SendLSP writes one JSON-RPC body to bsls / bs lsp (Content-Length framed).
+// SendLSP writes one JSON-RPC body to moonsls / moon lsp (Content-Length framed).
 func (a *App) SendLSP(body string) error {
 	a.lspMu.Lock()
 	defer a.lspMu.Unlock()
 	if a.lspStdin == nil {
-		return fmt.Errorf("language server is not running (build bsls.exe with go build -o bsls.exe ./cmd/bsls)")
+		return fmt.Errorf("language server is not running (build moonsls.exe with go build -o moonsls.exe ./cmd/bsls)")
 	}
 	_, err := fmt.Fprintf(a.lspStdin, "Content-Length: %d\r\n\r\n%s", len(body), body)
 	return err
 }
 
-// IsLspRunning reports whether bsls / bs lsp is attached.
+// IsLspRunning reports whether moonsls / moon lsp is attached.
 func (a *App) IsLspRunning() bool {
 	a.lspMu.Lock()
 	defer a.lspMu.Unlock()
@@ -84,10 +82,10 @@ func (a *App) IsLspRunning() bool {
 
 func (a *App) resolveLanguageServer() (string, []string) {
 	candidates := []string{
-		filepath.Join(a.repoRoot, "bsls.exe"),
-		filepath.Join(a.repoRoot, "bsls"),
-		filepath.Join(".", "bsls.exe"),
-		filepath.Join("..", "bsls.exe"),
+		filepath.Join(a.repoRoot, "moonsls.exe"),
+		filepath.Join(a.repoRoot, "moonsls"),
+		filepath.Join(".", "moonsls.exe"),
+		filepath.Join("..", "moonsls.exe"),
 	}
 	for _, c := range candidates {
 		st, err := os.Stat(c)
@@ -100,10 +98,10 @@ func (a *App) resolveLanguageServer() (string, []string) {
 		}
 		return abs, nil
 	}
-	if p, err := exec.LookPath("bsls"); err == nil {
+	if p, err := exec.LookPath("moonsls"); err == nil {
 		return p, nil
 	}
-	if p, err := exec.LookPath("bsls.exe"); err == nil {
+	if p, err := exec.LookPath("moonsls.exe"); err == nil {
 		return p, nil
 	}
 	bs := a.findBsExecutable()
@@ -120,9 +118,7 @@ func (a *App) readLanguageServer(r io.Reader) {
 		if err != nil {
 			return
 		}
-		if a.ctx != nil {
-			wailsruntime.EventsEmit(a.ctx, "lsp:message", string(body))
-		}
+		a.emit("lsp:message", string(body))
 	}
 }
 

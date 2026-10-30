@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"bitshinbasic/internal/parse"
-	"bitshinbasic/internal/syntax"
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/parse"
+	"moonbasic/internal/syntax"
+	"moonbasic/internal/value"
 )
 
 type nopHost struct{}
@@ -367,7 +367,7 @@ func (h *qolHost) Call(name string, args []value.Value) (value.Value, error) {
 	switch name {
 	case "createcube", "createcamera":
 		return value.Num(7), nil
-	case "setposition", "setscale", "entitycolor", "positionentity":
+	case "setposition", "setscale", "entitycolor", "positionentity", "hideentity":
 		return value.Num(0), nil
 	case "setweather":
 		return value.Str(syntax.WeatherMode(args[0])), nil
@@ -425,6 +425,31 @@ Print WEATHER_CLEAR
 		if c == "positionentity" && h.argc[i] != 4 {
 			t.Fatalf("classic PositionEntity argc %d", h.argc[i])
 		}
+	}
+}
+
+func TestIndexedEntityMethod(t *testing.T) {
+	src := "Dim foe(1)\nfoe(0) = 3\nfoe(0).Hide()\nfoe(0).Position(1, 2, 3)\n"
+	prog, err := parse.Parse(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	h := &qolHost{}
+	in := New(prog, h)
+	if err := in.Run(); err != nil {
+		t.Fatal(err)
+	}
+	var hide, pos bool
+	for i, c := range h.calls {
+		if c == "hideentity" && h.argc[i] == 1 {
+			hide = true
+		}
+		if c == "setposition" && h.argc[i] == 4 {
+			pos = true
+		}
+	}
+	if !hide || !pos {
+		t.Fatalf("indexed methods: %v argc %v", h.calls, h.argc)
 	}
 }
 
@@ -815,6 +840,28 @@ Print ListGet(lst, 0).x
 	}
 }
 
+func TestStringReplaceInstr(t *testing.T) {
+	out := run(t, `
+Print Replace("a-b-a", "-", ":")
+Print Replace("abc", "", "x")
+Print Instr("abcabc", "bc")
+Print Instr("abcabc", "bc", 3)
+Print Instr("abc", "z")
+Print String(3, "ab")
+Print Len(Left("hello", 2))
+`)
+	got := strings.Fields(out)
+	want := []string{"a:b:a", "abc", "2", "5", "0", "ababab", "2"}
+	if len(got) != len(want) {
+		t.Fatalf("got %q want %v", out, want)
+	}
+	for i, w := range want {
+		if got[i] != w {
+			t.Fatalf("item %d got %q want %q in %q", i, got[i], w, out)
+		}
+	}
+}
+
 func TestStrictFunctionLocal(t *testing.T) {
 	prog, err := parse.Parse(`
 Strict
@@ -831,5 +878,144 @@ F()
 	err = in.Run()
 	if err == nil || !strings.Contains(err.Error(), "undefined") {
 		t.Fatalf("got %v", err)
+	}
+}
+
+func TestMoonBasicForms(t *testing.T) {
+	out := run(t, `
+Enum State
+    IDLE
+    WALK
+End Enum
+Print State.IDLE
+Print $"n={1+1}"
+x = 0
+Do
+    x = x + 1
+    If x = 3 Then Exit Do
+Loop
+Print x
+Function Hits()
+    Static n = 0
+    n = n + 1
+    Return n
+End Function
+Print Hits()
+Print Hits()
+`)
+	got := strings.Fields(out)
+	want := []string{"0", "n=2", "3", "1", "2"}
+	if len(got) != len(want) {
+		t.Fatalf("got %q want %v", out, want)
+	}
+	for i, w := range want {
+		if got[i] != w {
+			t.Fatalf("item %d got %q want %q in %q", i, got[i], w, out)
+		}
+	}
+}
+
+func TestMoonBasicLanguage(t *testing.T) {
+	out := run(t, `
+Function Cut(n As Integer) As Integer
+    Return n + 0.9
+End Function
+Print Cut(3.7)
+
+f = Function()
+    Return 7
+End Function
+Print f()
+
+Function Boom()
+    Print "boom"
+End Function
+Print Coroutine.Start(@Boom)
+
+Type Enemy
+    Field hp
+End Type
+e1 = New(Enemy)
+e1.hp = 4
+e2 = New(Enemy)
+e2.hp = 9
+n = 0
+For e = Each(Enemy)
+    n = n + e.hp
+Next
+Print n
+Delete e1
+n = 0
+For e = Each(Enemy)
+    n = n + e.hp
+Next
+Print n
+
+Dim a(2)
+a(0) = 5
+Erase a
+Print a
+
+Coroutine Tick
+    Yield
+    Print "after"
+End Coroutine
+Print "main"
+`)
+	got := strings.Fields(out)
+	want := []string{"3", "7", "boom", "2", "13", "9", "0", "main", "after"}
+	if len(got) != len(want) {
+		t.Fatalf("got %q want %v", out, want)
+	}
+	for i, w := range want {
+		if got[i] != w {
+			t.Fatalf("item %d got %q want %q in %q", i, got[i], w, out)
+		}
+	}
+}
+
+func TestMoonBasicNamespaces(t *testing.T) {
+	out := run(t, `
+Print Math.Abs(-3)
+Print Math.Lerp(0, 10, 0.5)
+Print String.Upper("ab")
+Print List.Count(0)
+`)
+	got := strings.Fields(out)
+	want := []string{"3", "5", "AB", "0"}
+	if len(got) != len(want) {
+		t.Fatalf("got %q want %v", out, want)
+	}
+	for i, w := range want {
+		if got[i] != w {
+			t.Fatalf("item %d got %q want %q in %q", i, got[i], w, out)
+		}
+	}
+}
+
+func TestMoonBasicDimAndText(t *testing.T) {
+	out := run(t, `
+Type Platform
+    x, y
+EndType
+Dim plat As Platform(2)
+plat(0) = Platform(3, 4)
+plat(1).y = 8
+Print plat(0).x
+Print plat(1).y
+Print String.Interp("Hi {0}", "moon")
+Print Format(3.5, "%.1f")
+Free.All
+Print plat
+`)
+	got := strings.Fields(out)
+	want := []string{"3", "8", "Hi", "moon", "3.5", "0"}
+	if len(got) != len(want) {
+		t.Fatalf("got %q want %v", out, want)
+	}
+	for i, w := range want {
+		if got[i] != w {
+			t.Fatalf("item %d got %q want %q in %q", i, got[i], w, out)
+		}
 	}
 }

@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/g3n/engine/camera"
@@ -10,11 +11,12 @@ import (
 	"github.com/g3n/engine/renderer"
 	"github.com/go-gl/gl/v3.3-core/gl"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 // Fullscreen post stack on OpenGL 3.3: scene → color FBO → blit
 // (tonemap + exposure + cheap bloom + optional FXAA + color grade).
+// Contact shading is a half-resolution horizon pass on the scene depth.
 // Not a deferred MRT / Unreal post graph.
 
 type postFX struct {
@@ -25,6 +27,10 @@ type postFX struct {
 	tonemap        int // 0 Reinhard, 1 Khronos PBR Neutral, 2 ACES fitted, 3 clamp only
 	bloom          float32
 	fxaa           bool
+	grain          float32
+	vignette       float32
+	chroma         float32
+	sharpen        float32
 	contrast       float32
 	sat            float32
 	tint           math32.Color
@@ -43,6 +49,66 @@ type postFX struct {
 	bloomTex       [5]uint32
 	bloomFBO       [5]uint32
 	bloomW, bloomH int
+	gtaoProg       uint32
+	gtaoBlurProg   uint32
+	gtaoBroken     bool
+	aoTex          uint32
+	aoBlurTex      uint32
+	aoFBO          uint32
+	aoBlurFBO      uint32
+	aoW, aoH       int
+	auto           bool
+	autoKey        float32
+	autoSpeed      float32
+	adapted        float32
+	adaptedOK      bool
+	lumProg        uint32
+	lumTex         uint32
+	lumFBO         uint32
+}
+
+// enableGrade turns on the Khronos neutral curve and a small bloom.
+// Exposure and an explicit tonemap chosen earlier are left as they are,
+// except a still-default Reinhard curve becomes neutral.
+func (w *World) enableGrade() {
+	w.post.on = true
+	w.post.userOn = true
+	if w.post.tonemap == 0 {
+		w.post.tonemap = 1
+	}
+	if w.post.exposure <= 0 {
+		w.post.exposure = 1.05
+	}
+	if w.post.bloom == 0 {
+		w.post.bloom = 0.22
+	}
+	w.post.auto = true
+	if w.post.autoKey <= 0 {
+		w.post.autoKey = 0.5
+	}
+	if w.post.autoSpeed <= 0 {
+		w.post.autoSpeed = 1.6
+	}
+	if w.post.contrast <= 0 {
+		w.post.contrast = 1
+	}
+	if w.post.sat <= 0 {
+		w.post.sat = 1
+	}
+	if w.post.tint.R+w.post.tint.G+w.post.tint.B == 0 {
+		w.post.tint = math32.Color{1, 1, 1}
+	}
+	w.post.fxaa = true
+}
+
+func clamp01n(v float32) float32 {
+	if v < 0 {
+		return 0
+	}
+	if v > 1 {
+		return 1
+	}
+	return v
 }
 
 func tonemapMode(name string, n int) int {
@@ -82,7 +148,7 @@ func (w *World) postCommands(n func(func([]value.Value) (value.Value, error)) cm
 				if w.post.tint.R+w.post.tint.G+w.post.tint.B == 0 {
 					w.post.tint = math32.Color{1, 1, 1}
 				}
-				if w.post.bloom == 0 && len(a) < 1 {
+				if w.post.bloom == 0 {
 					w.post.bloom = 0.22
 				}
 				w.post.fxaa = true
@@ -112,6 +178,23 @@ func (w *World) postCommands(n func(func([]value.Value) (value.Value, error)) cm
 			}
 			return value.Num(float64(w.post.exposure)), nil
 		}),
+		"setautoexposure": n(func(a []value.Value) (value.Value, error) {
+			w.post.auto = argI(a, 0, 1) != 0
+			if w.post.auto {
+				w.post.on = true
+				w.post.userOn = true
+				if w.post.autoKey <= 0 {
+					w.post.autoKey = 0.5
+				}
+				if w.post.autoSpeed <= 0 {
+					w.post.autoSpeed = 1.6
+				}
+			}
+			return value.Num(float64(b01(w.post.auto))), nil
+		}),
+		"getautoexposure": n(func(a []value.Value) (value.Value, error) {
+			return value.Num(float64(b01(w.post.auto))), nil
+		}),
 		"setbloom": n(func(a []value.Value) (value.Value, error) {
 			w.post.bloom = float32(argN(a, 0, 0.22))
 			if w.post.bloom < 0 {
@@ -128,6 +211,32 @@ func (w *World) postCommands(n func(func([]value.Value) (value.Value, error)) cm
 		"setfxaa": n(func(a []value.Value) (value.Value, error) {
 			w.post.fxaa = argI(a, 0, 1) != 0
 			return value.Num(float64(b01(w.post.fxaa))), nil
+		}),
+		"setfilmgrain": n(func(a []value.Value) (value.Value, error) {
+			w.post.grain = clamp01n(float32(argN(a, 0, 0)))
+			w.post.on = true
+			return value.Num(float64(w.post.grain)), nil
+		}),
+		"setvignette": n(func(a []value.Value) (value.Value, error) {
+			w.post.vignette = clamp01n(float32(argN(a, 0, 0)))
+			w.post.on = true
+			return value.Num(float64(w.post.vignette)), nil
+		}),
+		"setchromaticaberration": n(func(a []value.Value) (value.Value, error) {
+			w.post.chroma = clamp01n(float32(argN(a, 0, 0)))
+			w.post.on = true
+			return value.Num(float64(w.post.chroma)), nil
+		}),
+		"setsharpen": n(func(a []value.Value) (value.Value, error) {
+			w.post.sharpen = float32(argN(a, 0, 0))
+			if w.post.sharpen < 0 {
+				w.post.sharpen = 0
+			}
+			if w.post.sharpen > 2 {
+				w.post.sharpen = 2
+			}
+			w.post.on = true
+			return value.Num(float64(w.post.sharpen)), nil
 		}),
 		"setcolorgrade": n(func(a []value.Value) (value.Value, error) {
 			w.post.contrast = float32(argN(a, 0, 1))
@@ -226,13 +335,50 @@ func drainGL(where string) {
 		}
 		if i == 0 && !drainLogged[where] {
 			drainLogged[where] = true
-			fmt.Println(where+":", err)
+			fmt.Println(where+":", glErrName(err))
 		}
 	}
 }
 
+func glErrName(err uint32) string {
+	switch err {
+	case gl.INVALID_ENUM:
+		return "GL_INVALID_ENUM 1280"
+	case gl.INVALID_VALUE:
+		return "GL_INVALID_VALUE 1281"
+	case gl.INVALID_OPERATION:
+		return "GL_INVALID_OPERATION 1282"
+	case gl.OUT_OF_MEMORY:
+		return "GL_OUT_OF_MEMORY 1285"
+	case gl.INVALID_FRAMEBUFFER_OPERATION:
+		return "GL_INVALID_FRAMEBUFFER_OPERATION 1286"
+	}
+	return fmt.Sprintf("GL error %d", err)
+}
+
+// bindColorTarget selects the framebuffer the scene colors are written to.
+// A depth-only shadow pass sets GL_DRAW_BUFFER to NONE; that state has to
+// be put back or the mesh pass clears and then draws nothing.
+func bindColorTarget(fbo uint32) {
+	gl.BindFramebuffer(gl.FRAMEBUFFER, fbo)
+	if fbo == 0 {
+		gl.DrawBuffer(gl.BACK)
+		gl.ReadBuffer(gl.BACK)
+	} else {
+		gl.DrawBuffer(gl.COLOR_ATTACHMENT0)
+		gl.ReadBuffer(gl.COLOR_ATTACHMENT0)
+	}
+	gl.ColorMask(true, true, true, true)
+	gl.DepthMask(true)
+	gl.DepthFunc(gl.LEQUAL)
+	gl.Disable(gl.SCISSOR_TEST)
+	gl.Enable(gl.DEPTH_TEST)
+}
+
 func (w *World) beginPostTarget(ww, hh int) bool {
-	if (!w.post.on && !w.guiFrame) || ww <= 0 || hh <= 0 {
+	// ImGui is drawn on the window after the scene. Routing those frames
+	// through the post FBO left the default framebuffer cleared and empty.
+	if !w.post.on || ww <= 0 || hh <= 0 {
 		return false
 	}
 	if w.app != nil && w.app.Gls() != nil {
@@ -266,7 +412,8 @@ func (w *World) endPostTarget(gs *gls.GLS, ww, hh int) {
 func (w *World) blitSceneCopy(ww, hh int) {
 	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, w.post.fbo)
 	gl.BindFramebuffer(gl.DRAW_FRAMEBUFFER, 0)
-	gl.BlitFramebuffer(0, 0, int32(ww), int32(hh), 0, 0, int32(ww), int32(hh), gl.COLOR_BUFFER_BIT, gl.NEAREST)
+	dw, dh := w.drawableSize(ww, hh)
+	gl.BlitFramebuffer(0, 0, int32(ww), int32(hh), 0, 0, int32(dw), int32(dh), gl.COLOR_BUFFER_BIT, gl.NEAREST)
 	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
 	drainGL("gui scene blit")
 }
@@ -309,6 +456,7 @@ func (w *World) ensurePostFX(ww, hh int) error {
 	w.post.fbo, w.post.color, w.post.depth = fbo, color, depth
 	w.post.w, w.post.h = ww, hh
 	w.disposeBloomChain()
+	w.disposeGTAO()
 	return w.ensurePostBlit()
 }
 
@@ -326,6 +474,7 @@ func (w *World) disposePostFBO() {
 		w.post.fbo = 0
 	}
 	w.disposeBloomChain()
+	w.disposeGTAO()
 }
 
 func (w *World) ensurePostProg() error {
@@ -504,30 +653,149 @@ func (w *World) fillBloomChain(ww, hh int) bool {
 	return true
 }
 
-func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
-	if w.post.prog == 0 || !w.post.blitOK {
-		return
+func (w *World) disposeGTAO() {
+	if w.post.aoTex != 0 {
+		gl.DeleteTextures(1, &w.post.aoTex)
+		w.post.aoTex = 0
 	}
-	restore := saveModernGL(gs)
-	defer restore()
-	chain := w.fillBloomChain(ww, hh)
-	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
-	if ww > 0 && hh > 0 {
-		gl.Viewport(0, 0, int32(ww), int32(hh))
+	if w.post.aoBlurTex != 0 {
+		gl.DeleteTextures(1, &w.post.aoBlurTex)
+		w.post.aoBlurTex = 0
 	}
-	gl.Disable(gl.DEPTH_TEST)
-	gl.Disable(gl.BLEND)
-	gl.Disable(gl.CULL_FACE)
-	gl.UseProgram(w.post.prog)
-	gl.ActiveTexture(gl.TEXTURE0)
-	gl.BindTexture(gl.TEXTURE_2D, w.post.color)
-	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uTex\x00")), 0)
+	if w.post.aoFBO != 0 {
+		gl.DeleteFramebuffers(1, &w.post.aoFBO)
+		w.post.aoFBO = 0
+	}
+	if w.post.aoBlurFBO != 0 {
+		gl.DeleteFramebuffers(1, &w.post.aoBlurFBO)
+		w.post.aoBlurFBO = 0
+	}
+	w.post.aoW, w.post.aoH = 0, 0
+}
 
-	gl.ActiveTexture(gl.TEXTURE1)
-	gl.BindTexture(gl.TEXTURE_2D, w.post.depth)
-	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uDepth\x00")), 1)
+func (w *World) ensureGTAOProg() error {
+	if w.post.gtaoProg != 0 && w.post.gtaoBlurProg != 0 {
+		return nil
+	}
+	p, err := compileLink(
+		struct {
+			kind uint32
+			src  string
+		}{gl.VERTEX_SHADER, mbpostVertex},
+		struct {
+			kind uint32
+			src  string
+		}{gl.FRAGMENT_SHADER, mbGTAOFragment},
+	)
+	if err != nil {
+		return err
+	}
+	b, err := compileLink(
+		struct {
+			kind uint32
+			src  string
+		}{gl.VERTEX_SHADER, mbpostVertex},
+		struct {
+			kind uint32
+			src  string
+		}{gl.FRAGMENT_SHADER, mbGTAOBlurFragment},
+	)
+	if err != nil {
+		gl.DeleteProgram(p)
+		return err
+	}
+	w.post.gtaoProg = p
+	w.post.gtaoBlurProg = b
+	return nil
+}
 
-	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uSSAO\x00")), int32(b01(w.post.ssao)))
+func (w *World) ensureGTAOTargets(ww, hh int) error {
+	aw, ah := ww/2, hh/2
+	if aw < 1 {
+		aw = 1
+	}
+	if ah < 1 {
+		ah = 1
+	}
+	if w.post.aoTex != 0 && w.post.aoW == aw && w.post.aoH == ah {
+		return nil
+	}
+	w.disposeGTAO()
+	makeR := func() (uint32, uint32, error) {
+		var tex, fbo uint32
+		gl.GenTextures(1, &tex)
+		gl.BindTexture(gl.TEXTURE_2D, tex)
+		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.R8, int32(aw), int32(ah), 0, gl.RED, gl.UNSIGNED_BYTE, nil)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+		gl.GenFramebuffers(1, &fbo)
+		gl.BindFramebuffer(gl.FRAMEBUFFER, fbo)
+		gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0)
+		st := gl.CheckFramebufferStatus(gl.FRAMEBUFFER)
+		gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
+		gl.BindTexture(gl.TEXTURE_2D, 0)
+		if st != gl.FRAMEBUFFER_COMPLETE {
+			return 0, 0, fmt.Errorf("gtao fbo")
+		}
+		return tex, fbo, nil
+	}
+	tex, fbo, err := makeR()
+	if err != nil {
+		return err
+	}
+	blur, blurFBO, err := makeR()
+	if err != nil {
+		return err
+	}
+	w.post.aoTex, w.post.aoFBO = tex, fbo
+	w.post.aoBlurTex, w.post.aoBlurFBO = blur, blurFBO
+	w.post.aoW, w.post.aoH = aw, ah
+	return nil
+}
+
+func (w *World) gtaoCamera() (near, far, tanHalf, aspect float32) {
+	near, far = 0.3, 1000
+	fov := float32(60)
+	aspect = 1
+	if w.post.w > 0 && w.post.h > 0 {
+		aspect = float32(w.post.w) / float32(w.post.h)
+	}
+	if w.cam != nil {
+		if n := w.cam.Near(); n > 0.001 {
+			near = n
+		}
+		if f := w.cam.Far(); f > near+1 {
+			far = f
+		}
+		if fv := w.cam.Fov(); fv > 1 && fv < 179 {
+			fov = fv
+		}
+		if a := w.cam.Aspect(); a > 0.01 {
+			aspect = a
+		}
+	}
+	tanHalf = float32(math.Tan(float64(fov) * math.Pi / 360))
+	if tanHalf < 0.05 {
+		tanHalf = 0.05
+	}
+	return near, far, tanHalf, aspect
+}
+
+func (w *World) fillGTAO(ww, hh int) bool {
+	if w.post.gtaoBroken || w.post.depth == 0 || ww < 2 || hh < 2 {
+		return false
+	}
+	if err := w.ensureGTAOProg(); err != nil {
+		w.post.gtaoBroken = true
+		fmt.Println("GTAO:", err)
+		return false
+	}
+	if err := w.ensureGTAOTargets(ww, hh); err != nil {
+		return false
+	}
+	near, far, tanHalf, aspect := w.gtaoCamera()
 	rad := w.post.ssaoRadius
 	if rad <= 0 {
 		rad = 0.8
@@ -540,13 +808,188 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 	if bias <= 0 {
 		bias = 0.02
 	}
-	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uSSAORadius\x00")), rad)
-	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uSSAOIntensity\x00")), inten)
-	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uSSAOBias\x00")), bias)
+	gl.Disable(gl.DEPTH_TEST)
+	gl.Disable(gl.BLEND)
+	gl.UseProgram(w.post.gtaoProg)
+	gl.BindFramebuffer(gl.FRAMEBUFFER, w.post.aoFBO)
+	gl.Viewport(0, 0, int32(w.post.aoW), int32(w.post.aoH))
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.BindTexture(gl.TEXTURE_2D, w.post.depth)
+	gl.Uniform1i(gl.GetUniformLocation(w.post.gtaoProg, gl.Str("uDepth\x00")), 0)
+	gl.Uniform2f(gl.GetUniformLocation(w.post.gtaoProg, gl.Str("uTexel\x00")), 1/float32(ww), 1/float32(hh))
+	gl.Uniform1f(gl.GetUniformLocation(w.post.gtaoProg, gl.Str("uRadius\x00")), rad)
+	gl.Uniform1f(gl.GetUniformLocation(w.post.gtaoProg, gl.Str("uBias\x00")), bias)
+	gl.Uniform1f(gl.GetUniformLocation(w.post.gtaoProg, gl.Str("uIntensity\x00")), inten)
+	gl.Uniform1f(gl.GetUniformLocation(w.post.gtaoProg, gl.Str("uNear\x00")), near)
+	gl.Uniform1f(gl.GetUniformLocation(w.post.gtaoProg, gl.Str("uFar\x00")), far)
+	gl.Uniform1f(gl.GetUniformLocation(w.post.gtaoProg, gl.Str("uTanHalf\x00")), tanHalf)
+	gl.Uniform1f(gl.GetUniformLocation(w.post.gtaoProg, gl.Str("uAspect\x00")), aspect)
+	gl.BindVertexArray(w.post.vao)
+	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
+
+	blur := func(src, dstFBO uint32, dirX, dirY float32) {
+		gl.UseProgram(w.post.gtaoBlurProg)
+		gl.BindFramebuffer(gl.FRAMEBUFFER, dstFBO)
+		gl.ActiveTexture(gl.TEXTURE0)
+		gl.BindTexture(gl.TEXTURE_2D, src)
+		gl.Uniform1i(gl.GetUniformLocation(w.post.gtaoBlurProg, gl.Str("uAO\x00")), 0)
+		gl.ActiveTexture(gl.TEXTURE1)
+		gl.BindTexture(gl.TEXTURE_2D, w.post.depth)
+		gl.Uniform1i(gl.GetUniformLocation(w.post.gtaoBlurProg, gl.Str("uDepth\x00")), 1)
+		gl.Uniform2f(gl.GetUniformLocation(w.post.gtaoBlurProg, gl.Str("uTexel\x00")), 1/float32(w.post.aoW), 1/float32(w.post.aoH))
+		gl.Uniform2f(gl.GetUniformLocation(w.post.gtaoBlurProg, gl.Str("uDirection\x00")), dirX, dirY)
+		gl.Uniform1f(gl.GetUniformLocation(w.post.gtaoBlurProg, gl.Str("uNear\x00")), near)
+		gl.Uniform1f(gl.GetUniformLocation(w.post.gtaoBlurProg, gl.Str("uFar\x00")), far)
+		gl.BindVertexArray(w.post.vao)
+		gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
+	}
+	blur(w.post.aoTex, w.post.aoBlurFBO, 1, 0)
+	blur(w.post.aoBlurTex, w.post.aoFBO, 0, 1)
+
+	gl.BindVertexArray(0)
+	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
+	gl.ActiveTexture(gl.TEXTURE1)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	gl.UseProgram(0)
+	return true
+}
+
+func (w *World) measureLuma(ww, hh int) (float32, bool) {
+	if w.post.color == 0 || ww < 2 || hh < 2 {
+		return 0, false
+	}
+	if w.post.lumProg == 0 {
+		p, err := compileLink(
+			struct {
+				kind uint32
+				src  string
+			}{gl.VERTEX_SHADER, mbpostVertex},
+			struct {
+				kind uint32
+				src  string
+			}{gl.FRAGMENT_SHADER, mbLumFragment},
+		)
+		if err != nil {
+			fmt.Println("exposure:", err)
+			return 0, false
+		}
+		w.post.lumProg = p
+	}
+	if w.post.lumTex == 0 {
+		var tex, fbo uint32
+		gl.GenTextures(1, &tex)
+		gl.BindTexture(gl.TEXTURE_2D, tex)
+		gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA8, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, nil)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+		gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+		gl.GenFramebuffers(1, &fbo)
+		gl.BindFramebuffer(gl.FRAMEBUFFER, fbo)
+		gl.FramebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, tex, 0)
+		if gl.CheckFramebufferStatus(gl.FRAMEBUFFER) != gl.FRAMEBUFFER_COMPLETE {
+			fmt.Println("exposure: fbo")
+			gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
+			return 0, false
+		}
+		w.post.lumTex, w.post.lumFBO = tex, fbo
+	}
+	gl.BindFramebuffer(gl.FRAMEBUFFER, w.post.lumFBO)
+	gl.Viewport(0, 0, 1, 1)
+	gl.Disable(gl.DEPTH_TEST)
+	gl.Disable(gl.BLEND)
+	gl.UseProgram(w.post.lumProg)
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.BindTexture(gl.TEXTURE_2D, w.post.color)
+	gl.Uniform1i(gl.GetUniformLocation(w.post.lumProg, gl.Str("uTex\x00")), 0)
+	gl.BindVertexArray(w.post.vao)
+	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
+	var pix [4]byte
+	gl.ReadPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(&pix[0]))
+	gl.BindVertexArray(0)
+	gl.UseProgram(0)
+	drainGL("exposure")
+	return float32(pix[0]) / 255, true
+}
+
+func adaptExposure(current float32, have bool, lum, key, speed float32, dt float64) (float32, bool) {
+	if lum < 0.004 {
+		lum = 0.004
+	}
+	if key <= 0 {
+		key = 0.5
+	}
+	target := key / lum
+	if target < 0.35 {
+		target = 0.35
+	}
+	if target > 3.5 {
+		target = 3.5
+	}
+	if !have || speed <= 0 {
+		return target, true
+	}
+	if dt <= 0 {
+		dt = 1.0 / 60
+	}
+	if dt > 0.25 {
+		dt = 0.25
+	}
+	k := 1 - math.Exp(-float64(speed)*dt)
+	return current + (target-current)*float32(k), true
+}
+
+func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
+	if w.post.prog == 0 || !w.post.blitOK {
+		return
+	}
+	restore := saveModernGL(gs)
+	defer restore()
+	chain := w.fillBloomChain(ww, hh)
+	gtao := w.post.ssao && w.fillGTAO(ww, hh)
+	var lum float32
+	lumOK := false
+	if w.post.auto {
+		lum, lumOK = w.measureLuma(ww, hh)
+	}
+	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
+	if dw, dh := w.drawableSize(ww, hh); dw > 0 && dh > 0 {
+		gl.Viewport(0, 0, int32(dw), int32(dh))
+	}
+	gl.Disable(gl.DEPTH_TEST)
+	gl.Disable(gl.BLEND)
+	gl.Disable(gl.CULL_FACE)
+	gl.UseProgram(w.post.prog)
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.BindTexture(gl.TEXTURE_2D, w.post.color)
+	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uTex\x00")), 0)
+
+	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uSSAO\x00")), int32(b01(gtao)))
+	gl.ActiveTexture(gl.TEXTURE1)
+	if gtao {
+		gl.BindTexture(gl.TEXTURE_2D, w.post.aoTex)
+	} else {
+		gl.BindTexture(gl.TEXTURE_2D, w.post.color)
+	}
+	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uAOTex\x00")), 1)
 
 	exp := w.post.exposure
 	if exp <= 0 {
 		exp = 1
+	}
+	if w.post.auto && lumOK {
+		key := w.post.autoKey
+		if key <= 0 {
+			key = 0.5
+		}
+		speed := w.post.autoSpeed
+		if speed <= 0 {
+			speed = 1.6
+		}
+		w.post.adapted, w.post.adaptedOK = adaptExposure(w.post.adapted, w.post.adaptedOK, lum, key, speed, w.delta)
+		if w.post.adapted > 0 {
+			exp *= w.post.adapted
+		}
 	}
 	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uTonemap\x00")), int32(w.post.tonemap))
 	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uExposure\x00")), exp)
@@ -583,6 +1026,10 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uTime\x00")), float32(w.wx.time))
 	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uWet\x00")), w.wetness)
 	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uRainOnly\x00")), int32(b01(w.post.rainOnly)))
+	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uGrain\x00")), w.post.grain)
+	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uVignette\x00")), w.post.vignette)
+	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uCA\x00")), w.post.chroma)
+	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uSharpen\x00")), w.post.sharpen)
 	gl.BindVertexArray(w.post.vao)
 	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
 	gl.BindVertexArray(0)
@@ -597,6 +1044,23 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 	gl.UseProgram(0)
 	gl.Enable(gl.DEPTH_TEST)
 	drainGL("PostFX blit")
+}
+
+// rearmSceneProgram forces the next material draw to call glUseProgram.
+// ImGui and the shadow depth pass bind other programs, but G3N's shader
+// manager still thinks the lit program is current and skips the bind.
+// The depth program writes no color, so the window stays the clear color.
+func rearmSceneProgram(rend *renderer.Renderer) {
+	if rend == nil {
+		return
+	}
+	specs := renderer.ShaderSpecs{
+		Name:    "standard",
+		Defines: gls.ShaderDefines{"MB_REBIND": "1"},
+	}
+	if _, err := rend.SetProgram(&specs); err != nil {
+		fmt.Println("RenderWorld:", err)
+	}
 }
 
 func (w *World) renderSceneCams(rend *renderer.Renderer, ww, hh int) {
@@ -619,7 +1083,7 @@ func (w *World) renderSceneCams(rend *renderer.Renderer, ww, hh int) {
 		}
 	}
 	targetFBO := uint32(0)
-	if w.post.fbo != 0 && (w.post.on || w.guiFrame) {
+	if w.post.on && w.post.fbo != 0 {
 		targetFBO = w.post.fbo
 	}
 	if !split {
@@ -629,14 +1093,18 @@ func (w *World) renderSceneCams(rend *renderer.Renderer, ww, hh int) {
 		}
 		if cam != nil {
 			w.renderShadows(rend, cam)
-			gl.BindFramebuffer(gl.FRAMEBUFFER, targetFBO)
+			bindColorTarget(targetFBO)
 			drainGL("pre-water")
 			w.renderWaterReflection(rend, cam)
-			gl.BindFramebuffer(gl.FRAMEBUFFER, targetFBO)
+			bindColorTarget(targetFBO)
 			if ww > 0 && hh > 0 {
 				gl.Viewport(0, 0, int32(ww), int32(hh))
 			}
+			// The shadow pass can leave the window depth buffer full. Clear
+			// it again or every mesh fragment fails the depth test.
+			gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT)
 			drainGL("scene")
+			rearmSceneProgram(rend)
 			if err := rend.Render(w.scene, cam); err != nil {
 				fmt.Println("RenderWorld:", err)
 			} else {
@@ -656,15 +1124,20 @@ func (w *World) renderSceneCams(rend *renderer.Renderer, ww, hh int) {
 			glY = 0
 		}
 		w.renderShadows(rend, c.cam)
-		gl.BindFramebuffer(gl.FRAMEBUFFER, targetFBO)
+		bindColorTarget(targetFBO)
 		drainGL("pre-water")
 		w.renderWaterReflection(rend, c.cam)
-		gl.BindFramebuffer(gl.FRAMEBUFFER, targetFBO)
+		bindColorTarget(targetFBO)
 		gl.Viewport(int32(c.x), int32(glY), int32(vw), int32(vh))
+		gl.Enable(gl.SCISSOR_TEST)
+		gl.Scissor(int32(c.x), int32(glY), int32(vw), int32(vh))
+		gl.Clear(gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT)
+		gl.Disable(gl.SCISSOR_TEST)
 		if vh > 0 {
 			c.cam.SetAspect(float32(vw) / float32(vh))
 		}
 		drainGL("scene")
+		rearmSceneProgram(rend)
 		if err := rend.Render(w.scene, c.cam); err != nil {
 			fmt.Println("RenderWorld:", err)
 		} else {

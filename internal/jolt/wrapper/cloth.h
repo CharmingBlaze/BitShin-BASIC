@@ -17,6 +17,8 @@ JoltBodyID JoltCreateCloth(JoltBodyInterface bodyInterface,
 int JoltGetClothVertexCount(JoltPhysicsSystem system, JoltBodyID bodyID);
 int JoltGetClothVertices(JoltPhysicsSystem system, JoltBodyID bodyID,
                          float *xyz, int maxFloats);
+void JoltSetClothVertices(JoltPhysicsSystem system, JoltBodyID bodyID,
+                          const float *xyz, int nFloats);
 void JoltApplyClothWind(JoltPhysicsSystem system, JoltBodyID bodyID,
                         float vx, float vy, float vz, unsigned int start, unsigned int step);
 void JoltEnableSoftBodyOneWayContacts(JoltPhysicsSystem system, int enabled);

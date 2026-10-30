@@ -9,15 +9,16 @@ import (
 	"github.com/g3n/engine/material"
 	"github.com/g3n/engine/math32"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 type clothSheet struct {
-	id, nx, ny     int
-	width, height  float32
-	wind           float32
-	buf            []float32
-	geom           *geometry.Geometry
+	id, nx, ny    int
+	pin           int
+	width, height float32
+	wind          float32
+	buf           []float32
+	geom          *geometry.Geometry
 }
 
 func clampClothSeg(n, def int) int {
@@ -97,7 +98,7 @@ func (w *World) createCloth(width, height float32, nx, ny, pin int) int {
 		w.cloths = map[int]*clothSheet{}
 	}
 	w.cloths[id] = &clothSheet{
-		id: id, nx: nx, ny: ny, width: width, height: height, wind: 0.35,
+		id: id, nx: nx, ny: ny, pin: pin, width: width, height: height, wind: 0.35,
 		buf:  make([]float32, nx*ny*3),
 		geom: g,
 	}
@@ -160,6 +161,7 @@ func (w *World) tickCloth() {
 			e.shadowGeomDirty = true
 		}
 	}
+	w.clothWindAudio()
 }
 
 func (w *World) refreshClothNormals(c *clothSheet) {

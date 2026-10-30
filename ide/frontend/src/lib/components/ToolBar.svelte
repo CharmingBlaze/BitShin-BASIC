@@ -3,7 +3,7 @@
   import { editorStore } from '../stores/editorState.svelte';
 
   const themes = [
-    { id: 'bitshin-dark', name: 'BitShin Dark' },
+    { id: 'moonbasic-dark', name: 'moonBASIC Dark' },
     { id: 'blitz-classic', name: 'Blitz3D Classic' },
     { id: 'cyberpunk', name: 'Cyberpunk' },
     { id: 'vs-dark', name: 'VS Dark' }

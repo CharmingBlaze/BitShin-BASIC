@@ -6,7 +6,7 @@ WGS84 helpers for streaming worlds. **OpenGL 3.3.** No FlatBuffers.
 
 [flywave/go-geo](https://github.com/flywave/go-geo) is a tile-proxy library: SRS/PROJ transforms, GEOS coverages, TMS/XYZ grids, GCJ-02, geoid, geometry reprojection. Its `go.mod` `replace`s sibling CGO trees (`go-proj`, `go-geos`, `go-geoid`) and needs native **PROJ** + **GEOS**. That does not build cleanly on Windows with this module.
 
-BitShin BASIC ships a **thin compatible subset** in `internal/geo` (pure Go):
+moonBASIC ships a **thin compatible subset** in `internal/geo` (pure Go):
 
 | go-geo | What we kept |
 | --- | --- |
@@ -36,4 +36,4 @@ path = LoadGeoJSON("route.geojson")
 
 `GeoHeight(lon, lat)` is `TerrainHeight` at the projected XZ.
 
-Demo: `examples/geo.bb`.
+Demo: `examples/geo.mb`.

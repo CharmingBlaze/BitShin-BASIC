@@ -10,8 +10,8 @@ import (
 
 	"github.com/AllenDang/cimgui-go/imgui"
 
-	"bitshinbasic/internal/parse"
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/parse"
+	"moonbasic/internal/value"
 )
 
 type animGraph struct {
@@ -29,6 +29,8 @@ type appState struct {
 	pick      string
 	ikA       float64
 	ikB       float64
+	files     map[int]*bbFile
+	nextFile  int
 }
 
 func (w *World) extState() *appState {
@@ -382,7 +384,7 @@ func (w *World) appCommands(n func(func([]value.Value) (value.Value, error)) cmd
 				return value.Str(""), nil
 			}
 			st := w.extState()
-			if imgui.BeginChildStr("bitshin-files") {
+			if imgui.BeginChildStr("moonbasic-files") {
 				for _, e := range entries {
 					label := e.Name()
 					if e.IsDir() {

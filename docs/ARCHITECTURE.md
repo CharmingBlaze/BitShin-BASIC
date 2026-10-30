@@ -1,7 +1,7 @@
 # Architecture
 
 ```
-.bb source
+.mb source
     → lex → parse → ast.Program
     → interp (tree-walk)
          Flip  → yield
@@ -33,7 +33,7 @@ Then:
 - **3D:** local `g3nHost.Run` (GLFW + renderer, no G3N OpenAL `app.App`) — each frame resumes the interpreter until the next `Flip`, then: flush job GL uploads, tick stream/terrain/water/instances/probes, render shadows, optional **planar water FBO**, G3N scene (optionally into a **PostFX** color FBO), fullscreen blit, ImGui. Extra windows (`CreateWindow`) share that **OpenGL 3.3** context: the scene is drawn to a texture on the main context, then blit + swap on the extra GLFW window. Extra windows hint `ContextVersion 3,3` — never 4.5.
 - **2D:** `ebiten.RunGame` — `Update` resumes until `Flip`; `Draw` paints the clear color, immediate draw list, then sprites.
 
-A normal `While Not KeyDown(1) … Flip Wend` **is** the game loop. Escape and `WindowShouldClose` are false until the first `Flip` (window create used to inject a phantom Esc). Still call `Flip` every frame. `Flip` is not allowed inside `Function`.
+A normal `While Not Input.KeyDown(1) … Flip Wend` **is** the game loop. Escape and `WindowShouldClose` are false until the first `Flip` (window create used to inject a phantom Esc). Still call `Flip` every frame. `Flip` is not allowed inside `Function`.
 
 ## Packages
 
@@ -49,11 +49,11 @@ A normal `While Not KeyDown(1) … Flip Wend` **is** the game loop. Escape and `
 | `internal/geo` | Pure-Go Web Mercator / tiles / GeoJSON (not full flywave/go-geo) |
 | `internal/glslang` | GLSL validate; SPIR-V if `glslangValidator` on PATH |
 | `internal/phys3d` | `World` interface; Jolt tagged build, fallback otherwise. **Every new `World` method** is implemented on Windows Jolt, Linux/macOS Jolt, and software fallback. |
-| `internal/jolt` | Windows CGO: prebuilt Jolt + extra `.cpp` (cloth, 6DOF grab, cylinder, buoyancy, mesh/heightfield) |
+| `internal/jolt` | CGO Jolt on Windows, Linux amd64/arm64, and macOS ARM. Extra `.cpp` covers cloth, vehicles, 6DOF grab, cylinder, buoyancy, mesh/heightfield |
 | `internal/phys2d` | `jakecoffman/cp/v2` space |
-| `internal/netenet` | `Host` interface; UDP default, `enet` tag |
-| `cmd/bs` | Parse file, expand includes, run; `bs build`; `bs lsp` |
-| `cmd/bsls` / `internal/lsp` | Stdio language server for `.bb` (no window) |
+| `internal/netenet` | `Host` interface; UDP default, `enet` tag. Session lobby, LAN beacons, and replication live in `internal/runtime` |
+| `cmd/bs` | Parse file, expand includes, run. The binary is `moon.exe` (`moon build`, `moon lsp`) |
+| `cmd/bsls` / `internal/lsp` | Stdio language server for `.mb` (no window) |
 
 ## 2D vs 3D
 
@@ -70,7 +70,7 @@ Exactly one display mode per process:
 | --- | --- | --- |
 | 3D | `github.com/g3n/engine` v0.2.0 | Upstream is more recently pushed than personal forks |
 | 2D | `github.com/hajimehoshi/ebiten/v2` | Standard Go 2D engine |
-| 3D physics | `github.com/bbitechnologies/jolt-go` v0.8.4 | Native Jolt: Windows (`internal/jolt` + `third_party/jolt/windows_amd64`), Linux amd64/arm64, macOS ARM. Software fallback otherwise and with `-tags nojolt` |
+| 3D physics | `github.com/bbitechnologies/jolt-go` v0.8.4 | Native Jolt via `internal/jolt` on Windows, Linux amd64/arm64, and macOS ARM. Linux/macOS link that module's `libJolt`. Software fallback otherwise and with `-tags nojolt` |
 | 2D physics | `github.com/jakecoffman/cp/v2` v2.4.0 | Maintained Chipmunk port, no CGO (`go-zero/go-chipmunk` is abandoned) |
 | Net | `github.com/codecat/go-enet` | Optional via `-tags enet` |
 | ImGui | `github.com/AllenDang/cimgui-go` v1.6.0 | Dear ImGui widgets + OpenGL3 renderer on the existing G3N GLFW window (IO from G3N events; no second window, no GLFW 3.4 backend) |

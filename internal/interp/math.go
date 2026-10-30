@@ -3,8 +3,8 @@ package interp
 import (
 	"math"
 
-	"bitshinbasic/internal/syntax"
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/syntax"
+	"moonbasic/internal/value"
 )
 
 // All trig and angle helpers use degrees.

@@ -4,7 +4,7 @@ import (
 	"github.com/g3n/engine/core"
 	"github.com/g3n/engine/gui"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 // Scene-graph UI (G3N gui package). Names do not clash with Dear ImGui:

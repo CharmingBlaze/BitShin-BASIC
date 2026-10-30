@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/AllenDang/cimgui-go/imgui"
 	implgl "github.com/AllenDang/cimgui-go/impl/opengl3"
@@ -9,7 +10,7 @@ import (
 	"github.com/g3n/engine/window"
 	"github.com/go-gl/gl/v3.3-core/gl"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 func (w *World) guiCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error)) map[string]cmd {
@@ -25,7 +26,11 @@ func (w *World) guiCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			if title == "" {
 				title = "Panel"
 			}
-			ok := imgui.Begin(title)
+			var flags imgui.WindowFlags
+			if argI(a, 1, 0) != 0 {
+				flags |= imgui.WindowFlagsMenuBar
+			}
+			ok := imgui.BeginV(title, nil, flags)
 			w.guiWinOpen = true
 			if ok {
 				return value.Num(1), nil
@@ -52,7 +57,7 @@ func (w *World) guiCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			if err := w.guiEnsureFrame(); err != nil {
 				return value.Value{}, err
 			}
-			imgui.Text(argS(a, 0))
+			imgui.TextUnformatted(argS(a, 0))
 			return z()
 		}),
 		"guislider": n(func(a []value.Value) (value.Value, error) {
@@ -62,11 +67,16 @@ func (w *World) guiCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			label := argS(a, 0)
 			lo := float32(argN(a, 1, 0))
 			hi := float32(argN(a, 2, 1))
+			if hi < lo {
+				lo, hi = hi, lo
+			}
 			p := w.guiSlide[label]
 			if p == nil {
 				v := float32(argN(a, 3, float64(lo)))
 				p = &v
 				w.guiSlide[label] = p
+			} else if len(a) > 3 {
+				*p = float32(argN(a, 3, float64(*p)))
 			}
 			imgui.SliderFloat(label, p, lo, hi)
 			return value.Num(float64(*p)), nil
@@ -81,6 +91,8 @@ func (w *World) guiCommands(n func(func([]value.Value) (value.Value, error)) cmd
 				on := argI(a, 1, 0) != 0
 				p = &on
 				w.guiCheck[label] = p
+			} else if len(a) > 1 {
+				*p = argI(a, 1, 0) != 0
 			}
 			imgui.Checkbox(label, p)
 			if *p {
@@ -98,6 +110,11 @@ func (w *World) guiCommands(n func(func([]value.Value) (value.Value, error)) cmd
 				s := argS(a, 1)
 				p = &s
 				w.guiInput[label] = p
+			} else if len(a) > 1 {
+				s := argS(a, 1)
+				if s != *p {
+					*p = s
+				}
 			}
 			imgui.InputTextWithHint(label, "", p, 0, nil)
 			return value.Str(*p), nil
@@ -252,6 +269,178 @@ func (w *World) guiCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			}
 			return value.Num(0), nil
 		}),
+		"guidrag": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			label := argS(a, 0)
+			lo := float32(argN(a, 1, 0))
+			hi := float32(argN(a, 2, 1))
+			if hi < lo {
+				lo, hi = hi, lo
+			}
+			p := w.guiDrag[label]
+			if p == nil {
+				v := float32(argN(a, 3, float64(lo)))
+				p = &v
+				w.guiDrag[label] = p
+			} else if len(a) > 3 {
+				*p = float32(argN(a, 3, float64(*p)))
+			}
+			speed := (hi - lo) / 100
+			if speed < 0.001 {
+				speed = 0.001
+			}
+			imgui.DragFloatV(label, p, speed, lo, hi, "%.3f", 0)
+			return value.Num(float64(*p)), nil
+		}),
+		"guiprogress": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			frac := float32(argN(a, 0, 0))
+			if frac < 0 {
+				frac = 0
+			}
+			if frac > 1 {
+				frac = 1
+			}
+			imgui.ProgressBarV(frac, imgui.NewVec2(-1, 0), argS(a, 1))
+			return value.Num(float64(frac)), nil
+		}),
+		"guicombo": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			label := argS(a, 0)
+			items := strings.Split(argS(a, 1), "|")
+			if len(items) == 0 {
+				items = []string{""}
+			}
+			p := w.guiCombo[label]
+			if p == nil {
+				v := int32(argI(a, 2, 0))
+				p = &v
+				w.guiCombo[label] = p
+			} else if len(a) > 2 {
+				*p = int32(argI(a, 2, int(*p)))
+			}
+			if *p < 0 {
+				*p = 0
+			}
+			if int(*p) >= len(items) {
+				*p = int32(len(items) - 1)
+			}
+			imgui.ComboStrarr(label, p, items, int32(len(items)))
+			return value.Num(float64(*p)), nil
+		}),
+		"guiheader": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			if imgui.CollapsingHeaderTreeNodeFlags(argS(a, 0)) {
+				return value.Num(1), nil
+			}
+			return value.Num(0), nil
+		}),
+		"guiradio": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			label := argS(a, 0)
+			group := argS(a, 1)
+			if group == "" {
+				group = label
+			}
+			id := int32(argI(a, 2, 0))
+			p := w.guiRadio[group]
+			if p == nil {
+				v := id
+				if len(a) > 3 {
+					v = int32(argI(a, 3, int(id)))
+				}
+				p = &v
+				w.guiRadio[group] = p
+			} else if len(a) > 3 {
+				*p = int32(argI(a, 3, int(*p)))
+			}
+			if imgui.RadioButtonBool(label, *p == id) {
+				*p = id
+			}
+			if *p == id {
+				return value.Num(1), nil
+			}
+			return value.Num(0), nil
+		}),
+		"guicolor": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			label := argS(a, 0)
+			col := w.guiColor[label]
+			if col == nil {
+				c := [3]float32{1, 1, 1}
+				col = &c
+				w.guiColor[label] = col
+			}
+			if len(a) > 1 {
+				(*col)[0] = guiByteUnit(argN(a, 1, 255))
+			}
+			if len(a) > 2 {
+				(*col)[1] = guiByteUnit(argN(a, 2, 255))
+			}
+			if len(a) > 3 {
+				(*col)[2] = guiByteUnit(argN(a, 3, 255))
+			}
+			imgui.ColorEdit3(label, col)
+			return value.Num(guiUnitByte((*col)[0])), nil
+		}),
+		"guicolorg": n(func(a []value.Value) (value.Value, error) {
+			col := w.guiColor[argS(a, 0)]
+			if col == nil {
+				return value.Num(0), nil
+			}
+			return value.Num(guiUnitByte((*col)[1])), nil
+		}),
+		"guicolorb": n(func(a []value.Value) (value.Value, error) {
+			col := w.guiColor[argS(a, 0)]
+			if col == nil {
+				return value.Num(0), nil
+			}
+			return value.Num(guiUnitByte((*col)[2])), nil
+		}),
+		"guitooltip": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			if imgui.BeginItemTooltip() {
+				imgui.TextUnformatted(argS(a, 0))
+				imgui.EndTooltip()
+			}
+			return z()
+		}),
+		"guibullet": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			imgui.Bullet()
+			imgui.TextUnformatted(argS(a, 0))
+			return z()
+		}),
+		"guispacing": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			imgui.Spacing()
+			return z()
+		}),
+		"guisetwidth": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			imgui.SetNextItemWidth(float32(argN(a, 0, -1)))
+			return z()
+		}),
 		"guidemo": n(func(a []value.Value) (value.Value, error) {
 			if err := w.guiEnsureFrame(); err != nil {
 				return value.Value{}, err
@@ -261,6 +450,26 @@ func (w *World) guiCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			return z()
 		}),
 	}
+}
+
+func guiByteUnit(n float64) float32 {
+	if n < 0 {
+		n = 0
+	}
+	if n > 255 {
+		n = 255
+	}
+	return float32(n / 255)
+}
+
+func guiUnitByte(v float32) float64 {
+	if v < 0 {
+		v = 0
+	}
+	if v > 1 {
+		v = 1
+	}
+	return float64(int(v*255 + 0.5))
 }
 
 func (w *World) guiInit() error {
@@ -334,12 +543,6 @@ func (w *World) guiPumpIO() {
 	}
 	io.SetDeltaTime(dt)
 	io.AddMousePosEvent(w.mx, w.my)
-	io.AddMouseButtonEvent(0, len(w.mouse) > 1 && w.mouse[1])
-	io.AddMouseButtonEvent(1, len(w.mouse) > 2 && w.mouse[2])
-	io.AddMouseButtonEvent(2, len(w.mouse) > 3 && w.mouse[3])
-	if w.mzs != 0 {
-		io.AddMouseWheelEvent(0, w.mzs)
-	}
 	for _, ch := range w.guiChars {
 		io.AddInputCharacter(uint32(ch))
 	}
@@ -407,6 +610,9 @@ func (w *World) guiRestoreSceneGL() {
 	if w.app == nil {
 		return
 	}
+	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
+	gl.DrawBuffer(gl.BACK)
+	gl.ReadBuffer(gl.BACK)
 	gl.Disable(gl.SCISSOR_TEST)
 	gl.Disable(gl.STENCIL_TEST)
 	gl.Enable(gl.DEPTH_TEST)
@@ -455,6 +661,10 @@ func (w *World) guiForwardKey(k window.Key, mods window.ModifierKey, down bool) 
 	if ik := imguiFromWindowKey(k); ik != imgui.KeyNone {
 		io.AddKeyEvent(ik, down)
 	}
+	if w.guiPrevKeys == nil {
+		w.guiPrevKeys = map[window.Key]bool{}
+	}
+	w.guiPrevKeys[k] = down
 	_ = mods
 }
 
@@ -466,6 +676,7 @@ func (w *World) guiForwardMouse(button int, down bool) {
 	if io == nil {
 		return
 	}
+	io.AddMousePosEvent(w.mx, w.my)
 	io.AddMouseButtonEvent(int32(button), down)
 }
 

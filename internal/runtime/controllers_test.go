@@ -3,7 +3,7 @@ package runtime
 import (
 	"testing"
 
-	"bitshinbasic/internal/value"
+	"moonbasic/internal/value"
 )
 
 func TestCharacterAndVehicleControllers(t *testing.T) {
@@ -84,4 +84,57 @@ func TestCharacterAndVehicleControllers(t *testing.T) {
 		t.Fatal("createwaterskicontroller failed")
 	}
 	cmds["updatewaterski"]([]value.Value{value.Num(float64(skier)), value.Num(1.0), value.Num(-0.4)})
+}
+
+func TestFPSGravityOnceAndFacing(t *testing.T) {
+	w := New(".")
+	cmds := w.commandTable()
+	player := w.createCubeMesh(nil)
+	cam := w.spawnCamera(0)
+	cmds["createfpscontroller"]([]value.Value{
+		value.Num(float64(player)), value.Num(float64(cam)),
+		value.Num(1.8), value.Num(0.4), value.Num(6), value.Num(10), value.Num(8),
+	})
+	w.phys3.SetPosition(player, 0, 8, 0)
+	w.delta = 1.0 / 60.0
+	step := func() {
+		cmds["updatefps"]([]value.Value{
+			value.Num(float64(player)), value.Num(0), value.Num(0),
+			value.Num(0), value.Num(0), value.Num(0), value.Num(0.15),
+		})
+		w.phys3.Step(float32(w.delta))
+	}
+	step()
+	step()
+	_, vy, _, ok := w.phys3.GetVelocity(player)
+	if !ok {
+		t.Fatal("missing velocity")
+	}
+	// Two steps of world gravity only: about -9.81/60*2.
+	if vy > -0.2 || vy < -0.5 {
+		t.Fatalf("vertical speed %v, want one gravity pass per step", vy)
+	}
+
+	w.mxs = 20
+	w.guiWantM = true
+	cmds["updatefps"]([]value.Value{
+		value.Num(float64(player)), value.Num(0), value.Num(0),
+		value.Num(0), value.Num(0), value.Num(0), value.Num(0.2),
+	})
+	if w.fpsControllers[player].yaw != 0 {
+		t.Fatalf("panel mouse turned the view: %v", w.fpsControllers[player].yaw)
+	}
+	w.guiWantM = false
+	cmds["updatefps"]([]value.Value{
+		value.Num(float64(player)), value.Num(0), value.Num(0),
+		value.Num(0), value.Num(0), value.Num(0), value.Num(0.2),
+	})
+	yaw := w.ents[player].yaw
+	if yaw == 0 {
+		t.Fatal("mouse look did not set facing")
+	}
+	w.syncPhys3Pose()
+	if w.ents[player].yaw != yaw {
+		t.Fatalf("physics sync cleared facing: %v -> %v", yaw, w.ents[player].yaw)
+	}
 }

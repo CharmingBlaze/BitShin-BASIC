@@ -32,6 +32,7 @@ type skyBox struct {
 type skySlot struct {
 	box     *skyBox
 	visible bool
+	imgs    [6]*image.RGBA
 }
 
 func (s *skyBox) RenderSetup(gs *gls.GLS, rinfo *core.RenderInfo) {
@@ -114,7 +115,7 @@ func (w *World) createSkyBoxFromFaces(faces [6]*texture.Texture2D) (int, error) 
 		m.SetSide(material.SideDouble)
 		m.SetUseLights(material.UseLightNone)
 		m.SetDepthMask(false)
-		m.SetDepthTest(false)
+		m.SetDepthTest(true)
 		m.SetDepthFunc(gls.LEQUAL)
 		sky.AddGroupMaterial(sky, m, i)
 	}
@@ -151,7 +152,48 @@ func solidRGBA(w, h int, r, g, b uint8) *image.RGBA {
 }
 
 func generateDefaultSkyFaces() [6]*texture.Texture2D {
-	return generateAtmosphereCubemap(-0.35, 0.62, 0.70, 1, 1, 1.1)
+	return texturesFromSky(clearSkyImages(-0.35, 0.62, 0.70))
+}
+
+func clearSkyImages(sx, sy, sz float64) [6]*image.RGBA {
+	return generateSkyImages(
+		math32.Color{0.16, 0.40, 0.82},
+		math32.Color{0.42, 0.66, 0.90},
+		sx, sy, sz,
+	)
+}
+
+func texturesFromSky(imgs [6]*image.RGBA) [6]*texture.Texture2D {
+	var out [6]*texture.Texture2D
+	for i, img := range imgs {
+		if img != nil {
+			out[i] = texture.NewTexture2DFromRGBA(img)
+		}
+	}
+	return out
+}
+
+func (w *World) publishSky(imgs [6]*image.RGBA) (int, error) {
+	id, err := w.createSkyBoxFromFaces(texturesFromSky(imgs))
+	if err != nil {
+		return 0, err
+	}
+	if s := w.skies[id]; s != nil {
+		s.imgs = imgs
+	}
+	w.useSkyImages(imgs)
+	return id, nil
+}
+
+func (w *World) useSkyImages(imgs [6]*image.RGBA) {
+	if imgs[0] == nil {
+		return
+	}
+	if w.skyImgs[0] == imgs[0] {
+		return
+	}
+	w.skyImgs = imgs
+	w.skyRev++
 }
 
 func (w *World) proceduralSkySun() (sx, sy, sz float64) {
@@ -205,19 +247,23 @@ func (w *World) syncVisualSun() {
 		return
 	}
 	sx, sy, sz := float64(d.X), float64(d.Y), float64(d.Z)
-	faces := generateAtmosphereCubemap(sx, sy, sz, 1, 1, 1.1)
+	imgs := clearSkyImages(sx, sy, sz)
 	if w.skyTop.R+w.skyTop.G+w.skyTop.B > 0 {
-		faces = generateSkyFaces(w.skyTop, w.skyBot, sx, sy, sz)
+		imgs = generateSkyImages(w.skyTop, w.skyBot, sx, sy, sz)
 	}
-	id, err := w.createSkyBoxFromFaces(faces)
+	id, err := w.publishSky(imgs)
 	if err == nil {
 		w.setSkyBox(id)
 	}
 }
 
 func generateSkyFaces(top, bot math32.Color, sunX, sunY, sunZ float64) [6]*texture.Texture2D {
+	return texturesFromSky(generateSkyImages(top, bot, sunX, sunY, sunZ))
+}
+
+func generateSkyImages(top, bot math32.Color, sunX, sunY, sunZ float64) [6]*image.RGBA {
 	const n = 128
-	var out [6]*texture.Texture2D
+	var out [6]*image.RGBA
 	for face := 0; face < 6; face++ {
 		img := image.NewRGBA(image.Rect(0, 0, n, n))
 		for y := 0; y < n; y++ {
@@ -246,7 +292,7 @@ func generateSkyFaces(top, bot math32.Color, sunX, sunY, sunZ float64) [6]*textu
 				img.SetRGBA(x, y, color.RGBA{u8f(r), u8f(g), u8f(b), 255})
 			}
 		}
-		out[face] = texture.NewTexture2DFromRGBA(img)
+		out[face] = img
 	}
 	return out
 }
@@ -267,7 +313,7 @@ func (w *World) applySkyPreset(name string) {
 		w.fogRGB = math32.Color{0.5, 0.6, 0.7}
 	}
 	sx, sy, sz := w.proceduralSkySun()
-	id, err := w.createSkyBoxFromFaces(generateSkyFaces(w.skyTop, w.skyBot, sx, sy, sz))
+	id, err := w.publishSky(generateSkyImages(w.skyTop, w.skyBot, sx, sy, sz))
 	if err == nil {
 		w.skyProc = true
 		w.setSkyBox(id)
@@ -298,26 +344,49 @@ func skyFaceDir(face, x, y, size int) (dx, dy, dz float64) {
 	}
 }
 
-func (w *World) loadSkyFaces(paths [6]string) ([6]*texture.Texture2D, error) {
-	var faces [6]*texture.Texture2D
+func (w *World) loadSkyImages(paths [6]string) ([6]*image.RGBA, error) {
+	var imgs [6]*image.RGBA
 	for i, p := range paths {
 		path, err := w.openPath(p)
 		if err != nil {
 			path = w.resolve(p)
 		}
-		tex, err := texture.NewTexture2DFromImage(path)
+		img, err := loadRGBAFile(path)
 		if err != nil {
-			return faces, err
+			return imgs, err
 		}
-		faces[i] = tex
+		imgs[i] = img
 	}
-	return faces, nil
+	return imgs, nil
 }
 
-func (w *World) trySkyPrefix(prefix string) ([6]*texture.Texture2D, bool) {
+func loadRGBAFile(path string) (*image.RGBA, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+	img, _, err := image.Decode(f)
+	if err != nil {
+		return nil, err
+	}
+	if rgba, ok := img.(*image.RGBA); ok {
+		return rgba, nil
+	}
+	b := img.Bounds()
+	out := image.NewRGBA(b)
+	for y := b.Min.Y; y < b.Max.Y; y++ {
+		for x := b.Min.X; x < b.Max.X; x++ {
+			out.Set(x, y, img.At(x, y))
+		}
+	}
+	return out, nil
+}
+
+func (w *World) trySkyPrefix(prefix string) ([6]*image.RGBA, bool) {
 	prefix = strings.TrimSpace(prefix)
 	if prefix == "" || strings.EqualFold(prefix, "default") {
-		return [6]*texture.Texture2D{}, false
+		return [6]*image.RGBA{}, false
 	}
 	sets := [][6]string{
 		{"px", "nx", "py", "ny", "pz", "nz"},
@@ -346,26 +415,26 @@ func (w *World) trySkyPrefix(prefix string) ([6]*texture.Texture2D, bool) {
 			if !ok {
 				continue
 			}
-			faces, err := w.loadSkyFaces(paths)
+			imgs, err := w.loadSkyImages(paths)
 			if err == nil {
-				return faces, true
+				return imgs, true
 			}
 		}
 	}
-	return [6]*texture.Texture2D{}, false
+	return [6]*image.RGBA{}, false
 }
 
 func (w *World) makeSkyBox(prefix string) (int, error) {
-	if faces, ok := w.trySkyPrefix(prefix); ok {
+	if imgs, ok := w.trySkyPrefix(prefix); ok {
 		w.skyProc = false
-		return w.createSkyBoxFromFaces(faces)
+		return w.publishSky(imgs)
 	}
 	w.skyProc = true
 	sx, sy, sz := w.proceduralSkySun()
 	if w.skyTop.R+w.skyTop.G+w.skyTop.B > 0 {
-		return w.createSkyBoxFromFaces(generateSkyFaces(w.skyTop, w.skyBot, sx, sy, sz))
+		return w.publishSky(generateSkyImages(w.skyTop, w.skyBot, sx, sy, sz))
 	}
-	return w.createSkyBoxFromFaces(generateAtmosphereCubemap(sx, sy, sz, 1, 1, 1.1))
+	return w.publishSky(clearSkyImages(sx, sy, sz))
 }
 
 func (w *World) setSkyBox(id int) {
@@ -379,8 +448,9 @@ func (w *World) setSkyBox(id int) {
 			s.visible = on
 		}
 	}
-	if w.skies[id] != nil {
+	if s := w.skies[id]; s != nil {
 		w.skyID = id
+		w.useSkyImages(s.imgs)
 	}
 }
 

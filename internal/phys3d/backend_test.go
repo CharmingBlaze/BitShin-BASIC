@@ -196,6 +196,119 @@ func TestClothSheetDrapes(t *testing.T) {
 	}
 }
 
+func clothWorldY(w World, id int, buf []float32) (hi, lo float32, ok bool) {
+	n := w.ClothVertices(id, buf)
+	if n < 4 {
+		return 0, 0, false
+	}
+	_, comY, _, posOK := w.GetPosition(id)
+	if !posOK {
+		return 0, 0, false
+	}
+	// Both Jolt and the Verlet sheet return vertices relative to the body center.
+	hi, lo = float32(-1e9), float32(1e9)
+	for i := 0; i < n; i++ {
+		y := buf[i*3+1] + comY
+		if y > hi {
+			hi = y
+		}
+		if y < lo {
+			lo = y
+		}
+	}
+	return hi, lo, true
+}
+
+func TestClothWindMovesFreeEdge(t *testing.T) {
+	w := New()
+	defer w.Close()
+	w.SetGravity(0, -9.81, 0)
+	w.AddCloth(1, 0, 4, 0, 2, 1.6, 8, 6, 1, 0.04, 0.2, 1)
+	buf := make([]float32, 8*6*3)
+	if w.ClothVertices(1, buf) < 8*6 {
+		t.Fatalf("cloth has no vertices, backend=%s", w.Backend())
+	}
+	for i := 0; i < 90; i++ {
+		w.ApplyClothWind(1, 0, 0, 8, uint32(i), 1)
+		w.Step(1.0 / 60.0)
+	}
+	n := w.ClothVertices(1, buf)
+	_, comY, comZ, _ := w.GetPosition(1)
+	hiY, loY := float32(-1e9), float32(1e9)
+	for i := 0; i < n; i++ {
+		y := buf[i*3+1] + comY
+		if y > hiY {
+			hiY = y
+		}
+		if y < loY {
+			loY = y
+		}
+	}
+	mid := (hiY + loY) * 0.5
+	pinZ, hemZ := float32(0), float32(0)
+	pins, hems := 0, 0
+	for i := 0; i < n; i++ {
+		y := buf[i*3+1] + comY
+		z := buf[i*3+2] + comZ
+		if y >= mid {
+			pinZ += z
+			pins++
+		} else {
+			hemZ += z
+			hems++
+		}
+	}
+	if pins == 0 || hems == 0 {
+		t.Fatalf("expected a pinned top and a free hem, pins=%d hems=%d", pins, hems)
+	}
+	pinZ /= float32(pins)
+	hemZ /= float32(hems)
+	if hemZ-pinZ < 0.25 {
+		t.Fatalf("wind should push the free edge off the pin, pinZ=%v hemZ=%v backend=%s", pinZ, hemZ, w.Backend())
+	}
+}
+
+func TestClothPinHoldsAndRestsOnFloor(t *testing.T) {
+	w := New()
+	defer w.Close()
+	w.SetGravity(0, -9.81, 0)
+	w.AddBox(2, 0, 0.75, 0, 4, 2, 4, false)
+	w.AddCloth(1, 0, 6, 0, 2, 8, 5, 8, 1, 0.05, 0.2, 1)
+	buf := make([]float32, 5*8*3)
+	hi0, lo0, ok := clothWorldY(w, 1, buf)
+	if !ok {
+		t.Fatalf("cloth has no vertices, backend=%s", w.Backend())
+	}
+	_, com0, _, _ := w.GetPosition(1)
+	if lo0 > 0 {
+		t.Fatalf("curtain should start through the floor, lo=%v hi=%v com=%v raw0=%v", lo0, hi0, com0, buf[1])
+	}
+	for i := 0; i < 120; i++ {
+		w.Step(1.0 / 60.0)
+	}
+	hi, lo, ok := clothWorldY(w, 1, buf)
+	if !ok {
+		t.Fatal("cloth vertices missing after step")
+	}
+	_, comY, comZ, _ := w.GetPosition(1)
+	n := w.ClothVertices(1, buf)
+	inside := 0
+	for i := 0; i < n; i++ {
+		x := buf[i*3+0]
+		y := buf[i*3+1] + comY
+		z := buf[i*3+2] + comZ
+		if x > -3 && x < 3 && z > -3 && z < 3 && y > -1.2 && y < 2.7 {
+			inside++
+		}
+	}
+	if hi < 5.2 {
+		t.Fatalf("pinned edge should stay up, hi=%v lo=%v comY=%v backend=%s", hi, lo, comY, w.Backend())
+	}
+	if inside > 0 {
+		t.Fatalf("cloth vertices still inside the floor: inside=%d hi=%v lo=%v", inside, hi, lo)
+	}
+}
+
 func TestCylinderHullAndGrab(t *testing.T) {
 	w := New()
 	defer w.Close()
@@ -577,6 +690,25 @@ func TestFallbackThinFloorSupportsSphere(t *testing.T) {
 	}
 }
 
+func TestFallbackCharacterStandsOnPlatform(t *testing.T) {
+	w := newFallback()
+	defer w.Close()
+	w.SetGravity(0, -10, 0)
+	w.AddBoxEx(1, 0, 2, 0, 4, 0.2, 4, MotionTypeStatic)
+	w.AddCharacterController(2, 0, 6, 0, 1.8, 0.4, 50, 100)
+	for i := 0; i < 240; i++ {
+		w.Step(1.0 / 60)
+	}
+	_, y, _, _ := w.GetPosition(2)
+	// Platform top is 2.2. Capsule center is half of 1.8 above that.
+	if y < 2.9 || y > 3.4 {
+		t.Fatalf("character should stand on the platform, y=%v", y)
+	}
+	if w.CharacterGroundState(2) != 0 {
+		t.Fatalf("platform should count as ground, state %d", w.CharacterGroundState(2))
+	}
+}
+
 func TestCharacterFallsOntoFloor(t *testing.T) {
 	w := New()
 	defer w.Close()
@@ -589,5 +721,37 @@ func TestCharacterFallsOntoFloor(t *testing.T) {
 	_, y, _, _ := w.GetPosition(2)
 	if y > 2.4 || y < 0.9 {
 		t.Fatalf("character should stand on the floor, y=%v backend=%s", y, w.Backend())
+	}
+}
+
+func TestCharacterStandsAndWalks(t *testing.T) {
+	w := New()
+	defer w.Close()
+	w.SetGravity(0, -10, 0)
+	w.AddBoxEx(1, 0, 0, 0, 8, 0.25, 8, MotionTypeStatic)
+	w.AddCharacterController(2, 0, 4, 0, 1.8, 0.4, 50, 100)
+	dt := float32(1.0 / 60)
+	for i := 0; i < 180; i++ {
+		w.Step(dt)
+	}
+	_, y, _, _ := w.GetPosition(2)
+	// Floor top 0.25, capsule half-height 0.9, center near 1.15.
+	if y < 1.0 || y > 1.4 {
+		t.Fatalf("capsule center y=%v, want about 1.15 (%s)", y, w.Backend())
+	}
+	if w.CharacterGroundState(2) != 0 {
+		t.Fatalf("standing character ground state %d", w.CharacterGroundState(2))
+	}
+	x0, _, _, _ := w.GetPosition(2)
+	for i := 0; i < 45; i++ {
+		w.SetVelocity(2, 3, 0, 0)
+		w.Step(dt)
+	}
+	x1, y1, _, _ := w.GetPosition(2)
+	if x1 < x0+0.6 {
+		t.Fatalf("walk blocked: x %v -> %v y %v", x0, x1, y1)
+	}
+	if y1 < 1.0 || y1 > 1.4 {
+		t.Fatalf("walk left the floor, y=%v", y1)
 	}
 }
