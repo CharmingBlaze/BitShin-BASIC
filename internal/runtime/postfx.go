@@ -355,6 +355,7 @@ func drainGL(where string) {
 		if err == gl.NO_ERROR {
 			return
 		}
+		glErrCount.Add(1)
 		if i == 0 && !drainLogged[where] {
 			drainLogged[where] = true
 			fmt.Println(where+":", glErrName(err))

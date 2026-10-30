@@ -41,6 +41,26 @@ Or:
 ./scripts/test.sh
 ```
 
+## Smoke test the examples (needs a GPU)
+
+`moon smoke` runs every program in `examples/` (or the folder or file you name) for 180 frames each. The 3D window is hidden and never takes focus. It reports GL errors, crashes, and programs still running at the time limit, and exits 1 if any did. "ended" means a program finished on its own first. CI has no GPU, so run it locally after a rendering change.
+
+```powershell
+go build -o moon.exe ./cmd/bs
+.\moon.exe smoke
+.\moon.exe smoke -run water -frames 300
+```
+
+Under the hood it sets environment switches you can use yourself, for example for a benchmark that shares the desktop:
+
+| Variable | Effect |
+| --- | --- |
+| `MOON_SMOKE_FRAMES=n` | Stop after `n` frames. Exit 0 clean, 3 if any GL error was seen |
+| `MOON_HIDDEN=1` | Create the 3D window hidden and unfocused |
+| `MOON_NO_GRAB=1` | `HidePointer`, `MoveMouse`, `SetCursorMode`, free look, and `FocusWindow` leave the pointer and focus alone |
+
+Texture units for the hand-bound samplers live in `internal/runtime/texunits.go`. `TestTextureUnitsDoNotClash` fails if a shader declares a sampler without a unit there, or if two samplers in one program share a unit.
+
 ## Build the CLI
 
 ```powershell

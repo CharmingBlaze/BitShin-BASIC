@@ -171,19 +171,19 @@ func (m *litMat) bindPhongMaps(gs *gls.GLS) {
 	specOn := 0
 	if m.specMap != nil {
 		specOn = 1
-		bindNamedMap(gs, m.specMap, 10, "SpecMap")
+		bindNamedMap(gs, m.specMap, unitSpec, "SpecMap")
 	}
 	setUni1i(gs, "SpecMapOn", specOn)
 	emitOn := 0
 	if m.emitMap != nil {
 		emitOn = 1
-		bindNamedMap(gs, m.emitMap, 11, "EmitMap")
+		bindNamedMap(gs, m.emitMap, unitEmit, "EmitMap")
 	}
 	setUni1i(gs, "EmitMapOn", emitOn)
 	normOn := 0
 	if m.normMap != nil {
 		normOn = 1
-		bindNamedMap(gs, m.normMap, 14, "NormMap")
+		bindNamedMap(gs, m.normMap, unitNorm, "NormMap")
 	}
 	setUni1i(gs, "NormMapOn", normOn)
 }
@@ -248,8 +248,8 @@ func (w *World) bindShadowUniforms(gs *gls.GLS) {
 	}()
 	if !w.shadowSampleOK() {
 		dummy := w.ensureDummyShadowTex()
-		w.bindShadowSampler(gs, dummy, 8, "ShadowMap")
-		w.bindShadowSampler(gs, dummy, 9, "ShadowMapDyn")
+		w.bindShadowSampler(gs, dummy, unitShadow, "ShadowMap")
+		w.bindShadowSampler(gs, dummy, unitShadowDyn, "ShadowMapDyn")
 		setUni1i(gs, "ShadowEnabled", 0)
 		setUni1i(gs, "MeshReceiveShadow", 0)
 		setUni1i(gs, "ShadowCacheSplit", 0)
@@ -257,14 +257,14 @@ func (w *World) bindShadowUniforms(gs *gls.GLS) {
 		setUni1i(gs, "ShadowSSS", 0)
 		return
 	}
-	w.bindShadowSampler(gs, w.shadow.tex, 8, "ShadowMap")
+	w.bindShadowSampler(gs, w.shadow.tex, unitShadow, "ShadowMap")
 	split := 0
 	dyn := w.shadow.dynTex
 	if w.shadow.cache && dyn != 0 && dyn != w.ensureDummyShadowTex() {
-		w.bindShadowSampler(gs, dyn, 9, "ShadowMapDyn")
+		w.bindShadowSampler(gs, dyn, unitShadowDyn, "ShadowMapDyn")
 		split = 1
 	} else {
-		w.bindShadowSampler(gs, w.ensureDummyShadowTex(), 9, "ShadowMapDyn")
+		w.bindShadowSampler(gs, w.ensureDummyShadowTex(), unitShadowDyn, "ShadowMapDyn")
 	}
 	setUni1i(gs, "ShadowCacheSplit", split)
 	setUni1i(gs, "ShadowEnabled", 1)

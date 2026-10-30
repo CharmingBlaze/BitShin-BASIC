@@ -37,6 +37,7 @@ func startG3N(title string, width, height int) (host *g3nHost, err error) {
 	// G3N window.Init requests OpenGL 3.3 core (never 4.5). Optional 4.x
 	// features are queried after the context exists — see detectModernGL.
 	releaseForeignGLFWClass()
+	hideWindow() // smoke runs: no window on the desktop, no focus taken
 	if err := window.Init(width, height, title); err != nil {
 		return nil, err
 	}

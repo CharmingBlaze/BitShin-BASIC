@@ -33,6 +33,8 @@ Usage:
   moon lsp                       Language server (stdio JSON-RPC); same as moonsls
   moon version                   Print version
   moon shader <file.glsl> [stage]  Validate GLSL (optional SPIR-V)
+  moon smoke [dir|file] [-frames 180] [-timeout 90s] [-run name]
+                                 Run each program hidden for N frames; fail on GL errors, crashes, hangs
 
 Examples live in the examples/ folder.
 `)
@@ -65,6 +67,13 @@ Examples live in the examples/ folder.
 	}
 	if args[0] == "transpile" {
 		if err := runTranspile(args[1:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
+	if args[0] == "smoke" {
+		if err := runSmoke(args[1:]); err != nil {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}

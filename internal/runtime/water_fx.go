@@ -215,7 +215,7 @@ func (w *World) bindWaterExtras(gs *gls.GLS) {
 			}
 		}
 	}
-	bindWaterSampler(gs, 15, cau, "WaterCaustic")
+	bindWaterSampler(gs, unitCaustic, cau, "WaterCaustic")
 	setUni1i(gs, "WaterCausticsOn", on)
 	setUni1f(gs, "WaterCausticLevel", level)
 	setUni3f(gs, "WaterCausticSun", sx, sy, sz)
@@ -294,7 +294,7 @@ func (m *WaterMaterial) bindWakeSSR(gs *gls.GLS) {
 	if wake == 0 {
 		wake = dummy
 	}
-	bindWaterSampler(gs, 12, wake, "WaterWake")
+	bindWaterSampler(gs, unitWaterWake, wake, "WaterWake")
 	setUni1i(gs, "WaterHasWake", bool01(wb.wakeGL != 0))
 	setUni1f(gs, "WakeAmp", 0.55)
 	span := wb.wakeSpan

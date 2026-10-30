@@ -325,6 +325,7 @@ type World struct {
 	skyProcID                        int          // the last repainted procedural sky, freed by the next
 	skyBusy, skyAgain                bool         // a repaint on a worker; another wanted
 	skyPaintAt                       int          // renderSerial of the last repaint
+	smokeLeft                        int          // MOON_SMOKE_FRAMES countdown; 0 is off
 	probeCam                         *camera.Camera
 	capturingProbe                   bool
 	terrains                         map[int]*terrain
@@ -437,6 +438,7 @@ type sndSlot struct {
 
 func New(base string) *World {
 	return &World{
+		smokeLeft:             smokeFrames(),
 		ents:                  map[int]*Entity{},
 		texs:                  map[int]*texSlot{},
 		keys:                  map[int]bool{},
@@ -1109,6 +1111,7 @@ func (w *World) markFlip() {
 		w.hits[KeySpace] = false
 	}
 	w.presented = true
+	w.tickSmoke()
 }
 
 // drainPhantomQuit drops creation leftovers (Ebiten GLFW class unregister /

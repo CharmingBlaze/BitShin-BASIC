@@ -74,8 +74,8 @@ func (m *atmoMat) RenderSetup(gs *gls.GLS) {
 	tint := m.w.atmoWeatherTint()
 	setUni3f(gs, "AtmoTint", tint.R, tint.G, tint.B)
 	if a.tex != nil {
-		a.tex.RenderSetup(gs, 5, 5)
-		setUni1i(gs, "AtmoT", 5)
+		a.tex.RenderSetup(gs, unitAtmo, unitAtmo)
+		setUni1i(gs, "AtmoT", unitAtmo)
 		setUni1i(gs, "AtmoHasT", 1)
 	} else {
 		setUni1i(gs, "AtmoHasT", 0)

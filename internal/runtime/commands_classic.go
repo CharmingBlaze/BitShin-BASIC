@@ -273,7 +273,7 @@ func (w *World) classic3DCommands(n func(func([]value.Value) (value.Value, error
 		"mouseyspeed": n(func(a []value.Value) (value.Value, error) { return value.Num(float64(w.mys)), nil }),
 		"movemouse": n(func(a []value.Value) (value.Value, error) {
 			x, y := argI(a, 0, 0), argI(a, 1, 0)
-			if w.app != nil {
+			if w.app != nil && !noGrab() {
 				if gw, ok := w.app.IWindow.(*window.GlfwWindow); ok {
 					gw.SetCursorPos(float64(x), float64(y))
 				}
@@ -283,6 +283,9 @@ func (w *World) classic3DCommands(n func(func([]value.Value) (value.Value, error
 			return z()
 		}),
 		"hidepointer": n(func(a []value.Value) (value.Value, error) {
+			if noGrab() {
+				return z()
+			}
 			if w.mode2D {
 				ebiten.SetCursorMode(ebiten.CursorModeHidden)
 			} else if w.app != nil {

@@ -113,7 +113,7 @@ func (w *World) bindWaterShadows(gs *gls.GLS) {
 	}
 	dummy := w.ensureDummyShadowTex()
 	if !w.shadowSampleOK() {
-		bindWaterSampler(gs, 11, dummy, "ShadowMap")
+		bindWaterSampler(gs, unitWaterShadow, dummy, "ShadowMap")
 		setUni1i(gs, "ShadowEnabled", 0)
 		setUni1f(gs, "ShadowBias", 0.0025)
 		setUni1i(gs, "AtlasCols", 1)
@@ -124,7 +124,7 @@ func (w *World) bindWaterShadows(gs *gls.GLS) {
 	if depth == 0 {
 		depth = w.shadow.tex
 	}
-	bindWaterSampler(gs, 11, depth, "ShadowMap")
+	bindWaterSampler(gs, unitWaterShadow, depth, "ShadowMap")
 	setUni1i(gs, "ShadowEnabled", 1)
 	bias := w.shadow.bias
 	if bias <= 0 {

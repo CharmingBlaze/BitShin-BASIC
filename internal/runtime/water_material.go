@@ -142,10 +142,10 @@ func (m *WaterMaterial) Bind(gs *gls.GLS) {
 	if nrm == 0 {
 		nrm = dummy
 	}
-	bindWaterSampler(gs, 6, refr, "WaterRefract")
-	bindWaterSampler(gs, 7, refl, "WaterReflect")
-	bindWaterSampler(gs, 8, dudv, "WaterDuDv")
-	bindWaterSampler(gs, 9, nrm, "WaterNormal")
+	bindWaterSampler(gs, unitWaterRefract, refr, "WaterRefract")
+	bindWaterSampler(gs, unitWaterReflect, refl, "WaterReflect")
+	bindWaterSampler(gs, unitWaterDuDv, dudv, "WaterDuDv")
+	bindWaterSampler(gs, unitWaterNormal, nrm, "WaterNormal")
 	setUni1i(gs, "WaterReflectOn", bool01(wb.reflectOn && wb.reflect.color != 0))
 	setUni1i(gs, "WaterRefractOn", bool01(wb.refractOn && wb.refract.color != 0))
 	setUni1i(gs, "WaterHasDuDv", bool01(wb.dudvGL != 0))
@@ -168,7 +168,7 @@ func (m *WaterMaterial) Bind(gs *gls.GLS) {
 	if depth == 0 {
 		depth = dummy
 	}
-	bindWaterSampler(gs, 10, depth, "WaterRefractDepth")
+	bindWaterSampler(gs, unitWaterRefractDepth, depth, "WaterRefractDepth")
 	setUni1i(gs, "WaterHasDepth", bool01(wb.refract.depth != 0 && wb.refractOn))
 	sx, sy, sz := float32(0.4), float32(0.8), float32(0.3)
 	if m.w != nil {
@@ -191,9 +191,7 @@ func (m *WaterMaterial) Bind(gs *gls.GLS) {
 		fftTex = wb.fftGL
 		fftOn = 1
 	}
-	// 14: unit 11 is the ShadowMap, bound after this, and a shared unit made
-	// the wave read shadow depth as height (the water rose about 2 m).
-	bindWaterSampler(gs, 14, fftTex, "WaterFFT")
+	bindWaterSampler(gs, unitWaterFFT, fftTex, "WaterFFT")
 	setUni1i(gs, "WaterFFTOn", fftOn)
 	fftSize := float32(32)
 	if wb.fft != nil && wb.fft.size > 0 {

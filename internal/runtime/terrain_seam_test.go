@@ -1,6 +1,8 @@
 package runtime
 
 import (
+	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/g3n/engine/core"
@@ -390,5 +392,46 @@ func TestTreeImpostorDrawsTheTemplate(t *testing.T) {
 	// Empty texels next to the crown carry its color for mipmaps
 	if c := img.RGBAAt(0, 0); c.A != 0 || c.G == 0 {
 		t.Fatalf("bleed texel %v", c)
+	}
+}
+
+// Every sampler a program declares has a unit, no two share one, and the
+// hand-bound units stay above the ones G3N fills with material textures.
+func TestTextureUnitsDoNotClash(t *testing.T) {
+	sources := map[string]string{
+		"bsshadow":   mbshadowVertex + mbshadowFragment,
+		"mbphysical": mbphysicalVertex + mbphysicalFragment,
+		"mbterrain":  mbshadowVertex + mbterrainFragment,
+		"mbwater":    mbwaterVertex + mbwaterFragment,
+		"mbatmo":     mbatmoVertex + mbatmoFragment,
+	}
+	re := regexp.MustCompile(`uniform\s+sampler\w+\s+(\w+)`)
+	for name, src := range sources {
+		p, ok := programUnits[name]
+		if !ok {
+			t.Fatalf("%s has no entry in programUnits", name)
+		}
+		for _, m := range re.FindAllStringSubmatch(src, -1) {
+			s := m[1]
+			if _, ok := p.samplers[s]; !ok && !g3nSamplers[s] {
+				t.Errorf("%s: sampler %s has no unit in programUnits", name, s)
+			}
+		}
+		owner := map[int]string{}
+		for s, u := range p.samplers {
+			if !strings.Contains(src, s) {
+				t.Errorf("%s: programUnits lists %s, which the GLSL does not declare", name, s)
+			}
+			if u < p.g3nUnits {
+				t.Errorf("%s: %s on unit %d, inside G3N's 0-%d", name, s, u, p.g3nUnits-1)
+			}
+			if u > 15 {
+				t.Errorf("%s: %s on unit %d; GL 3.3 promises 16", name, s, u)
+			}
+			if o, dup := owner[u]; dup {
+				t.Errorf("%s: %s and %s share unit %d", name, s, o, u)
+			}
+			owner[u] = s
+		}
 	}
 }

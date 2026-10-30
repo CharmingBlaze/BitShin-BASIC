@@ -1788,16 +1788,15 @@ func (m *terrainMat) RenderSetup(gs *gls.GLS) {
 		}
 		setUni1i(gs, flag, has)
 	}
-	// Units 1-7. 8 and 9 are the shadow maps, 12 and 13 spot cookies, 15
-	// caustics: sand and grass used to sit on the shadow units, so the
-	// terrain read grass as depth and never showed a shadow.
-	bind(t.sandTex, 1, "TerrainSand", "TerrainHasSand")
-	bind(t.grassTex, 2, "TerrainGrass", "TerrainHasGrass")
-	bind(t.grass2Tex, 3, "TerrainGrass2", "TerrainHasGrass2")
-	bind(t.rockTex, 4, "TerrainRock", "TerrainHasRock")
-	bind(t.snowTex, 5, "TerrainSnow", "TerrainHasSnow")
-	bind(t.rockNrm, 6, "TerrainRockN", "TerrainHasRockN")
-	bind(t.blendTex, 7, "TerrainBlendMap", "TerrainHasBlend")
+	// Units from texunits.go: clear of the shadow maps, cookies, and
+	// caustics, and of G3N's own texture and lightmap on 0 and 1.
+	bind(t.sandTex, unitTerrainSand, "TerrainSand", "TerrainHasSand")
+	bind(t.grassTex, unitTerrainGrass, "TerrainGrass", "TerrainHasGrass")
+	bind(t.grass2Tex, unitTerrainGrass2, "TerrainGrass2", "TerrainHasGrass2")
+	bind(t.rockTex, unitTerrainRock, "TerrainRock", "TerrainHasRock")
+	bind(t.snowTex, unitTerrainSnow, "TerrainSnow", "TerrainHasSnow")
+	bind(t.rockNrm, unitTerrainRockN, "TerrainRockN", "TerrainHasRockN")
+	bind(t.blendTex, unitTerrainBlend, "TerrainBlendMap", "TerrainHasBlend")
 	setUni1f(gs, "TerrainWorldW", t.hf.worldW)
 	setUni1f(gs, "TerrainWorldD", t.hf.worldD)
 	setUni1f(gs, "TerrainOriginX", t.hf.ox)

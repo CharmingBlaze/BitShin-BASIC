@@ -16,7 +16,7 @@ import (
 // sharpness to smooth metal. 32 everywhere made chrome look like clay.
 const (
 	skyCubeMips = 6
-	envCubeUnit = 12
+	envCubeUnit = unitEnvCube // 12 was SpotCookie0's
 )
 
 var (

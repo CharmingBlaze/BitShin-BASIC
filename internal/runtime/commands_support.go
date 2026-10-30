@@ -103,7 +103,7 @@ func (w *World) windowCommands(n func(func([]value.Value) (value.Value, error)) 
 			return z()
 		}),
 		"focuswindow": n(func(a []value.Value) (value.Value, error) {
-			if gw := w.glfwWin(); gw != nil {
+			if gw := w.glfwWin(); gw != nil && !noGrab() {
 				gw.Focus()
 			}
 			return z()
@@ -198,7 +198,7 @@ func (w *World) inputCommands(n func(func([]value.Value) (value.Value, error)) c
 			return value.Num(0), nil
 		}),
 		"setcursormode": n(func(a []value.Value) (value.Value, error) {
-			if gw := w.glfwWin(); gw != nil {
+			if gw := w.glfwWin(); gw != nil && !noGrab() {
 				mode := glfw.CursorNormal
 				switch argI(a, 0, 0) {
 				case 1:
@@ -309,7 +309,7 @@ func (w *World) mouseLook(a []value.Value) (value.Value, error) {
 }
 
 func (w *World) armFreeLook() {
-	if gw := w.glfwWin(); gw != nil {
+	if gw := w.glfwWin(); gw != nil && !noGrab() {
 		gw.SetInputMode(glfw.CursorMode, glfw.CursorDisabled)
 		gw.SetInputMode(glfw.RawMouseMotion, glfw.True)
 	}

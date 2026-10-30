@@ -588,10 +588,10 @@ func (w *World) bindSpotCookies(gs *gls.GLS) {
 	setUni1i(gs, "SpotCookie0On", bool01(cookies[0] != nil))
 	setUni1i(gs, "SpotCookie1On", bool01(cookies[1] != nil))
 	if cookies[0] != nil {
-		bindNamedMap(gs, cookies[0], 12, "SpotCookie0")
+		bindNamedMap(gs, cookies[0], unitCookie0, "SpotCookie0")
 	}
 	if cookies[1] != nil {
-		bindNamedMap(gs, cookies[1], 13, "SpotCookie1")
+		bindNamedMap(gs, cookies[1], unitCookie1, "SpotCookie1")
 	}
 }
 
