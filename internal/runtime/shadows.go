@@ -1521,7 +1521,32 @@ func (w *World) bindFogUniforms(gs *gls.GLS) {
 	setUni1f(gs, "FogHeight", w.fogHeight)
 	setUni1f(gs, "FogHeightFalloff", w.fogHFall)
 	setUni1f(gs, "Wetness", w.wetness)
+	w.bindFogSun(gs)
 	w.bindWaterExtras(gs)
+}
+
+// bindFogSun feeds fogTint: the sun's direction and the halo color the sky
+// generator uses, warmer as the sun nears the horizon.
+func (w *World) bindFogSun(gs *gls.GLS) {
+	n := w.scanLights().sunNode
+	if n == nil || w.fogMode == 0 {
+		setUni3f(gs, "FogSunDir", 0, 0, 0)
+		return
+	}
+	sx, sy, sz := w.waterSunDir()
+	low := 1 - sy*2.2
+	if low < 0 {
+		low = 0
+	}
+	if low > 1 {
+		low = 1
+	}
+	setUni3f(gs, "FogSunDir", sx, sy, sz)
+	setUni3f(gs, "FogSunCol", 1, 0.86-0.18*low, 0.62-0.34*low)
+	if w.cam != nil {
+		p := worldPos(w.cam.GetNode())
+		setUni3f(gs, "FogCam", p.X, p.Y, p.Z)
+	}
 }
 
 func max32(a, b float32) float32 {

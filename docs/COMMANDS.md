@@ -250,7 +250,7 @@ Sprites and `DrawTileMap` scroll with the camera. `Rect`, `Oval`, `Line`, `Text`
 
 ## Skyboxes
 
-`CreateSkyBox([prefix$])` — 6-face cubemap. Empty / `"default"` builds a procedural sky (gradient + sun). Prefix tries `px/nx/py/ny/pz/nz` (also `_px`, `right/left/up/down/front/back`) as `.png` / `.jpg`  
+`CreateSkyBox([prefix$])` — 6-face cubemap. Empty / `"default"` builds a procedural sky (gradient, a crisp sun disc with halos that warm toward orange as it sets). Prefix tries `px/nx/py/ny/pz/nz` (also `_px`, `right/left/up/down/front/back`) as `.png` / `.jpg`  
 `LoadSkyBox(px$, nx$, py$, ny$, pz$, nz$)`  
 `SetSkyBox id` `HideSkyBox` `ShowSkyBox` `FreeSkyBox([id])`  
 `SetSkyColor r, g, b` — solid clear color; a visible skybox draws in front of it  
@@ -887,7 +887,7 @@ How to use every call, in order: [PLAY.md](PLAY.md). Runnable scene: `examples/o
 
 One play layer on the same world. Outdoor streaming stays the terrain. Indoor streaming is the current room plus the rooms linked through a doorway. Entities in no room stay visible (the player, the terrain, the sun). There is no portal renderer and no second outdoor renderer.
 
-`SetTimeOfDay(hours)` moves every directional light, the sky colors, the fog, and the outdoor ambient together. `0`–`5.5` and `19.5`–`24` are night, `5.5`–`8` and `17`–`19.5` are sunset, the middle of the day is the default sky. The sun pitch follows the hour and never drops below 8°, so night is a dim light rather than a light under the ground. Calling it again with the same band does not rebuild the skybox.
+`SetTimeOfDay(hours)` moves every directional light, the sky colors, the fog, and the outdoor ambient together. `0`–`5.5` and `19.5`–`24` are night, `5.5`–`8` and `17`–`19.5` are sunset, the middle of the day is the default sky. The sun pitch follows the hour and never drops below 8°, so night is a dim light rather than a light under the ground. Calling it again with the same band does not rebuild the skybox. Sunset is a dusky blue-violet sky over a warm peach horizon with matching warm fog. With fog on, haze brightens and warms toward the sun, with the same halo as the sky, so land near the sun melts into it.
 
 `CreateRoom` returns a room id. Room `0` is outdoors. `SetRoom(ent, room)` puts an entity in a room (`RoomAdd(room, ent)` is the same pair of arguments swapped). `RoomLink(a, b)` shows both rooms from either one. `EnterRoom(id)` hides every other room. `CurrentRoom()` is the id you are in.
 

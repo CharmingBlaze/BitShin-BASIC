@@ -75,13 +75,17 @@ func procTexPixel(kind string, ns *noise2, u, v float64, x, y, n int) color.RGBA
 		g := 0.72 + 0.18*n1 + 0.08*n3
 		return rgb8(g*1.05, g*0.92, g*0.62)
 	case "grass":
-		blade := math.Abs(math.Sin((u*46 + n2*3) * math.Pi))
-		g := 0.18 + 0.28*n1 + 0.22*blade*n3
-		return rgb8(0.10+0.08*n2, g, 0.07+0.06*n3)
+		// Clumps and fine speckle, no direction. The old |sin(u*46)| blades
+		// were 46 parallel stripes a tile, and they read as rows from afar.
+		speck := ns.fbm(u*70+9.3, v*70-4.1, 2, 0.5, 2)*0.5 + 0.5
+		dry := smoothstep64(0.62, 0.80, ns.fbm(u*11-2.2, v*11+6.5, 3, 0.5, 2)*0.5+0.5)
+		g := 0.20 + 0.20*n1 + 0.10*n3 + 0.12*(speck-0.5)
+		r := 0.10 + 0.06*n2 + 0.10*dry
+		return rgb8(r, g+0.03*dry, 0.07+0.04*n3)
 	case "grass2":
-		tuft := math.Abs(math.Sin((v*38 + n1*2) * math.Pi))
-		g := 0.16 + 0.30*n1 + 0.16*tuft
-		return rgb8(0.14+0.12*n2, g, 0.06+0.05*n1)
+		speck := ns.fbm(u*54-1.3, v*54+7.7, 2, 0.5, 2)*0.5 + 0.5
+		g := 0.18 + 0.24*n1 + 0.10*(speck-0.5)
+		return rgb8(0.13+0.10*n2, g, 0.06+0.05*n1)
 	case "rock":
 		g := 0.26 + 0.24*n1 + 0.14*n3
 		strata := 0.07 * math.Sin(v*52+n2*6)

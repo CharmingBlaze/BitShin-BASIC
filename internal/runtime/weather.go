@@ -763,6 +763,7 @@ func (w *World) setFog(r, g, b, near, far float64) {
 	}
 	w.fogNear, w.fogFar = float32(near), float32(far)
 	w.applyFogShader()
+	w.syncVisualSun() // the sky's horizon follows the fog color
 }
 
 func (w *World) setWind(dx, dy, dz, strength float64) {

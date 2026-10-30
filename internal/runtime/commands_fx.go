@@ -270,7 +270,7 @@ func (w *World) fxCommands(n func(func([]value.Value) (value.Value, error)) cmd,
 		"setskygradient": need(func(a []value.Value) (value.Value, error) {
 			w.skyTop = *rgb(argN(a, 0, 134), argN(a, 1, 187), argN(a, 2, 214))
 			w.skyBot = *rgb(argN(a, 3, 230), argN(a, 4, 230), argN(a, 5, 242))
-			id, err := w.publishSky(generateSkyImages(w.skyTop, w.skyBot, -0.5, 0.55, 0.75))
+			id, err := w.publishSky(generateSkyImages(w.skyTop, w.skyBot, -0.5, 0.55, 0.75, w.skyHaze()))
 			if err != nil {
 				return z()
 			}

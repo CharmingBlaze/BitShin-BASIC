@@ -361,9 +361,10 @@ func (w *World) paintTimeSky(band string) {
 		w.fogRGB = math32.Color{0.05, 0.06, 0.09}
 		g.outAmb = math32.Color{0.08, 0.09, 0.14}
 	case "sunset":
-		w.skyTop = math32.Color{177.0 / 255, 174.0 / 255, 119.0 / 255}
-		w.skyBot = math32.Color{234.0 / 255, 125.0 / 255, 125.0 / 255}
-		w.fogRGB = math32.Color{85.0 / 255, 97.0 / 255, 120.0 / 255}
+		// Same palette as the "sunset" sky preset.
+		w.skyTop = math32.Color{0.30, 0.37, 0.62}
+		w.skyBot = math32.Color{0.98, 0.62, 0.44}
+		w.fogRGB = math32.Color{0.74, 0.55, 0.47}
 		g.outAmb = math32.Color{0.55, 0.32, 0.22}
 	default:
 		w.skyTop = math32.Color{0.525, 0.735, 0.84}
@@ -376,7 +377,7 @@ func (w *World) paintTimeSky(band string) {
 		return
 	}
 	sx, sy, sz := w.proceduralSkySun()
-	id, err := w.publishSky(generateSkyImages(w.skyTop, w.skyBot, sx, sy, sz))
+	id, err := w.publishSky(generateSkyImages(w.skyTop, w.skyBot, sx, sy, sz, w.skyHaze()))
 	if err == nil {
 		w.skyProc = true
 		w.setSkyBox(id)

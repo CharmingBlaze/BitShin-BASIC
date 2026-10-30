@@ -138,6 +138,8 @@ void main() {
 	} else {
 		rgb = texture(uTex, uv).rgb;
 	}
+	// A NaN from a scene shader would show as a black pixel; drop it.
+	if (any(isnan(rgb)) || any(isinf(rgb))) { rgb = vec3(0.0); }
 	if (uRainOnly != 0) {
 		rgb += vec3(0.78, 0.84, 0.94) * rainStreaks(vUV);
 		frag = vec4(rgb, 1.0);
@@ -207,6 +209,9 @@ out vec4 frag;
 uniform sampler2D uTex;
 
 float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+// finite drops NaN and Inf: in a half-float target one bad pixel would
+// otherwise spread through the bloom chain into a block.
+vec3 finite(vec3 c) { return (any(isnan(c)) || any(isinf(c))) ? vec3(0.0) : c; }
 
 void main() {
 	float acc = 0.0;
@@ -216,7 +221,7 @@ void main() {
 			vec2 uv = (vec2(float(x), float(y)) + 0.5) / 16.0;
 			vec2 p = uv - 0.5;
 			float w = exp(-dot(p, p) * 6.0);
-			acc += luma(texture(uTex, uv).rgb) * w;
+			acc += luma(finite(texture(uTex, uv).rgb)) * w;
 			wsum += w;
 		}
 	}
@@ -233,12 +238,15 @@ uniform vec2 uTexel;
 uniform float uThreshold;
 
 float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+// finite drops NaN and Inf: in a half-float target one bad pixel would
+// otherwise spread through the bloom chain into a block.
+vec3 finite(vec3 c) { return (any(isnan(c)) || any(isinf(c))) ? vec3(0.0) : c; }
 
 void main() {
-	vec3 c = texture(uSrc, vUV + uTexel * vec2(-1.0, -1.0)).rgb;
-	c += texture(uSrc, vUV + uTexel * vec2(1.0, -1.0)).rgb;
-	c += texture(uSrc, vUV + uTexel * vec2(-1.0, 1.0)).rgb;
-	c += texture(uSrc, vUV + uTexel * vec2(1.0, 1.0)).rgb;
+	vec3 c = finite(texture(uSrc, vUV + uTexel * vec2(-1.0, -1.0)).rgb);
+	c += finite(texture(uSrc, vUV + uTexel * vec2(1.0, -1.0)).rgb);
+	c += finite(texture(uSrc, vUV + uTexel * vec2(-1.0, 1.0)).rgb);
+	c += finite(texture(uSrc, vUV + uTexel * vec2(1.0, 1.0)).rgb);
 	c *= 0.25;
 	if (uThreshold > 0.0) {
 		float l = luma(c);

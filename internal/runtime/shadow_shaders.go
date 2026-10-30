@@ -100,6 +100,16 @@ uniform int FogMode;
 uniform vec3 FogColor;
 uniform float FogNear;
 uniform float FogFar;
+uniform vec3 FogSunDir;
+uniform vec3 FogSunCol;
+uniform vec3 FogCam;
+// Haze toward the sun is brighter and warmer, with the sky's own halo
+// terms, so fogged land near the sun matches the sky behind it.
+vec3 fogTint(vec3 fogColor, vec3 wp) {
+    if (dot(FogSunDir, FogSunDir) < 0.5) { return fogColor; }
+    float s = max(dot(normalize(wp - FogCam), FogSunDir), 0.0);
+    return fogColor + FogSunCol * (pow(s, 8.0) * 0.10 + pow(s, 64.0) * 0.22);
+}
 uniform float FogDensity;
 uniform float FogHeight;
 uniform float FogHeightFalloff;
@@ -358,7 +368,7 @@ void main() {
             float hFac = exp(-max(WorldPos.y - FogHeight, 0.0) * FogHeightFalloff);
             f = 1.0 - (1.0 - f) * clamp(hFac, 0.0, 1.0);
         }
-        FragColor.rgb = mix(FogColor, FragColor.rgb, clamp(f, 0.0, 1.0));
+        FragColor.rgb = mix(fogTint(FogColor, WorldPos), FragColor.rgb, clamp(f, 0.0, 1.0));
     }
 }
 `

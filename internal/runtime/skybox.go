@@ -152,14 +152,14 @@ func solidRGBA(w, h int, r, g, b uint8) *image.RGBA {
 }
 
 func generateDefaultSkyFaces() [6]*texture.Texture2D {
-	return texturesFromSky(clearSkyImages(-0.35, 0.62, 0.70))
+	return texturesFromSky(clearSkyImages(-0.35, 0.62, 0.70, nil))
 }
 
-func clearSkyImages(sx, sy, sz float64) [6]*image.RGBA {
+func clearSkyImages(sx, sy, sz float64, haze *math32.Color) [6]*image.RGBA {
 	return generateSkyImages(
 		math32.Color{0.16, 0.40, 0.82},
 		math32.Color{0.42, 0.66, 0.90},
-		sx, sy, sz,
+		sx, sy, sz, haze,
 	)
 }
 
@@ -238,18 +238,25 @@ func (w *World) syncVisualSun() {
 		w.skySun = d
 		return
 	}
-	if w.skySunOK && math32.Abs(w.skySun.X-d.X)+math32.Abs(w.skySun.Y-d.Y)+math32.Abs(w.skySun.Z-d.Z) < 0.002 {
+	haze := w.skyHaze()
+	hazeKey := math32.Color{-1, -1, -1}
+	if haze != nil {
+		hazeKey = *haze
+	}
+	sameHaze := math32.Abs(hazeKey.R-w.skyHazeKey.R)+math32.Abs(hazeKey.G-w.skyHazeKey.G)+math32.Abs(hazeKey.B-w.skyHazeKey.B) < 0.02
+	if w.skySunOK && sameHaze && math32.Abs(w.skySun.X-d.X)+math32.Abs(w.skySun.Y-d.Y)+math32.Abs(w.skySun.Z-d.Z) < 0.002 {
 		return
 	}
 	w.skySun = d
 	w.skySunOK = true
+	w.skyHazeKey = hazeKey
 	if w.scene == nil || w.skies == nil || len(w.skies) == 0 {
 		return
 	}
 	sx, sy, sz := float64(d.X), float64(d.Y), float64(d.Z)
-	imgs := clearSkyImages(sx, sy, sz)
+	imgs := clearSkyImages(sx, sy, sz, haze)
 	if w.skyTop.R+w.skyTop.G+w.skyTop.B > 0 {
-		imgs = generateSkyImages(w.skyTop, w.skyBot, sx, sy, sz)
+		imgs = generateSkyImages(w.skyTop, w.skyBot, sx, sy, sz, haze)
 	}
 	id, err := w.publishSky(imgs)
 	if err == nil {
@@ -258,11 +265,18 @@ func (w *World) syncVisualSun() {
 }
 
 func generateSkyFaces(top, bot math32.Color, sunX, sunY, sunZ float64) [6]*texture.Texture2D {
-	return texturesFromSky(generateSkyImages(top, bot, sunX, sunY, sunZ))
+	return texturesFromSky(generateSkyImages(top, bot, sunX, sunY, sunZ, nil))
 }
 
-func generateSkyImages(top, bot math32.Color, sunX, sunY, sunZ float64) [6]*image.RGBA {
-	const n = 128
+func generateSkyImages(top, bot math32.Color, sunX, sunY, sunZ float64, haze *math32.Color) [6]*image.RGBA {
+	// 192 a face: at 128 the sun could only be a soft blob.
+	const n = 192
+	sl := math.Sqrt(sunX*sunX + sunY*sunY + sunZ*sunZ)
+	if sl > 1e-6 {
+		sunX, sunY, sunZ = sunX/sl, sunY/sl, sunZ/sl
+	}
+	// A low sun warms its halo toward orange.
+	low := clamp01f(1 - sunY*2.2)
 	var out [6]*image.RGBA
 	for face := 0; face < 6; face++ {
 		img := image.NewRGBA(image.Rect(0, 0, n, n))
@@ -271,7 +285,7 @@ func generateSkyImages(top, bot math32.Color, sunX, sunY, sunZ float64) [6]*imag
 				dx, dy, dz := skyFaceDir(face, x, y, n)
 				inv := 1 / math.Sqrt(dx*dx+dy*dy+dz*dz)
 				dx, dy, dz = dx*inv, dy*inv, dz*inv
-				// Terrain-OpenGL sky.frag: mix bottom→top by elevation, plus sun disk.
+				// Terrain-OpenGL sky.frag: mix bottom→top by elevation.
 				elev := clamp01f(dy*0.5 + 0.5)
 				fade := clamp01f(1 - math.Exp(8.5-17*elev))
 				r := float64(bot.R) + (float64(top.R)-float64(bot.R))*fade
@@ -283,12 +297,29 @@ func generateSkyImages(top, bot math32.Color, sunX, sunY, sunZ float64) [6]*imag
 					g = g*(1-ground*0.45) + 0.26*ground
 					b = b*(1-ground*0.35) + 0.18*ground
 				}
-				sun := math.Max(0, dx*sunX+dy*sunY+dz*sunZ)
-				disk := math.Pow(sun, 32)
-				glow := math.Pow(sun, 8) * 0.35
-				r += disk*0.9 + glow
-				g += disk*0.75 + glow*0.7
-				b += disk * 0.35
+				// The horizon band is the fog color, so fogged land at the
+				// edge of view melts into the sky instead of standing out.
+				if haze != nil {
+					h := math.Exp(-math.Abs(dy) * 9)
+					if dy < 0 {
+						h = math.Max(h, clamp01f(-dy*6))
+					}
+					h *= 0.92
+					r += (float64(haze.R) - r) * h
+					g += (float64(haze.G) - g) * h
+					b += (float64(haze.B) - b) * h
+				}
+				cosA := dx*sunX + dy*sunY + dz*sunZ
+				if cosA > 0 {
+					// A crisp disc (about 1.4 degrees), then halos from tight
+					// to broad, warmer as the sun nears the horizon.
+					disc := smoothstep64(0.99962, 0.99975, cosA)
+					halo := math.Pow(cosA, 900)*0.55 + math.Pow(cosA, 64)*0.22 + math.Pow(cosA, 8)*0.10
+					hr, hg, hb := 1.0, 0.86-0.18*low, 0.62-0.34*low
+					r += disc*1.2 + halo*hr
+					g += disc*1.1 + halo*hg
+					b += disc*0.9 + halo*hb
+				}
 				img.SetRGBA(x, y, color.RGBA{u8f(r), u8f(g), u8f(b), 255})
 			}
 		}
@@ -297,12 +328,22 @@ func generateSkyImages(top, bot math32.Color, sunX, sunY, sunZ float64) [6]*imag
 	return out
 }
 
+// skyHaze is the color the sky's horizon blends into. Off: a script's fog
+// is usually a fixed color, and blending a bright sky toward it painted a
+// dark band above the horizon. fogTint matches the sun side instead.
+func (w *World) skyHaze() *math32.Color {
+	return nil
+}
+
 func (w *World) applySkyPreset(name string) {
 	switch strings.ToLower(strings.TrimSpace(name)) {
 	case "sunset":
-		w.skyTop = math32.Color{177.0 / 255, 174.0 / 255, 119.0 / 255}
-		w.skyBot = math32.Color{234.0 / 255, 125.0 / 255, 125.0 / 255}
-		w.fogRGB = math32.Color{85.0 / 255, 97.0 / 255, 120.0 / 255}
+		// Dusky blue-violet over a warm peach horizon. The old olive top
+		// (177,174,119) read as a sickly sky, and its blue-grey fog made the
+		// land a dark band under a pink horizon.
+		w.skyTop = math32.Color{0.30, 0.37, 0.62}
+		w.skyBot = math32.Color{0.98, 0.62, 0.44}
+		w.fogRGB = math32.Color{0.74, 0.55, 0.47}
 	case "sunset1":
 		w.skyTop = math32.Color{133.0 / 255, 158.0 / 255, 214.0 / 255}
 		w.skyBot = math32.Color{241.0 / 255, 161.0 / 255, 161.0 / 255}
@@ -313,7 +354,7 @@ func (w *World) applySkyPreset(name string) {
 		w.fogRGB = math32.Color{0.5, 0.6, 0.7}
 	}
 	sx, sy, sz := w.proceduralSkySun()
-	id, err := w.publishSky(generateSkyImages(w.skyTop, w.skyBot, sx, sy, sz))
+	id, err := w.publishSky(generateSkyImages(w.skyTop, w.skyBot, sx, sy, sz, w.skyHaze()))
 	if err == nil {
 		w.skyProc = true
 		w.setSkyBox(id)
@@ -432,9 +473,9 @@ func (w *World) makeSkyBox(prefix string) (int, error) {
 	w.skyProc = true
 	sx, sy, sz := w.proceduralSkySun()
 	if w.skyTop.R+w.skyTop.G+w.skyTop.B > 0 {
-		return w.publishSky(generateSkyImages(w.skyTop, w.skyBot, sx, sy, sz))
+		return w.publishSky(generateSkyImages(w.skyTop, w.skyBot, sx, sy, sz, w.skyHaze()))
 	}
-	return w.publishSky(clearSkyImages(sx, sy, sz))
+	return w.publishSky(clearSkyImages(sx, sy, sz, w.skyHaze()))
 }
 
 func (w *World) setSkyBox(id int) {

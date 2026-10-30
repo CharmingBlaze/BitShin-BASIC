@@ -24,7 +24,7 @@ func TestSkyFitScaleKeepsCornersInsideFar(t *testing.T) {
 func TestSkySampleMatchesThePaintedFace(t *testing.T) {
 	top := math32.Color{0.1, 0.2, 0.9}
 	bot := math32.Color{0.85, 0.4, 0.15}
-	imgs := generateSkyImages(top, bot, 1, 0.15, 0)
+	imgs := generateSkyImages(top, bot, 1, 0.15, 0, nil)
 	upR, upG, upB, ok := sampleSkyImages(imgs, 0, 1, 0)
 	if !ok {
 		t.Fatal("sky images should sample")

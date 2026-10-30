@@ -320,6 +320,7 @@ type World struct {
 	skyRev                           int
 	skyCubeRev                       int
 	skyCubeSz                        int
+	skyHazeKey                       math32.Color // fog color the sky was painted with
 	probeCam                         *camera.Camera
 	capturingProbe                   bool
 	terrains                         map[int]*terrain

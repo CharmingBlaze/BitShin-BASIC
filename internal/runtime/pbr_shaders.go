@@ -99,6 +99,16 @@ uniform int FogMode;
 uniform vec3 FogColor;
 uniform float FogNear;
 uniform float FogFar;
+uniform vec3 FogSunDir;
+uniform vec3 FogSunCol;
+uniform vec3 FogCam;
+// Haze toward the sun is brighter and warmer, with the sky's own halo
+// terms, so fogged land near the sun matches the sky behind it.
+vec3 fogTint(vec3 fogColor, vec3 wp) {
+    if (dot(FogSunDir, FogSunDir) < 0.5) { return fogColor; }
+    float s = max(dot(normalize(wp - FogCam), FogSunDir), 0.0);
+    return fogColor + FogSunCol * (pow(s, 8.0) * 0.10 + pow(s, 64.0) * 0.22);
+}
 uniform float FogDensity;
 uniform float FogHeight;
 uniform float FogHeightFalloff;
@@ -201,7 +211,7 @@ vec3 pbrDirect(PBRInfo pbrInputs, vec3 n, vec3 v, vec3 lightColor, vec3 lightDir
     vec3 l = normalize(lightDir);
     vec3 h = normalize(l + v);
     float NdotL = clamp(dot(n, l), 0.001, 1.0);
-    float NdotV = abs(dot(n, v)) + 0.001;
+    float NdotV = min(abs(dot(n, v)) + 0.001, 1.0);
     float NdotH = clamp(dot(n, h), 0.0, 1.0);
     float LdotH = clamp(dot(l, h), 0.0, 1.0);
     float VdotH = clamp(dot(v, h), 0.0, 1.0);
@@ -246,7 +256,10 @@ vec3 iblTerm(PBRInfo pbrInputs, vec3 n, vec3 v) {
         irr = mix(irr, cubeN, 0.85);
         specEnv = mix(specEnv, cubeR, 0.85);
     }
-    float nv = abs(dot(n, v)) + 0.001;
+    // Clamped: facing the camera exactly, nv was 1.001 and pow() of a
+    // negative base is NaN in GLSL. That was the black dot in the middle of
+    // every polished sphere, and a float post buffer smeared it into a block.
+    float nv = min(abs(dot(n, v)) + 0.001, 1.0);
     vec3 Fs = pbrInputs.reflectance0 + (vec3(1.0) - pbrInputs.reflectance0) * pow(1.0 - nv, 5.0);
     vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
     vec4 c1 = vec4(1.0, 0.0425, 1.04, -0.04);
@@ -410,7 +423,7 @@ void main() {
             float hFac = exp(-max(WorldPos.y - FogHeight, 0.0) * FogHeightFalloff);
             f = 1.0 - (1.0 - f) * clamp(hFac, 0.0, 1.0);
         }
-        FragColor.rgb = mix(FogColor, FragColor.rgb, clamp(f, 0.0, 1.0));
+        FragColor.rgb = mix(fogTint(FogColor, WorldPos), FragColor.rgb, clamp(f, 0.0, 1.0));
     }
 }
 `
