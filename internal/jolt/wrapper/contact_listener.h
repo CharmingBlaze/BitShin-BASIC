@@ -35,6 +35,7 @@ void JoltClearContactEvents(void);
 
 void JoltSetBodyCollisionLayer(JoltBodyID body, int layer);
 void JoltSetLayerPairCollides(int layerA, int layerB, int collides);
+void JoltResetCollisionLayers(void);
 
 #ifdef __cplusplus
 }

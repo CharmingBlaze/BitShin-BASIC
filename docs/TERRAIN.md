@@ -87,7 +87,7 @@ Full behavior port of [Terrain-OpenGL](https://github.com/mark99106/Terrain-Open
 | Directional light + height fog | G3N lights + CSM from `mbshadow` vertex + engine fog |
 | Procedural sky + sun disk | `SetSkyPreset("default"\|"sunset"\|"sunset1")` / `SetSkyGradient` |
 | Water reflection/refraction | Existing `CreateWater` + planar FBO (Gerstner, not their DUDV-only plane) |
-| Compute volumetric clouds | `CreateVolumetricClouds` — 36 shared camera-facing cards (no compute, no 3D texture) |
+| Compute volumetric clouds | `CreateVolumetricClouds` — one noise-shaded sheet above the camera (no compute, no 3D texture) |
 
 ```basic
 t = CreateTerrainGL(0, 25, 3, 3.2, 0.035, 8, 40)

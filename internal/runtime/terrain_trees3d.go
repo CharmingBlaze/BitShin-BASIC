@@ -312,6 +312,24 @@ func (w *World) meshTreeReach() float32 {
 	return 420
 }
 
+// treeBlockDist is the distance in chunks from the camera chunk to a
+// block's middle.
+func treeBlockDist(b, cam chunkKey) float32 {
+	dx := float32(b.X*treeBlock) + float32(treeBlock-1)/2 - float32(cam.X)
+	dz := float32(b.Z*treeBlock) + float32(treeBlock-1)/2 - float32(cam.Z)
+	return math32.Sqrt(dx*dx + dz*dz)
+}
+
+// meshTreeAdd is the block distance, in chunks, inside which blocks get 3D
+// trees. Impostor cards take the blocks past it.
+func (w *World) meshTreeAdd(t *terrain, cw float32) float32 {
+	r := w.meshTreeReach() / cw
+	if r < float32(t.radius) {
+		r = float32(t.radius)
+	}
+	return r + float32(treeBlock)*0.71 // a block's corner from its middle
+}
+
 // treeBlock is how many chunks a side one 3D tree batch covers. One batch
 // per part per block keeps the draw count near 100 on a large island; one
 // per chunk was over 1000, and G3N pays per mesh, not per triangle.
@@ -341,18 +359,9 @@ func (w *World) syncMeshTrees(t *terrain, cw float32, cam chunkKey) {
 	if t.treeMesh == nil {
 		t.treeMesh = map[chunkKey][]int{}
 	}
-	r := w.meshTreeReach() / cw
-	if r < float32(t.radius) {
-		r = float32(t.radius)
-	}
-	// Distance in chunks from the camera chunk to a block's middle.
-	dist := func(b chunkKey) float32 {
-		dx := float32(b.X*treeBlock) + float32(treeBlock-1)/2 - float32(cam.X)
-		dz := float32(b.Z*treeBlock) + float32(treeBlock-1)/2 - float32(cam.Z)
-		return math32.Sqrt(dx*dx + dz*dz)
-	}
-	half := float32(treeBlock) * 0.71 // a block's corner from its middle
-	keep, add := r+half+1, r+half
+	dist := func(b chunkKey) float32 { return treeBlockDist(b, cam) }
+	add := w.meshTreeAdd(t, cw)
+	keep := add + 1
 	for b, ids := range t.treeMesh {
 		if dist(b) > keep {
 			for _, id := range ids {

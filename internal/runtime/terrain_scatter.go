@@ -330,6 +330,7 @@ func (w *World) refreshScatter(t *terrain) {
 	}
 	w.releaseMeshTrees(t)
 	w.treeParts = nil
+	w.treeImps = nil
 	cw := t.chunkWorld()
 	for k := range t.ents {
 		x0 := float32(k.X) * cw
@@ -636,6 +637,7 @@ func (w *World) placeHorizonTrees(t *terrain, cw float32, cam chunkKey, n int) {
 			})
 		}
 	}
+	w.placeTreeImpostors(t, cw, cam, n)
 }
 
 func chunkHash01(x, z, salt int) float32 {
@@ -688,9 +690,14 @@ func (w *World) addCardScatter(t *terrain, kind string, pts []scatterPt, crossed
 		width, height = 1.1, 1.2
 		col = &math32.Color{0.42, 0.40, 0.36}
 	}
-	if tint != nil {
+		if tint != nil {
 		col = tint
 	}
+	return w.addTreeCardMesh(t, pts, crossed, col, tex, width, height)
+}
+
+// addTreeCardMesh is one lit, cut-out batch of cards of the given size.
+func (w *World) addTreeCardMesh(t *terrain, pts []scatterPt, crossed bool, col *math32.Color, tex *texture.Texture2D, width, height float32) int {
 	g := cardGeometry(pts, crossed, width, height)
 	if g == nil {
 		return 0

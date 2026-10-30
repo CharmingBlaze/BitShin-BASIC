@@ -159,3 +159,26 @@ func TestPeopleDiffer(t *testing.T) {
 		t.Fatal("names produced the same person")
 	}
 }
+
+// SetFFTStrength scales the chop WaterHeight reports, and 0 flattens it.
+func TestFFTStrengthScalesHeight(t *testing.T) {
+	w := New(".")
+	wb := &waterBody{y: 1, nWaves: 0, fftOn: true, time: 0.7}
+	w.waters[1] = wb
+	w.curWater = 1
+	base := w.waterHeight(3, 4) - 1
+	if base == 0 {
+		t.Fatal("no fft chop at this point")
+	}
+	wb.fftAmp = 3
+	if got := w.waterHeight(3, 4) - 1; math32.Abs(got-3*base) > 1e-4 {
+		t.Fatalf("strength 3: %v, want %v", got, 3*base)
+	}
+	wb.fftAmp = -1
+	if got := w.waterHeight(3, 4); got != 1 {
+		t.Fatalf("strength 0 should be flat, got %v", got)
+	}
+	if wb.fft.n != waterFFTN {
+		t.Fatalf("tile is %d, want %d", wb.fft.n, waterFFTN)
+	}
+}

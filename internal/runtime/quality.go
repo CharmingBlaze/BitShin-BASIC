@@ -31,7 +31,7 @@ type tierSettings struct {
 	scatter    float32 // tree / prop / grass count scale
 	treeReachM float32 // horizon trees stop here (still inside the fog)
 	ao         bool    // screen-space ambient occlusion
-	msaa       int     // scene samples when post is on; 0 is FXAA alone. 4x cost ~4 ms on a 780M
+	msaa       int     // scene samples when post is on; 0 is FXAA alone. On a 780M the island pays ~1.8 ms for 2x (10% of frames past 16.7 ms), so high has none; 4x ~4 ms
 	softShadow bool    // PCSS: shadow edges soften with distance from the caster
 }
 

@@ -257,7 +257,7 @@ Sprites and `DrawTileMap` scroll with the camera. `Rect`, `Oval`, `Line`, `Text`
 `SetSkyColor r, g, b` — solid clear color; a visible skybox draws in front of it  
 `SetSky` — string = preset (`default`/`sunset`) or cubemap prefix; 3 numbers = `SetSkyColor`; 6 numbers = `SetSkyGradient`  
 `CreateAtmosphere()` `SetAtmosphere` `SetAtmosphereRayleigh` `SetAtmosphereMie` `SetAtmosphereTurbidity` `SetSunDirection` — GLSL 330 sky dome: Go-baked 256×64 transmittance LUT + 12-step single scatter (Bruneton-style **Partial**, not the full 4D table)  
-`SetClouds cover [, density, speed]` / `CreateVolumetricClouds` — 36 shared cloud cards (no volume texture)  
+`SetClouds cover [, density, speed]` / `CreateVolumetricClouds` — one noise-shaded cloud sheet above the camera (no volume texture): it drifts with the wind, shades the side away from the sun, glows warm at sunset, dims at night, and fades into the haze. Density over 1 darkens it toward a storm  
 
 The sky follows the camera, does not write depth, and does not cast shadows.
 
@@ -872,7 +872,7 @@ See `docs/TERRAIN.md`. OpenGL **3.3** grids: central-difference normals, far chu
 | `SetTerrainDetail(t, pixels)` | Screen-space size as a CPU step. `8` is the old LOD. Smaller stays fine longer. `0` clears it | `SetTerrainDetail(t, 6)` |
 | `SetTerrainBlendMap(t, tex)` | R sand, G grass, B rock, A snow. Empty texels keep slope/height | `SetTerrainBlendMap(t, paint)` |
 | `TerrainFoliage(t [, density])` | Crossed grass cards. `1` is a light meadow. `0` clears. Far chunks use one quad | `TerrainFoliage(t)` |
-| `TerrainTrees(t, mesh [, density])` | Copies on flat ground, in stands with thinner clearings. A textured mesh becomes a card. An untextured one is planted as 3D meshes, with its child meshes (crown on a trunk) and their colors. Blocks are built on worker threads, and far blocks use a simplified copy of each part (about 40% of the triangles). `0` clears that mesh | `TerrainTrees(t, tree)` |
+| `TerrainTrees(t, mesh [, density])` | Copies on flat ground, in stands with thinner clearings. A textured mesh becomes a card. An untextured one is planted as 3D meshes, with its child meshes (crown on a trunk) and their colors. Blocks are built on worker threads, and far blocks use a simplified copy of each part (about 40% of the triangles). Past the 3D reach, out to the fog, the same trees stand as cards of a side-on picture drawn from the template, so a forest does not stop short of the haze. `0` clears that mesh | `TerrainTrees(t, tree)` |
 | `SetTreeCards(t, width, height [, crossed, face])` | Needs the terrain handle first. Card size. `crossed` adds a second card at 90 degrees. `face` turns it toward the camera | `SetTreeCards(t, 3.6, 4.4, False, True)` |
 | `SetTreeCardCross(t, on)` | Two intersecting cards, or one | `SetTreeCardCross(t, True)` |
 | `SetTreeCardFace(t, on)` | Cards turn toward the camera, or keep the yaw they were planted with | `SetTreeCardFace(t, False)` |
@@ -880,7 +880,7 @@ See `docs/TERRAIN.md`. OpenGL **3.3** grids: central-difference normals, far chu
 | `TerrainScatter(t, mesh, kind$, density)` | Same planter. `kind$` is `grass` `tree` `prop` `any` | `TerrainScatter(t, bush, "prop", 0.5)` |
 | `CreateProcTexture(kind$)` | `sand` `grass` `grass2` `rock` `snow` `rocknormal` `dudv` `cloud` | `tex = CreateProcTexture("grass")` |
 | `TerrainSlope(x, z)` / `GetTerrainSlope` | Up-dot normal (1 = flat) | `n# = TerrainSlope(x, z)` |
-| `CreateVolumetricClouds([y, scale])` / `CreateClouds` | 36 shared cards, `scale` is the field radius | `c = CreateVolumetricClouds(110, 260)` |
+| `CreateVolumetricClouds([y, scale])` / `CreateClouds` | One cloud sheet `y` meters above the camera (at least 120). `scale` sets the cloud size | `c = CreateVolumetricClouds(160, 400)` |
 | `SetCloudCoverage` / `SetCloudSpeed` / `SetCloudDensity` | Cloud layer | `SetCloudCoverage(0.55)` |
 | `SetSkyPreset(name$)` | `default` `sunset` `sunset1` | `SetSkyPreset("sunset")` |
 | `SetSkyGradient(tR,tG,tB, bR,bG,bB)` | Rebuild procedural sky | `SetSkyGradient(134, 187, 214, 230, 230, 242)` |
@@ -898,7 +898,7 @@ How to use every call, in order: [PLAY.md](PLAY.md). Runnable scene: `examples/o
 
 One play layer on the same world. Outdoor streaming stays the terrain. Indoor streaming is the current room plus the rooms linked through a doorway. Entities in no room stay visible (the player, the terrain, the sun). There is no portal renderer and no second outdoor renderer.
 
-`SetTimeOfDay(hours)` moves every directional light, the sky colors, the fog, and the outdoor ambient together. `0`–`5.5` and `19.5`–`24` are night, `5.5`–`8` and `17`–`19.5` are sunset, the middle of the day is the default sky. The sun pitch follows the hour and never drops below 8°, so night is a dim light rather than a light under the ground. Calling it again with the same band does not rebuild the skybox. Sunset is a dusky blue-violet sky over a warm peach horizon with matching warm fog. With fog on, haze brightens and warms toward the sun, with the same halo as the sky, so land near the sun melts into it.
+`SetTimeOfDay(hours)` moves every directional light, the sky colors, the fog, and the outdoor ambient together. `0`–`5.5` and `19.5`–`24` are night, `5.5`–`8` and `17`–`19.5` are sunset, the middle of the day is the default sky. The sun pitch follows the hour and never drops below 8°, so night is a dim light rather than a light under the ground. Between the bands the colors blend, so a running clock eases from night through dawn to day; the sky is repainted on a worker as the colors and the sun move. Sunset is a dusky blue-violet sky over a warm peach horizon with matching warm fog. With fog on, haze brightens and warms toward the sun, with the same halo as the sky, so land near the sun melts into it.
 
 `CreateRoom` returns a room id. Room `0` is outdoors. `SetRoom(ent, room)` puts an entity in a room (`RoomAdd(room, ent)` is the same pair of arguments swapped). `RoomLink(a, b)` shows both rooms from either one. `EnterRoom(id)` hides every other room. `CurrentRoom()` is the id you are in.
 
@@ -993,7 +993,8 @@ See `docs/WATER.md`. Two techniques, one shader: **Gerstner** vertex ocean + **s
 | `SetWaterWaves(count [, amp])` | 0 = flat plane, 1–4 Gerstner | `SetWaterWaves(4, 0.42)` |
 | `SetGerstner(i, dirX, dirZ, steep, amp, lambda, speed)` | One wave (i = 0–3) | `SetGerstner(0, 0.85, 0.35, 0.42, 0.55, 18, 1.15)` |
 | `SetWaterWind(dirX, dirZ [, str])` / `GetWaterWind()` | Steer / boost Gerstner | `SetWaterWind(0.9, 0.25, 0.7)` |
-| `EnableFFT([water,] on)` | Phillips tile. `WaterHeight` is the CPU inverse FFT. The mesh samples a GPU inverse DFT of the same spectrum. One argument is on/off for the current water | `EnableFFT(True)` |
+| `EnableFFT([water,] on)` | 64×64 Phillips tile over 32 m. `WaterHeight` is the CPU inverse FFT. The mesh samples a GPU inverse DFT of the same spectrum (two passes, half float), and each pixel takes its slope. One argument is on/off for the current water | `EnableFFT(True)` |
+| `SetFFTStrength([water,] n)` | Scales the FFT chop, drawn and in `WaterHeight`. `1` is a few centimeters; `20` is a swell | `SetFFTStrength(12)` |
 | `WaterHeight(x, z)` / `GetWaterHeight` | CPU Gerstner plus the FFT tile when `EnableFFT` is on | `y# = WaterHeight(x, z)` |
 | `CreateBuoy(ent)` | Jolt lift + splash + wake impulse | `CreateBuoy(boat)` |
 | `SetWaterFollow(on)` | Recenter LOD grid on camera XZ | `SetWaterFollow(True)` |
@@ -1203,7 +1204,7 @@ ImGui panels use the existing `Gui*` commands. These query live numbers:
 | Command | Meaning | Example |
 | --- | --- | --- |
 | `StatsFPS()` / `GetStatsFPS()` | `1 / DeltaTime` | `fps = Int(StatsFPS())` |
-| `SetGraphicsQuality(q$)` | `"low"` `"medium"` `"high"` `"ultra"` or `"auto"`. One call sets shadow size, water reflection and refraction, post FX, terrain detail window and triangle size, tree/prop/grass count and reach. Low is aimed at a 2016 laptop iGPU at 720p: no water passes, cheap terrain texturing. High adds ambient occlusion and a coarse vista out to the fog; ultra adds soft (PCSS) shadow edges and 4× MSAA. `"auto"` reads the GPU name, then steps down a tier whenever frames average over 26 ms for 2 s. It never steps up. A setting you change after this call is yours until the next tier change | `SetGraphicsQuality("auto")` |
+| `SetGraphicsQuality(q$)` | `"low"` `"medium"` `"high"` `"ultra"` or `"auto"`. One call sets shadow size, water reflection and refraction, post FX, terrain detail window and triangle size, tree/prop/grass count and reach. Low is aimed at a 2016 laptop iGPU at 720p: no water passes, cheap terrain texturing. High adds ambient occlusion and a coarse vista out to the fog; ultra adds soft (PCSS) shadow edges and 4× MSAA. On a fast GPU, `SetMSAA(2)` after this call gives high smooth edges for about 2 ms. Low draws cheaper clouds. `"auto"` reads the GPU name, then steps down a tier whenever frames average over 26 ms for 2 s. It never steps up. A setting you change after this call is yours until the next tier change | `SetGraphicsQuality("auto")` |
 | `GraphicsQuality()` | Current tier, `0` low to `3` ultra | `q = GraphicsQuality()` |
 | `SaveScreenshot(path$)` | Saves the next presented frame (scene, post, HUD) as a PNG | `SaveScreenshot("shot.png")` |
 | `StatsDraws()` / `GetStatsDraws()` | Visible mesh count | `d = StatsDraws()` |

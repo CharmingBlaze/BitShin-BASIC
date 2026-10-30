@@ -215,6 +215,17 @@ void JoltSetBodyCollisionLayer(JoltBodyID body, int layer)
 	sBodyLayer[key] = layer;
 }
 
+// The layer table is process-wide. A new world starts from every layer
+// colliding and no body layers: without this, a world inherited the last
+// one's rules, and a reused body index its old layer.
+void JoltResetCollisionLayers(void)
+{
+	std::lock_guard<std::mutex> lock(sLayerMu);
+	sBodyLayer.clear();
+	sLayerInited = false;
+	ensureLayerMatrix();
+}
+
 void JoltSetLayerPairCollides(int layerA, int layerB, int collides)
 {
 	layerA = clampLayer(layerA);

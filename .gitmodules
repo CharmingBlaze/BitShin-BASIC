@@ -1,0 +1,4 @@
+[submodule "third_party/jolt/JoltPhysics"]
+	path = third_party/jolt/JoltPhysics
+	url = https://github.com/jrouwe/JoltPhysics.git
+	shallow = true

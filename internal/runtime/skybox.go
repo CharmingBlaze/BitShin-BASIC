@@ -243,24 +243,88 @@ func (w *World) syncVisualSun() {
 	if haze != nil {
 		hazeKey = *haze
 	}
-	sameHaze := math32.Abs(hazeKey.R-w.skyHazeKey.R)+math32.Abs(hazeKey.G-w.skyHazeKey.G)+math32.Abs(hazeKey.B-w.skyHazeKey.B) < 0.02
-	if w.skySunOK && sameHaze && math32.Abs(w.skySun.X-d.X)+math32.Abs(w.skySun.Y-d.Y)+math32.Abs(w.skySun.Z-d.Z) < 0.002 {
+	sameHaze := colorDist(hazeKey, w.skyHazeKey) < 0.02
+	// A running clock blends the sky colors too (setPlayHour)
+	sameCols := colorDist(w.skyTop, w.skyTopKey)+colorDist(w.skyBot, w.skyBotKey) < 0.012
+	if w.skySunOK && sameHaze && sameCols && math32.Abs(w.skySun.X-d.X)+math32.Abs(w.skySun.Y-d.Y)+math32.Abs(w.skySun.Z-d.Z) < 0.004 {
 		return
 	}
+	if w.scene == nil || w.skies == nil || len(w.skies) == 0 {
+		w.skySun = d
+		w.skySunOK = true
+		w.skyHazeKey = hazeKey
+		return
+	}
+	// One repaint at a time and at most every 6th frame: a fast clock
+	// moves the sun every frame. tickSky asks again once this one lands.
+	if w.skyBusy || (w.renderSerial > 0 && w.renderSerial-w.skyPaintAt < 6) {
+		w.skyAgain = true
+		return
+	}
+	w.skyPaintAt = w.renderSerial
 	w.skySun = d
 	w.skySunOK = true
 	w.skyHazeKey = hazeKey
-	if w.scene == nil || w.skies == nil || len(w.skies) == 0 {
-		return
+	w.skyTopKey, w.skyBotKey = w.skyTop, w.skyBot
+	top, bot := w.skyTop, w.skyBot
+	var hz *math32.Color
+	if haze != nil {
+		c := *haze
+		hz = &c
 	}
 	sx, sy, sz := float64(d.X), float64(d.Y), float64(d.Z)
-	imgs := clearSkyImages(sx, sy, sz, haze)
-	if w.skyTop.R+w.skyTop.G+w.skyTop.B > 0 {
-		imgs = generateSkyImages(w.skyTop, w.skyBot, sx, sy, sz, haze)
+	paint := func() [6]*image.RGBA {
+		if top.R+top.G+top.B > 0 {
+			return generateSkyImages(top, bot, sx, sy, sz, hz)
+		}
+		return clearSkyImages(sx, sy, sz, hz)
+	}
+	// Before the first frame, paint now so the scene opens on the right
+	// sky. After, a moving sun or clock repaints on a worker: six 192 px
+	// faces were a 10-20 ms hitch each time.
+	if w.renderSerial == 0 {
+		w.swapProcSky(paint())
+		return
+	}
+	w.skyBusy = true
+	jobs := w.ensureJobs()
+	jobs.submit(func() {
+		imgs := paint()
+		jobs.enqueueGL(func() {
+			w.skyBusy = false
+			w.swapProcSky(imgs)
+		})
+	})
+}
+
+// tickSky repaints a sky change that arrived while one was painting or
+// too soon after the last, so the final hour of a stopped clock still lands.
+func (w *World) tickSky() {
+	if w.skyAgain && !w.skyBusy && w.renderSerial-w.skyPaintAt >= 6 {
+		w.skyAgain = false
+		w.syncVisualSun()
+	}
+}
+
+func colorDist(a, b math32.Color) float32 {
+	return math32.Abs(a.R-b.R) + math32.Abs(a.G-b.G) + math32.Abs(a.B-b.B)
+}
+
+// swapProcSky shows a repainted procedural sky and frees the one it
+// replaces, so a running clock does not pile up skyboxes.
+func (w *World) swapProcSky(imgs [6]*image.RGBA) {
+	if w.scene == nil {
+		return
 	}
 	id, err := w.publishSky(imgs)
-	if err == nil {
-		w.setSkyBox(id)
+	if err != nil {
+		return
+	}
+	prev := w.skyProcID
+	w.setSkyBox(id)
+	w.skyProcID = id
+	if prev != 0 && prev != id {
+		w.freeSkyBox(prev)
 	}
 }
 
@@ -558,9 +622,15 @@ func (w *World) freeSkyBox(id int) {
 		}
 		s.box.SetVisible(false)
 	}
+	if s.box != nil {
+		s.box.Dispose() // its six face textures
+	}
 	delete(w.skies, id)
 	if w.skyID == id {
 		w.skyID = 0
+	}
+	if w.skyProcID == id {
+		w.skyProcID = 0
 	}
 }
 

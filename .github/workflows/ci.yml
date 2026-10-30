@@ -2,19 +2,36 @@ name: ci
 
 on:
   push:
-    branches: [main, master]
   pull_request:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The non-Windows platforms with a native Jolt build (Windows is the
+        # development machine; its link needs LLVM-MinGW's libc++). With
+        # MOON_REQUIRE_JOLT the physics tests fail instead of skipping if
+        # Jolt drops to the fallback.
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-14]
+    runs-on: ${{ matrix.os }}
+    env:
+      MOON_REQUIRE_JOLT: "1"
+      CGO_ENABLED: "1"
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive # Jolt headers for internal/jolt
       - uses: actions/setup-go@v5
         with:
           go-version: "1.25"
+      - name: Linux headers (GL, X11, ALSA)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-dev xorg-dev libasound2-dev
       - name: Vet language packages
         run: go vet ./internal/lex ./internal/parse ./internal/interp ./internal/value ./internal/ast ./internal/phys2d ./internal/phys3d ./internal/netenet
+      - name: Jolt on this platform
+        run: go test -v -run 'TestJoltOnThisPlatform|TestDefaultBackend' ./internal/phys3d
       - name: Test (no window)
         run: go test ./internal/lex ./internal/parse ./internal/interp ./internal/value ./internal/phys2d ./internal/phys3d ./internal/runtime ./internal/mathx ./cmd/bs
       - name: Build CLI

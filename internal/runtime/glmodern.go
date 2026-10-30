@@ -48,36 +48,37 @@ type glUserShader struct {
 }
 
 type geomPoints struct {
-	count      int
-	data       []float32 // x y z size r g b per point
-	vao, vbo   uint32
-	dirty      bool
+	count    int
+	data     []float32 // x y z size r g b per point
+	vao, vbo uint32
+	dirty    bool
 }
 
 type glModern struct {
-	caps                               glCaps
-	skipped                            map[string]bool
-	gpuInst                            bool
-	tessOn                             bool
-	gl4OK                              bool
-	logged                             bool
-	sh                                 mathx.SH9
-	computes                           map[int]*glCompute
-	freeComp                           []int
-	nextComp                           int
-	bufs                               map[int]*glBuf
-	freeBuf                            []int
-	nextBuf                            int
-	shaders                            map[int]*glUserShader
-	freeSh                             []int
-	nextSh                             int
-	geoms                              map[int]*geomPoints
-	freeGeom                           []int
-	nextGeom                           int
-	instProg, instDepth, geomProg      uint32
-	tessProg                           uint32
+	caps                                glCaps
+	skipped                             map[string]bool
+	gpuInst                             bool
+	tessOn                              bool
+	gl4OK                               bool
+	logged                              bool
+	sh                                  mathx.SH9
+	computes                            map[int]*glCompute
+	freeComp                            []int
+	nextComp                            int
+	bufs                                map[int]*glBuf
+	freeBuf                             []int
+	nextBuf                             int
+	shaders                             map[int]*glUserShader
+	freeSh                              []int
+	nextSh                              int
+	geoms                               map[int]*geomPoints
+	freeGeom                            []int
+	nextGeom                            int
+	instProg, instDepth, geomProg       uint32
+	tessProg                            uint32
 	instOK, instDepthOK, geomOK, tessOK bool
-	instTried, geomTried, tessTried    bool
+	instTried, geomTried, tessTried     bool
+	instDepthTried                      bool
 }
 
 func (w *World) ensureGLMod() *glModern {
@@ -353,9 +354,11 @@ func (w *World) ensureInstDepthProgram() bool {
 	if m.instDepthOK {
 		return true
 	}
-	if !m.caps.instance {
+	// One try: a failed compile must not recompile every shadow pass.
+	if m.instDepthTried || !m.caps.instance {
 		return false
 	}
+	m.instDepthTried = true
 	p, err := compileLink(
 		struct {
 			kind uint32

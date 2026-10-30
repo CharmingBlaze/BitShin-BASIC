@@ -217,12 +217,19 @@ void main() {
             vec2 dv = dFdy(FragTexcoord * ts);
             float lod = 0.5 * log2(max(max(dot(du, du), dot(dv, dv)), 1e-8));
             float a = texMixed.a * (1.0 + max(lod, 0.0) * 0.25);
-            // A one-pixel ramp around the threshold instead of a hard step:
-            // blending is on, so the edge comes out antialiased.
-            float w = max(fwidth(a), 1e-4);
-            float cov = clamp((a - 0.45) / w + 0.5, 0.0, 1.0);
-            if (cov <= 0.0) discard;
-            texMixed.a = cov;
+            if (MeshCutout == 3) {
+                // Hard cut, for far cards: a soft edge blends with whatever
+                // was drawn first, often the sky behind the land.
+                if (a < 0.45) discard;
+                texMixed.a = 1.0;
+            } else {
+                // A one-pixel ramp around the threshold instead of a hard
+                // step: blending is on, so the edge comes out antialiased.
+                float w = max(fwidth(a), 1e-4);
+                float cov = clamp((a - 0.45) / w + 0.5, 0.0, 1.0);
+                if (cov <= 0.0) discard;
+                texMixed.a = cov;
+            }
         }
     #endif
     vec4 matDiffuse = vec4(MatDiffuseColor, MatOpacity) * texMixed;

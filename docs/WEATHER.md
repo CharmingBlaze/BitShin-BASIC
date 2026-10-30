@@ -9,7 +9,7 @@ Demo: `examples/weather.mb` (keys **1–5**, **L** strike, WASD + mouse). Platfo
 | Source | License / notes | What we shipped |
 | --- | --- | --- |
 | [ebruneton/precomputed_atmospheric_scattering](https://github.com/ebruneton/precomputed_atmospheric_scattering) | BSD-3-Clause | **Partial.** Full 4D inscatter tables are huge and the reference often assumes newer sampling. We bake a **256×64 transmittance LUT in Go** and march **12-step single scatter** in `mbatmo` (GLSL 330). `CreateSkyBox("default")` also paints a CPU Bruneton-ish cubemap so a skybox is never a flat hex. |
-| [kevinmoran/Clouds](https://github.com/kevinmoran/Clouds) | typical sample (reimplemented) | A fixed pool of camera-facing cards (`mbclouds`), 36 shared quads. **Not** compute 3D Worley and **not** a noise volume. `SetClouds` / `CreateVolumetricClouds`. Coverage turns cards on. Wind drifts them. |
+| [kevinmoran/Clouds](https://github.com/kevinmoran/Clouds) | typical sample (reimplemented) | One sheet above the camera (`mbclouds`) shaded with 2D value noise. **Not** compute 3D Worley and **not** a noise volume. `SetClouds` / `CreateVolumetricClouds`. Coverage sets how much sky is cloud. Wind drifts it. |
 | LearnOpenGL skybox | educational | Cubemap path already existed (`CreateSkyBox` / `LoadSkyBox`). Extended, not replaced. |
 | [Polytonic/ParticleSystem](https://github.com/Polytonic/ParticleSystem) | typical MIT sample | Behavior mapped onto **our existing 3D emitters** (rate, life, wind, gravity). Rain = tall camera-yaw streaks (`mbpart`). Snow/ash/wisps = soft flakes (`mbflake`). |
 | [kevinmoran/RainShader](https://github.com/kevinmoran/RainShader) | typical sample | Streak particles + **wetness** on `mbshadow` / `mbphysical` / `mbterrain`: darker upward faces + extra spec when `SetWeather` is rain/storm (or `SetWeatherWetness`). |
@@ -49,7 +49,7 @@ Rain/snow particles that die or reach `TerrainHeight` / water spawn a ground spl
 | Feature | Status |
 | --- | --- |
 | Bruneton full precompute (4D inscatter + multiple scatter) | **Partial** — LUT + single scatter only |
-| True volumetric clouds (3D noise / compute) | **No** — 36 shared cloud cards |
+| True volumetric clouds (3D noise / compute) | **No** — one 2D noise cloud sheet |
 | Froxel / raymarched fog | **No** — distance + height exp |
 | Rain wetting as a screen-space post | **Partial** — material wetness + optional camera streaks (`SetCameraRain`) |
 | Wind on skinned trees | **No** — entity pitch/roll sway |

@@ -124,7 +124,7 @@ type litMat struct {
 	recvShadow  bool
 	vertexColor bool // multiply by VertexColor (merged level cells)
 	wind        bool // sway by texcoord weight (3D tree batches)
-	cutout      int  // 0 auto (cut unless blended), 1 always, 2 never
+	cutout      int  // 0 auto (cut unless blended), 1 always, 2 never, 3 hard (no soft edge)
 	specMap     *texture.Texture2D
 	emitMap     *texture.Texture2D
 	normMap     *texture.Texture2D

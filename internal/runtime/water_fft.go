@@ -16,10 +16,21 @@ type fftTile struct {
 }
 
 func (wb *waterBody) ensureFFT() {
-	if wb.fft != nil && wb.fft.n == 32 {
+	if wb.fft != nil && wb.fft.n == waterFFTN {
 		return
 	}
-	wb.fft = &fftTile{n: 32, size: 32}
+	wb.fft = &fftTile{n: waterFFTN, size: 32}
+}
+
+// fftStrength is the SetFFTStrength scale: 1 unset, 0 when set to 0.
+func (wb *waterBody) fftStrength() float32 {
+	switch {
+	case wb.fftAmp == 0:
+		return 1
+	case wb.fftAmp < 0:
+		return 0
+	}
+	return wb.fftAmp
 }
 
 func (ft *fftTile) sample(x, z, t float32) float32 {
@@ -100,7 +111,7 @@ func ifft2(re, im []float32, n int) {
 	}
 	col := make([]float32, n)
 	colI := make([]float32, n)
-	inv := 1 / float32(n*n)
+	inv := float32(waterFFTNorm)
 	for x := 0; x < n; x++ {
 		for z := 0; z < n; z++ {
 			col[z] = re[z*n+x]
@@ -150,6 +161,17 @@ func ifft1(re, im []float32) {
 	}
 }
 
+// prepareWaterFFT draws every FFT water's tile for this frame, before the
+// scene renders.
+func (w *World) prepareWaterFFT() {
+	for _, wb := range w.waters {
+		if wb == nil || !wb.fftOn || wb.mat == nil {
+			continue
+		}
+		w.uploadWaterFFT(wb, wb.mat.clock())
+	}
+}
+
 // uploadWaterFFT sends the baked Phillips tile to a repeating RGBA texture.
 // The red channel stores height as (h/4)+0.5 so the vertex shader can sample it.
 func (w *World) uploadWaterFFT(wb *waterBody, t float32) uint32 {
@@ -173,7 +195,7 @@ func (w *World) uploadWaterFFT(wb *waterBody, t float32) uint32 {
 	}
 	if wb.fftGL == 0 || wb.fftGPUTime != wb.fft.time {
 		for i, h := range wb.fft.h {
-			e := float32(h)/4 + 0.5
+			e := float32(h)*wb.fftStrength()/4 + 0.5
 			if e < 0 {
 				e = 0
 			}

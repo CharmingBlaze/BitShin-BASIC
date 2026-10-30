@@ -338,3 +338,57 @@ func TestSceneRowsRebaseAcrossAWorldShift(t *testing.T) {
 		t.Fatalf("a child's position is relative to its parent; got %v", x)
 	}
 }
+
+// A trunk under a cone crown draws as a tree: crown and trunk covered on
+// the middle line, corners clear, and the card the template's size.
+func TestTreeImpostorDrawsTheTemplate(t *testing.T) {
+	v := func(x, y, z float32) math32.Vector3 { return math32.Vector3{X: x, Y: y, Z: z} }
+	box := func(r, y0, y1 float32) [][3]math32.Vector3 {
+		var out [][3]math32.Vector3
+		c := []math32.Vector3{v(-r, 0, -r), v(r, 0, -r), v(r, 0, r), v(-r, 0, r)}
+		for i := range c {
+			a, b := c[i], c[(i+1)%4]
+			out = append(out, [3]math32.Vector3{v(a.X, y0, a.Z), v(b.X, y0, b.Z), v(b.X, y1, b.Z)},
+				[3]math32.Vector3{v(a.X, y0, a.Z), v(b.X, y1, b.Z), v(a.X, y1, a.Z)})
+		}
+		return out
+	}
+	var crown [][3]math32.Vector3
+	for i := 0; i < 8; i++ {
+		a0 := float32(i) / 8 * 2 * math32.Pi
+		a1 := float32(i+1) / 8 * 2 * math32.Pi
+		crown = append(crown, [3]math32.Vector3{v(2*math32.Cos(a0), 1.5, 2*math32.Sin(a0)), v(2*math32.Cos(a1), 1.5, 2*math32.Sin(a1)), v(0, 6, 0)})
+	}
+	parts := []meshPart{
+		{tris: box(0.3, 0, 1.6), color: math32.Color{R: 0.4, G: 0.25, B: 0.1}},
+		{tris: crown, color: math32.Color{R: 0.1, G: 0.5, B: 0.15}},
+	}
+	img, w, h := drawImpostor(parts, 0, 64)
+	if img == nil {
+		t.Fatal("no picture")
+	}
+	if math32.Abs(w-4) > 0.01 || math32.Abs(h-6) > 0.01 {
+		t.Fatalf("card %v x %v, want 4 x 6", w, h)
+	}
+	W, H := img.Rect.Dx(), img.Rect.Dy()
+	if H != 64 || W < 40 || W > 44 {
+		t.Fatalf("picture %d x %d", W, H)
+	}
+	at := func(fx, fy float32) uint8 { return img.RGBAAt(int(fx*float32(W)), int(fy*float32(H))).A }
+	if at(0.5, 0.5) < 200 {
+		t.Fatal("crown should cover the middle")
+	}
+	if at(0.5, 0.95) < 200 {
+		t.Fatal("trunk should cover the base")
+	}
+	if at(0.03, 0.03) != 0 || at(0.97, 0.03) != 0 || at(0.05, 0.97) != 0 {
+		t.Fatal("corners should be clear")
+	}
+	if c := img.RGBAAt(int(0.5*float32(W)), int(0.4*float32(H))); c.G <= c.R || c.G <= c.B {
+		t.Fatalf("crown should be green, got %v", c)
+	}
+	// Empty texels next to the crown carry its color for mipmaps
+	if c := img.RGBAAt(0, 0); c.A != 0 || c.G == 0 {
+		t.Fatalf("bleed texel %v", c)
+	}
+}

@@ -50,7 +50,7 @@ The water is a plane at `SetWaterLevel` and the ground hides it, so the shorelin
 - `SetWaterWind(dirX, dirZ [, strength])` steers directions and boosts aligned amplitude
 - `SetWeather("storm")` scales amplitude (`WaveStorm`)
 - CPU `WaterHeight(x, z)` matches the shader (including wind) for `CreateBuoy`
-- `EnableFFT on` adds a repeating 32×32 Phillips tile. `WaterHeight` uses the CPU inverse FFT. The water vertex shader samples a texture written by a GL 3.3 fragment-shader inverse DFT of the same spectrum
+- `EnableFFT on` adds a repeating 64×64 Phillips tile over 32 m. `WaterHeight` uses the CPU inverse FFT. The water vertex shader samples a half-float texture written by a two-pass GL 3.3 fragment-shader inverse DFT of the same spectrum, and the pixel shader adds its slope. `SetFFTStrength(n)` scales the chop
 
 ## Scenic (fragment + two cameras)
 

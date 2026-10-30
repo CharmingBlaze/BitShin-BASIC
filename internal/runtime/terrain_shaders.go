@@ -403,64 +403,127 @@ void main() {
 
 var mbterrainFragment = mbterrainFragmentHead + mbshadowSampleGLSL + mbterrainFragmentTail
 
-// mbclouds: one camera-facing card. The puff is a few ellipses, so the
-// corners discard and the sky shows between cards. No noise texture.
+// mbclouds: one sheet above the camera. Value-noise fbm in world XZ, so
+// clouds stay put as you move and drift with CloudDrift. Two short taps
+// toward the sun shade the side away from it.
 
 const mbcloudsVertex = `#include <attributes>
 uniform mat4 ModelMatrix;
 uniform mat4 CloudVP;
-uniform vec3 CloudCam;
-out vec2 FragTexcoord;
 out vec3 WorldPos;
 void main() {
-    vec3 center = ModelMatrix[3].xyz;
-    float sx = length(ModelMatrix[0].xyz);
-    float sy = length(ModelMatrix[1].xyz);
-    vec2 corner = VertexPosition.xy;
-    vec3 toCam = CloudCam - center;
-    vec3 fwd = toCam / max(length(toCam), 0.001);
-    vec3 upRef = vec3(0.0, 1.0, 0.0);
-    if (abs(fwd.y) > 0.92) {
-        upRef = vec3(0.0, 0.0, 1.0);
-    }
-    vec3 right = normalize(cross(upRef, fwd));
-    vec3 up = normalize(cross(fwd, right));
-    WorldPos = center + right * corner.x * sx + up * corner.y * sy;
-    FragTexcoord = VertexTexcoord;
+    WorldPos = (ModelMatrix * vec4(VertexPosition, 1.0)).xyz;
     gl_Position = CloudVP * vec4(WorldPos, 1.0);
+    // Past the camera's far plane the sheet would end in a hard line; hold
+    // it just inside, like the sky.
+    gl_Position.z = min(gl_Position.z, gl_Position.w * 0.99999);
 }
 `
 
 const mbcloudsFragment = `precision highp float;
-in vec2 FragTexcoord;
 in vec3 WorldPos;
-uniform float CloudSeed;
-uniform float CloudDensity;
-uniform vec3 CloudColor;
+uniform vec3 CloudCam;
 uniform vec3 CloudSun;
+uniform vec3 CloudSunColor;
+uniform vec3 CloudHaze;
+uniform vec3 CloudColor;
+uniform vec3 CloudDrift;
+uniform float CloudCover;
+uniform float CloudDensity;
+uniform float CloudScale;
+uniform float CloudTime;
+uniform float CloudRadius;
+uniform float CloudNight;
+uniform float CloudCheap; // low tier: fewer octaves, one sun tap
 out vec4 FragColor;
 
-float blob(vec2 p, vec2 c, float rx, float ry) {
-    vec2 d = (p - c) / vec2(rx, ry);
-    return 1.0 - smoothstep(0.55, 1.0, dot(d, d));
+float hash(vec2 p) {
+    p = fract(p * vec2(123.34, 456.21));
+    p += dot(p, p + 45.32);
+    return fract(p.x * p.y);
+}
+float vnoise(vec2 p) {
+    vec2 i = floor(p);
+    vec2 f = fract(p);
+    vec2 u = f * f * (3.0 - 2.0 * f);
+    float a = hash(i);
+    float b = hash(i + vec2(1.0, 0.0));
+    float c = hash(i + vec2(0.0, 1.0));
+    float d = hash(i + vec2(1.0, 1.0));
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+}
+float fbm(vec2 p, int oct) {
+    float s = 0.0;
+    float amp = 0.5;
+    float norm = 0.0;
+    for (int i = 0; i < 5; i++) {
+        if (i >= oct) break;
+        s += amp * vnoise(p);
+        norm += amp;
+        p = mat2(1.6, 1.2, -1.2, 1.6) * p + vec2(17.0, 9.0);
+        amp *= 0.5;
+    }
+    return s / norm;
+}
+// Cloud noise at p: big shapes, eaten at the edges by finer noise that
+// slowly changes so the clouds boil as they drift.
+float cloudNoise(vec2 p, int oct) {
+    float base = fbm(p, 2);
+    float detail = fbm(p * 3.1 + vec2(CloudTime * 0.012, -CloudTime * 0.008), oct);
+    return base * 0.72 + detail * 0.28;
+}
+// Coverage from noise: 0 clear sky, 1 cloud.
+float cloudCov(float n) {
+    float edge = 1.0 - CloudCover;
+    return smoothstep(edge - 0.06, edge + 0.16, n);
+}
+// Thickness past the edge. Under full cover the coverage is 1 everywhere;
+// this still varies, so an overcast sky keeps its shape.
+float cloudThick(float n) {
+    return clamp((n - (1.0 - CloudCover)) / 0.32, 0.0, 1.0);
 }
 
 void main() {
-    vec2 p = FragTexcoord * 2.0 - 1.0;
-    float s = CloudSeed;
-    float fat = clamp(CloudDensity, 0.45, 1.8);
-    float a = blob(p, vec2(-0.28 + s * 0.16, 0.05), 0.62 * fat, 0.42);
-    float b = blob(p, vec2(0.32, 0.10 - s * 0.08), 0.50 * fat, 0.36);
-    float c = blob(p, vec2(-0.02, -0.22), 0.46 * fat, 0.30);
-    float d = blob(p, vec2(0.08 + s * 0.1, 0.28), 0.30 * fat, 0.24);
-    float n = max(max(a, b), max(c, d));
-    if (n < 0.04) {
-        discard;
-    }
+    vec2 xz = WorldPos.xz - CloudCam.xz;
+    float dist = length(xz) / CloudRadius;
+    float fade = 1.0 - smoothstep(0.45, 0.95, dist);
+    if (fade <= 0.0) discard;
+    vec2 p = (WorldPos.xz + CloudDrift.xz) * CloudScale;
+    // Fewer octaves far away, where they would only shimmer
+    int oct = CloudCheap > 0.5 ? 2 : (dist < 0.25 ? 4 : 3);
+    float n = cloudNoise(p, oct);
+    float c = cloudCov(n);
+    if (c < 0.01) discard;
+    float th = cloudThick(n);
     vec3 sun = normalize(CloudSun);
-    float shade = clamp(0.62 + 0.38 * n + sun.y * 0.08, 0.45, 1.0);
-    vec3 col = CloudColor * shade;
-    FragColor = vec4(col, clamp(n * 1.25, 0.0, 0.94));
+    // Thicker toward the sun: this side is in the cloud's own shadow
+    vec2 toSun = normalize(sun.xz + vec2(1e-4)) * 0.35;
+    float ahead = cloudThick(cloudNoise(p + toSun * 1.5, CloudCheap > 0.5 ? 1 : 2));
+    if (CloudCheap < 0.5) {
+        ahead = cloudThick(cloudNoise(p + toSun, 2)) * 0.6 + ahead * 0.4;
+    }
+    float lit = clamp(1.0 - (ahead - th * 0.5) * 0.9, 0.35, 1.0);
+    float dens = clamp(CloudDensity, 0.3, 2.0);
+    // Thick middles go grey underneath; storms (density over 1) darker still
+    float under = mix(1.0, 0.62, th) * mix(1.0, 0.5, clamp(dens - 1.0, 0.0, 1.0));
+    float day = 1.0 - CloudNight;
+    vec3 ambient = mix(CloudHaze, vec3(0.62, 0.68, 0.78), 0.4) * (0.55 + 0.25 * day);
+    // A low sun still lights the undersides from the side: sunset clouds glow
+    vec3 sunC = CloudSunColor * (0.45 + 0.55 * max(sun.y, 0.0));
+    vec3 col = CloudColor * (ambient * under + sunC * lit * under * 0.8);
+    // Sunset: a low sun lights the clouds from below in its own color
+    float low = 1.0 - smoothstep(0.03, 0.42, sun.y);
+    col += CloudSunColor * low * day * (0.25 + 0.45 * lit) * (1.0 - 0.4 * th);
+    // A bright rim where you look toward the sun through a thin edge
+    vec3 view = normalize(WorldPos - CloudCam);
+    float rim = pow(max(dot(view, sun), 0.0), 6.0) * (1.0 - th) * 0.9;
+    col += CloudSunColor * rim * day;
+    // Night: dim moonlit grey
+    col = mix(col, CloudHaze * 0.9 + vec3(0.03, 0.035, 0.05), CloudNight * 0.85);
+    // Far clouds melt into the haze, then away
+    col = mix(col, CloudHaze, smoothstep(0.15, 0.85, dist) * 0.75);
+    float alpha = c * fade * clamp(0.55 + 0.45 * dens, 0.4, 0.97);
+    FragColor = vec4(col, alpha);
 }
 `
 

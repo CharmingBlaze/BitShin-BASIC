@@ -83,7 +83,7 @@ SetTimeOfDay(15)
 | `5.5`–`8` and `17`–`19.5` | Sunset. |
 | `8`–`17` | Day. |
 
-The sun pitch follows the hour and stays at least 8°, so night is a low dim light. `GetTimeOfDay()` reads the hour back. Calling it again inside the same band does not rebuild the skybox.
+The sun pitch follows the hour and stays at least 8°, so night is a low dim light. `GetTimeOfDay()` reads the hour back. Colors blend between the bands, so a running clock changes the sky smoothly.
 
 In the example, hold `[` or `]` and the hour moves:
 

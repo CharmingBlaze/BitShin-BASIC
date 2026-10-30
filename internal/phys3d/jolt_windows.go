@@ -46,6 +46,7 @@ func New() World {
 	if err := jolt.Init(); err != nil {
 		return newFallback()
 	}
+	jolt.ResetCollisionLayers() // the last world's layer rules are not this one's
 	ps := jolt.NewPhysicsSystem()
 	ps.EnableContactListener(true)
 	ps.ConfigureStable()

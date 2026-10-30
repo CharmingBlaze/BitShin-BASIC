@@ -77,7 +77,7 @@ void main() {
         vec4 baseWorld = ModelMatrix * vec4(VertexPosition, 1.0);
         vec2 uv = fract(vec2(baseWorld.x, -baseWorld.z) / sz);
         float h = fftHeight(uv);
-        float stepUV = 1.0 / 32.0;
+        float stepUV = 1.0 / float(textureSize(WaterFFT, 0).x);
         float dx = sz * stepUV;
         float hx = fftHeight(uv + vec2(stepUV, 0.0));
         float hz = fftHeight(uv + vec2(0.0, stepUV));
@@ -108,6 +108,9 @@ void main() {
 
 const mbwaterFragment = `precision highp float;
 out vec4 FragColor;
+uniform sampler2D WaterFFT;
+uniform int WaterFFTOn;
+uniform float WaterFFTSize;
 in vec4 Position;
 in vec3 Normal;
 in vec2 FragTexcoord;
@@ -210,6 +213,19 @@ void main() {
     vec3 waveNormal = analytic;
     if (any(isnan(waveNormal)) || dot(waveNormal, waveNormal) < 1e-6) {
         waveNormal = faceN;
+    }
+    if (WaterFFTOn != 0) {
+        // The wave tile's slope per pixel. Vertices are meters apart and
+        // carry only its swell; this is the chop between them. Faded with
+        // distance, where it would shimmer.
+        float fsz = max(WaterFFTSize, 1.0);
+        vec2 fuv = fract(vec2(WorldPos.x, -WorldPos.z) / fsz);
+        float fe = 1.0 / float(textureSize(WaterFFT, 0).x);
+        float du = (texture(WaterFFT, fuv + vec2(fe, 0.0)).r - texture(WaterFFT, fuv - vec2(fe, 0.0)).r) * 4.0;
+        float dv = (texture(WaterFFT, fuv + vec2(0.0, fe)).r - texture(WaterFFT, fuv - vec2(0.0, fe)).r) * 4.0;
+        float fd = 2.0 * fe * fsz;
+        float near = 1.0 - smoothstep(25.0, 140.0, length(CamWorldPos - WorldPos));
+        waveNormal = normalize(waveNormal + vec3(-du / fd, 0.0, dv / fd) * 0.7 * near);
     }
     vec2 ndc = (ClipSpace.xy / max(ClipSpace.w, 0.0001)) * 0.5 + 0.5;
     vec2 reflectUV = vec2(ndc.x, 1.0 - ndc.y);

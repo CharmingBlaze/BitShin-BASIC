@@ -18,7 +18,6 @@ import (
 type playState struct {
 	hour     float32
 	sunScale float32
-	skyBand  string
 	outAmb   math32.Color
 	ambSet   bool
 
@@ -329,6 +328,8 @@ func (w *World) setPlayHour(hours float32) {
 		sun = 1
 	}
 	g.sunScale = sun
+	// Colors first: moving the sun below repaints the sky with them.
+	w.paintTimeSky(hours)
 	for _, e := range w.ents {
 		if e == nil || e.lgtKind != 1 || e.node == nil {
 			continue
@@ -338,51 +339,70 @@ func (w *World) setPlayHour(hours float32) {
 			e.lgtI.SetIntensity(sun)
 		}
 	}
-	band := "day"
-	if hours < 5.5 || hours >= 19.5 {
-		band = "night"
-	} else if hours < 8 || hours >= 17 {
-		band = "sunset"
-	}
-	if band != g.skyBand {
-		g.skyBand = band
-		w.paintTimeSky(band)
-	}
 	if g.room == 0 {
 		w.applyRoomLight()
 	}
 }
 
-func (w *World) paintTimeSky(band string) {
-	g := w.ensurePlay()
-	switch band {
-	case "night":
-		w.skyTop = math32.Color{0.03, 0.04, 0.09}
-		w.skyBot = math32.Color{0.08, 0.09, 0.14}
-		w.fogRGB = math32.Color{0.05, 0.06, 0.09}
-		g.outAmb = math32.Color{0.08, 0.09, 0.14}
-	case "sunset":
-		// Same palette as the "sunset" sky preset.
-		w.skyTop = math32.Color{0.30, 0.37, 0.62}
-		w.skyBot = math32.Color{0.98, 0.62, 0.44}
-		w.fogRGB = math32.Color{0.74, 0.55, 0.47}
-		g.outAmb = math32.Color{0.55, 0.32, 0.22}
-	default:
-		w.skyTop = math32.Color{0.525, 0.735, 0.84}
-		w.skyBot = math32.Color{0.9, 0.9, 0.95}
-		w.fogRGB = math32.Color{0.5, 0.6, 0.7}
-		g.outAmb = math32.Color{0.45, 0.48, 0.52}
+type timeSkyKey struct {
+	h                  float32
+	top, bot, fog, amb math32.Color
+}
+
+var (
+	skyNightKey  = timeSkyKey{top: math32.Color{R: 0.03, G: 0.04, B: 0.09}, bot: math32.Color{R: 0.08, G: 0.09, B: 0.14}, fog: math32.Color{R: 0.05, G: 0.06, B: 0.09}, amb: math32.Color{R: 0.08, G: 0.09, B: 0.14}}
+	skySunsetKey = timeSkyKey{top: math32.Color{R: 0.30, G: 0.37, B: 0.62}, bot: math32.Color{R: 0.98, G: 0.62, B: 0.44}, fog: math32.Color{R: 0.74, G: 0.55, B: 0.47}, amb: math32.Color{R: 0.55, G: 0.32, B: 0.22}} // the "sunset" preset
+	skyDayKey    = timeSkyKey{top: math32.Color{R: 0.525, G: 0.735, B: 0.84}, bot: math32.Color{R: 0.9, G: 0.9, B: 0.95}, fog: math32.Color{R: 0.5, G: 0.6, B: 0.7}, amb: math32.Color{R: 0.45, G: 0.48, B: 0.52}}
+)
+
+// timeSkyKeys hold each palette at an hour. Between keys the colors blend,
+// so a running clock eases from night through dawn to day; each palette is
+// whole at the middle of its old band.
+var timeSkyKeys = []timeSkyKey{
+	withHour(skyNightKey, 0), withHour(skyNightKey, 4.8), withHour(skySunsetKey, 6.3),
+	withHour(skyDayKey, 8.3), withHour(skyDayKey, 16.7), withHour(skySunsetKey, 18.4),
+	withHour(skyNightKey, 20.2), withHour(skyNightKey, 24),
+}
+
+func withHour(k timeSkyKey, h float32) timeSkyKey {
+	k.h = h
+	return k
+}
+
+func timeSkyAt(h float32) timeSkyKey {
+	for i := 0; i+1 < len(timeSkyKeys); i++ {
+		a, b := timeSkyKeys[i], timeSkyKeys[i+1]
+		if h < a.h || h > b.h {
+			continue
+		}
+		t := (h - a.h) / math32.Max(b.h-a.h, 1e-4)
+		t = t * t * (3 - 2*t)
+		lerp := func(x, y math32.Color) math32.Color {
+			return math32.Color{R: x.R + (y.R-x.R)*t, G: x.G + (y.G-x.G)*t, B: x.B + (y.B-x.B)*t}
+		}
+		return timeSkyKey{h: h, top: lerp(a.top, b.top), bot: lerp(a.bot, b.bot), fog: lerp(a.fog, b.fog), amb: lerp(a.amb, b.amb)}
 	}
+	return skyDayKey
+}
+
+// paintTimeSky sets the sky, fog, and outdoor ambient for the hour. The
+// first call builds the sky now; later ones repaint it as the colors or the
+// sun move (syncVisualSun, on a worker).
+func (w *World) paintTimeSky(hours float32) {
+	g := w.ensurePlay()
+	k := timeSkyAt(hours)
+	w.skyTop, w.skyBot, w.fogRGB, g.outAmb = k.top, k.bot, k.fog, k.amb
 	g.ambSet = true
 	if w.app == nil {
 		return
 	}
-	sx, sy, sz := w.proceduralSkySun()
-	id, err := w.publishSky(generateSkyImages(w.skyTop, w.skyBot, sx, sy, sz, w.skyHaze()))
-	if err == nil {
-		w.skyProc = true
-		w.setSkyBox(id)
+	w.skyProc = true
+	if len(w.skies) == 0 {
+		sx, sy, sz := w.proceduralSkySun()
+		w.swapProcSky(generateSkyImages(w.skyTop, w.skyBot, sx, sy, sz, w.skyHaze()))
+		return
 	}
+	w.syncVisualSun()
 }
 
 func (w *World) assignRoom(ent, room int) {

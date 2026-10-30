@@ -1186,6 +1186,7 @@ func (w *World) renderSceneCams(rend *renderer.Renderer, ww, hh int) {
 	if w.post.on && w.post.fbo != 0 {
 		targetFBO = w.post.fbo
 	}
+	w.prepareWaterFFT()
 	if !split {
 		targetFBO = w.sceneTarget(ww, hh)
 		cam := w.cam

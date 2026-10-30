@@ -70,9 +70,12 @@ type waterBody struct {
 	flowZ        float32
 	style        string
 	fftOn        bool
+	fftAmp       float32 // SetFFTStrength; 0 is 1
 	fft          *fftTile
 	fftGL        uint32
 	fftFBO       uint32
+	fftRows      uint32 // complex row pass of the GPU tile
+	fftRowsFBO   uint32
 	fftPix       []byte
 	fftGPUTime   float32
 	underFog     math32.Color
@@ -563,7 +566,7 @@ func (w *World) waterHeight(x, z float32) float32 {
 	h := wb.y + gerstnerHeightWind(wb.waves[:], wb.nWaves, x, z, t, storm, wb.windX, wb.windZ, wb.windStr)
 	if wb.fftOn {
 		wb.ensureFFT()
-		h += wb.fft.sample(x, z, t)
+		h += wb.fft.sample(x, z, t) * wb.fftStrength()
 	}
 	return h
 }
@@ -1324,6 +1327,27 @@ func (w *World) waterCommands(n func(func([]value.Value) (value.Value, error)) c
 				wb.ensureFFT()
 			}
 			return value.Num(float64(b01(wb.fftOn))), nil
+		}),
+		// SetFFTStrength([water,] n) scales the FFT chop, drawn and in
+		// WaterHeight alike. 1 is the default ripple of a few centimeters.
+		"setfftstrength": n(func(a []value.Value) (value.Value, error) {
+			wb := w.currentWater()
+			v := argN(a, 0, 1)
+			if len(a) >= 2 {
+				wb = w.waters[argI(a, 0, w.curWater)]
+				v = argN(a, 1, 1)
+			}
+			if wb == nil {
+				return value.Num(0), nil
+			}
+			if v < 0 {
+				v = 0
+			}
+			wb.fftAmp = float32(v)
+			if v == 0 {
+				wb.fftAmp = -1 // flat, not the default
+			}
+			return value.Num(v), nil
 		}),
 		"setgerstner": n(func(a []value.Value) (value.Value, error) {
 			wb := w.currentWater()

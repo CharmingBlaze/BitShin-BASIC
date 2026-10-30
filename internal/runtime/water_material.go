@@ -184,13 +184,16 @@ func (m *WaterMaterial) Bind(gs *gls.GLS) {
 	setUni1f(gs, "WaterPeak", peak)
 	fftTex := dummy
 	fftOn := 0
-	if wb.fftOn && m.w != nil {
-		if id := m.w.uploadWaterFFT(wb, m.clock()); id != 0 {
-			fftTex = id
-			fftOn = 1
-		}
+	// The tile was drawn before the scene (prepareWaterFFT): drawing it
+	// here, inside G3N's draw, left G3N's cached program and framebuffer
+	// stale, and the water vanished with a 1282.
+	if wb.fftOn && wb.fftGL != 0 {
+		fftTex = wb.fftGL
+		fftOn = 1
 	}
-	bindWaterSampler(gs, 11, fftTex, "WaterFFT")
+	// 14: unit 11 is the ShadowMap, bound after this, and a shared unit made
+	// the wave read shadow depth as height (the water rose about 2 m).
+	bindWaterSampler(gs, 14, fftTex, "WaterFFT")
 	setUni1i(gs, "WaterFFTOn", fftOn)
 	fftSize := float32(32)
 	if wb.fft != nil && wb.fft.size > 0 {

@@ -207,7 +207,7 @@ SetTimeOfDay(hour)
 | `5.5`–`8` and `17`–`19.5` | Sunset. |
 | `8`–`17` | Day. |
 
-Every directional light gets a new pitch and yaw. Pitch follows the hour and never drops below `8°`, so night is a low dim light. The skybox, fog color, and outdoor ambient change with the band. Calling it again inside the same band does not rebuild the skybox.
+Every directional light gets a new pitch and yaw. Pitch follows the hour and never drops below `8°`, so night is a low dim light. The skybox, fog color, and outdoor ambient blend from band to band as the hour moves; the sky repaints on a worker.
 
 `SetTimeOfDay` and `OutdoorLighting` both write the sun and the ambient. Use the clock when the hour should move. Use the preset when you want one daylight look or one interior look. Rooms (`RoomAmbient`, `EnterRoom`) dim that sun while you are indoors and restore it when you leave; that path is `docs/PLAY.md`.
 

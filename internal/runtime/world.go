@@ -321,6 +321,10 @@ type World struct {
 	skyCubeRev                       int
 	skyCubeSz                        int
 	skyHazeKey                       math32.Color // fog color the sky was painted with
+	skyTopKey, skyBotKey             math32.Color // gradient the sky was painted with
+	skyProcID                        int          // the last repainted procedural sky, freed by the next
+	skyBusy, skyAgain                bool         // a repaint on a worker; another wanted
+	skyPaintAt                       int          // renderSerial of the last repaint
 	probeCam                         *camera.Camera
 	capturingProbe                   bool
 	terrains                         map[int]*terrain
@@ -334,6 +338,8 @@ type World struct {
 	geo                              geoFrame
 	waters                           map[int]*waterBody
 	fftProg                          uint32
+	fftColsProg                      uint32
+	fftFailed                        bool // the GPU wave tile would not build; the CPU tile is used
 	fftVAO                           uint32
 	fftQuad                          uint32
 	waterClip                        [4]float32
@@ -385,6 +391,7 @@ type World struct {
 	post                             postFX
 	quality                          qualityState
 	treeParts                        map[int]treePartCache
+	treeImps                         map[int]*treeImpostor // side-on pictures of 3D tree templates
 	levels                           map[int]*level
 	renderSerial                     int // one per render(); per-frame caches key on it
 	entsAdded                        int // bumps on every addEntity
@@ -1157,6 +1164,7 @@ func (w *World) tickFX() {
 	w.tickWeather(dt)
 	w.tickEmitters(dt)
 	w.syncSkyboxes()
+	w.tickSky()
 	w.netUpdate()
 	w.updateNav()
 	w.tickCrowds()

@@ -73,6 +73,10 @@ func SetBodyCollisionLayer(body *BodyID, layer int) {
 	C.JoltSetBodyCollisionLayer(body.handle, C.int(layer))
 }
 
+// ResetCollisionLayers puts the process-wide layer table back to every
+// layer colliding, with no body layers. A new physics world calls it.
+func ResetCollisionLayers() { C.JoltResetCollisionLayers() }
+
 func SetLayerPairCollides(a, b int, on bool) {
 	flag := C.int(0)
 	if on {
