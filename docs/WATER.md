@@ -38,7 +38,11 @@ Vertex phase is `Time * WaveSpeed`. `SetWaterSpeed` only scrolls DuDv (`WaterMov
 
 ## Gerstner (vertex, GL 3.3)
 
-Sum of up to 4 waves on a **camera-centered LOD grid**. With `SetWaterFollow(True)` the mesh is rebuilt in bands so the water under the camera stays about **0.5 m** per cell out to 40 m, then 1.2 m, 4 m, and 28 m out to the horizon. That is what stops the ocean reading as huge flat triangles. `CreateWater` `segs` is a density hint, not a hard vertex cap. `SetWaterFollow(False)` rebuilds a uniform pond mesh of `w`×`d`.
+Sum of up to 4 waves on a **camera-centered LOD grid**. With `SetWaterFollow(True)` the mesh is rebuilt in bands so the water under the camera stays about **0.5 m** per cell out to 40 m, then 1.2 m, 4 m, and 28 m out to the horizon. That is what stops the ocean reading as huge flat triangles. Over a terrain, the bands out to the terrain's far ring use the ring's own cell size (1.2 to 4 m), so the water is never coarser than the ground it meets. The 28 m band past the fog gives up cells first when the grid is full.
+
+Where the bottom is within half a meter the water shows the sand through, and a broken surf line laps where it is within a meter. Both need the refraction depth, so they are off on `SetGraphicsQuality("low")`, which skips both water passes; medium renders them at 512, high at 1024. `Text()` labels are kept out of the reflection.
+
+The water is a plane at `SetWaterLevel` and the ground hides it, so the shoreline is wherever the terrain rises above that level. A finite heightmap reads as 0 past its border by default, which floods everything outside the map. For a lake rather than an island in a sea, call `SetTerrainEdge(t, "clamp")` (the outdoor demo) or `"mirror"`. With clamp, keep the map's border above the water level, or that stretch of shore runs out to the horizon as a channel. `CreateWater` `segs` is a density hint, not a hard vertex cap. `SetWaterFollow(False)` rebuilds a uniform pond mesh of `w`×`d`.
 
 - Phase clock is `t = Time * WaveSpeed` (per-wave `ω` still comes from `WaveLen.y`)
 - Horizontal chop `Q * A * D * cos(k·xz − ωt)` and height `A * sin(...)`

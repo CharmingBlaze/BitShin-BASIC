@@ -274,6 +274,13 @@ func newWaterGrid(width, depth float32, segs int) *geometry.Geometry {
 // water (the mesh is recentered on the camera), then a geometric stretch
 // out to radius so the horizon stays covered.
 func waterLODCoords(radius float32, segs int) ([]float32, int) {
+	return waterLODCoordsOver(radius, segs, 0, 0)
+}
+
+// waterLODCoordsOver keeps the cells no coarser than groundCell out to
+// groundReach. A 4 m or 28 m water cell over 3 m ground bends the
+// shoreline into long straight cuts.
+func waterLODCoordsOver(radius float32, segs int, groundCell, groundReach float32) ([]float32, int) {
 	if radius < 16 {
 		radius = 16
 	}
@@ -283,6 +290,20 @@ func waterLODCoords(radius float32, segs int) ([]float32, int) {
 		{110, 1.2},
 		{280, 4},
 		{radius, 28},
+	}
+	if groundCell > 0 && groundReach > 110 {
+		cell := groundCell
+		if cell < 1.2 {
+			cell = 1.2
+		}
+		if cell > 4 {
+			cell = 4
+		}
+		bands = []band{{40, 0.5}, {110, 1.2}, {groundReach, cell}}
+		if groundReach < 280 {
+			bands = append(bands, band{280, 4})
+		}
+		bands = append(bands, band{radius, 28})
 	}
 	if radius <= 40 {
 		bands = []band{{radius, radius / 48}}
@@ -305,6 +326,13 @@ func waterLODCoords(radius float32, segs int) ([]float32, int) {
 		n := int(span/cell + 0.5)
 		if n < 1 {
 			n = 1
+		}
+		// The last band is past the fog. It gives up cells first, so the
+		// slot cap does not stretch the near water.
+		if end >= radius-0.05 && b.end >= radius {
+			if left := 220 - (len(pos) - 1); left >= 4 && n > left {
+				n = left
+			}
 		}
 		step := span / float32(n)
 		for i := 1; i <= n; i++ {
@@ -354,7 +382,11 @@ func waterLODCoords(radius float32, segs int) ([]float32, int) {
 // newWaterLODGrid is a camera-centered mesh: dense under the camera and
 // coarse toward a far radius so the horizon stays filled.
 func newWaterLODGrid(radius float32, segs int) *geometry.Geometry {
-	xs, segs := waterLODCoords(radius, segs)
+	return newWaterLODGridOver(radius, segs, 0, 0)
+}
+
+func newWaterLODGridOver(radius float32, segs int, groundCell, groundReach float32) *geometry.Geometry {
+	xs, segs := waterLODCoordsOver(radius, segs, groundCell, groundReach)
 	n := len(xs)
 	pos := math32.NewArrayF32(0, n*n*3)
 	nor := math32.NewArrayF32(0, n*n*3)
@@ -422,7 +454,8 @@ func (w *World) buildWaterGeom(wb *waterBody) *geometry.Geometry {
 		return newWaterGrid(80, 80, 48)
 	}
 	if wb.follow {
-		return newWaterLODGrid(w.waterFarRadius(wb), wb.segs)
+		cell, reach, _ := w.groundBand()
+		return newWaterLODGridOver(w.waterFarRadius(wb), wb.segs, cell, reach)
 	}
 	return newWaterGrid(wb.w, wb.d, wb.segs)
 }
@@ -1008,7 +1041,17 @@ func (w *World) renderWaterFBO(rend *renderer.Renderer, cam *camera.Camera, t *w
 	gl.Viewport(0, 0, t.w, t.h)
 	gl.ClearColor(clear.R, clear.G, clear.B, 1)
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
+	// Text() labels live in the scene as GUI panels. In a water pass they
+	// would be drawn into the reflection and show upside down in the sea.
+	shown := make([]bool, len(w.texts))
+	for i, lab := range w.texts {
+		shown[i] = lab.Visible()
+		lab.SetVisible(false)
+	}
 	_ = rend.Render(w.scene, cam)
+	for i, lab := range w.texts {
+		lab.SetVisible(shown[i])
+	}
 	gl.BindFramebuffer(gl.FRAMEBUFFER, uint32(prevFBO))
 	gl.Viewport(prevVP[0], prevVP[1], prevVP[2], prevVP[3])
 }
@@ -1045,11 +1088,18 @@ func (w *World) renderWaterReflection(rend *renderer.Renderer, cam *camera.Camer
 		}
 	}()
 	w.ensureWaterMaps(wb)
-	if wb.reflectOn {
-		ensureWaterFBO(&wb.reflect, 1024, 1024)
+	// A pass the quality tier turns off frees its target, so the shader
+	// sees no texture instead of a stale one.
+	rsz, fsz := w.waterTargets()
+	if wb.reflectOn && rsz > 0 {
+		ensureWaterFBO(&wb.reflect, rsz, rsz)
+	} else if wb.reflect.fbo != 0 {
+		disposeWaterFBO(&wb.reflect)
 	}
-	if wb.refractOn {
-		ensureWaterFBO(&wb.refract, 1024, 1024)
+	if wb.refractOn && fsz > 0 {
+		ensureWaterFBO(&wb.refract, fsz, fsz)
+	} else if wb.refract.fbo != 0 {
+		disposeWaterFBO(&wb.refract)
 	}
 	sky := math32.Color{wb.color.R * 0.45, wb.color.G * 0.55, wb.color.B * 0.7}
 	if wb.reflectOn && wb.reflect.fbo != 0 {

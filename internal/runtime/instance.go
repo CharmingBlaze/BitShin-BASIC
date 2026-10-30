@@ -49,6 +49,16 @@ func (w *World) createInstanced(srcID, count int) (int, error) {
 	var ident math32.Matrix4
 	ident.Identity()
 	tris := geomWorldTris(srcGeom, ident)
+	col := math32.Color{0.35, 0.62, 0.28}
+	if e := w.ents[srcID]; e != nil && e.mat != nil {
+		col = e.mat.AmbientColor()
+	}
+	return w.newInstanced(srcGeom, tris, col, count, false), nil
+}
+
+// newInstanced is one batch of count copies of tris in one color. cpu
+// keeps it on the merged mesh (lit, shadowed) instead of the GPU path.
+func (w *World) newInstanced(srcGeom *geometry.Geometry, tris [][3]math32.Vector3, col math32.Color, count int, cpu bool) int {
 	xf := make([]instXform, count)
 	for i := range xf {
 		xf[i] = instXform{sx: 1, sy: 1, sz: 1}
@@ -58,17 +68,16 @@ func (w *World) createInstanced(srcID, count int) (int, error) {
 		e.node.GetNode().SetVisible(false)
 		e.name = "instances"
 	}
-	col := math32.Color{0.35, 0.62, 0.28}
-	if e := w.ents[srcID]; e != nil && e.mat != nil {
-		col = e.mat.AmbientColor()
-	}
-	im := &instancedMesh{src: srcGeom, tris: tris, count: count, xforms: xf, color: col, dirty: true}
+	im := &instancedMesh{src: srcGeom, tris: tris, count: count, xforms: xf, color: col, dirty: true, preferCPU: cpu}
 	if w.instances == nil {
 		w.instances = map[int]*instancedMesh{}
 	}
 	w.instances[pivot] = im
-	w.rebuildInstanceBatch(pivot)
-	return pivot, nil
+	if !cpu {
+		// A CPU batch is built once its caller has placed the copies.
+		w.rebuildInstanceBatch(pivot)
+	}
+	return pivot
 }
 
 func instanceMatrix(xf instXform) math32.Matrix4 {
@@ -91,7 +100,7 @@ func instanceMatrix(xf instXform) math32.Matrix4 {
 	cz, szn := float32(math.Cos(float64(rr))), float32(math.Sin(float64(rr)))
 	// scale * Rx * Ry * Rz, then translate (Blitz-ish applyRot order)
 	var s, rx, ry, rz math32.Matrix4
-	s.Scale(&math32.Vector3{sx, sy, sz})
+	s.MakeScale(sx, sy, sz)
 	rx.MakeRotationX(pr)
 	ry.MakeRotationY(yr)
 	rz.MakeRotationZ(rr)

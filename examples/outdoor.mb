@@ -34,6 +34,8 @@ ground = CreateTerrainFromHeightmap(hm, 140, 140, 18)
 ApplyTerrainSplat(ground)
 SetTerrainGrassCoverage(ground, 0.7)
 SetTerrainWaterHeight(ground, 2)
+; The map is 140 m. Past it the border height carries on instead of dropping into a sea.
+SetTerrainEdge(ground, "clamp")
 water = CreateWater(360, 360, 48)
 SetWaterLevel(2)
 SetWaterColor(16, 78, 108)

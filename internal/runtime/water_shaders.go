@@ -127,6 +127,7 @@ uniform int WaterRefractOn;
 uniform int WaterHasDuDv;
 uniform int WaterHasNormal;
 uniform float WaterMove;
+uniform float WaveTime;
 uniform float WaterWaveStrength;
 uniform float WaterShine;
 uniform float WaterReflectivity;
@@ -266,7 +267,10 @@ void main() {
     if (WaterRefractOn != 0) {
         vec3 grabbedR = texture(WaterRefract, refractUV).rgb;
         float bottom = smoothstep(0.25, 3.0, meters) * (1.0 - smoothstep(28.0, 70.0, meters));
-        refrColor = mix(refrColor, grabbedR, bottom * 0.8);
+        // The last half meter shows the sand through, so the water thins
+        // out onto the beach instead of ending in a hard colored line.
+        float edge = 1.0 - smoothstep(0.0, 0.5, meters);
+        refrColor = mix(refrColor, grabbedR, max(bottom * 0.8, edge));
     }
     vec3 reflectCol = mix(deepWaterColor, vec3(0.65, 0.78, 0.9), 0.35);
     if (WaterReflectOn != 0) {
@@ -331,7 +335,16 @@ void main() {
     foamMask *= step(0.3, foamNoise);
     foamMask *= 1.0 - contact;
     vec3 foamColor = vec3(0.82, 0.88, 0.92);
-    vec3 waterWithFoam = mix(base, foamColor, clamp(foamMask * foamNoise, 0.0, 0.4));
+    // Surf line: a broken band that laps up and back where the bottom is
+    // within a meter. Needs the refraction depth, so low tier has none.
+    float surf = 0.0;
+    if (WaterHasDepth != 0) {
+        float lap = 0.5 + 0.5 * sin(meters * 5.0 - WaveTime * 1.7 + foamNoise * 3.0);
+        surf = (1.0 - smoothstep(0.03, 0.9, meters)) * mix(0.3, 1.0, lap);
+        surf *= smoothstep(0.2, 0.55, foamNoise + 0.2);
+        surf *= exp(-camDist * 0.004);
+    }
+    vec3 waterWithFoam = mix(base, foamColor, clamp(foamMask * foamNoise + surf * 0.7, 0.0, 0.7));
 
     float sh = waterShadow(WorldPos, waveNormal, L);
     vec3 lit = waterWithFoam;

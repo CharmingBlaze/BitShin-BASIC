@@ -380,6 +380,8 @@ type World struct {
 	fogHFall                         float32
 	wetness                          float32
 	post                             postFX
+	quality                          qualityState
+	treeParts                        map[int]treePartCache
 	ushaders                         map[int]*userShader
 	freeUSh                          []int
 	nextUSh                          int
@@ -1129,6 +1131,7 @@ func (w *World) tickFX() {
 	if w.jobs != nil {
 		w.jobs.flushGL()
 	}
+	w.tickQuality()
 	w.tickBubble()
 	w.tickStream()
 	w.tickTerrain()
@@ -1206,6 +1209,7 @@ func (w *World) render(rend *renderer.Renderer) {
 	}
 	w.drawHUDOverlay3D(fbw, fbh)
 	w.guiPresent()
+	w.captureShot(fbw, fbh)
 	w.presentExtraWindows(rend)
 }
 

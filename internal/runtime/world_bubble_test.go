@@ -160,3 +160,43 @@ func TestChunkStaysInRangeAroundTheCamera(t *testing.T) {
 		t.Fatal("a chunk well outside the ring should drop")
 	}
 }
+
+func TestMorphedCellCenterMatchesTheCoarseTriangle(t *testing.T) {
+	// The coarse quad (0,0)-(4,4) splits on the a-d diagonal. Its center is
+	// the mean of a and d, not the bilinear mean of all four corners.
+	raw := func(x, z float32) float32 { return x * z }
+	got := coarseY(raw, 2, 2, 0, 0, 4, 4, 2, 1, 1)
+	if math.Abs(float64(got-8)) > 1e-4 {
+		t.Fatalf("center %v, want 8 on the a-d diagonal", got)
+	}
+}
+
+func TestMorphSlidesInSteps(t *testing.T) {
+	seen := map[int]bool{}
+	for m := float32(0); m <= 1; m += 0.01 {
+		seen[lodCode(1, m)] = true
+	}
+	if len(seen) != morphLevels+1 {
+		t.Fatalf("%d morph codes, want %d", len(seen), morphLevels+1)
+	}
+	if lodCode(2, 0) == lodCode(1, 0) || lodCode(4, 0) == lodCode(2, 1) {
+		t.Fatal("step and morph codes must not collide")
+	}
+}
+
+func TestHorizonCellsLandOnTheChunkBorder(t *testing.T) {
+	cw := float32(140) / 95 * 24 // outdoor.mb: 140 wide, 96 samples, 25 per chunk
+	segs := terrainMeshSegs(cw, 17)
+	if segs%4 != 0 {
+		t.Fatalf("raised segs %d should be a multiple of 4", segs)
+	}
+	for _, chunks := range []int{6, 24, 56} {
+		d := horizonCells(cw, segs, chunks)
+		if segs%d != 0 {
+			t.Fatalf("horizon cell %d does not divide %d", d, segs)
+		}
+		if chunks*(segs/d) > 240 {
+			t.Fatalf("%d chunks x %d cells is over the cap", chunks, segs/d)
+		}
+	}
+}

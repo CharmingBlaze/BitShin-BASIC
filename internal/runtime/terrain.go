@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"strings"
 	"fmt"
 	"image"
 	"image/color"
@@ -30,6 +31,36 @@ type heightField struct {
 	style                  int // 0 FBM, 1 Terrain-OpenGL value-noise
 	freq, disp, power      float32
 	seedX, seedZ           float32
+	edge                   int // finite map past its border: terrainEdgeZero, Clamp, Mirror
+}
+
+const (
+	terrainEdgeZero   = iota // height 0: an island in a sea
+	terrainEdgeClamp         // the border height carries on
+	terrainEdgeMirror        // the hills reflect, so the land keeps going
+)
+
+// edgeCoord maps a grid coordinate past a finite map back onto it.
+func edgeCoord(u float32, n int, mode int) float32 {
+	top := float32(n - 1)
+	if mode == terrainEdgeClamp {
+		if u < 0 {
+			return 0
+		}
+		if u > top {
+			return top
+		}
+		return u
+	}
+	period := 2 * top
+	u = float32(math.Mod(float64(u), float64(period)))
+	if u < 0 {
+		u += period
+	}
+	if u > top {
+		u = period - u
+	}
+	return u
 }
 
 type terrain struct {
@@ -63,12 +94,16 @@ type terrain struct {
 	detailPx     float32
 	scatters     []scatterLayer
 	scatterIDs   map[chunkKey][]int
+	scatterAt    map[chunkKey]int // scatterStep each chunk's copies were placed for
+	treeMesh     map[chunkKey][]int // 3D tree batches by treeBlock, out past the detail window
 	built        map[chunkKey]int
 	simOn        map[chunkKey]bool
 	morphOff     bool
 	horizonID    int
 	horizonAt    chunkKey
 	horizonN     int
+	horizonHoles int  // loaded detail chunks the ring was cut around
+	horizonBusy  bool // a worker is building the next ring
 	horizonTrees []int
 	cards        []treeCard
 	// Tree card setup. cardW/cardH 0 keeps the picture's default size.
@@ -91,7 +126,11 @@ func (hf *heightField) sample(x, z float32) float32 {
 	}
 	if u < 0 || v < 0 || u > float32(hf.gw-1) || v > float32(hf.gd-1) {
 		if !hf.proc {
-			return 0
+			if hf.edge == terrainEdgeZero {
+				return 0
+			}
+			u = edgeCoord(u, hf.gw, hf.edge)
+			v = edgeCoord(v, hf.gd, hf.edge)
 		}
 	}
 	x0 := int(math.Floor(float64(u)))
@@ -496,12 +535,12 @@ func (w *World) tickTerrain() {
 	for k := range need {
 		dx := float32(k.X-c.X) * float32(k.X-c.X)
 		dz := float32(k.Z-c.Z) * float32(k.Z-c.Z)
-		step, morph := t.lodBuild(dx + dz)
-		if morph >= 0.5 {
-			morph = 1
-		} else {
-			morph = 0
-		}
+		// Distance from the stream origin, not from its chunk, so the weight
+		// moves while you walk inside one chunk.
+		fx := float32(k.X) + 0.5 - ox/cw
+		fz := float32(k.Z) + 0.5 - oz/cw
+		step, morph := t.lodBuild(fx*fx + fz*fz)
+		morph = morphLevel(morph)
 		code := lodCode(step, morph)
 		x0 := float32(k.X) * cw
 		z0 := float32(k.Z) * cw
@@ -544,8 +583,18 @@ func (w *World) tickTerrain() {
 		})
 	}
 	w.syncHorizon(t, cw, c)
+	w.syncMeshTrees(t, cw, c)
 	w.faceTreeCards(t)
 	w.cullTerrainChunks(t, cw)
+}
+
+// detailLoaded reports a chunk inside the detail window whose mesh is up.
+func (t *terrain) detailLoaded(cam, k chunkKey) bool {
+	dx, dz := k.X-cam.X, k.Z-cam.Z
+	if dx < -t.radius || dx > t.radius || dz < -t.radius || dz > t.radius {
+		return false
+	}
+	return t.ents[k] != 0
 }
 
 // inHorizonRing is the coarse ground past the detailed chunks. Games keep
@@ -569,35 +618,58 @@ func (w *World) syncHorizon(t *terrain, cw float32, cam chunkKey) {
 	if t == nil || cw < 1 || t.radius < 0 {
 		return
 	}
-	reach := float32(360)
-	if w.fogMode != 0 && w.fogFar > reach {
-		reach = w.fogFar
+	n := w.horizonChunks(t, cw)
+	holes := 0
+	for z := cam.Z - t.radius; z <= cam.Z+t.radius; z++ {
+		for x := cam.X - t.radius; x <= cam.X+t.radius; x++ {
+			if t.ents[chunkKey{x, z}] != 0 {
+				holes++
+			}
+		}
 	}
-	if reach > 480 {
-		reach = 480
-	}
-	n := int(math.Ceil(float64(reach / cw)))
-	if n < t.radius+1 {
-		n = t.radius + 1
-	}
-	if n > 28 {
-		n = 28
-	}
-	if t.horizonID != 0 && t.horizonAt == cam && t.horizonN == n {
+	if t.horizonID != 0 && t.horizonAt == cam && t.horizonN == n && t.horizonHoles == holes {
 		return
 	}
-	g := w.buildHorizonMesh(t, cw, cam, n)
-	if g == nil {
+	if t.horizonBusy {
+		return // the next tick after it lands checks again
+	}
+	loaded := t.loadedDetail(cam)
+	swap := func(tt *terrain, m *meshArrays) {
+		g := m.geometry()
+		if g == nil {
+			return
+		}
+		id := w.terrainChunkEnt(g, tt)
+		if tt.horizonID != 0 {
+			w.retireChunkEntity(tt.horizonID)
+		}
+		tt.horizonID = id
+		tt.horizonAt = cam
+		tt.horizonN = n
+		tt.horizonHoles = holes
+		w.placeHorizonTrees(tt, cw, cam, n)
+	}
+	// The first ring is built now so frame one has ground to the fog. Later
+	// rings take ~25 ms on a 4 km map; a worker builds them while the old
+	// ring keeps drawing.
+	if t.horizonID == 0 {
+		swap(t, w.horizonArrays(t, cw, cam, n, loaded))
 		return
 	}
-	id := w.terrainChunkEnt(g, t)
-	if t.horizonID != 0 {
-		w.retireChunkEntity(t.horizonID)
-	}
-	t.horizonID = id
-	t.horizonAt = cam
-	t.horizonN = n
-	w.placeHorizonTrees(t, cw, cam, n)
+	t.horizonBusy = true
+	tid := t.id
+	jobs := w.ensureJobs()
+	jobs.submit(func() {
+		m := w.horizonArrays(t, cw, cam, n, loaded)
+		jobs.enqueueGL(func() {
+			tt := w.terrains[tid]
+			if tt == nil {
+				return
+			}
+			tt.horizonBusy = false
+			swap(tt, m)
+		})
+	})
 }
 
 // horizonCells is how many detail cells one horizon cell spans. It divides
@@ -631,7 +703,81 @@ func horizonCells(cw float32, segs, chunks int) int {
 	return best
 }
 
+// horizonChunks is how many chunks the coarse ring reaches from the camera.
+func (w *World) horizonChunks(t *terrain, cw float32) int {
+	reach := float32(360)
+	if w.fogMode != 0 && w.fogFar > reach {
+		reach = w.fogFar
+	}
+	if reach > 480 {
+		reach = 480
+	}
+	n := int(math.Ceil(float64(reach / cw)))
+	if n < t.radius+1 {
+		n = t.radius + 1
+	}
+	if n > 28 {
+		n = 28
+	}
+	return n
+}
+
+// groundBand is the horizon ring's cell size and reach, for meshes that
+// lie on the ground (water) and should be no coarser than it.
+func (w *World) groundBand() (cell, reach float32, ok bool) {
+	t := w.terrains[w.curTerrain]
+	if t == nil || t.radius < 0 {
+		return 0, 0, false
+	}
+	cw := t.chunkWorld()
+	if cw < 1 {
+		return 0, 0, false
+	}
+	n := w.horizonChunks(t, cw)
+	segs := t.chunkSegs(cw)
+	d := horizonCells(cw, segs, 2*n)
+	return cw / float32(segs/d), float32(n) * cw, true
+}
+
 func (w *World) buildHorizonMesh(t *terrain, cw float32, cam chunkKey, n int) *geometry.Geometry {
+	return w.horizonArrays(t, cw, cam, n, t.loadedDetail(cam)).geometry()
+}
+
+// meshArrays is a mesh's CPU side. A worker fills it; the GL thread wraps it.
+type meshArrays struct {
+	pos, nor, uvs *math32.ArrayF32
+	idx           *math32.ArrayU32
+}
+
+func (m *meshArrays) geometry() *geometry.Geometry {
+	if m == nil {
+		return nil
+	}
+	g := geometry.NewGeometry()
+	g.SetIndices(*m.idx)
+	g.AddVBO(gls.NewVBO(*m.pos).AddAttrib(gls.VertexPosition))
+	g.AddVBO(gls.NewVBO(*m.nor).AddAttrib(gls.VertexNormal))
+	g.AddVBO(gls.NewVBO(*m.uvs).AddAttrib(gls.VertexTexcoord))
+	return g
+}
+
+// loadedDetail snapshots the detail chunks that are drawing, so a worker
+// can cut the ring around them without reading t.ents.
+func (t *terrain) loadedDetail(cam chunkKey) map[chunkKey]bool {
+	out := map[chunkKey]bool{}
+	for z := cam.Z - t.radius; z <= cam.Z+t.radius; z++ {
+		for x := cam.X - t.radius; x <= cam.X+t.radius; x++ {
+			if k := (chunkKey{x, z}); t.ents[k] != 0 {
+				out[k] = true
+			}
+		}
+	}
+	return out
+}
+
+// horizonArrays is safe on a worker: it reads the height field and the
+// loaded snapshot only.
+func (w *World) horizonArrays(t *terrain, cw float32, cam chunkKey, n int, loaded map[chunkKey]bool) *meshArrays {
 	// A chunk-sized quad reads as a seam and a flat hill. Keep cells near
 	// the size of the ground you can still see through the fog.
 	segs := t.chunkSegs(cw)
@@ -642,9 +788,11 @@ func (w *World) buildHorizonMesh(t *terrain, cw float32, cam chunkKey, n int) *g
 		normCell = 0.2
 	}
 	quads := 2 * n * per
-	// The detailed window in cell indices. Whole chunks, so a quad is in or out.
-	h0 := (n - t.radius) * per
-	h1 := (n + t.radius + 1) * per
+	// Cut only where a detail chunk is already drawing. A chunk still on its
+	// way in keeps coarse ground instead of a hole for a frame.
+	hole := func(ix, iz int) bool {
+		return loaded[chunkKey{cam.X - n + ix/per, cam.Z - n + iz/per}]
+	}
 	type hz struct{ x, z int }
 	ids := map[hz]uint32{}
 	pos := math32.NewArrayF32(0, 0)
@@ -681,7 +829,7 @@ func (w *World) buildHorizonMesh(t *terrain, cw float32, cam chunkKey, n int) *g
 	}
 	for iz := 0; iz < quads; iz++ {
 		for ix := 0; ix < quads; ix++ {
-			if ix >= h0 && ix < h1 && iz >= h0 && iz < h1 {
+			if hole(ix, iz) {
 				continue
 			}
 			a := corner(ix, iz)
@@ -694,12 +842,7 @@ func (w *World) buildHorizonMesh(t *terrain, cw float32, cam chunkKey, n int) *g
 	if nverts < 3 || idx.Size() < 3 {
 		return nil
 	}
-	g := geometry.NewGeometry()
-	g.SetIndices(idx)
-	g.AddVBO(gls.NewVBO(pos).AddAttrib(gls.VertexPosition))
-	g.AddVBO(gls.NewVBO(nor).AddAttrib(gls.VertexNormal))
-	g.AddVBO(gls.NewVBO(uvs).AddAttrib(gls.VertexTexcoord))
-	return g
+	return &meshArrays{pos: &pos, nor: &nor, uvs: &uvs, idx: &idx}
 }
 
 func (w *World) attachTerrainChunk(t *terrain, key chunkKey, x0, z0, size float32, segs, step int, morph float32, lod int) {
@@ -712,14 +855,17 @@ func (w *World) attachTerrainChunk(t *terrain, key chunkKey, x0, z0, size float3
 	id := w.terrainChunkEnt(g, t)
 	if prev := t.ents[key]; prev != 0 && prev != id {
 		w.retireChunkEntity(prev)
-		w.freeScatter(t, key)
 	}
 	t.ents[key] = id
 	if t.built == nil {
 		t.built = map[chunkKey]int{}
 	}
 	t.built[key] = lod
-	w.placeScatter(t, key, x0, z0, size, step)
+	// A LOD or morph rebuild only changes the ground. Trees and props keep
+	// their copies, so the forest does not pop while you walk.
+	if at, ok := t.scatterAt[key]; !ok || at != t.scatterStep(step) {
+		w.placeScatter(t, key, x0, z0, size, step)
+	}
 	w.syncChunkSim(t, key, id, x0, z0, size)
 }
 
@@ -1008,6 +1154,27 @@ func (w *World) terrainCommands(n func(func([]value.Value) (value.Value, error))
 			}
 			return z()
 		}),
+		"setterrainedge": n(func(a []value.Value) (value.Value, error) {
+			t := w.pickTerrain(a)
+			if t == nil {
+				return z()
+			}
+			mode := terrainEdgeZero
+			switch strings.ToLower(strings.TrimSpace(argS(a, terrainArgOff(w, a)))) {
+			case "clamp":
+				mode = terrainEdgeClamp
+			case "mirror", "reflect":
+				mode = terrainEdgeMirror
+			}
+			if t.hf.edge != mode {
+				t.hf.edge = mode
+				w.dirtyTerrain(t)
+				if wb := w.currentWater(); wb != nil && wb.follow {
+					w.rebuildWaterMesh(wb)
+				}
+			}
+			return z()
+		}),
 		"setterrainblend": n(func(a []value.Value) (value.Value, error) {
 			t := w.pickTerrain(a)
 			if t != nil {
@@ -1016,9 +1183,16 @@ func (w *World) terrainCommands(n func(func([]value.Value) (value.Value, error))
 			return z()
 		}),
 		"setterrainsnow": n(func(a []value.Value) (value.Value, error) {
-			t := w.pickTerrain(a)
+			// Two arguments are always (on, y). True is 1, the first terrain's
+			// handle, so guessing from the value read (True, 140) as
+			// (terrain, on) and dropped the height.
+			t := w.terrains[w.curTerrain]
+			off := 0
+			if len(a) >= 3 {
+				t = w.pickTerrain(a)
+				off = terrainArgOff(w, a)
+			}
 			if t != nil {
-				off := terrainArgOff(w, a)
 				t.snowOn = argI(a, off, 1) != 0
 				if len(a) > off+1 {
 					t.snowH = float32(argN(a, off+1, 9))
@@ -1155,6 +1329,7 @@ func (w *World) addTerrain(hf heightField, chunkVerts, radius int) int {
 		w.terrains[id].morphOff = true
 	}
 	w.curTerrain = id
+	w.applyTerrainQuality(w.terrains[id], false)
 	w.ensureSplatTextures(w.terrains[id])
 	// Origin ring on the GL thread so the first Flip is not an empty plane.
 	w.seedTerrainChunks(w.terrains[id])
@@ -1342,6 +1517,7 @@ func (m *terrainMat) RenderSetup(gs *gls.GLS) {
 	m.w.bindFogUniforms(gs)
 	t := m.t
 	setUni1i(gs, "TerrainSplatOn", bool01(t.splat))
+	setUni1i(gs, "TerrainCheap", bool01(m.w.quality.set && m.w.quality.tier == qualityLow))
 	setUni1f(gs, "TerrainWaterY", t.waterY)
 	setUni1f(gs, "TerrainBlend", t.blend)
 	setUni1f(gs, "TerrainGrassCover", t.grassCover)

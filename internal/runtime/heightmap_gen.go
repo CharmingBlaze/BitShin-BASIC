@@ -37,6 +37,7 @@ type HeightmapSpec struct {
 	PanX, PanY        float64
 	Black, White      float64
 	Mode              string // fbm (default), ridged, diamond / diamondsquare
+	Island            bool   // sink the rim below 0.1 so the map is land in a sea
 }
 
 func (s HeightmapSpec) normalize() HeightmapSpec {
@@ -99,12 +100,24 @@ func heightmapPreset(name string) HeightmapSpec {
 		s.Octaves, s.Persistence, s.Lacunarity, s.Scale = 3, 0.25, 2.0, 300
 	case "alpine", "alps":
 		s.Octaves, s.Persistence, s.Lacunarity, s.Scale = 7, 0.5, 2.2, 100
+	case "island":
+		// Scale 0 follows the map width, so a 512 map is one island with
+		// a few hills, not a field of bumps.
+		s.Octaves, s.Persistence, s.Lacunarity, s.Scale = 6, 0.48, 2.1, 0
+		s.Island = true
 	}
 	return s
 }
 
 // GenerateHeightmapCPU fills a [0,1] field. Pure CPU; no GL.
 func GenerateHeightmapCPU(spec HeightmapSpec) []float32 {
+	if spec.Island && spec.Scale <= 0 {
+		m := spec.Width
+		if spec.Height < m {
+			m = spec.Height
+		}
+		spec.Scale = float64(m) / 3.5
+	}
 	spec = spec.normalize()
 	w, h := spec.Width, spec.Height
 	data := make([]float32, w*h)
@@ -143,7 +156,31 @@ func GenerateHeightmapCPU(spec HeightmapSpec) []float32 {
 			data[i] = float32(v)
 		}
 	}
+	if spec.Island {
+		shapeIsland(data, w, h, 1)
+	}
 	return data
+}
+
+// shapeIsland fades the map to 0 at its rim. The coast follows the hills
+// (a high spot pushes it out), so the outline is not a circle, and the
+// slope through 0.05-0.15 is long enough to read as beach.
+func shapeIsland(data []float32, w, h int, strength float64) {
+	if w < 2 || h < 2 {
+		return
+	}
+	for y := 0; y < h; y++ {
+		nz := float64(y)/float64(h-1)*2 - 1
+		for x := 0; x < w; x++ {
+			nx := float64(x)/float64(w-1)*2 - 1
+			i := y*w + x
+			v := float64(data[i])
+			d := math.Sqrt(nx*nx+nz*nz) - (v-0.5)*0.35
+			f := 1 - smoothstep64(0.45, 0.92, d)
+			shaped := f * (0.18 + 0.82*v)
+			data[i] = float32(v + (shaped-v)*strength)
+		}
+	}
 }
 
 func (n *noise2) fbmOpen(x, z float64, octaves int, persist, lacunarity float64) float64 {
@@ -555,6 +592,8 @@ func FilterHeightmap(data []float32, w, h int, kind string, strength float64) {
 			ridge := 1 - math.Abs(float64(v)*2-1)
 			data[i] = float32(float64(v) + (ridge-float64(v))*strength)
 		}
+	case "island":
+		shapeIsland(data, w, h, strength)
 	case "invert":
 		for i, v := range data {
 			inv := 1 - float64(v)

@@ -68,6 +68,7 @@ uniform float TerrainWorldD;
 uniform float TerrainOriginX;
 uniform float TerrainOriginZ;
 uniform int TerrainSplatOn;
+uniform int TerrainCheap;
 uniform int TerrainHasSand;
 uniform int TerrainHasGrass;
 uniform int TerrainHasGrass2;
@@ -127,6 +128,10 @@ vec3 stochasticRGB(sampler2D tex, vec2 uv) {
 }
 
 vec3 triplanarRGB(sampler2D tex, int has, vec3 fallback, vec3 wp, vec3 n, float sc) {
+    // Low tier: one planar read per layer instead of six.
+    if (TerrainCheap != 0) {
+        return has == 0 ? fallback : texture(tex, wp.xz * sc).rgb;
+    }
     vec3 an = abs(n);
     an = pow(max(an, vec3(0.0)), vec3(3.0));
     float s = an.x + an.y + an.z;

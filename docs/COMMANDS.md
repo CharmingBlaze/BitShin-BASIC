@@ -837,12 +837,12 @@ See `docs/TERRAIN.md`. OpenGL **3.3** grids: central-difference normals, far chu
 | `CreateTerrainFromHeightmap(hm [, w, d, hscale])` | Same as numeric `CreateTerrain` | `t = CreateTerrainFromHeightmap(hm, 80, 80, 14)` |
 | `LoadHeightmap(file$ [, w, d, hscale])` | Decode grayscale → **terrain** handle | `t = LoadHeightmap("h.png", 64, 64, 10)` |
 | `GenerateHeightmap(w, h, seed [, octaves, scale, persist, lacun, …])` | CPU FBM / ridged / diamond-square → heightmap handle | `hm = GenerateHeightmap(128, 128, 42, 6, 70, 0.48, 2.15)` |
-| `GenerateHeightmapPreset(name$, w, h, seed)` | `alpine` `rolling-hills` `sharp-peaks` `archipelago` `plateaus` `gentle-dunes` | `hm = GenerateHeightmapPreset("alpine", 128, 128, 3)` |
+| `GenerateHeightmapPreset(name$, w, h, seed)` | `alpine` `rolling-hills` `sharp-peaks` `archipelago` `plateaus` `gentle-dunes` `island` (one landmass, rim below 0.1) | `hm = GenerateHeightmapPreset("alpine", 128, 128, 3)` |
 | `SaveHeightmap(path$ [, hm])` | Greyscale PNG | `SaveHeightmap("assets/heightmap.png", hm)` |
 | `ImportHeightmap(file$)` / `LoadHeightmapData` | Image → heightmap handle | `hm = ImportHeightmap("h.png")` |
 | `ErodeHeightmap(hm [, iters, talus, transfer])` | Thermal erosion | `ErodeHeightmap(hm, 6)` |
 | `HydraulicErodeHeightmap(hm [, drops, life, …])` | Droplet rivers | `HydraulicErodeHeightmap(hm, 280, 20)` |
-| `FilterHeightmap(hm, type$, strength#)` | `smooth` `terrace` `ridged` `invert` … | `FilterHeightmap(hm, "terrace", 0.7)` |
+| `FilterHeightmap(hm, type$, strength#)` | `smooth` `terrace` `ridged` `invert` `island` … | `FilterHeightmap(hm, "terrace", 0.7)` |
 | `HeightmapTexture([hm])` | Greyscale texture handle | `tex = HeightmapTexture(hm)` |
 | `HeightmapWidth([hm])` / `HeightmapHeight` | Size | `Print(HeightmapWidth(hm))` |
 | `CreateProcTerrain(seed, chunkSize, octaves [, hscale, worldScale])` | Infinite-ish FBM chunks | `t = CreateProcTerrain(7, 17, 5, 9, 40)` |
@@ -852,11 +852,12 @@ See `docs/TERRAIN.md`. OpenGL **3.3** grids: central-difference normals, far chu
 | `SetTerrainOctaves` / `SetTerrainFreq` / `SetTerrainDispFactor` / `SetTerrainPower` | Their GUI sliders (rebuilds chunks) | `SetTerrainOctaves(t, 8)` |
 | `SetTerrainGrassCoverage` / `SetTerrainRockColor` / `SetTerrainFogFalloff` | Splat + fog | `SetTerrainGrassCoverage(t, 0.65)` |
 | `SetTerrainWaterHeight` / `SetTerrainBlend` / `SetTerrainSnow(on [, y])` | Sand line + optional snow | `SetTerrainSnow(True, 8.5)` |
+| `SetTerrainEdge(t, mode$)` | Ground past a heightmap's border. `"zero"` (default) drops to 0, an island in a sea. `"clamp"` carries the border height on. `"mirror"` reflects the hills so the land keeps going and a lake stays a lake | `SetTerrainEdge(t, "mirror")` |
 | `SetTerrainTessMultiplier(m)` | CPU vertex density (not GL tess) | `SetTerrainTessMultiplier(t, 1.4)` |
 | `SetTerrainDetail(t, pixels)` | Screen-space size as a CPU step. `8` is the old LOD. Smaller stays fine longer. `0` clears it | `SetTerrainDetail(t, 6)` |
 | `SetTerrainBlendMap(t, tex)` | R sand, G grass, B rock, A snow. Empty texels keep slope/height | `SetTerrainBlendMap(t, paint)` |
 | `TerrainFoliage(t [, density])` | Crossed grass cards. `1` is a light meadow. `0` clears. Far chunks use one quad | `TerrainFoliage(t)` |
-| `TerrainTrees(t, mesh [, density])` | Copies on flat ground. A textured mesh becomes a card. `0` clears that mesh | `TerrainTrees(t, tree)` |
+| `TerrainTrees(t, mesh [, density])` | Copies on flat ground, in stands with thinner clearings. A textured mesh becomes a card. An untextured one is planted as 3D meshes, with its child meshes (crown on a trunk) and their colors. `0` clears that mesh | `TerrainTrees(t, tree)` |
 | `SetTreeCards(t, width, height [, crossed, face])` | Card size. `crossed` adds a second card at 90 degrees. `face` turns it toward the camera | `SetTreeCards(t, 3.6, 4.4, False, True)` |
 | `SetTreeCardCross(t, on)` | Two intersecting cards, or one | `SetTreeCardCross(t, True)` |
 | `SetTreeCardFace(t, on)` | Cards turn toward the camera, or keep the yaw they were planted with | `SetTreeCardFace(t, False)` |
@@ -1187,6 +1188,9 @@ ImGui panels use the existing `Gui*` commands. These query live numbers:
 | Command | Meaning | Example |
 | --- | --- | --- |
 | `StatsFPS()` / `GetStatsFPS()` | `1 / DeltaTime` | `fps = Int(StatsFPS())` |
+| `SetGraphicsQuality(q$)` | `"low"` `"medium"` `"high"` `"ultra"` or `"auto"`. One call sets shadow size, water reflection and refraction, post FX, terrain detail window and triangle size, tree/prop/grass count and reach. Low is aimed at a 2016 laptop iGPU at 720p: no water passes, cheap terrain texturing. `"auto"` reads the GPU name, then steps down a tier whenever frames average over 26 ms for 2 s. It never steps up. A setting you change after this call is yours until the next tier change | `SetGraphicsQuality("auto")` |
+| `GraphicsQuality()` | Current tier, `0` low to `3` ultra | `q = GraphicsQuality()` |
+| `SaveScreenshot(path$)` | Saves the next presented frame (scene, post, HUD) as a PNG | `SaveScreenshot("shot.png")` |
 | `StatsDraws()` / `GetStatsDraws()` | Visible mesh count | `d = StatsDraws()` |
 | `StatsChunks()` / `GetStatsChunks()` | Stream + terrain tiles | `c = StatsChunks()` |
 | `StatsJobs()` / `GetStatsJobs()` | Job pool pending | `j = StatsJobs()` |

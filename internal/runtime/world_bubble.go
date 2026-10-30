@@ -385,7 +385,16 @@ func coarseY(raw func(x, z float32) float32, x, z, x0, z0, x1, z1 float32, full,
 	at := func(i, j int) float32 {
 		return raw(x0+float32(i)/float32(full)*spanX, z0+float32(j)/float32(full)*spanZ)
 	}
-	c := (at(i0, j0)*(1-tx)+at(i1, j0)*tx)*(1-tz) + (at(i0, j1)*(1-tx)+at(i1, j1)*tx)*tz
+	// Same diagonal buildHeightMesh splits a coarse quad on (a,b,d / a,d,c).
+	// Bilinear would land the cell center off the coarse surface, and that
+	// vertex would still jump on the swap.
+	a, b, cc, d := at(i0, j0), at(i1, j0), at(i0, j1), at(i1, j1)
+	var c float32
+	if tx >= tz {
+		c = a + (b-a)*tx + (d-b)*tz
+	} else {
+		c = a + (cc-a)*tz + (d-cc)*tx
+	}
 	return y*(1-morph) + c*morph
 }
 

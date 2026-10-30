@@ -37,6 +37,12 @@ type treeCard struct {
 	width, height float32
 	crossed       bool
 	face          bool
+	// Where the cards were last turned toward, and the batch's middle.
+	// A far batch barely changes angle, so it is skipped until it would.
+	lastX, lastZ float32
+	midX, midZ   float32
+	rad          float32
+	faced        bool
 }
 
 // lodStep is the CPU stand-in for a screen-space triangle target.
@@ -106,12 +112,22 @@ func lodScale(t *terrain) float32 {
 	return s
 }
 
-func lodCode(step int, morph float32) int {
-	code := step
-	if morph >= 0.5 {
-		code += 8
+// morphLevels is how many rebuilds a chunk takes across its morph band.
+// Each one slides the verts an eighth of the way to the coarser lattice.
+const morphLevels = 8
+
+func morphLevel(morph float32) float32 {
+	if morph <= 0 {
+		return 0
 	}
-	return code
+	if morph >= 1 {
+		return 1
+	}
+	return float32(int(morph*morphLevels+0.5)) / morphLevels
+}
+
+func lodCode(step int, morph float32) int {
+	return step + 8*int(morphLevel(morph)*morphLevels+0.5)
 }
 
 func scatterBudget(kind string, density, size float32, step int) (n int, spacing float32) {
@@ -134,8 +150,17 @@ func scatterBudget(kind string, density, size float32, step int) (n int, spacing
 		if step >= 4 {
 			n = n / 2
 		}
-		if n > 24 {
-			n = 24
+		// 24 per 32 m chunk. A large map's 96 m chunk gets the same stand
+		// density, up to 160.
+		cap := int(24 * (size / 32) * (size / 32))
+		if cap < 24 {
+			cap = 24
+		}
+		if cap > 160 {
+			cap = 160
+		}
+		if n > cap {
+			n = cap
 		}
 		if n < 1 && density > 0 {
 			n = 1
@@ -235,8 +260,26 @@ func (t *terrain) setScatterLayer(kind string, mesh int, density, spacing float3
 	t.scatters = keep
 }
 
+// scatterStep is the part of a chunk's LOD its copies depend on. Trees and
+// props are the same at every distance; only grass thins on far chunks.
+func (t *terrain) scatterStep(step int) int {
+	for _, l := range t.scatters {
+		if l.kind == "grass" {
+			if step >= 2 {
+				return 2
+			}
+			return 1
+		}
+	}
+	return 1
+}
+
 func (w *World) freeScatter(t *terrain, key chunkKey) {
-	if t == nil || t.scatterIDs == nil {
+	if t == nil {
+		return
+	}
+	delete(t.scatterAt, key)
+	if t.scatterIDs == nil {
 		return
 	}
 	w.dropTreeCards(t, t.scatterIDs[key])
@@ -250,6 +293,8 @@ func (w *World) refreshScatter(t *terrain) {
 	if t == nil {
 		return
 	}
+	w.releaseMeshTrees(t)
+	w.treeParts = nil
 	cw := t.chunkWorld()
 	for k := range t.ents {
 		x0 := float32(k.X) * cw
@@ -278,6 +323,10 @@ func (w *World) placeScatter(t *terrain, key chunkKey, x0, z0, size float32, ste
 		return
 	}
 	w.freeScatter(t, key)
+	if t.scatterAt == nil {
+		t.scatterAt = map[chunkKey]int{}
+	}
+	t.scatterAt[key] = t.scatterStep(step)
 	if len(t.scatters) == 0 {
 		return
 	}
@@ -289,12 +338,21 @@ func (w *World) placeScatter(t *terrain, key chunkKey, x0, z0, size float32, ste
 		if (layer.kind == "tree" || layer.kind == "prop") && layer.mesh == 0 {
 			continue
 		}
-		pts := w.scatterPoints(t, layer, key, i, x0, z0, size, step)
+		if w.isMeshTreeLayer(layer) {
+			continue // syncMeshTrees owns these by chunk
+		}
+		// Trees and props use the near set everywhere. The same chunk then
+		// keeps the same copies whether it is near, far, or horizon.
+		ls := step
+		if layer.kind != "grass" {
+			ls = 1
+		}
+		pts := w.scatterPoints(t, layer, key, i, x0, z0, size, ls)
 		if len(pts) == 0 {
 			continue
 		}
-		far := step >= 2
-		if layer.kind == "tree" || layer.kind == "grass" || far || layer.mesh == 0 {
+		far := ls >= 2
+		if layer.kind == "tree" || layer.kind == "grass" || layer.mesh == 0 {
 			var tex *texture.Texture2D
 			crossed := !far && layer.kind == "grass"
 			if layer.kind == "tree" {
@@ -316,8 +374,11 @@ func (w *World) placeScatter(t *terrain, key chunkKey, x0, z0, size float32, ste
 			}
 			continue
 		}
-		id := w.plantInstances(layer.mesh, pts)
-		if id != 0 {
+		// Same planting as 3D trees: the template's scale and child parts
+		// come along, and the batch is frustum culled.
+		if parts, _ := w.treeMeshParts(layer.mesh); len(parts) > 0 {
+			ids = append(ids, w.plantMeshTrees(layer.mesh, pts)...)
+		} else if id := w.plantInstances(layer.mesh, pts); id != 0 {
 			ids = append(ids, id)
 		}
 	}
@@ -331,6 +392,9 @@ func (w *World) scatterPoints(t *terrain, layer scatterLayer, key chunkKey, salt
 	if layer.spacing > 0 {
 		spacing = layer.spacing
 	}
+	if sc := w.scatterScale(); sc < 1 {
+		n = int(float32(n)*sc + 0.5)
+	}
 	if n <= 0 {
 		return nil
 	}
@@ -339,8 +403,15 @@ func (w *World) scatterPoints(t *terrain, layer scatterLayer, key chunkKey, salt
 	pts := make([]scatterPt, 0, n)
 	space2 := spacing * spacing
 	tries := n * 10
-	if tries > 400 {
-		tries = 400
+	if tries > 400+n*2 {
+		tries = 400 + n*2
+	}
+	// Trees grow in stands with thinner ground between, not an even
+	// plantation. The clearings keep a fifth of the trees, so a small map
+	// that falls in one is not bare.
+	var forest *noise2
+	if layer.kind == "tree" {
+		forest = newNoise2(7919)
 	}
 	for i := 0; i < tries && len(pts) < n; i++ {
 		x := x0 + rng.Float32()*size
@@ -348,6 +419,12 @@ func (w *World) scatterPoints(t *terrain, layer scatterLayer, key chunkKey, salt
 		h := w.sampleHeight(&t.hf, x, z)
 		if !scatterAccept(layer.kind, scatterFlat(t, x, z), h, t.waterY, t.snowH, t.snowOn) {
 			continue
+		}
+		if forest != nil {
+			m := forest.fbm(float64(x)*0.0045, float64(z)*0.0045, 3, 0.5, 2)
+			if float64(rng.Float32()) > 0.2+0.8*smoothstep64(-0.15, 0.25, m) {
+				continue
+			}
 		}
 		ok := true
 		for _, p := range pts {
@@ -481,35 +558,32 @@ func (w *World) placeHorizonTrees(t *terrain, cw float32, cam chunkKey, n int) {
 	}
 	w.freeHorizonTrees(t)
 	reach := t.radius + 6
+	// Trees past the tier's reach would be fogged cards costing CPU every frame.
+	if w.quality.reach > 0 && cw > 0 {
+		if r := int(w.quality.reach/cw + 0.999); r < reach {
+			reach = r
+		}
+		if reach < t.radius+1 {
+			reach = t.radius + 1
+		}
+	}
 	if reach > n {
 		reach = n
 	}
 	for li, layer := range t.scatters {
-		if layer.kind != "tree" || layer.density <= 0 || layer.mesh == 0 {
+		if layer.kind != "tree" || layer.density <= 0 || layer.mesh == 0 || w.isMeshTreeLayer(layer) {
 			continue
 		}
+		// The same stand placeScatter plants, so a chunk crossing into the
+		// detail window keeps every tree where it was.
 		var pts []scatterPt
-		count, _ := scatterBudget(layer.kind, layer.density, cw, 2)
 		for z := cam.Z - reach; z < cam.Z+reach; z++ {
 			for x := cam.X - reach; x < cam.X+reach; x++ {
-				if !inHorizonRing(cam, chunkKey{X: x, Z: z}, t.radius, reach) {
+				k := chunkKey{X: x, Z: z}
+				if t.detailLoaded(cam, k) {
 					continue
 				}
-				for i := 0; i < count; i++ {
-					u := chunkHash01(x, z, li*17+i)
-					v := chunkHash01(x, z, li*17+i+101)
-					px := (float32(x) + 0.12 + 0.76*u) * cw
-					pz := (float32(z) + 0.12 + 0.76*v) * cw
-					h := w.sampleHeight(&t.hf, px, pz)
-					if !scatterAccept(layer.kind, scatterFlat(t, px, pz), h, t.waterY, t.snowH, t.snowOn) {
-						continue
-					}
-					pts = append(pts, scatterPt{
-						x: px, y: h, z: pz,
-						yaw:   chunkHash01(x, z, i+3) * 360,
-						scale: 0.85 + chunkHash01(x, z, i+9)*0.3,
-					})
-				}
+				pts = append(pts, w.scatterPoints(t, layer, k, li, float32(x)*cw, float32(z)*cw, cw, 1)...)
 			}
 		}
 		var tex *texture.Texture2D
@@ -632,6 +706,32 @@ func (w *World) faceTreeCards(t *terrain) {
 		if !c.face {
 			continue
 		}
+		last := &keep[len(keep)-1]
+		if !last.faced {
+			for _, p := range c.pts {
+				last.midX += p.x
+				last.midZ += p.z
+			}
+			last.midX /= float32(len(c.pts))
+			last.midZ /= float32(len(c.pts))
+			for _, p := range c.pts {
+				dx, dz := p.x-last.midX, p.z-last.midZ
+				if r := math32.Sqrt(dx*dx + dz*dz); r > last.rad {
+					last.rad = r
+				}
+			}
+		} else {
+			// Turn again once the camera has moved about 1 degree as seen
+			// from the batch's nearest tree. Near batches turn every frame.
+			dx, dz := cx-last.midX, cz-last.midZ
+			mx, mz := cx-last.lastX, cz-last.lastZ
+			lim := 0.018 * (math32.Sqrt(dx*dx+dz*dz) - last.rad)
+			if lim > 0.05 && mx*mx+mz*mz < lim*lim {
+				continue
+			}
+		}
+		last.faced = true
+		last.lastX, last.lastZ = cx, cz
 		writeTreeSprite(pos.Buffer(), nor.Buffer(), c.pts, c.width, c.height, c.crossed, cx, cz)
 		pos.Update()
 		nor.Update()

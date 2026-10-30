@@ -45,16 +45,16 @@ Clean-room port of the documented [ergin3d/heightmap-generator](https://github.c
 | Command | Meaning |
 | --- | --- |
 | `GenerateHeightmap(w, h, seed [, octaves, scale, persist, lacun [, panX, panY, black, white, mode$]])` | Handle. `mode$` = `fbm` (default), `ridged`, `diamond` |
-| `GenerateHeightmapPreset(name$, w, h, seed)` | Repo packs: `rolling-hills`, `sharp-peaks`, `archipelago`, `plateaus`, `gentle-dunes`, `alpine` |
+| `GenerateHeightmapPreset(name$, w, h, seed)` | Repo packs: `rolling-hills`, `sharp-peaks`, `archipelago`, `plateaus`, `gentle-dunes`, `alpine`, `island` (one landmass whose rim sinks below 0.1, so it sits in the sea; its hills scale with the map width) |
 | `ErodeHeightmap(hm [, iterations, talus, transfer])` | Thermal (steep slopes shed) |
 | `HydraulicErodeHeightmap(hm [, droplets, life, inertia, cap, erode, deposit, evap])` | Droplet rivers |
-| `FilterHeightmap(hm, type$, strength#)` | `smooth` `sharpen` `terrace` `ridged` `invert` `clamp` `normalize` `thermal` `hydraulic` |
+| `FilterHeightmap(hm, type$, strength#)` | `smooth` `sharpen` `terrace` `ridged` `invert` `clamp` `normalize` `thermal` `hydraulic` `island` |
 | `SaveHeightmap(path$ [, hm])` | 8-bit greyscale PNG |
 | `ImportHeightmap(file$)` / `LoadHeightmapData` | Image → generator handle (does **not** replace `LoadHeightmap` terrain) |
 | `HeightmapTexture([hm])` | Greyscale GL texture |
 | `HeightmapWidth` / `HeightmapHeight` | Size |
 
-`CreateTerrain` / `CreateTerrainFromHeightmap` feed the existing chunk mesh + splat path — they do not rebuild it.
+`CreateTerrain` / `CreateTerrainFromHeightmap` feed the existing chunk mesh + splat path — they do not rebuild it. A map is finite. Past its border the ground is 0 by default. `SetTerrainEdge(t, "clamp")` carries the border height on, and `SetTerrainEdge(t, "mirror")` reflects the hills so walking off the map is more land, not a cliff into water.
 
 Demo: `examples/heightmap.mb` (writes `examples/assets/heightmap.png`).
 
@@ -66,7 +66,7 @@ Lon/lat worlds use `docs/GEO.md` (`SetGeoOrigin`, `GeoProject`). `LoadGeoDEM` an
 
 ## Streaming + LOD
 
-`SetTerrainStreamRadius(terrain, n)` keeps a `(2n+1)²` window of detailed chunks around the camera, `SetStreamFollow`, or `SetStreamOrigin`. A coarser ring continues from that window out to the fog (capped at 480), the same split games use so the horizon is ground instead of sky. Those three still work on their own. `SetPlayer` points the same window at the player until an origin or follow call overrides it. With `SetTerrainLOD` on (the default), a far chunk is coarse in the middle (`step=2`, then `step=4`) and full resolution on the border. In the last third of each band the verts slide toward the next lattice (`SetWorldMorph`) so the swap does not pop. `SetWorldMorph(0)` leaves the old step swap. Skirts still drop that border so a missed sample cannot show sky. `SetTerrainTessMultiplier` raises CPU density. It is not a tessellation shader.
+`SetTerrainStreamRadius(terrain, n)` keeps a `(2n+1)²` window of detailed chunks around the camera, `SetStreamFollow`, or `SetStreamOrigin`. A coarser ring continues from that window out to the fog (capped at 480), the same split games use so the horizon is ground instead of sky. Its cells are a whole number of detail cells that divide the chunk, so the ring's inner edge sits on the tiles' own border vertices. Those three still work on their own. `SetPlayer` points the same window at the player until an origin or follow call overrides it. With `SetTerrainLOD` on (the default), a far chunk is coarse in the middle (`step=2`, then `step=4`) and full resolution on the border. In the last third of each band the verts slide toward the next lattice (`SetWorldMorph`) so the swap does not pop. The weight follows the stream origin's distance to the chunk and moves in eighths, one rebuild each. Trees and props keep their copies through those rebuilds. Only grass thins on far chunks. `SetWorldMorph(0)` leaves the old step swap. Skirts still drop that border so a missed sample cannot show sky. `SetTerrainTessMultiplier` raises CPU density. It is not a tessellation shader.
 
 Do not create GL objects on workers. The job submits; `enqueueGL` builds the G3N mesh on Flip.
 
@@ -140,7 +140,17 @@ Grass on the ground and grass you walk through are different. Trees and rocks ar
 
 **Grass cards.** `TerrainFoliage(terrain [, density])` scatters crossed cards where the ground is flat, below the snow line, and above the shore. `TerrainFoliage(t, 0)` clears them. Density `1` is a light meadow. Near cards are two crossed quads. On a far chunk (`step` 2 or 4) each card is one vertical quad turned toward the camera when that chunk is built.
 
-**Trees.** `TerrainTrees(terrain, mesh [, density])` plants copies on the same flat-ground test, with a minimum spacing so trunks do not stack. If that mesh has a texture, each copy is a card of the picture and the transparent pixels are cut out. `SetTreeCards(terrain, width, height [, crossed, face])` sets the card size in world units, `crossed` plants a second card at 90 degrees, and `face` turns the card toward the camera. `SetTreeCardCross` and `SetTreeCardFace` change one of those on their own. Face defaults on, crossed defaults off. Y comes from `TerrainHeight`. Scale varies a little around 1. `TerrainTrees(t, mesh, 0)` clears that mesh. Steep rock and snow stay bare.
+**Trees.** `TerrainTrees(terrain, mesh [, density])` plants copies on the same flat-ground test, with a minimum spacing so trunks do not stack. If that mesh has a texture, each copy is a card of the picture and the transparent pixels are cut out. `SetTreeCards(terrain, width, height [, crossed, face])` sets the card size in world units, `crossed` plants a second card at 90 degrees, and `face` turns the card toward the camera. `SetTreeCardCross` and `SetTreeCardFace` change one of those on their own. Face defaults on, crossed defaults off. Y comes from `TerrainHeight`. Scale varies a little around 1. `TerrainTrees(t, mesh, 0)` clears that mesh. Steep rock and snow stay bare. Trees grow in stands: low-frequency noise keeps every tree in a forest and a fifth of them in a clearing.
+
+**3D trees.** A template with no texture is planted as real meshes. Its direct children come along with their own colors, scale, and offset, so a hidden trunk with crown children is one tree:
+
+```basic
+pine = CreateCylinder(0.2, 3, 5, 0).Color(92, 64, 42).Hide()
+crown = CreateCone(1.9, 4.2, 6, 1, pine).Position(0, 3, 0).Color(34, 92, 46)
+TerrainTrees(ground, pine, 0.3)
+```
+
+3D trees are kept in 3×3-chunk blocks out to the quality tier's reach (220 m low to 480 m ultra), one batch per part per block, so a large map stays near a hundred draws. A block keeps its trees while its chunks change LOD, and new blocks are planted nearest first, one per frame. Props use the same planter, so a prop template's scale and children are kept too.
 
 **Props.** `TerrainProps(terrain, mesh [, density])` uses the same planter for rocks, bushes, and crates. The default rule is looser than trees: anything that is not a cliff or a snowfield, including the shore. One terrain can have several prop meshes. Each call adds a layer. Density `0` removes that mesh. Far props are one vertical quad.
 
