@@ -135,7 +135,7 @@ func normalizeOS(s string) string {
 }
 
 func buildWasmBundle(src, outDir string) error {
-	return fmt.Errorf("moon: HTML5/WASM is not a runnable game target (%s -> %s). The runtime needs a desktop OpenGL window. Use bs compile or bs build for windows, linux, or darwin", src, outDir)
+	return fmt.Errorf("moon: HTML5/WASM is not a runnable game target (%s -> %s). The runtime needs a desktop OpenGL window. Use moon compile or moon build for windows, linux, or darwin", src, outDir)
 }
 
 func collectAssets(bb, base, dest string, seen map[string]bool) error {

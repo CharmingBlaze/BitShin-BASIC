@@ -111,9 +111,6 @@ moonBASIC includes its own native compiler. You can compile any `.mb` script dir
 
 # Transpile a script into Go source
 .\moon.exe transpile examples\hud_demo.mb -o game.go
-
-# Export standalone HTML5 Web Player bundle (WASM)
-.\moon.exe build examples\hud_demo.mb -o dist\web -os wasm
 ```
 
 You can also package a portable folder using `moon build examples\scenes.mb -o dist`. That writes the binary, assets, and natives from `third_party/windows|linux|darwin` next to it. Run from that folder.
@@ -154,6 +151,8 @@ Do not mix `Graphics3D` and `Graphics2D` in one program.
 | `examples/windows.mb` | Extra GLFW window (shared context) |
 | `examples/shadows.mb` | Directional + point/spot + EVSM/MSM |
 | `examples/pbr.mb` | Opt-in metallic-roughness (GL 3.3) |
+| `examples/shading.mb` | PBR, toon, and unlit side by side; `SetLUT` presets; `SetOutline` ink lines |
+| `examples/area_lights.mb` | `CreateAreaLight` soft box and strip light in a dark room |
 | `examples/rover.mb` | FPS walk |
 | `examples/bounce.mb` | Collisions |
 | `examples/jolt_drop.mb` | 3D rigid body |
@@ -173,6 +172,7 @@ Do not mix `Graphics3D` and `Graphics2D` in one program.
 | `examples/tiles.mb` | Tilemap |
 | `examples/particles.mb` | 3D particles: `SetEmitterShape` `"soft"` or `"cube"` |
 | `examples/particles2d.mb` | 2D `CreateEmitter2D` |
+| `examples/gpu_particles.mb` | `CreateGPUEmitter`: 100k particles, five presets (`docs/PARTICLES.md`) |
 | `examples/splitscreen.mb` | `SetCameraViewport` / `CameraPick` |
 | `examples/struct.mb` | Struct / Method / Import / Namespace |
 | `examples/scenes.mb` | `ClearWorld` / `LoadScene` |
@@ -192,6 +192,7 @@ Do not mix `Graphics3D` and `Graphics2D` in one program.
 | `examples/outdoor.mb` | Grass, trees, props, time of day, rooms, use, save (`docs/PLAY.md`) |
 | `examples/terrain_gl.mb` | Terrain-OpenGL port (splat, water, sky, clouds) |
 | `examples/heightmap.mb` | Generate / erode / save PNG / mesh |
+| `examples/terrain_sculpt.mb` | Sculpt, flatten, smooth, and paint terrain with the mouse (`docs/TERRAIN.md`) |
 | `examples/geo.mb` | GeoJSON path + geo-bounded heightmap (WASD) |
 | `examples/water.mb` | Scenic / LearnOpenGL-style water (DuDv, Fresnel, dual FBO) |
 | `examples/gerstner.mb` | Gerstner ocean, wind, buoyancy, orbit cam |
@@ -225,19 +226,21 @@ This workspace maps `*.mb` → language id `moonbasic` (`.vscode/settings.json`)
 - [docs/MODERN_GAME_HELPERS.md](docs/MODERN_GAME_HELPERS.md) — FPS/TPS, tweens, grab / beam / projectile
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — packages and Flip
 - [docs/STATUS.md](docs/STATUS.md) — Real / Partial / not in product (**1.0.0**)
+- [docs/ROADMAP.md](docs/ROADMAP.md) — the full engine spec as a checklist: what is done, partial, and missing
 - [docs/RELEASE.md](docs/RELEASE.md) — portable `moon build` folders
 - [docs/COMPAT.md](docs/COMPAT.md) — OpenGL 3.3 required / 4.x optional
 - [docs/GRAPHICS.md](docs/GRAPHICS.md) — optional compute / SSBO / tess / GPU instances
-- [docs/LIGHTING.md](docs/LIGHTING.md) — Phong lights, falloff, indoor / outdoor, time of day
-- [docs/PBR.md](docs/PBR.md) — metallic-roughness (`mbphysical`)
-- [docs/TERRAIN.md](docs/TERRAIN.md) — heightmap, proc, LOD, stream (GL 3.3)
+- [docs/LIGHTING.md](docs/LIGHTING.md) — Phong lights, falloff, indoor / outdoor, time of day, area lights
+- [docs/PBR.md](docs/PBR.md) — metallic-roughness (`mbphysical`), plus unlit and toon shading modes
+- [docs/TERRAIN.md](docs/TERRAIN.md) — heightmap, proc, LOD, stream, runtime sculpting and painting (GL 3.3)
 - [docs/PLAY.md](docs/PLAY.md) — grass, trees, props, time of day, rooms, use, save
 - [docs/GEO.md](docs/GEO.md) — lon/lat origin, tiles, GeoJSON (go-geo subset)
-- [docs/WATER.md](docs/WATER.md) — Gerstner + scenic dual-FBO water (no FFT)
+- [docs/WATER.md](docs/WATER.md) — Gerstner, scenic dual-FBO, and FFT ocean water
 - [docs/STREAM.md](docs/STREAM.md) — old chunk stream, and the `SetPlayer` bubble
-- [docs/POSTFX.md](docs/POSTFX.md) — fullscreen blit stack
+- [docs/POSTFX.md](docs/POSTFX.md) — fullscreen blit stack: tonemap, bloom, AO, LUT grading, outlines
+- [docs/PARTICLES.md](docs/PARTICLES.md) — CPU and GPU (transform feedback) emitters
 - [docs/SHADERS.md](docs/SHADERS.md) — GLSL 330 programs + PBR
-- [docs/ASSETS.md](docs/ASSETS.md) — formats (`LoadMesh`, no FBX)
+- [docs/ASSETS.md](docs/ASSETS.md) — formats (`LoadMesh`: glTF, OBJ, DAE, FBX meshes)
 - [docs/NAV.md](docs/NAV.md) — Detour, crowd, terrain slopes
 - [docs/SHADOWS.md](docs/SHADOWS.md) — CSM / cache / filters
 - [docs/ECS.md](docs/ECS.md) — Flecs

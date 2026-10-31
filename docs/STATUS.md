@@ -2,7 +2,7 @@
 
 **1.0.0** of this product: Windows game runtime + documented Linux/macOS Jolt subset + portable `moon build`. Not Vulkan (a later renderer replaces this one; do not wrap Vulkan on G3N) or a deferred renderer. FBX skin is clusters and limb translation, not the Autodesk SDK. Crowd avoidance samples velocities the way DetourCrowd does; the Recast C API is not linked.
 
-What is wired and what is not. Classic command names still work; 2026 `Set*` / `Get*` aliases are registered on top.
+What is wired and what is not. Classic command names still work; 2026 `Set*` / `Get*` aliases are registered on top. For the full engine specification as a checklist, with what is left to build, see [ROADMAP.md](ROADMAP.md).
 
 **OpenGL baseline: 3.3 core.** G3N shaders are `#version 330 core` (G3N shaman prepends this). Extra GLFW windows hint 3.3. Never require 4.5. Optional 4.x is feature-detected (`docs/COMPAT.md`, `docs/GRAPHICS.md`).
 
@@ -11,9 +11,9 @@ What is wired and what is not. Classic command names still work; 2026 `Set*` / `
 | Pillar | Status | Notes |
 | --- | --- | --- |
 | Language | Real | This dialect: If / While / For / Repeat / Do, Exit, Static, Enum (`State.IDLE`), `$"{expr}"`, Const, Dim, Function, Include, Data/Read, Yes/No/Null, degree math, `Type`/`Struct` with methods, `Import [As]`, `Namespace`, coroutines, `@func`, `As`, `Math.*` / `String.*` / `Input.*` / `Entity.SetPos`. Raylib `App` / `Draw` / `Render` / `Model` names are not registered |
-| G3N 3D | Real | Window, mesh primitives, lights, cameras, textures, glTF/OBJ/DAE, animation, pick, fog, cubemap skyboxes, weather, 3D particles (`SetEmitterShape` soft / cube / streak / flake). Lighting guide: `docs/LIGHTING.md`. Shadows: CSM + PCF/PCSS/EVSM/MSM (`docs/SHADOWS.md`). **GL 3.3** |
+| G3N 3D | Real | Window, mesh primitives, lights, cameras, textures, glTF/OBJ/DAE, animation, pick, fog, cubemap skyboxes, weather, 3D particles (`SetEmitterShape` soft / cube / streak / flake). Lighting guide: `docs/LIGHTING.md`. Rectangular `CreateAreaLight` (up to four, no shadows). Shadows: CSM + PCF/PCSS/EVSM/MSM (`docs/SHADOWS.md`). `Graphics3D` picks a quality tier from the GPU unless the script sets one. **GL 3.3** |
 | Weather | Real (sky Partial) | Rain/snow/fog/storm particles, wetness, height fog, wind sway, lightning bolts. Atmosphere = Bruneton-style LUT + single scatter (`docs/WEATHER.md`). Not full 4D precompute / 3D clouds |
-| Terrain | Real | Heightmap PNG/JPEG, FBM proc, **CPU generator** (`GenerateHeightmap` / erosion / PNG), **Terrain-OpenGL** value-noise + `mbterrain` splat (`CreateTerrainGL`), chunk stream + CPU LOD (`SetTerrainDetail` is the CPU step, not GL tess), `TerrainFoliage` / `TerrainTrees` / `TerrainProps`, `SetTerrainBlendMap`, `TerrainHeight` / `TerrainSlope`, one shader cloud sheet, far 3D trees as impostor cards. `docs/TERRAIN.md`, `docs/PLAY.md` |
+| Terrain | Real | Heightmap PNG/JPEG, FBM proc, **CPU generator** (`GenerateHeightmap` / erosion / PNG), **Terrain-OpenGL** value-noise + `mbterrain` splat (`CreateTerrainGL`), chunk stream + CPU LOD (`SetTerrainDetail` is the CPU step, not GL tess), `TerrainFoliage` / `TerrainTrees` / `TerrainProps`, `SetTerrainBlendMap`, `TerrainHeight` / `TerrainSlope`, one shader cloud sheet, far 3D trees as impostor cards. Runtime `SculptTerrain` / `FlattenTerrain` / `SmoothTerrain` / `PaintTerrain` update meshes, collision, scatter, and the splat map. `docs/TERRAIN.md`, `docs/PLAY.md` |
 | Geo | Real | Thin Web Mercator subset (`internal/geo`): `SetGeoOrigin`, `GeoProject` / `GeoUnproject`, XYZ/TMS tiles, `LoadGeoJSON`, DEM bounds → existing `CreateTerrain`. **Not** full flywave/go-geo (PROJ/GEOS/CGO). `docs/GEO.md` |
 | Water | Real | Gerstner (vertex + wind + `WaterHeight`) and scenic dual-FBO / DuDv / Fresnel / depth tint / texture foam / dual normals; combo `ocean`. Optional `EnableFFT` Phillips tile. `WaterHeight` is the CPU inverse FFT. The water mesh samples a 64×64 half-float texture filled by a two-pass GL 3.3 fragment-shader inverse DFT of the same spectrum; `SetFFTStrength` scales it. Camera-centered LOD grid. Caustics, wakes, shoreline wetness. Auto Jolt buoyancy + `SetWaterFlow`. **SSR Partial** (lite planar-FBO march). Not a GPU FFT ocean. `docs/WATER.md` |
 | Streaming | Real | `SetPlayer` follows terrain, water, and props. Near chunks collide. Shift past 4 km. `SetWorldBubble(0)` leaves it manual. |
@@ -37,9 +37,9 @@ What is wired and what is not. Classic command names still work; 2026 `Set*` / `
 | ImGui | Real | `cimgui-go` v1.6.0 on the G3N GLFW + OpenGL 3.3 window (panels, menus, tabs, trees, sliders, color, combo). G3N's own widgets stay `CreateButton` / `CreatePanel` |
 | G3N widgets | Real | `CreatePanel` / `CreateButton` / `CreateSlider` / `SetOnClick` (scene-graph UI; names do not clash with `Gui*`) |
 | GLFW window / input | Real | Primary + extra shared-context windows |
-| PBR | Real | Opt-in metallic-roughness on `mbphysical` (GLSL 330). Shadows × direct only. IBL: analytic hemi + UE4 EnvBRDF split-sum + prefiltered sky cubemap (`textureLod`) + optional 2D `SetEnvMap`. `docs/PBR.md` |
+| PBR | Real | Opt-in metallic-roughness on `mbphysical` (GLSL 330). Shading modes: PBR, `SetUnlit`, `SetToon`; Blitz `EntityFX` flags 1/8/16. Shadows × direct only. IBL: analytic hemi + UE4 EnvBRDF split-sum + prefiltered sky cubemap (`textureLod`) + optional 2D `SetEnvMap`. `docs/PBR.md` |
 | Assets | Real | `LoadMesh`: `.glb` / `.gltf` / `.obj` / `.dae` / `.fbx` (mesh triangles). Textures: PNG/JPEG plus DDS and KTX/KTX2 **S3TC** uploaded compressed. `OptimizeMesh` uses the Go `meshoptim` package (Forsyth vertex cache, overdraw, vertex fetch). `SimplifyMesh` uses quadric error. KTX2 Zstd and ZLIB supercompression inflate to BC1–BC3. **No** BasisLZ transcoder or the meshoptimizer C++ library |
-| PostFX | Real | GL 3.3 FBO blit: tonemap, exposure, half-res bloom chain, FXAA, color grade, grain, vignette, chromatic aberration, sharpen. Not deferred MRT |
+| PostFX | Real | GL 3.3 FBO blit: tonemap, exposure, half-res bloom chain, FXAA, color grade, 3D LUT (`SetLUT`: presets, `.cube`, PNG), depth-edge outlines (`SetOutline`), grain, vignette, chromatic aberration, sharpen. Not deferred MRT |
 | Shader programs | Real | `CreateShader` / `LoadShader` / `SetShaderUniform` — GLSL 330 + PBR nodes. Not an Unreal graph |
 | Input | Real | Keys, `KeyHit`, mouse, `MouseLook`, gamepad + deadzone |
 | Serialization | Real | JSON/YAML/MessagePack. `SaveScene` writes `kind`/`src`/parent/transform/tint/`visible`; lights dump as `kind: light`; cameras dump `fov`/`near`/`far`. `SceneLoad` rebuilds primitives, remeshes, lights, and cameras. Old dumps without `kind` still become cubes. `.mb` `LoadScene` still works |
@@ -50,12 +50,12 @@ What is wired and what is not. Classic command names still work; 2026 `Set*` / `
 | --- | --- | --- |
 | 1 World streaming | Real | `SetPlayer` bubble. `SetWorldBubble(0)` is the manual path |
 | 2 ECS (Flecs) | Real | G3N entities are a separate world |
-| 3 Animation | Real | Clip play/stop/time, `AttachToBone`, `SetAnimBlend`, `SetAnimLayer` / `SetAnimAdditive`, two-bone `SetIK`, chain `SetIKChain` (FABRIK). Not a full animation rig from FBX |
+| 3 Animation | Real | Clip play/stop/time, `AttachToBone`, `SetAnimBlend`, `SetAnimLayer` / `SetAnimAdditive`, 1D/2D blend trees with phase sync (`CreateBlendTree`), `CrossfadeAnim`, two-bone `SetIK`, chain `SetIKChain` (FABRIK). No root motion or bone masks; not a full animation rig from FBX |
 | 4 Input | Real | — |
 | 5 Physics extensions | Real | Sleep/wake, 3D joints (incl. fixed/cone/swing-twist), 6DOF `Grab` at hit/anchor, compound collider, CharacterVirtual + inner body, vehicles, `SetCCD` LinearCast, Chipmunk 2D joints, collision layers, debug overlay. Linux amd64/arm64 and macOS ARM run the same native constraints, grab, cloth, and vehicles. Fallback integrates software rotation. `-tags joltgo` is the older subset. |
 | 6 Navigation + AI | Real | Detour bake + grid A* + Detour-style crowd samples + behavior trees + GOAP (`CreatePlanner`). The DetourCrowd C API is not linked |
-| 7 Material / shader graph | Partial | PBR + Phong + `CreateShader` Real. No Unreal node graph |
-| 8 Post-processing | Real | Half-res bloom chain, tonemap, FXAA, grain, vignette, chromatic aberration, sharpen. Not deferred |
+| 7 Material / shader graph | Partial | PBR (with unlit and toon modes) + Phong + `CreateShader` Real. No node graph |
+| 8 Post-processing | Real | Half-res bloom chain, tonemap, FXAA, LUT grading, outlines, grain, vignette, chromatic aberration, sharpen. Not deferred |
 | 9 Sky / atmosphere | Real | Cubemap + preset + analytic dome + noise cloud sheet + Bruneton-style 2D LUT / single scatter. Not full 4D inscatter |
 | 10 Audio (Oto) | Real | — |
 | 11 Editor tools | Real | ImGui + G3N widgets + stats |
