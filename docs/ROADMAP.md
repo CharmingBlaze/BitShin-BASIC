@@ -59,17 +59,17 @@ Coverage counts a partial item as half.
 | [26. Plugins and extensions](#26-plugins-and-extensions) | 0 | 3 | 12 | 10% |
 | **Total** | **583** | **197** | **297** | **63%** |
 
-**Strongest:** water and environment, the 2D and 3D engines, terrain, physics, and input. **Weakest:** plugins, project management, Moon Studio's visual editing, debugging and profiling tools, and audio.
+**Strongest:** water and environment, the 2D and 3D engines, terrain, physics, and input. **Weakest:** plugins, project management, Moon Studio's visual editing, optimization tooling, and audio.
 
 ## The MoonBASIC 1.0 checklist
 
-The 32 features the spec will not compromise on for 1.0. **21 of 32 are done.**
+The 32 features the spec will not compromise on for 1.0. **23 of 32 are done.**
 
 ### Language
 - [x] Stable BASIC syntax and compiler/runtime — interpreter, `moon compile` AOT, `moon transpile`; no frozen language spec yet
 - [x] Variables, functions, types and arrays — `Function`, `Type`/`Struct` with methods, `Dim`, `Enum`, `Const`
 - [ ] Complete standard library — **Partial:** math, strings, files, JSON/YAML/msgpack, random, time; thin on compression, binary I/O, system info
-- [ ] Error reporting and debugging — **Partial:** errors carry line and column; debugger has breakpoints and a single step, no call stack
+- [x] Error reporting and debugging — file:line errors, `Assert`, `DebugLog`; debugger with step over/into/out, call stack, variables, watches
 - [x] BASIC command documentation — [COMMANDS.md](COMMANDS.md), IDE hover and command search
 
 ### 2D engine
@@ -92,14 +92,14 @@ The 32 features the spec will not compromise on for 1.0. **21 of 32 are done.**
 - [ ] Resource management — **Partial:** `OpenPak` zip assets; no central cache or reference tracking
 - [x] Input and audio — keyboard, mouse, gamepad, action binds; `LoadSound`/`PlaySound`, 3D `EmitSound`, music
 - [x] Serialization — JSON/YAML/MessagePack, scene dumps, save slots, `ExportGLTF`
-- [ ] Performance profiling — **Partial:** `StatsFPS`, `StatsDraws`; no frame-time graph or CPU/GPU profiler
+- [x] Performance profiling — `ShowProfiler` overlay and `Stats*` CPU, GPU, memory timings
 
 ### Moon Studio
 - [ ] Project manager — **Partial:** open a folder; no create/recent projects
 - [ ] Scene hierarchy and inspector — **Partial:** read-only scene list in the IDE; editable only in the in-game ImGui overlay
 - [ ] 2D and 3D viewports — Missing
 - [x] Integrated code editor — Monaco with highlighting, completion, hover docs, diagnostics via `moonsls`
-- [ ] Play-in-editor and debugger — **Partial:** F5 runs in a separate window; breakpoints and step
+- [ ] Play-in-editor and debugger — **Partial:** full IDE debugger (stack, variables, watches, F10/F11); the game still runs in a separate window
 - [x] Asset browser — `AssetBrowser.svelte`
 
 ### Deployment
@@ -118,7 +118,7 @@ The 32 features the spec will not compromise on for 1.0. **21 of 32 are done.**
 | 0.3 Moon Studio | Project manager, scene editor, inspector, asset browser, code editor, debugger, play-in-editor, undo/redo | **Partial:** code editor and asset browser only |
 | 0.4 Advanced engine | Terrain, water, particles, navigation, advanced materials, post-processing, visual shader editor, prefabs | **Mostly done:** no visual shader editor; prefabs minimal |
 | 0.5 Production pipeline | Asset optimization, export system, build profiles, profilers, platform compatibility, plugins | **Partial:** mesh optimization and export done; no profiles, profilers, or plugins |
-| 1.0 Production release | Stable language and API, complete docs, reliable export, automated tests, compatibility testing, example games, production editor | **Not yet:** 21 of 32 checklist items |
+| 1.0 Production release | Stable language and API, complete docs, reliable export, automated tests, compatibility testing, example games, production editor | **Not yet:** 23 of 32 checklist items |
 
 `moon version` already reports 1.0.0 for the runtime. Against this spec, the product is between 0.4 and 0.5: the engine is ahead, the editor and tooling are behind.
 
@@ -134,11 +134,12 @@ What to build next, in order. Each milestone closes 1.0 checklist items or stren
 - 2D physics: collision layers and masks, sensors, kinematic bodies, a platformer character controller
 - Sprites: pivot, blend modes, parenting, arbitrary UV rects
 
-### Milestone B: debugging and profiling
-- `DebugLog`, `Assert`, step over/into/out, call stack, watch values in the IDE
-- An overlay profiler: frame-time graph, CPU and GPU timings, draw calls, triangles, memory
-- Visual debugging: physics contacts and shapes, raycasts, nav meshes, light ranges, entity IDs
-- Known bugs: HUD `Text` invisible without a lit mesh; post output not sRGB-encoded; `RotateEntity` on quads
+### Milestone B: debugging and profiling — done 2026-11-01
+- `DebugLog`, `Assert`, `DebugBreak`; step over/into/out, call stack, variables, and watches in `moon -debug` and an IDE debug sidebar
+- `ShowProfiler`: frame-time graph, script/physics/render CPU time, GPU time, draws, triangles, memory, GC
+- `DebugDraw`: physics shapes, contacts, velocities, joints, raycasts, nav meshes, light ranges, bounds, normals, entity IDs, frustums, audio; `DebugLine`/`DebugSphere`/`DebugBox` for scripts
+- Fixed: HUD `Text` vanished without a shadow-casting sun; planes, quads, and disks carried a hidden pitch that `RotateEntity` and `ScaleEntity` fought. The suspected post-pass sRGB problem was not one: the content is tuned for the current output, and encoding it washed scenes out.
+- Left for later: per-function script profiling, a profiler panel in the IDE, per-asset memory diagnostics, multi-file positions in the debugger.
 
 ### Milestone C: Moon Studio scene editing
 The largest gap, and the core of the "proper integrated editor" goal.

@@ -19,7 +19,7 @@ CreateRigidBodyBox(ground, 10, 0.2, 10, 0)
 first = 0
 For i = 0 To 79
     b = CreateSphere(8).Scale(0.28, 0.28, 0.28).Position([Rnd(6) - 3, 3 + i * 0.22, 8 + Rnd(6) - 3]).Color(70 + Math.Rand(120), 140 + Math.Rand(80), 220)
-    CreateBodySphere(b, 0.28, 1)
+    CreateBodySphere(b, 0.28, DYNAMIC, 1)
     If i = 0 Then first = b
 Next
 OptimizePhysics()
