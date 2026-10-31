@@ -107,6 +107,26 @@ Do **not** replace `math32.Vector3` / `Matrix4` on nodes. Convert at the boundar
 
 Used today: probe SH (`SHEval`), crowd push-apart, `NoiseFBM`, `JobXform`.
 
+## Retro geometry
+
+PS1-style effects in the lit shaders, switched for the whole world and all off by default. With everything off the shaders take the old path and the image is unchanged. Post effects such as dithering and palettes are separate (`docs/RETRO.md`).
+
+| Command | Effect | Shaders |
+| --- | --- | --- |
+| `SetRetroSnap w, h` / `SetRetroSnap n` | Vertex snapping: clip-space xy is rounded to the pixel grid of a `w` × `h` screen, keeping w, so vertices hop from virtual pixel to virtual pixel. One argument takes the rows from the window aspect | `bsshadow`, `mbphysical`, `mbterrain`, `mbwater` vertex |
+| `SetRetroAffine amount` | Affine texture mapping: a `noperspective` copy of the UV beside the usual one, blended 0–1 per fragment. 0 is perspective-correct, 1 the full PS1 warp | `bsshadow` (all material textures and the spec, normal, and emissive maps), `mbphysical` (every map), `mbterrain` (splat textures via a `noperspective` world position, and the plain texture path) |
+| `SetRetroFlat on` | Flat shading: the face normal `cross(dFdx(p), dFdy(p))` in the space each shader lights in (view space for lights, world space for shadows and ambient), turned to the side of the smooth normal | `bsshadow`, `mbphysical`, `mbterrain` |
+| `SetRetroFogSteps n` | Stepped fog: the fog factor is rounded to `n` bands | `bsshadow`, `mbphysical`, `mbterrain`, `mbwater` |
+
+Notes:
+
+- The shadow-depth pass is never snapped, so shadows stay steady while the models wobble.
+- Like the real thing, a big polygon that runs behind the camera tilts as its far corners snap, and whatever is drawn on it (shadows, fog, textures) moves with it. A ground made of one huge `CreatePlane` drifts; build floors from smaller tiles or use a terrain. Triangles wholly in front of the camera move by at most half a virtual pixel.
+- Affine warp shows on large triangles near the camera. Small, finely tessellated meshes barely change, as on the PS1.
+- Flat shading replaces the normal before normal maps are applied, so a normal map still adds detail on each facet.
+- GPU particles, `glmodern` draws, user shaders, and the sky are not affected.
+- Go: `w.setRetroGeom(snapW, snapH, affine, flat, fogSteps)` and `w.retroGeomState()` set and read all of it at once (presets use them). State lives in `internal/runtime/retro_geom.go`; the uniforms (`RetroSnap`, `RetroAffine`, `RetroFlat`, `RetroFogSteps`) are bound with the fog uniforms on every lit material.
+
 ## Commands
 
 Every command in this file is registered and listed in `docs/COMMANDS.md` (Modern OpenGL + Instancing). Demo: `examples/glmodern.mb`.

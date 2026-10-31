@@ -45,7 +45,7 @@ Coverage counts a partial item as half.
 | [12. Navigation and AI](#12-navigation-and-ai) | 9 | 4 | 10 | 48% |
 | [13. Networking and multiplayer](#13-networking-and-multiplayer) | 9 | 4 | 6 | 58% |
 | [14. Input and controller system](#14-input-and-controller-system) | 21 | 5 | 6 | 73% |
-| [15. Rendering and graphics quality](#15-rendering-and-graphics-quality) | 20 | 7 | 18 | 52% |
+| [15. Rendering and graphics quality](#15-rendering-and-graphics-quality) | 26 | 6 | 13 | 64% |
 | [16. Assets and import pipeline](#16-assets-and-import-pipeline) | 20 | 10 | 27 | 44% |
 | [17. Scenes and prefabs](#17-scenes-and-prefabs) | 16 | 7 | 8 | 63% |
 | [18. Moon Studio (IDE / editor)](#18-moon-studio-ide--editor) | 34 | 12 | 35 | 49% |
@@ -57,7 +57,7 @@ Coverage counts a partial item as half.
 | [24. Project management](#24-project-management) | 4 | 3 | 4 | 50% |
 | [25. Documentation and community](#25-documentation-and-community) | 3 | 9 | 4 | 47% |
 | [26. Plugins and extensions](#26-plugins-and-extensions) | 0 | 3 | 12 | 10% |
-| **Total** | **606** | **194** | **277** | **65%** |
+| **Total** | **612** | **193** | **272** | **66%** |
 
 **Strongest:** water and environment, the 2D and 3D engines, terrain, physics, and input. **Weakest:** plugins, optimization tooling, audio, and build/export polish.
 
@@ -1022,19 +1022,19 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 #### Retro rendering
 - [ ] Low-resolution rendering — Missing
 - [ ] Pixel-perfect rendering — Missing (3D)
-- [ ] Vertex snapping — Missing
-- [ ] Affine texture mapping — Missing
-- [ ] Perspective-correct toggle — Missing
-- [ ] Low-poly / flat shading — **Partial:** low segment counts on primitives / no flat-shade mode
+- [x] Vertex snapping — `SetRetroSnap w, h` (clip-space grid snap in bsshadow / mbphysical / mbterrain / mbwater; retro_geom.go, retro_geom_test.go)
+- [x] Affine texture mapping — `SetRetroAffine amount` (`noperspective` UV blended per fragment in bsshadow / mbphysical / mbterrain splats)
+- [x] Perspective-correct toggle — `SetRetroAffine 0` / `1` (or any blend between)
+- [x] Low-poly / flat shading — `SetRetroFlat on` (face normals from `dFdx`/`dFdy` in bsshadow / mbphysical / mbterrain)
 - [ ] Fixed colour palettes — Missing (near: `SetLUT` with a custom .cube)
 - [ ] Dithering — Missing
 - [ ] Colour banding — **Partial:** `SetToon` light bands / no posterize pass
 - [ ] Ordered dithering — Missing
-- [ ] Texture warping — Missing
+- [x] Texture warping — `SetRetroAffine` (affine warp on large triangles)
 - [ ] Nearest-neighbour filtering — Missing for 3D textures
-- [x] Retro fog — `CameraFogMode`, `CameraFogRange` linear fog
+- [x] Retro fog — `CameraFogMode`, `CameraFogRange` linear fog; `SetRetroFogSteps n` banded fog in every lit and water shader
 - [ ] Retro lighting — **Partial:** Phong, `SetUnlit`, `SetToon` / no per-vertex Gouraud mode
-- [ ] Configurable vertex precision — Missing
+- [x] Configurable vertex precision — `SetRetroSnap w, h` / `SetRetroSnap n` sets the snap grid (any virtual resolution)
 
 ### 16. Assets and import pipeline
 

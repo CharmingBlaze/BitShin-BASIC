@@ -20,11 +20,14 @@ out vec2 FragTexcoord;
 out vec3 WorldPos;
 out vec3 WorldNormal;
 out vec4 LightSpacePos[4];
+noperspective out vec2 FragTexcoordAffine;
+` + retroSnapGLSL + `
 void main() {
     Position = vec3(ModelViewMatrix * vec4(VertexPosition, 1.0));
     Normal = normalize(NormalMatrix * VertexNormal);
     CamDir = normalize(-Position.xyz);
     FragTexcoord = VertexTexcoord;
+    FragTexcoordAffine = VertexTexcoord;
     vec3 vPosition = VertexPosition;
     mat4 finalWorld = mat4(1.0);
     #include <morphtarget_vertex>
@@ -39,7 +42,7 @@ void main() {
     LightSpacePos[1] = LightVP[1] * vec4(wpShadow, 1.0);
     LightSpacePos[2] = LightVP[2] * vec4(wpShadow, 1.0);
     LightSpacePos[3] = LightVP[3] * vec4(wpShadow, 1.0);
-    gl_Position = MVP * finalWorld * vec4(vPosition, 1.0);
+    gl_Position = retroSnapClip(MVP * finalWorld * vec4(vPosition, 1.0));
 }
 `
 
@@ -141,7 +144,9 @@ in vec2 FragTexcoord;
 in vec3 WorldPos;
 in vec3 WorldNormal;
 in vec4 LightSpacePos[4];
+noperspective in vec2 FragTexcoordAffine;
 out vec4 FragColor;
+` + retroFragGLSL + `
 
 const float M_PI = 3.141592653589793;
 const float c_MinRoughness = 0.04;
@@ -173,15 +178,16 @@ vec4 SRGBtoLINEAR(vec4 srgbIn) {
 vec3 getNormal() {
     vec3 pos_dx = dFdx(Position);
     vec3 pos_dy = dFdy(Position);
-    vec3 tex_dx = dFdx(vec3(FragTexcoord, 0.0));
-    vec3 tex_dy = dFdy(vec3(FragTexcoord, 0.0));
+    vec2 nuv = retroUV();
+    vec3 tex_dx = dFdx(vec3(nuv, 0.0));
+    vec3 tex_dy = dFdy(vec3(nuv, 0.0));
     vec3 t = (tex_dy.t * pos_dx - tex_dx.t * pos_dy) / (tex_dx.s * tex_dy.t - tex_dy.s * tex_dx.t);
-    vec3 ng = normalize(Normal);
+    vec3 ng = retroFlatNormal(Position, normalize(Normal));
     t = normalize(t - ng * dot(ng, t));
     vec3 b = normalize(cross(ng, t));
     mat3 tbn = mat3(t, b, ng);
 #ifdef HAS_NORMALMAP
-    vec3 n = texture(uNormalSampler, FragTexcoord).rgb;
+    vec3 n = texture(uNormalSampler, nuv).rgb;
     n = normalize(tbn * ((2.0 * n - 1.0) * vec3(1.0, 1.0, 1.0)));
 #else
     vec3 n = normalize(tbn[2].xyz);
@@ -316,10 +322,11 @@ void main() {
             discard;
         }
     }
+    vec2 baseUV = retroUV();
     float perceptualRoughness = uRoughnessFactor;
     float metallic = uMetallicFactor;
 #ifdef HAS_METALROUGHNESSMAP
-    vec4 mrSample = texture(uMetallicRoughnessSampler, FragTexcoord);
+    vec4 mrSample = texture(uMetallicRoughnessSampler, baseUV);
     perceptualRoughness = mrSample.g * perceptualRoughness;
     metallic = mrSample.b * metallic;
 #endif
@@ -328,7 +335,7 @@ void main() {
     float alphaRoughness = perceptualRoughness * perceptualRoughness;
 
 #ifdef HAS_BASECOLORMAP
-    vec4 baseColor = SRGBtoLINEAR(texture(uBaseColorSampler, FragTexcoord)) * uBaseColor;
+    vec4 baseColor = SRGBtoLINEAR(texture(uBaseColorSampler, baseUV)) * uBaseColor;
 #else
     vec4 baseColor = uBaseColor;
 #endif
@@ -366,7 +373,7 @@ void main() {
     }
 #endif
 
-    vec3 wN = normalize(WorldNormal);
+    vec3 wN = retroFlatNormal(WorldPos, normalize(WorldNormal));
     if (UseIBL != 0) {
         ambient += iblTerm(pbrInputs, n, v);
     } else {
@@ -437,12 +444,12 @@ void main() {
 
     float ao = clamp(uAO, 0.0, 1.0);
 #ifdef HAS_OCCLUSIONMAP
-    float mapAO = texture(uOcclusionSampler, FragTexcoord).r;
+    float mapAO = texture(uOcclusionSampler, baseUV).r;
     ao *= mix(1.0, mapAO, clamp(uOcclusionStrength, 0.0, 1.0));
 #endif
 
 #ifdef HAS_EMISSIVEMAP
-    vec3 emissive = SRGBtoLINEAR(texture(uEmissiveSampler, FragTexcoord)).rgb * vec3(uEmissiveColor);
+    vec3 emissive = SRGBtoLINEAR(texture(uEmissiveSampler, baseUV)).rgb * vec3(uEmissiveColor);
 #else
     vec3 emissive = vec3(uEmissiveColor);
 #endif
@@ -504,7 +511,7 @@ void main() {
             float hFac = exp(-max(WorldPos.y - FogHeight, 0.0) * FogHeightFalloff);
             f = 1.0 - (1.0 - f) * clamp(hFac, 0.0, 1.0);
         }
-        FragColor.rgb = mix(fogTint(FogColor, WorldPos), FragColor.rgb, clamp(f, 0.0, 1.0));
+        FragColor.rgb = mix(fogTint(FogColor, WorldPos), FragColor.rgb, retroFog(clamp(f, 0.0, 1.0)));
     }
 }
 `

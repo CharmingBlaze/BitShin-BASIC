@@ -127,6 +127,7 @@ type World struct {
 	ambient                          *light.Ambient
 	lightEnv                         int // 0 unset, 1 outdoor sun+sky, 2 indoor practicals
 	timeOfDay                        float64
+	retro                            retroGeom // PS1-style geometry effects (retro_geom.go)
 	ents                             map[int]*Entity
 	nextID                           int
 	title                            string

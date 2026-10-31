@@ -1481,6 +1481,36 @@
           "name": "SetEnvMap",
           "description": "",
           "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "SetRetroSnap w, h",
+          "name": "SetRetroSnap",
+          "description": "Snap every vertex to the pixel grid of a `w` × `h` screen (the PS1 wobble). `0, 0` turns it off",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "SetRetroSnap n",
+          "name": "SetRetroSnap",
+          "description": "`n` columns, rows from the window's aspect (`320` on 16:9 is 320 × 180), kept on resize",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "SetRetroAffine amount",
+          "name": "SetRetroAffine",
+          "description": "0–1 blend from perspective-correct to affine (screen-linear) texture coordinates, the PS1 texture warp. No argument is 1",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "SetRetroFlat on",
+          "name": "SetRetroFlat",
+          "description": "Face normals instead of smooth ones: low-poly flat shading",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "SetRetroFogSteps n",
+          "name": "SetRetroFogSteps",
+          "description": "Fog in `n` hard bands instead of a smooth fade (0 smooth, up to 256)",
+          "category": "PBR (opt-in metallic-roughness)"
         }
       ]
     },
@@ -12298,6 +12328,30 @@
       "syntax": "EntityFX e, flags",
       "name": "EntityFX",
       "description": "Blitz flags: `1` fullbright (unlit), `8` no fog, `16` two-sided. Others are ignored",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "SetRetroSnap w, h",
+      "name": "SetRetroSnap",
+      "description": "Snap every vertex to the pixel grid of a `w` × `h` screen (the PS1 wobble). `0, 0` turns it off",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "SetRetroAffine amount",
+      "name": "SetRetroAffine",
+      "description": "0–1 blend from perspective-correct to affine (screen-linear) texture coordinates, the PS1 texture warp. No argument is 1",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "SetRetroFlat on",
+      "name": "SetRetroFlat",
+      "description": "Face normals instead of smooth ones: low-poly flat shading",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "SetRetroFogSteps n",
+      "name": "SetRetroFogSteps",
+      "description": "Fog in `n` hard bands instead of a smooth fade (0 smooth, up to 256)",
       "category": "PBR (opt-in metallic-roughness)"
     },
     {
