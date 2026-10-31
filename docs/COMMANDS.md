@@ -332,6 +332,30 @@ SetEmitterSize(bits, 0.12, 0.04)
 
 `SetEmitter*` aliases work (`SetEmitterShape`, `SetEmitterRate`, …). Demo: `examples/particles.mb`.
 
+### GPU emitters
+
+`CreateGPUEmitter` makes an emitter whose particles live and move on the GPU (100k+ in about a millisecond). It takes every `Emitter*` setter above, so a script switches by changing only the create call. See `docs/PARTICLES.md`.
+
+| Command | Meaning | Example |
+| --- | --- | --- |
+| `CreateGPUEmitter([max, parent])` | GPU emitter with `max` slots (default 65536, up to 2M). An entity, like `CreateEmitter` | `em = CreateGPUEmitter(100000)` |
+| `EmitterRate e, perSec` … `EmitterArea` | The CPU setters work on a GPU id unchanged | `EmitterRate(em, 30000)` |
+| `EmitterLife e, secs [, maxSecs]` | A second value gives each particle a random life between the two | `EmitterLife(em, 2, 3)` |
+| `EmitterSpeed e, speed [, var]` | `var` 0–1 randomizes each speed by ±that fraction | `EmitterSpeed(em, 9, 0.2)` |
+| `EmitterShape e, "point"/"box"/"sphere"/"disc" [, size…]` | Spawn volume: `"box", x, y, z` half extents, `"sphere"`/`"disc", r`. Looks: `"soft"`, `"streak" [, stretch]`, `"flake"` | `EmitterShape(em, "sphere", 0.5)` |
+| `EmitterBlend e, "add"/"alpha"` | Additive glow or alpha blend (default alpha) | `EmitterBlend(em, "add")` |
+| `EmitterTurbulence e, strength [, scale, speed]` | Curl-noise swirl; 0 turns it off | `EmitterTurbulence(em, 3, 0.5, 0.6)` |
+| `EmitterGround e, on [, y, bounce, friction]` | Bounce (0–1) off a flat floor at height `y` | `EmitterGround(em, 1, 0, 0.3, 0.2)` |
+| `EmitterWeatherWind e, on` | Add the weather system's wind to `EmitterWind` | `EmitterWeatherWind(em, 1)` |
+| `EmitterSizeVar e, var` | Random per-particle size, ±fraction | `EmitterSizeVar(em, 0.3)` |
+| `EmitterCount(e)` | Live particles (estimate on the GPU; exact on the CPU) | `n = EmitterCount(em)` |
+| `GPUParticleCount()` | Live particles over every GPU emitter | `Text(8, 8, Str(GPUParticleCount()))` |
+| `GPUParticleMs()` | GPU time of last frame's particle step + draw, ms | `ms# = GPUParticleMs()` |
+| `GPUParticlesOK()` | 1 when this GL can run GPU emitters | `If GPUParticlesOK() Then …` |
+| `IsGPUEmitter(e)` | 1 for a GPU emitter id | `If IsGPUEmitter(em) Then …` |
+
+The GPU-only setters do nothing on a CPU emitter, so a script can keep them when it switches back. Demo: `examples/gpu_particles.mb`.
+
 ### 2D (Ebiten)
 
 `CreateEmitter2D([parentSprite])`  

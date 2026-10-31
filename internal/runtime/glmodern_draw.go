@@ -9,7 +9,7 @@ import (
 )
 
 func (w *World) hasModernPass() bool {
-	if w.hasGPUInstances() {
+	if w.hasGPUInstances() || w.hasGPUEmitters() {
 		return true
 	}
 	if len(w.glmod.geoms) > 0 {
@@ -49,6 +49,7 @@ func (w *World) drawModernPass(cam *camera.Camera) {
 	vp.MultiplyMatrices(&proj, &view)
 	w.drawGPUInstances(&vp, false)
 	w.drawGeomPoints(cam, &vp)
+	w.drawGPUEmitters(cam, &view, &vp)
 }
 
 func (w *World) drawGPUInstanceDepth(lightVP *math32.Matrix4) int {

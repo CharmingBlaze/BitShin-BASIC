@@ -404,6 +404,7 @@ func TestTextureUnitsDoNotClash(t *testing.T) {
 		"mbterrain":  mbshadowVertex + mbterrainFragment,
 		"mbwater":    mbwaterVertex + mbwaterFragment,
 		"mbatmo":     mbatmoVertex + mbatmoFragment,
+		"mbgpupart":  mbGPUPartVertex + mbGPUPartFragment,
 	}
 	re := regexp.MustCompile(`uniform\s+sampler\w+\s+(\w+)`)
 	for name, src := range sources {
