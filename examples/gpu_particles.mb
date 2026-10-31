@@ -1,0 +1,168 @@
+; GPU particles — 100,000 particles stepped on the GPU every frame.
+; 1 fountain  2 sparks  3 snow  4 magic  5 dust   Space burst   Esc quits.
+; CreateGPUEmitter takes the same Emitter* setters as CreateEmitter.
+
+Graphics3D(1280, 720)
+SetWindowTitle("moonBASIC — GPU particles")
+SetCameraClsColor(8, 10, 16)
+SetAmbientLight(40, 44, 56)
+
+; Camera / light
+cam = CreateCamera().Position([0, 5, -16])
+cam.Rotate(14, 0, 0)
+sun = CreateLight().Rotate(55, 30, 0)
+
+; World
+ground = CreatePlane(60, 60).Color(26, 30, 38)
+basin = CreateCylinder().Scale(2.2, 0.25, 2.2).Position([0, 0.25, 0]).Color(70, 78, 92)
+pillar = CreateCylinder().Scale(0.35, 1.2, 0.35).Position([0, 1.2, 0]).Color(90, 98, 112)
+
+EnablePostFX(True)
+SetBloom(0.45)
+
+; Emitter: 100k slots, sits on top of the pillar
+em = CreateGPUEmitter(100000)
+PositionEmitter(em, 0, 2.4, 0)
+
+names$ = "fountain"
+
+Function Fountain(em)
+    PositionEmitter(em, 0, 2.4, 0)
+    EmitterShape(em, "soft")
+    EmitterShape(em, "point")
+    EmitterArea(em, 0.05, 0, 0.05)
+    EmitterRate(em, 32000)
+    EmitterLife(em, 3.2, 4)
+    EmitterSpeed(em, 9, 0.12)
+    EmitterVelocity(em, 0, 1, 0)
+    EmitterCone(em, 16)
+    EmitterGravity(em, 0, -9.8, 0)
+    EmitterWind(em, 0, 0, 0)
+    EmitterDrag(em, 0.05)
+    EmitterSize(em, 0.07, 0.03)
+    EmitterSizeVar(em, 0.3)
+    EmitterColor(em, 150, 210, 255, 0.9, 40, 90, 255, 0.1)
+    EmitterBlend(em, "add")
+    EmitterTurbulence(em, 0)
+    EmitterGround(em, 1, 0.02, 0.25, 0.3)
+End Function
+
+Function Sparks(em)
+    PositionEmitter(em, 0, 2.4, 0)
+    EmitterShape(em, "streak", 0.04)
+    EmitterShape(em, "sphere", 0.15)
+    EmitterRate(em, 45000)
+    EmitterLife(em, 0.6, 1.6)
+    EmitterSpeed(em, 11, 0.6)
+    EmitterVelocity(em, 0, 1, 0)
+    EmitterCone(em, 150)
+    EmitterGravity(em, 0, -9.8, 0)
+    EmitterWind(em, 0, 0, 0)
+    EmitterDrag(em, 0.3)
+    EmitterSize(em, 0.035, 0.015)
+    EmitterSizeVar(em, 0.3)
+    EmitterColor(em, 255, 210, 120, 1, 255, 60, 10, 0)
+    EmitterBlend(em, "add")
+    EmitterTurbulence(em, 0)
+    EmitterGround(em, 1, 0.02, 0.45, 0.15)
+End Function
+
+Function Snow(em)
+    PositionEmitter(em, 0, 12, 4)
+    EmitterShape(em, "flake")
+    EmitterShape(em, "box", 22, 0.5, 18)
+    EmitterRate(em, 11000)
+    EmitterLife(em, 8, 11)
+    EmitterSpeed(em, 1.2, 0.3)
+    EmitterVelocity(em, 0, -1, 0)
+    EmitterCone(em, 30)
+    EmitterGravity(em, 0, -0.4, 0)
+    EmitterWind(em, 0.6, 0, 0)
+    EmitterDrag(em, 0.6)
+    EmitterSize(em, 0.07, 0.06)
+    EmitterSizeVar(em, 0.4)
+    EmitterColor(em, 240, 245, 255, 0.95, 220, 230, 255, 0.6)
+    EmitterBlend(em, "alpha")
+    EmitterTurbulence(em, 1.2, 0.25, 0.4)
+    EmitterGround(em, 1, 0.02, 0, 1)
+End Function
+
+Function Magic(em)
+    PositionEmitter(em, 0, 3.2, 0)
+    EmitterShape(em, "soft")
+    EmitterShape(em, "sphere", 0.7)
+    EmitterRate(em, 28000)
+    EmitterLife(em, 2.5, 4)
+    EmitterSpeed(em, 0.8, 0.5)
+    EmitterVelocity(em, 0, 1, 0)
+    EmitterCone(em, 360)
+    EmitterGravity(em, 0, 0.35, 0)
+    EmitterWind(em, 0, 0, 0)
+    EmitterDrag(em, 0.4)
+    EmitterSize(em, 0.06, 0.01)
+    EmitterSizeVar(em, 0.5)
+    EmitterColor(em, 200, 90, 255, 1, 40, 220, 255, 0)
+    EmitterBlend(em, "add")
+    EmitterTurbulence(em, 4, 1.3, 0.8)
+    EmitterGround(em, 0)
+End Function
+
+Function Dust(em)
+    PositionEmitter(em, 0, 1.5, 2)
+    EmitterShape(em, "soft")
+    EmitterShape(em, "box", 14, 1.5, 10)
+    EmitterRate(em, 14000)
+    EmitterLife(em, 6, 9)
+    EmitterSpeed(em, 0.15, 0.5)
+    EmitterVelocity(em, 0, 1, 0)
+    EmitterCone(em, 360)
+    EmitterGravity(em, 0, -0.02, 0)
+    EmitterWind(em, 0.25, 0, 0.1)
+    EmitterDrag(em, 0.8)
+    EmitterSize(em, 0.09, 0.12)
+    EmitterSizeVar(em, 0.5)
+    EmitterColor(em, 200, 170, 130, 0.35, 160, 130, 100, 0)
+    EmitterBlend(em, "alpha")
+    EmitterTurbulence(em, 0.5, 0.3, 0.2)
+    EmitterGround(em, 1, 0.02, 0, 1)
+End Function
+
+Fountain(em)
+msAvg# = 0
+frames = 0
+
+; Loop
+While Not WindowShouldClose()
+    frames = frames + 1
+    If frames > 8 And Input.KeyHit(KEY_ESCAPE) Then Exit
+    If Input.KeyHit(KEY_1) Then
+        Fountain(em)
+        names$ = "fountain"
+    EndIf
+    If Input.KeyHit(KEY_2) Then
+        Sparks(em)
+        names$ = "sparks"
+    EndIf
+    If Input.KeyHit(KEY_3) Then
+        Snow(em)
+        names$ = "snow"
+    EndIf
+    If Input.KeyHit(KEY_4) Then
+        Magic(em)
+        names$ = "magic"
+    EndIf
+    If Input.KeyHit(KEY_5) Then
+        Dust(em)
+        names$ = "dust"
+    EndIf
+    If Input.KeyHit(KEY_SPACE) Then EmitterBurst(em, 20000)
+
+    UpdateWorld
+    RenderWorld
+    msAvg = msAvg * 0.9 + GPUParticleMs() * 0.1
+    Text(12, 12, "GPU particles  |  " + names$ + "  |  1-5 presets  Space burst  Esc")
+    Text(12, 32, "live " + Str(EmitterCount(em)) + " / 100000   gpu " + Str(Int(msAvg * 100) / 100.0) + " ms   fps " + Str(Int(StatsFPS())))
+    If GPUParticlesOK() = 0 Then Text(12, 52, "this GPU cannot run GPU particles (needs OpenGL 3.3)")
+    Flip
+Wend
+End

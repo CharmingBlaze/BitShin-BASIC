@@ -608,6 +608,7 @@ func (w *World) clearWorld() {
 		w.releaseEmitterParts(em)
 	}
 	w.emitters = map[int]*emitter{}
+	w.resetGPUEmitters()
 	w.partPool = nil
 	w.tiles = map[int]*tileMap{}
 	w.rules = nil

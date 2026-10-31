@@ -10,6 +10,7 @@ Topic pages for script authors. Command lists stay in [COMMANDS.md](COMMANDS.md)
 | [SHADOWS.md](SHADOWS.md) | CSM, quality 0–3 (grid PCF / PCSS / EVSM / MSM) |
 | [WATER.md](WATER.md) | Gerstner + scenic water, `WaterHeight`, buoys |
 | [WEATHER.md](WEATHER.md) | Rain / snow / fog / storm |
+| [PARTICLES.md](PARTICLES.md) | CPU and GPU emitters, 100k-particle effects |
 | [TERRAIN.md](TERRAIN.md) | Heightmaps, splat, chunks |
 | [PBR.md](PBR.md) | Metallic-roughness |
 | [GRAPHICS.md](GRAPHICS.md) / [COMPAT.md](COMPAT.md) | OpenGL 3.3 |

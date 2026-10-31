@@ -418,6 +418,7 @@ func (w *World) tickEmitters(dt float32) {
 	if d <= 0 {
 		return
 	}
+	w.tickGPUEmitters(d)
 	var camPos math32.Vector3
 	hasCam := w.cam != nil
 	if hasCam {

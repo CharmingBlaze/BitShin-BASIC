@@ -636,7 +636,10 @@ func (w *World) commandTable() map[string]cmd {
 	for k, v := range w.animCommands(n, z, need) {
 		m[k] = v
 	}
-	for k, v := range w.fxCommands(n, z, need) {
+	for k, v := range w.withGPUEmitters(w.fxCommands(n, z, need), z) {
+		m[k] = v
+	}
+	for k, v := range w.gpuParticleCommands(n, z, need) {
 		m[k] = v
 	}
 	for _, pair := range [][2]string{

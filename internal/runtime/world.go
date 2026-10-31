@@ -380,6 +380,7 @@ type World struct {
 	iblOn                            bool
 	iblIntensity                     float32
 	glmod                            glModern
+	gpuPart                          gpuParticles
 	clouds                           map[int]*cloudLayer
 	freeClouds                       []int
 	nextCloud                        int

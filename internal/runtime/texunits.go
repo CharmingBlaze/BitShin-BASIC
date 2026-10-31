@@ -37,6 +37,9 @@ const (
 	unitWaterFFT          = 14
 
 	unitAtmo = 5
+
+	// GPU emitter sprites (raw GL program, no G3N textures).
+	unitParticle = 1
 )
 
 // programUnits is each program's hand-bound samplers. g3nUnits is how many
@@ -66,6 +69,7 @@ var programUnits = map[string]struct {
 		"ShadowMap": unitWaterShadow, "WaterFFT": unitWaterFFT, "SpotCookie0": unitCookie0, "SpotCookie1": unitCookie1,
 	}},
 	"mbatmo": {0, map[string]int{"AtmoT": unitAtmo}},
+	"mbgpupart": {0, map[string]int{"PartTex": unitParticle}},
 }
 
 // g3nSamplers are bound by G3N from the material's own textures.
