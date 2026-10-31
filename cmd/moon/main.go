@@ -21,12 +21,14 @@ func main() {
 		fmt.Print(`moonBASIC — Blitz3D-style BASIC (G3N 3D, Ebiten 2D)
 
 Usage:
-  moon <program.mb> [-debug] [-break 10,20] [-debugjson]
+  moon <program.mb> [-debug] [-break 10,20] [-debugjson] [-watch]
                                  Run a program. -debug pauses on -break lines and DebugBreak,
                                  shows DebugLog output (also MOON_DEBUG=1). At the debug> prompt:
                                  c continue, s step into, n step over, o step out, bt call stack,
                                  locals, globals, p expr, b line, d line, q quit.
                                  -debugjson prints each pause as one @debug JSON line (the IDE uses it)
+                                 -watch reloads changed textures, meshes, images, shaders and the
+                                 script while it runs (on by default under the IDE, MOON_IDE=1)
   moon run <program.mb>          Same
   moon compile <program.mb> [-o app.exe] [-os windows|linux|darwin] [-arch amd64|arm64] [-tags tags]
                                  Compile to a standalone game binary (Flip presents frames)
@@ -119,6 +121,7 @@ type runOpts struct {
 	path      string
 	debug     bool
 	debugJSON bool
+	watch     bool
 	breaks    []int
 }
 
@@ -128,6 +131,8 @@ func splitRunArgs(args []string) runOpts {
 		switch args[i] {
 		case "-debug":
 			o.debug = true
+		case "-watch":
+			o.watch = true
 		case "-debugjson":
 			o.debug, o.debugJSON = true, true
 		case "-break":
@@ -179,6 +184,9 @@ func runFile(opt runOpts) error {
 		in.SetDebugJSON(opt.debugJSON)
 	}
 	world.Bind(in)
+	if opt.watch || os.Getenv("MOON_IDE") != "" {
+		world.SetHotReload(true)
+	}
 	if err := in.Run(); err != nil {
 		return err
 	}

@@ -23,6 +23,7 @@ type ebiImage struct {
 	glTex uint32
 	mid   bool
 	w, h  int
+	path  string // LoadImage file, for hot reload
 }
 
 type ebiSprite struct {
@@ -115,6 +116,7 @@ func (g *ebiGame) Update() error {
 	if g.in == nil {
 		return ebiten.Termination
 	}
+	g.w.pollHotReload()
 	if !g.first {
 		g.w.prof.scriptBegin()
 		err := g.in.Run()

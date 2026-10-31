@@ -13,4 +13,6 @@ Typical vertex inputs: `VertexPosition`, `VertexNormal`, `VertexTexcoord`. Typic
 
 `SetShaderUniform name$, …` without a shader handle writes **global** uniforms applied on lit/PBR/terrain. With a handle, uniforms stay on that program.
 
+With hot reload on (`moon run -watch`, the IDE, or `SetHotReload on`), saving a `LoadShader` file recompiles that program while the game runs. A program that fails validation prints its log and the old one keeps drawing. See [ASSETS.md](ASSETS.md#hot-reload).
+
 Example: `examples/shader.mb`.

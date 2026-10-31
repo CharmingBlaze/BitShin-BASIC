@@ -46,6 +46,24 @@ func (w *World) extState() *appState {
 
 func (w *World) SetScript(path string) { w.scriptPath = path }
 
+// reloadScript reparses path with its includes and swaps the running
+// program's functions. A parse error leaves the old functions running.
+func (w *World) reloadScript(path string) error {
+	if path == "" || w.runner == nil {
+		return fmt.Errorf("ReloadScripts: no script")
+	}
+	prog, err := parse.ParseFile(path)
+	if err != nil {
+		return err
+	}
+	prog, err = parse.ExpandIncludes(prog, filepath.Dir(path))
+	if err != nil {
+		return err
+	}
+	w.runner.Reload(prog)
+	return nil
+}
+
 func (w *World) appCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error), need func(func([]value.Value) (value.Value, error)) cmd) map[string]cmd {
 	return map[string]cmd{
 		"graphicsapp": n(func(a []value.Value) (value.Value, error) {
@@ -266,18 +284,9 @@ func (w *World) appCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			if argS(a, 0) != "" {
 				path = w.resolve(argS(a, 0))
 			}
-			if path == "" || w.runner == nil {
-				return value.Num(0), fmt.Errorf("ReloadScripts: no script")
-			}
-			prog, err := parse.ParseFile(path)
-			if err != nil {
+			if err := w.reloadScript(path); err != nil {
 				return value.Num(0), err
 			}
-			prog, err = parse.ExpandIncludes(prog, filepath.Dir(path))
-			if err != nil {
-				return value.Num(0), err
-			}
-			w.runner.Reload(prog)
 			return value.Num(1), nil
 		}),
 		"solvetwobone": n(func(a []value.Value) (value.Value, error) {

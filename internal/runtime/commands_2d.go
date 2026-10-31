@@ -40,7 +40,7 @@ func (w *World) twoDCommands(n func(func([]value.Value) (value.Value, error)) cm
 					return value.Value{}, err
 				}
 				b := img.Bounds()
-				w.images[id] = &ebiImage{img: img, w: b.Dx(), h: b.Dy()}
+				w.images[id] = &ebiImage{img: img, w: b.Dx(), h: b.Dy(), path: argS(a, 0)}
 			} else {
 				f, err := os.Open(path)
 				if err != nil {
@@ -52,7 +52,7 @@ func (w *World) twoDCommands(n func(func([]value.Value) (value.Value, error)) cm
 					return value.Value{}, err
 				}
 				b := m.Bounds()
-				w.images[id] = &ebiImage{src: m, w: b.Dx(), h: b.Dy()}
+				w.images[id] = &ebiImage{src: m, w: b.Dx(), h: b.Dy(), path: argS(a, 0)}
 			}
 			return value.Num(float64(id)), nil
 		}),

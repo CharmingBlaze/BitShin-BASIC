@@ -25,6 +25,9 @@ type userShader struct {
 	log    string
 	ok     bool
 	reg    bool
+	vpath  string // LoadShader files, for hot reload
+	fpath  string
+	gen    int // hot reload count; G3N caches programs by name
 }
 
 type userMat struct {
@@ -134,6 +137,9 @@ func (w *World) loadShaderFiles(vertPath, fragPath string) (value.Value, error) 
 		return value.Value{}, err
 	}
 	id, err := w.createUserShader(string(vb), string(fb))
+	if sh := w.ushaders[id]; sh != nil {
+		sh.vpath, sh.fpath = vertPath, fragPath
+	}
 	return value.Num(float64(id)), err
 }
 

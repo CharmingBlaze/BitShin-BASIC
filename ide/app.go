@@ -273,6 +273,12 @@ func (a *App) RunProgram(code string, filePath string, debug bool) error {
 	cmd.Dir = workDir
 	// DebugLog shows in the Output panel for every IDE run; errors name the tab, not the temp file.
 	cmd.Env = append(os.Environ(), "MOON_DEBUG=1", "MOON_SCRIPT_NAME="+scriptName(filePath, runPath))
+	// MOON_IDE turns on asset hot reload; MOON_SCRIPT_SOURCE is the saved tab
+	// it watches, since the run itself is a temp copy.
+	cmd.Env = append(cmd.Env, "MOON_IDE=1")
+	if filePath != "" && !strings.Contains(filePath, "://") {
+		cmd.Env = append(cmd.Env, "MOON_SCRIPT_SOURCE="+filePath)
+	}
 	if debug {
 		stdin, err := cmd.StdinPipe()
 		if err != nil {

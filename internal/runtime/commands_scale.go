@@ -3,8 +3,6 @@ package runtime
 import (
 	"sort"
 
-	"github.com/g3n/engine/texture"
-
 	"moonbasic/internal/value"
 )
 
@@ -57,16 +55,10 @@ func (w *World) scaleCommands(n func(func([]value.Value) (value.Value, error)) c
 			if file == "" {
 				file = slot.path
 			}
-			path, err := w.openPath(file)
-			if err != nil {
+			// In place: every material and sprite using the handle updates.
+			if err := w.reloadTextureSlot(slot, file); err != nil {
 				return z()
 			}
-			tex, err := texture.NewTexture2DFromImage(path)
-			if err != nil {
-				return z()
-			}
-			slot.tex = tex
-			slot.path = file
 			return value.Num(float64(id)), nil
 		}),
 		"reloadmesh": need(func(a []value.Value) (value.Value, error) {
@@ -74,6 +66,13 @@ func (w *World) scaleCommands(n func(func([]value.Value) (value.Value, error)) c
 			e := w.ents[id]
 			if e == nil {
 				return z()
+			}
+			// No file: reload the entity's own LoadMesh file in place.
+			if argS(a, 1) == "" {
+				if err := w.reloadMeshEntity(id); err != nil {
+					return value.Value{}, err
+				}
+				return value.Num(float64(id)), nil
 			}
 			nid, err := w.loadMeshFile(argS(a, 1), e.parent)
 			if err != nil {
