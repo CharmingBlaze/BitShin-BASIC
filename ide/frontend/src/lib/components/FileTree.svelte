@@ -1,10 +1,10 @@
 <script lang="ts">
   import {
     Folder, FolderOpen, FileCode, FileText, Image, RefreshCw,
-    FilePlus, ChevronDown, ChevronRight, Binary, FileSpreadsheet
+    FilePlus, ChevronDown, ChevronRight, Binary, FileSpreadsheet, Clapperboard, Settings2
   } from 'lucide-svelte';
   import type { FileNode } from '../types';
-  import { editorStore } from '../stores/editorState.svelte';
+  import { editorStore, isSceneFile } from '../stores/editorState.svelte';
   import { AppAPI } from '../wailsBridge';
 
   let expandedPaths = $state<Record<string, boolean>>({ '': true });
@@ -26,14 +26,27 @@
           name: res.name,
           content: res.content
         });
+        if (isSceneFile(node.path)) {
+          editorStore.sceneFile = { path: res.path, content: res.content };
+        }
       }
     } catch (err) {
       console.error('Failed to open file:', err);
     }
   }
 
+  // Double-clicking a scene opens it in the scene editor (moon edit).
+  function editSceneNode(node: FileNode, e: MouseEvent) {
+    if (node.isDir || !isSceneFile(node.path)) return;
+    e.preventDefault();
+    editorStore.editScene(node.path);
+  }
+
   function getFileIcon(name: string) {
     const lower = name.toLowerCase();
+    if (lower.endsWith('.scene.json')) {
+      return { icon: Clapperboard, color: 'var(--info)' };
+    }
     if (lower.endsWith('.mb') || lower.endsWith('.basic') || lower.endsWith('.b3d')) {
       return { icon: FileCode, color: 'var(--accent)' };
     }
@@ -52,12 +65,20 @@
 
 <div class="ide-sidebar">
   <div class="ide-side-head">
-    <span>Explorer</span>
+    <span class="truncate" title={editorStore.project?.root ?? ''}>{editorStore.project ? editorStore.project.project.name : 'Explorer'}</span>
     <div class="flex items-center">
       <button class="ide-iconbtn" onclick={() => editorStore.showNewModal = true} title="New file">
         <FilePlus size={13} />
       </button>
-      <button class="ide-iconbtn" onclick={() => editorStore.refreshProjectTree()} title="Refresh">
+      <button class="ide-iconbtn" onclick={() => editorStore.showNewScene = true} title="New scene">
+        <Clapperboard size={13} />
+      </button>
+      {#if editorStore.project}
+        <button class="ide-iconbtn" onclick={() => editorStore.showProjectSettings = true} title="Project settings (moon.json)">
+          <Settings2 size={13} />
+        </button>
+      {/if}
+      <button class="ide-iconbtn" onclick={() => editorStore.refreshTree()} title="Refresh">
         <RefreshCw size={13} />
       </button>
     </div>
@@ -75,6 +96,8 @@
         <div class="flex flex-col">
           <button
             onclick={() => openFileNode(node)}
+            ondblclick={(e) => editSceneNode(node, e)}
+            title={isSceneFile(node.path) ? 'Double-click to edit the scene' : undefined}
             style="padding-left: {depth * 12 + 8}px;"
             class="ide-tree-row {isCurrentTab ? 'active' : ''}"
           >

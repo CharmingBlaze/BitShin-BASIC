@@ -55,6 +55,7 @@ export interface UserSettings {
   targetOS: string;
   outputHeight: number;
   sidebarWidth: number;
+  recentProjects?: string[];
 }
 
 export interface DebugFrame {
@@ -92,4 +93,40 @@ export interface SymbolItem {
   type: 'function' | 'type' | 'const' | 'label';
   line: number;
   signature?: string;
+}
+
+// moon.json at a project root (see docs/STUDIO.md).
+export interface Project {
+  name: string;
+  main: string;
+  window: { width: number; height: number; title: string };
+  quality: string;
+  scenes: string;
+  assets: string;
+  build: { outputDir: string; icon: string; version: string; company: string };
+}
+
+// A loaded project with absolute paths, from LoadProject / CreateProject / SaveProject.
+export interface ProjectInfo {
+  root: string;
+  file: string;
+  mainPath: string;
+  scenesPath: string;
+  assetsPath: string;
+  outputPath: string;
+  project: Project;
+  warnings?: string[];
+}
+
+export interface RecentProject {
+  root: string;
+  name: string;
+  exists: boolean;
+}
+
+export interface ProjectTemplate {
+  id: string;
+  title: string;
+  description: string;
+  is2D: boolean;
 }

@@ -342,6 +342,16 @@ header.ide-titlebar input {
   color: var(--text-muted);
 }
 
+.ide-title-center .ide-project-name {
+  color: var(--accent);
+}
+
+.ide-title-center .ide-status-sep {
+  display: inline-block;
+  margin: 0 8px;
+  vertical-align: middle;
+}
+
 .ide-title-center .name {
   color: var(--text-secondary);
 }

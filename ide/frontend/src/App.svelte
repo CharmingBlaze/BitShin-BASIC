@@ -15,6 +15,9 @@
   import NewFileModal from './lib/components/NewFileModal.svelte';
   import BuildModal from './lib/components/BuildModal.svelte';
   import SettingsModal from './lib/components/SettingsModal.svelte';
+  import ProjectManager from './lib/components/ProjectManager.svelte';
+  import ProjectSettingsModal from './lib/components/ProjectSettingsModal.svelte';
+  import NewSceneModal from './lib/components/NewSceneModal.svelte';
   import { editorStore } from './lib/stores/editorState.svelte';
 
   let isDraggingSidebar = $state(false);
@@ -194,5 +197,14 @@
   {/if}
   {#if editorStore.showSettingsModal}
     <SettingsModal />
+  {/if}
+  {#if editorStore.showStartScreen}
+    <ProjectManager />
+  {/if}
+  {#if editorStore.showProjectSettings && editorStore.project}
+    <ProjectSettingsModal />
+  {/if}
+  {#if editorStore.showNewScene}
+    <NewSceneModal />
   {/if}
 </div>

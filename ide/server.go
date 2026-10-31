@@ -30,6 +30,12 @@ func (a *App) handleAPI(w http.ResponseWriter, r *http.Request) {
 		Body        string       `json:"body"`
 		Edge        string       `json:"edge"`
 		Settings    UserSettings `json:"settings"`
+		Root        string       `json:"root"`
+		Project     Project      `json:"project"`
+		Parent      string       `json:"parent"`
+		Name        string       `json:"name"`
+		Template    string       `json:"template"`
+		File        string       `json:"file"`
 	}
 	if len(bytesTrim(body)) > 0 {
 		if err := json.Unmarshal(body, &req); err != nil {
@@ -69,6 +75,28 @@ func (a *App) handleAPI(w http.ResponseWriter, r *http.Request) {
 		result = a.GetSettings()
 	case "SaveSettings":
 		err = a.SaveSettings(req.Settings)
+	case "LoadProject":
+		result, err = a.LoadProject(req.Path)
+	case "SaveProject":
+		result, err = a.SaveProject(req.Root, req.Project)
+	case "InitProject":
+		result, err = a.InitProject(req.Root)
+	case "CreateProject":
+		result, err = a.CreateProject(req.Parent, req.Name, req.Template)
+	case "ListProjectTemplates":
+		result = a.ListProjectTemplates()
+	case "DefaultProjectsDir":
+		result = a.DefaultProjectsDir()
+	case "GetRecentProjects":
+		result = a.GetRecentProjects()
+	case "RemoveRecentProject":
+		err = a.RemoveRecentProject(req.Path)
+	case "CreateScene":
+		result, err = a.CreateScene(req.Path)
+	case "OpenSceneEditor":
+		result, err = a.OpenSceneEditor(req.File, req.Root)
+	case "OpenSceneEditors":
+		result = a.OpenSceneEditors()
 	case "GetRepoRoot":
 		result = a.GetRepoRoot()
 	case "SendLSP":
