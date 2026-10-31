@@ -30,6 +30,9 @@ type App struct {
 	lspMu      sync.Mutex
 	lspCmd     *exec.Cmd
 	lspStdin   io.WriteCloser
+	settingsMu sync.Mutex
+	editorMu   sync.Mutex
+	editors    map[string]*sceneEditor
 }
 
 // NewApp creates a new App application struct
@@ -493,6 +496,8 @@ type UserSettings struct {
 	TargetOS     string `json:"targetOS"`
 	OutputHeight int    `json:"outputHeight"`
 	SidebarWidth int    `json:"sidebarWidth"`
+	// RecentProjects is the start screen's list, newest first. The backend owns it.
+	RecentProjects []string `json:"recentProjects,omitempty"`
 }
 
 func (a *App) GetSettings() UserSettings {
@@ -516,7 +521,19 @@ func (a *App) GetSettings() UserSettings {
 	}
 }
 
+// SaveSettings writes the editor preferences. The recent-project list is kept
+// from disk when the caller does not send one.
 func (a *App) SaveSettings(s UserSettings) error {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	if s.RecentProjects == nil {
+		cur := a.GetSettings()
+		s.RecentProjects = cur.RecentProjects
+	}
+	return a.writeSettings(s)
+}
+
+func (a *App) writeSettings(s UserSettings) error {
 	settingsFile := filepath.Join(a.repoRoot, ".ide_settings.json")
 	data, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {

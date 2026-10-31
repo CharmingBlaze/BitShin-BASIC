@@ -4,20 +4,26 @@
   import { AppAPI } from '../wailsBridge';
 
   let targetOS = $state(editorStore.settings.targetOS || 'windows');
-  let outputDir = $state('dist');
+  // With a project open, Build packages its main script into moon.json's build.outputDir.
+  const project = editorStore.project;
+  let outputDir = $state(project ? project.outputPath : 'dist');
   let isBuilding = $state(false);
   let buildResult = $state<{ success: boolean; message: string } | null>(null);
 
   async function startBuild() {
-    if (!editorStore.activeTab) return;
+    if (!project && !editorStore.activeTab) return;
     isBuilding = true;
     buildResult = null;
 
     try {
-      if (editorStore.activeTab.isTemporary) {
-        await editorStore.saveCurrentFile();
+      let file = project?.mainPath ?? '';
+      if (!project && editorStore.activeTab) {
+        if (editorStore.activeTab.isTemporary) {
+          await editorStore.saveCurrentFile();
+        }
+        file = editorStore.activeTab.path;
       }
-      const output = await AppAPI.buildExecutable(editorStore.activeTab.path, outputDir, targetOS);
+      const output = await AppAPI.buildExecutable(file, outputDir, targetOS);
       buildResult = {
         success: true,
         message: output || `Built standalone bundle to '${outputDir}'.`
@@ -43,6 +49,9 @@
       <button class="ide-iconbtn" onclick={() => editorStore.showBuildModal = false}><X size={15} /></button>
     </div>
     <div class="ide-modal-body space-y-4 text-xs">
+      {#if project}
+        <div class="ide-badge ide-note">Project {project.project.name}: builds {project.project.main} (version {project.project.build.version}{project.project.build.company ? `, ${project.project.build.company}` : ''})</div>
+      {/if}
       <div>
         <div class="ide-label">Target platform</div>
         <div class="grid grid-cols-4 gap-2">

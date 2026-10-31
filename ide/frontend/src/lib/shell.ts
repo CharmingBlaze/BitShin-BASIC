@@ -4,7 +4,7 @@
 type Listener = (data: any) => void
 
 const listeners = new Map<string, Set<Listener>>()
-const eventNames = ['run:start', 'run:stdout', 'run:stderr', 'run:exit', 'run:stopped', 'lsp:message']
+const eventNames = ['run:start', 'run:stdout', 'run:stderr', 'run:exit', 'run:stopped', 'lsp:message', 'editor:start', 'editor:event', 'editor:log', 'editor:exit']
 let source: EventSource | null = null
 
 function ensureEvents() {
@@ -80,6 +80,16 @@ function installBackend() {
         GetRepoRoot: () => call('GetRepoRoot'),
         SendLSP: (body: string) => call('SendLSP', { body }),
         IsLspRunning: () => call('IsLspRunning'),
+        LoadProject: (path: string) => call('LoadProject', { path }),
+        SaveProject: (root: string, project: any) => call('SaveProject', { root, project }),
+        InitProject: (root: string) => call('InitProject', { root }),
+        CreateProject: (parent: string, name: string, template: string) => call('CreateProject', { parent, name, template }),
+        ListProjectTemplates: () => call('ListProjectTemplates'),
+        DefaultProjectsDir: () => call('DefaultProjectsDir'),
+        GetRecentProjects: () => call('GetRecentProjects'),
+        RemoveRecentProject: (path: string) => call('RemoveRecentProject', { path }),
+        CreateScene: (path: string) => call('CreateScene', { path }),
+        OpenSceneEditor: (file: string, root: string) => call('OpenSceneEditor', { file, root }),
       },
     },
   }

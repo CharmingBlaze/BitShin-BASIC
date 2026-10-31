@@ -1,4 +1,4 @@
-import type { EditorTab, FileNode, ConsoleMessage, UserSettings, SymbolItem, DebugState, WatchItem } from '../types';
+import type { EditorTab, FileNode, ConsoleMessage, UserSettings, SymbolItem, DebugState, WatchItem, ProjectInfo, Project } from '../types';
 import { AppAPI } from '../wailsBridge';
 import examplesData from '../data/examples.json';
 
@@ -92,6 +92,14 @@ class EditorStore {
   showBuildModal = $state<boolean>(false);
   showSettingsModal = $state<boolean>(false);
   showHelpModal = $state<boolean>(false);
+  // Projects: moon.json, the start screen, and scene editor windows.
+  project = $state<ProjectInfo | null>(null);
+  showStartScreen = $state<boolean>(true);
+  startView = $state<'home' | 'new'>('home');
+  showProjectSettings = $state<boolean>(false);
+  showNewScene = $state<boolean>(false);
+  sceneFile = $state<{ path: string; content: string } | null>(null);
+  sceneEditors = $state<string[]>([]);
   filterSearch = $state<string>('');
 
   toggleOutputPanel(show?: boolean) {
@@ -184,7 +192,9 @@ class EditorStore {
   async saveSettings() {
     this.settings.outputHeight = Math.max(80, Math.min(260, this.settings.outputHeight));
     this.settings.sidebarWidth = Math.max(180, Math.min(380, this.settings.sidebarWidth));
-    await AppAPI.saveSettings(this.settings);
+    // The backend owns the recent-project list; leaving it out keeps the one on disk.
+    const { recentProjects: _recent, ...prefs } = this.settings;
+    await AppAPI.saveSettings(prefs);
   }
 
   async refreshProjectTree(root = '') {
@@ -251,6 +261,36 @@ class EditorStore {
           text: `[${data.time}] Process finished with exit code ${data.code} (${data.elapsed.toFixed(2)}s)`,
           time: data.time
         });
+      });
+
+      window.runtime.EventsOn('editor:start', (data: any) => {
+        this.sceneEditors = [...this.sceneEditors.filter((f) => !samePath(f, data.file)), data.file];
+        this.log('system', `[${data.time}] Scene editor: ${data.command}`);
+      });
+
+      window.runtime.EventsOn('editor:log', (data: any) => {
+        this.log(data.stream === 'stderr' ? 'stderr' : 'stdout', `[editor] ${data.line}`);
+      });
+
+      window.runtime.EventsOn('editor:event', (data: any) => {
+        if (data.event === 'saved') {
+          const file = String(data.file || data.editorFile || '');
+          this.log('success', `Scene saved: ${baseName(file)}`);
+          void this.reloadScene(file);
+        } else if (data.event === 'play') {
+          this.log('system', 'Scene editor pressed Play');
+          void this.runActiveProgram();
+        }
+      });
+
+      window.runtime.EventsOn('editor:exit', (data: any) => {
+        this.sceneEditors = this.sceneEditors.filter((f) => !samePath(f, data.file));
+        if (data.message) {
+          this.log('error', data.message);
+          this.isOutputCollapsed = false;
+        } else {
+          this.log('system', `Scene editor closed: ${baseName(data.file)}`);
+        }
       });
 
       window.runtime.EventsOn('run:stopped', (msg: string) => {
@@ -513,7 +553,12 @@ class EditorStore {
     }
   }
 
-  async runActiveProgram(debug = false) {
+  // runActiveProgram runs the project's main script when a project is open
+  // (F5), otherwise the active tab. currentFile forces the active tab.
+  async runActiveProgram(debug = false, currentFile = false) {
+    if (this.project && !currentFile) {
+      return this.runProject(debug);
+    }
     if (!this.activeTab) return;
     this.isOutputCollapsed = false;
     this.addLog({
@@ -555,6 +600,181 @@ class EditorStore {
     }
   }
 
+  async runProject(debug = false) {
+    const info = this.project;
+    if (!info) return;
+    this.isOutputCollapsed = false;
+    const main = info.mainPath;
+    this.log('system', `Preparing to run ${info.project.name} (${info.project.main})...`);
+    try {
+      // An open, edited tab of the main script runs as it is in the editor.
+      const tab = this.tabs.find((t) => samePath(t.path, main));
+      let code = '';
+      if (tab && tab.isDirty) {
+        code = tab.content;
+      } else {
+        const res = await AppAPI.openFile(main);
+        code = res?.content ?? '';
+        if (tab) tab.content = code;
+      }
+      if (debug) {
+        // Breakpoints are lines of the active tab; they apply when that tab is the main script.
+        const onMain = this.activeTab && samePath(this.activeTab.path, main);
+        await AppAPI.setBreakpoints(onMain ? this.breakpoints.join(',') : '');
+      }
+      this.debugSession = debug;
+      await AppAPI.runProgram(code, main, debug);
+    } catch (err: any) {
+      this.log('error', `Execution error: ${err.message || err}`);
+    }
+  }
+
+  log(type: ConsoleMessage['type'], text: string) {
+    this.addLog({
+      id: Math.random().toString(36).substring(7),
+      type,
+      text,
+      time: new Date().toLocaleTimeString()
+    });
+  }
+
+  // applyProject makes info the open project: the Explorer shows its folder
+  // and its main script opens.
+  async applyProject(info: ProjectInfo) {
+    this.project = info;
+    this.showStartScreen = false;
+    this.sceneFile = null;
+    await this.refreshProjectTree(info.root);
+    this.log('system', `Opened project ${info.project.name} (${info.root})`);
+    for (const w of info.warnings ?? []) {
+      this.log('error', `moon.json: ${w}`);
+    }
+    try {
+      const res = await AppAPI.openFile(info.mainPath);
+      if (res) {
+        // Unedited scratch tabs (the welcome main.mb) would read as a second main.mb.
+        this.tabs = this.tabs.filter((t) => !(t.isTemporary && !t.isDirty));
+        this.openTab({ path: res.path, name: res.name, content: res.content });
+      }
+    } catch {
+      // the warning above already says the main script is missing
+    }
+    this.activeSidebarTab = 'files';
+    this.sidebarCollapsed = false;
+  }
+
+  async openProject(path: string) {
+    const info = await AppAPI.loadProject(path);
+    await this.applyProject(info);
+  }
+
+  async createProject(parent: string, name: string, template: string) {
+    const info = await AppAPI.createProject(parent, name, template);
+    await this.applyProject(info);
+  }
+
+  async initProject(root: string) {
+    const info = await AppAPI.initProject(root);
+    await this.applyProject(info);
+  }
+
+  closeProject() {
+    if (!this.project) return;
+    this.log('system', `Closed project ${this.project.project.name}`);
+    this.project = null;
+    this.sceneFile = null;
+    void this.refreshProjectTree();
+    this.startView = 'home';
+    this.showStartScreen = true;
+  }
+
+  async saveProject(p: Project) {
+    if (!this.project) return;
+    const info = await AppAPI.saveProject(this.project.root, p);
+    this.project = info;
+    for (const w of info.warnings ?? []) {
+      this.log('error', `moon.json: ${w}`);
+    }
+    // moon.json may be open in a tab; show what was written.
+    const tab = this.tabs.find((t) => samePath(t.path, info.file));
+    if (tab && !tab.isDirty) {
+      try {
+        const res = await AppAPI.openFile(info.file);
+        if (res) tab.content = res.content;
+      } catch {}
+    }
+    void this.refreshProjectTree(info.root);
+  }
+
+  refreshTree() {
+    return this.refreshProjectTree(this.project?.root ?? '');
+  }
+
+  // editScene opens a scene file in the native scene editor (moon edit).
+  async editScene(path: string) {
+    await this.showScene(path);
+    const root = this.project?.root ?? dirName(path);
+    try {
+      const res = await AppAPI.openSceneEditor(path, root);
+      if (res.reused) this.log('system', `Scene editor already open: ${baseName(path)}`);
+    } catch (err: any) {
+      this.isOutputCollapsed = false;
+      this.log('error', `Scene editor: ${err.message || err}`);
+    }
+  }
+
+  // showScene points the Scene panel at a scene file without opening a tab.
+  async showScene(path: string) {
+    try {
+      const res = await AppAPI.openFile(path);
+      this.sceneFile = { path, content: res?.content ?? '' };
+    } catch {
+      this.sceneFile = { path, content: '' };
+    }
+  }
+
+  async reloadScene(path: string) {
+    if (!path) return;
+    if (this.sceneFile && samePath(this.sceneFile.path, path)) {
+      await this.showScene(this.sceneFile.path);
+    }
+    const tab = this.tabs.find((t) => samePath(t.path, path));
+    if (!tab) return;
+    if (tab.isDirty) {
+      this.log('error', `${tab.name} changed on disk, but its tab has unsaved edits; not reloaded.`);
+      return;
+    }
+    try {
+      const res = await AppAPI.openFile(tab.path);
+      if (res) tab.content = res.content;
+    } catch {}
+  }
+
+  // newSceneDir is where New Scene puts a file: the project's scenes folder,
+  // else the active file's folder, else the workspace.
+  newSceneDir(): string {
+    if (this.project) return this.project.scenesPath;
+    const p = this.activeTab?.path ?? '';
+    if (p && !p.startsWith('temp://') && !p.startsWith('example://')) return dirName(p);
+    return this.projectTree?.path ?? '';
+  }
+
+  async createScene(name: string, openEditor = true) {
+    const dir = this.newSceneDir();
+    const sep = dir.includes('\\') ? '\\' : '/';
+    const path = await AppAPI.createScene(dir ? `${dir}${sep}${name}` : name);
+    this.log('success', `Created scene ${baseName(path)}`);
+    await this.refreshTree();
+    await this.showScene(path);
+    if (this.sceneFile) {
+      this.openTab({ path, name: baseName(path), content: this.sceneFile.content });
+    }
+    this.activeSidebarTab = 'scene';
+    this.sidebarCollapsed = false;
+    if (openEditor) await this.editScene(path);
+    return path;
+  }
+
   async stopProgram() {
     this.isRunning = false;
     this.endDebugSession();
@@ -575,6 +795,24 @@ class EditorStore {
   clearLogs() {
     this.consoleLogs = [];
   }
+}
+
+export function samePath(a: string, b: string): boolean {
+  const norm = (p: string) => p.replace(/\\/g, '/').replace(/\/+$/, '').toLowerCase();
+  return !!a && !!b && norm(a) === norm(b);
+}
+
+export function baseName(p: string): string {
+  return p.split(/[\\/]/).pop() || p;
+}
+
+export function dirName(p: string): string {
+  const i = Math.max(p.lastIndexOf('/'), p.lastIndexOf('\\'));
+  return i > 0 ? p.slice(0, i) : p;
+}
+
+export function isSceneFile(p: string): boolean {
+  return p.toLowerCase().endsWith('.scene.json');
 }
 
 export const editorStore = new EditorStore();

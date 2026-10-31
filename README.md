@@ -50,6 +50,8 @@ Modern desktop IDE with Monaco code editor, full IntelliSense autocomplete, inst
 .\moonbasic.exe
 ```
 
+Projects: a folder with a `moon.json` (main script, window, scenes and assets folders, build settings). The start screen creates one from a template (Empty 3D/2D, First-person, Third-person, Platformer 2D, Top-down 2D), opens one, or reopens a recent one; F5 then runs the project's main script, and double-clicking a `.scene.json` opens it in the scene editor. See [docs/STUDIO.md](docs/STUDIO.md).
+
 ### Run spinning_cube (3D / G3N)
 
 ```powershell
@@ -226,6 +228,7 @@ This workspace maps `*.mb` → language id `moonbasic` (`.vscode/settings.json`)
 - [docs/LANGUAGE.md](docs/LANGUAGE.md) — syntax
 - [docs/NETWORK.md](docs/NETWORK.md) — host a game, find a room, wait, play
 - [docs/PHYSICS.md](docs/PHYSICS.md) — Jolt bodies, joints, grab, cloth, CharacterVirtual
+- [docs/STUDIO.md](docs/STUDIO.md) — IDE projects: start screen, templates, `moon.json`, scene editing
 - [docs/DEBUG.md](docs/DEBUG.md) — debug overlay: collider shapes, contacts, rays, navmesh, light ranges, labels, `DebugLine`
 - [docs/ANIMATION.md](docs/ANIMATION.md) — blend trees, phase sync, crossfades
 - [docs/MODERN_GAME_HELPERS.md](docs/MODERN_GAME_HELPERS.md) — FPS/TPS, tweens, grab / beam / projectile

@@ -43,6 +43,11 @@
     editorStore.saveCurrentFile();
   }
 
+  function menu(fn: () => void) {
+    closeMenus();
+    fn();
+  }
+
   function showExamples() {
     closeMenus();
     editorStore.activeSidebarTab = 'examples';
@@ -88,6 +93,14 @@
           <button class="ide-menu-item" onclick={fileOpen}>Open… <kbd>Ctrl+O</kbd></button>
           <button class="ide-menu-item" onclick={fileSave}>Save <kbd>Ctrl+S</kbd></button>
           <div class="ide-menu-sep"></div>
+          <button class="ide-menu-item" onclick={() => menu(() => { editorStore.startView = 'new'; editorStore.showStartScreen = true; })}>New project…</button>
+          <button class="ide-menu-item" onclick={() => menu(() => { editorStore.startView = 'home'; editorStore.showStartScreen = true; })}>Open project… / Recent</button>
+          {#if editorStore.project}
+            <button class="ide-menu-item" onclick={() => menu(() => editorStore.showProjectSettings = true)}>Project settings…</button>
+            <button class="ide-menu-item" onclick={() => menu(() => editorStore.closeProject())}>Close project</button>
+          {/if}
+          <button class="ide-menu-item" onclick={() => menu(() => editorStore.showNewScene = true)}>New scene…</button>
+          <div class="ide-menu-sep"></div>
           {#each featuredExamples as ex}
             <button class="ide-menu-item" onclick={() => openExample(ex.filename)}>{ex.name}</button>
           {/each}
@@ -105,7 +118,10 @@
       >Run</button>
       {#if openMenu === 'run'}
         <div class="ide-menu-drop" onclick={(e) => e.stopPropagation()}>
-          <button class="ide-menu-item" onclick={() => { closeMenus(); editorStore.runActiveProgram(); }}>Run <kbd>F5</kbd></button>
+          <button class="ide-menu-item" onclick={() => { closeMenus(); editorStore.runActiveProgram(); }}>{editorStore.project ? 'Run project' : 'Run'} <kbd>F5</kbd></button>
+          {#if editorStore.project}
+            <button class="ide-menu-item" onclick={() => { closeMenus(); editorStore.runActiveProgram(false, true); }}>Run current file</button>
+          {/if}
           <button class="ide-menu-item" onclick={() => { closeMenus(); editorStore.stopProgram(); }}>Stop <kbd>Shift+F5</kbd></button>
           <button class="ide-menu-item" onclick={() => { closeMenus(); editorStore.showBuildModal = true; }}>Build package… <kbd>F7</kbd></button>
           <div class="ide-menu-sep"></div>
@@ -133,6 +149,10 @@
   </nav>
 
   <div class="ide-title-center">
+    {#if editorStore.project}
+      <span class="ide-project-name" title={editorStore.project.root}>{editorStore.project.project.name}</span>
+      <span class="ide-status-sep"></span>
+    {/if}
     {#if editorStore.activeTab}
       <span class="name">{editorStore.activeTab.name}</span>
       {#if editorStore.activeTab.isDirty}<span class="ide-dirty" title="Unsaved changes"></span>{/if}
@@ -148,7 +168,7 @@
         Stop
       </button>
     {:else}
-      <button class="ide-run" onclick={() => editorStore.runActiveProgram()} title="Run (F5)">
+      <button class="ide-run" onclick={() => editorStore.runActiveProgram()} title={editorStore.project ? `Run ${editorStore.project.project.main} (F5)` : 'Run (F5)'}>
         <Play size={10} fill="currentColor" />
         Run
       </button>

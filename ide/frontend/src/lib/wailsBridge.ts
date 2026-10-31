@@ -20,6 +20,17 @@ declare global {
   }
 }
 
+import type { Project, ProjectInfo, ProjectTemplate, RecentProject } from './types';
+
+// backend returns a desktop-backend method, or one that throws in a plain browser.
+function backend(name: string): (...args: any[]) => Promise<any> {
+  const fn = window.go?.main?.App?.[name];
+  if (fn) return fn;
+  return async () => {
+    throw new Error('Projects require the moonBASIC IDE desktop backend');
+  };
+}
+
 export const isWails = typeof window !== 'undefined' && !!window.go?.main?.App;
 
 export const AppAPI = {
@@ -148,5 +159,45 @@ export const AppAPI = {
       return await window.go.main.App.IsLspRunning();
     }
     return false;
+  },
+
+  async loadProject(path: string): Promise<ProjectInfo> {
+    return await backend('LoadProject')(path);
+  },
+
+  async saveProject(root: string, project: Project): Promise<ProjectInfo> {
+    return await backend('SaveProject')(root, project);
+  },
+
+  async initProject(root: string): Promise<ProjectInfo> {
+    return await backend('InitProject')(root);
+  },
+
+  async createProject(parent: string, name: string, template: string): Promise<ProjectInfo> {
+    return await backend('CreateProject')(parent, name, template);
+  },
+
+  async listProjectTemplates(): Promise<ProjectTemplate[]> {
+    return (await backend('ListProjectTemplates')()) || [];
+  },
+
+  async defaultProjectsDir(): Promise<string> {
+    return (await backend('DefaultProjectsDir')()) || '';
+  },
+
+  async getRecentProjects(): Promise<RecentProject[]> {
+    return (await backend('GetRecentProjects')()) || [];
+  },
+
+  async removeRecentProject(path: string) {
+    return await backend('RemoveRecentProject')(path);
+  },
+
+  async createScene(path: string): Promise<string> {
+    return await backend('CreateScene')(path);
+  },
+
+  async openSceneEditor(file: string, root: string): Promise<{ file: string; reused: boolean; command: string }> {
+    return await backend('OpenSceneEditor')(file, root);
   }
 };

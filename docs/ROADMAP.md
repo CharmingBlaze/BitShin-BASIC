@@ -48,16 +48,16 @@ Coverage counts a partial item as half.
 | [15. Rendering and graphics quality](#15-rendering-and-graphics-quality) | 20 | 7 | 18 | 52% |
 | [16. Assets and import pipeline](#16-assets-and-import-pipeline) | 20 | 10 | 27 | 44% |
 | [17. Scenes and prefabs](#17-scenes-and-prefabs) | 10 | 7 | 14 | 44% |
-| [18. Moon Studio (IDE / editor)](#18-moon-studio-ide--editor) | 20 | 14 | 47 | 33% |
+| [18. Moon Studio (IDE / editor)](#18-moon-studio-ide--editor) | 21 | 13 | 47 | 34% |
 | [19. Shaders and visual programming](#19-shaders-and-visual-programming) | 7 | 3 | 3 | 65% |
 | [20. Development and debugging tools](#20-development-and-debugging-tools) | 33 | 8 | 5 | 80% |
 | [21. Optimization and performance](#21-optimization-and-performance) | 12 | 8 | 18 | 42% |
 | [22. Graphics API and platform](#22-graphics-api-and-platform) | 11 | 3 | 4 | 69% |
 | [23. Build system and export](#23-build-system-and-export) | 11 | 8 | 13 | 47% |
-| [24. Project management](#24-project-management) | 1 | 4 | 6 | 27% |
+| [24. Project management](#24-project-management) | 4 | 3 | 4 | 50% |
 | [25. Documentation and community](#25-documentation-and-community) | 3 | 9 | 4 | 47% |
 | [26. Plugins and extensions](#26-plugins-and-extensions) | 0 | 3 | 12 | 10% |
-| **Total** | **583** | **197** | **297** | **63%** |
+| **Total** | **587** | **195** | **295** | **64%** |
 
 **Strongest:** water and environment, the 2D and 3D engines, terrain, physics, and input. **Weakest:** plugins, project management, Moon Studio's visual editing, optimization tooling, and audio.
 
@@ -1150,7 +1150,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 ### 18. Moon Studio (IDE / editor)
 
 #### 18.1 Main interface
-- [ ] Project manager — **Partial:** open folder + FileTree.svelte; no project create/recents
+- [x] Project manager — ProjectManager.svelte start screen: New Project from templates, Open Project, Recent Projects (kept in .ide_settings.json); `moon.json` per project (ide/project.go, docs/STUDIO.md)
 - [x] Main menu — TitleBar.svelte File/Run/View menus
 - [x] Toolbar — ToolBar.svelte
 - [ ] Scene hierarchy — **Partial:** ScenePanel.svelte read-only list of SaveScene JSON; `examples/editor.mb` ImGui list
@@ -1442,10 +1442,10 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] Runtime separate from the editor — moon.exe vs moonBASICIDE.exe
 
 ### 24. Project management
-- [ ] Project templates (empty 2D, empty 3D, FPS, TPS, platformer, top-down, racing, RPG, multiplayer) — **Partial:** NewFileModal single-file starters (blank/3D/2D/physics/freelook)
-- [ ] Project settings — Missing
-- [ ] Asset folders — **Partial:** assets/ convention copied by `moon build`; AssetBrowser
-- [ ] Scene organization — Missing
+- [ ] Project templates (empty 2D, empty 3D, FPS, TPS, platformer, top-down, racing, RPG, multiplayer) — **Partial:** New Project writes Empty 3D, Empty 2D, First-person, Third-person, Platformer 2D, Top-down 2D (ide/templates.go, each smoke-run); no racing, RPG, or multiplayer template
+- [x] Project settings — `moon.json` (name, main, window, quality, scenes, assets, build) with defaults and validation in ide/project.go; ProjectSettingsModal.svelte; F5 runs `main`, Build uses `build.outputDir`
+- [x] Asset folders — `assets` folder in `moon.json`, created by every template; copied by `moon build`; AssetBrowser
+- [x] Scene organization — `scenes` folder in `moon.json`; New Scene writes an empty version-2 `.scene.json`; Explorer scene icon, double-click launches `moon edit <file> -project <root>`; ScenePanel shows the entity tree
 - [ ] Project dependencies — **Partial:** `Include`/`Import` of .mb files only
 - [ ] Git integration / version control — Missing
 - [ ] Backup management — Missing
