@@ -1271,10 +1271,16 @@ func heightFieldSampleCount(n int) int {
 func (w *World) addHeightFieldBody(id, n int) {
 	n = heightFieldSampleCount(n)
 	ox, oz, ww, wd := float32(-32), float32(-32), float32(64), float32(64)
-	if t := w.terrains[id]; t != nil {
-		ox, oz, ww, wd = t.hf.ox, t.hf.oz, t.hf.worldW, t.hf.worldD
-	} else if t := w.terrains[w.curTerrain]; t != nil {
-		ox, oz, ww, wd = t.hf.ox, t.hf.oz, t.hf.worldW, t.hf.worldD
+	src := w.terrains[id]
+	if src == nil {
+		src = w.terrains[w.curTerrain]
+	}
+	if src != nil {
+		ox, oz, ww, wd = src.hf.ox, src.hf.oz, src.hf.worldW, src.hf.worldD
+		if src.sculpt.hfBodies == nil {
+			src.sculpt.hfBodies = map[int]int{}
+		}
+		src.sculpt.hfBodies[id] = n // SculptTerrain re-adds it (terrain_sculpt.go)
 	}
 	if ww < 1 {
 		ww = 64

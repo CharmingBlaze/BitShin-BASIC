@@ -743,6 +743,9 @@ func (w *World) commandTable() map[string]cmd {
 	for k, v := range w.terrainCommands(n, z, need) {
 		m[k] = v
 	}
+	for k, v := range w.terrainSculptCommands(n, z, need) {
+		m[k] = v
+	}
 	for k, v := range w.playCommands(n, z, need) {
 		m[k] = v
 	}

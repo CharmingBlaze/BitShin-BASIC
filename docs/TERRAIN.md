@@ -203,6 +203,45 @@ Shipped behavior follows these, on the 3.3 path:
 
 Not planned: concurrent binary trees (Dupuy 2020, Intel Siggraph 2024) and virtual texturing. Those replace the mesh and the texture cache.
 
+## Sculpting and painting
+
+Scripts can reshape and paint the ground while the game runs: a level editor, craters, a road being graded. Every terrain kind has CPU heights, so every kind can be sculpted.
+
+- **Heightmap terrains** (`CreateTerrain(file$ | hm, …)`, `CreateTerrainFromHeightmap`, `LoadHeightmap`) are edited on their own grid. `gridX` / `gridZ` are pixels of the source map. Brushes clip to the map edge. A map over 2048² keeps 16-bit heights; edits go into a delta lattice on its grid nodes instead, so a brush can still raise past the stored range.
+- **Procedural terrains** (`CreateTerrain("default")`, `CreateProcTerrain`, `CreateTerrainGL`) keep their noise and add a sparse delta lattice on top, one node per mesh cell (`TerrainCellSize`). They stay infinite; only the dug-into tiles hold memory.
+
+| Command | What it does |
+| --- | --- |
+| `SculptTerrain(t, x, z, radius, amount [, falloff])` | Raise by `amount` at the centre (negative lowers). Call it every frame with `amount * Time.Delta()` while a button is held |
+| `FlattenTerrain(t, x, z, radius, height [, strength, falloff])` | Pull toward `height`. `strength` 1 sets it outright |
+| `SmoothTerrain(t, x, z, radius [, strength, falloff])` | Pull toward the 3×3 average |
+| `SetTerrainHeight(t, gridX, gridZ, height)` / `TerrainGridHeight(t, gridX, gridZ)` | One lattice node |
+| `PaintTerrain(t, x, z, radius, layer [, strength, falloff])` | `layer` 0 sand, 1 grass, 2 rock, 3 snow, `-1` erases back to the slope/height splat |
+| `SetTerrainPaintArea(t, x0, z0, width, depth [, res])` | World rectangle and texel size of the paint map (default: the heightmap rectangle, or the streamed window around the origin for procedural terrains; 512²) |
+| `ResetTerrainEdits(t)` | Back to the loaded heights and an empty paint map |
+| `PickTerrain(t [, screenX, screenY])` | Ray from the mouse (or a pixel) to the ground. `1` on a hit, point in `PickedX/Y/Z` |
+
+`x`, `z` and `radius` are world units. `falloff` is the soft fraction of the radius (`0` hard disc, `1` soft to the centre, default `0.5`). `t` may be `0` for the current terrain. An unknown handle or a missing argument is an error that names the command.
+
+What updates, and when:
+
+- `TerrainHeight`, `TerrainSlope`, `PickTerrain` and scatter planting read the new heights on the same line.
+- Chunk meshes rebuild once per frame in `RenderWorld`, however many brush calls ran. Only the vertices under the brush are re-sampled in the existing buffers, so the chunk keeps its entity handle. A heightmap brush costs well under a millisecond; on 8-octave `CreateTerrainGL` noise a radius-8 dab is a few milliseconds.
+- Near-chunk collision (`SetPlayer` bubble) and bodies from `CreateBodyHeightfield` are rebuilt from the new heights the same frame.
+- Grass cards, trees and props on a touched chunk are replanted once the brush has rested for a few frames, so a drag does not churn instances.
+- Painting writes a CPU RGBA copy of the blend map and uploads only the touched texels (`glTexSubImage2D`). The first `PaintTerrain` adopts a `SetTerrainBlendMap` image when its file can be read again; otherwise it starts empty (the slope/height splat shows through).
+- Ground past the detail window (the horizon ring and vista) is rebuilt on a worker when a brush lands there, so it catches up a frame or two later. The delta lattice is read under a lock, so those workers never see a half-built tile.
+
+Limits: `BakeTerrainNav` is a snapshot, so bake again after sculpting. 3D tree blocks out past the detail window keep their old height until they are planted again. With `clamp` / `mirror` map edges the reflected land outside the map follows the edit only when its chunk next rebuilds. Brushes cover at most 512 lattice cells across. Painting outside the paint area does nothing, and the outer texel ring is never painted, because the shader clamps outside the area to it.
+
+Demo: `examples/terrain_sculpt.mb` (the first 1.5 s carve and paint a ring by themselves). Mouse picks the ground, left raises and right lowers; `1`–`4` switch sculpt / flatten / smooth / paint, `Tab` cycles the paint layer, `[` `]` size, `-` `=` strength, `R` resets.
+
+```basic
+If PickTerrain(ground) And Input.MouseDown(1)
+    SculptTerrain(ground, PickedX(), PickedZ(), 6, 3 * Time.Delta())
+EndIf
+```
+
 ## Not on G3N
 
 - Hardware tessellation of the terrain mesh. `SetTerrainDetail` changes the CPU step. `EnableTessellation` only compiles a program.
