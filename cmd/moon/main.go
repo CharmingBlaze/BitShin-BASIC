@@ -15,25 +15,40 @@ import (
 
 const version = "1.0.0"
 
+// moon build sets these with -ldflags -X so a packaged binary runs its game
+// when started with no arguments (a double-click).
+var (
+	bootScript   string // main script beside the binary, e.g. "game.mb"
+	bootHeadless string // "1": no window (moon build -headless)
+	bootProfile  string // dev, debug, release, or a moon.json profile
+)
+
 func main() {
 	args := os.Args[1:]
+	if bootScript != "" && (len(args) == 0 || args[0] == "-headless" || args[0] == "-debug") {
+		os.Exit(runBoot(args))
+	}
 	if len(args) == 0 || args[0] == "-h" || args[0] == "--help" {
 		fmt.Print(`moonBASIC — Blitz3D-style BASIC (G3N 3D, Ebiten 2D)
 
 Usage:
-  moon <program.mb> [-debug] [-break 10,20] [-debugjson]
+  moon <program.mb> [-debug] [-break 10,20] [-debugjson] [-headless]
                                  Run a program. -debug pauses on -break lines and DebugBreak,
                                  shows DebugLog output (also MOON_DEBUG=1). At the debug> prompt:
                                  c continue, s step into, n step over, o step out, bt call stack,
                                  locals, globals, p expr, b line, d line, q quit.
                                  -debugjson prints each pause as one @debug JSON line (the IDE uses it)
+                                 -headless runs with no window or GL (servers, tests; also MOON_HEADLESS=1)
   moon run <program.mb>          Same
   moon compile <program.mb> [-o app.exe] [-os windows|linux|darwin] [-arch amd64|arm64] [-tags tags]
                                  Compile to a standalone game binary (Flip presents frames)
   moon transpile <program.mb> [-o out.go]
                                  Translate moonBASIC source to native Go code
   moon build <program.mb> [-o dist] [-os windows|linux|darwin] [-arch amd64|arm64] [-tags tags]
-                                 Portable package folder: interpreter binary + assets + natives
+             [-profile dev|debug|release|name] [-pak|-loose] [-headless] [-strict]
+             [-name Game] [-version 1.2.3] [-company Co] [-icon icon.png|icon.ico]
+                                 Portable package folder: game binary + scripts + assets (or a .pak) + natives.
+                                 Defaults come from moon.json; see docs/RELEASE.md
   moon lsp                       Language server (stdio JSON-RPC); same as moonsls
   moon version                   Print version
   moon shader <file.glsl> [stage]  Validate GLSL (optional SPIR-V)
@@ -119,6 +134,7 @@ type runOpts struct {
 	path      string
 	debug     bool
 	debugJSON bool
+	headless  bool
 	breaks    []int
 }
 
@@ -130,6 +146,8 @@ func splitRunArgs(args []string) runOpts {
 			o.debug = true
 		case "-debugjson":
 			o.debug, o.debugJSON = true, true
+		case "-headless":
+			o.headless = true
 		case "-break":
 			if i+1 < len(args) {
 				i++
@@ -166,6 +184,9 @@ func runFile(opt runOpts) error {
 		return err
 	}
 	world := runtime.New(filepath.Dir(path))
+	if opt.headless {
+		world.SetHeadless(true)
+	}
 	world.SetScript(path)
 	in := interp.New(prog, world)
 	// MOON_SCRIPT_NAME lets the IDE report the tab's name instead of its temp run file.
@@ -182,6 +203,9 @@ func runFile(opt runOpts) error {
 	if err := in.Run(); err != nil {
 		return err
 	}
+	if world.Headless() {
+		return world.LoopHeadless(in)
+	}
 	if !world.HasGraphics() {
 		return in.Err()
 	}
@@ -192,6 +216,31 @@ func runFile(opt runOpts) error {
 		return in.Err()
 	}
 	return world.Loop(in)
+}
+
+// runBoot runs the game a packaged binary was built for. A release build has
+// no console on Windows, so its error also goes to <exe name>.log.
+func runBoot(args []string) int {
+	dir := exeDir()
+	opt := splitRunArgs(args)
+	opt.path = filepath.Join(dir, bootScript)
+	if bootHeadless == "1" {
+		opt.headless = true
+	}
+	if bootProfile == "debug" && os.Getenv("MOON_DEBUG") == "" {
+		os.Setenv("MOON_DEBUG", "1")
+	}
+	err := runFile(opt)
+	if err == nil {
+		return 0
+	}
+	fmt.Fprintln(os.Stderr, err)
+	if bootProfile == "release" {
+		self, _ := os.Executable()
+		stem := strings.TrimSuffix(filepath.Base(self), filepath.Ext(self))
+		_ = os.WriteFile(filepath.Join(dir, stem+".log"), []byte(err.Error()+"\n"), 0o644)
+	}
+	return 1
 }
 
 func runShader(args []string) error {

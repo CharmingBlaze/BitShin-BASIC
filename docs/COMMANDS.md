@@ -26,7 +26,7 @@ Dotted topic names call these same commands: `Math.Abs`, `String.Upper`, `Input.
 | `GraphicsWidth()` / `GraphicsHeight()` | Current window size (GLFW or last `Graphics*`) |
 | `ClearWorld` | Free entities/sprites/emitters; keep the window |
 | `LoadScene file$` | Run a setup `.mb` (no `Flip`/`End`) on the same variables |
-| `OpenPak file$` | Zip archive; later `Load*` look here if the disk file is missing |
+| `OpenPak file$` | Zip archive; later `Load*` look here if the disk file is missing. `<exe name>.pak` or `data.pak` beside the binary or the script opens by itself |
 | `FileType(path$)` | 0 missing, 1 file, 2 directory |
 
 ## 3D scene (G3N)
@@ -761,7 +761,14 @@ See [LANGUAGE.md](LANGUAGE.md#debugging) for the debugger commands.
 moon build game.mb -o dist
 ```
 
-Writes `dist/` with the `moon` binary, the `.mb`, copied `Load*` files, `assets/` if present, and natives from `third_party/$GOOS` (on Windows: `libc++.dll` + `libunwind.dll`). Audio is Oto — OpenAL DLLs are not copied. Zip `dist` and run from that folder.
+Writes `dist/` with the `moon` binary, the `.mb` files, copied `Load*` files, `assets/` and `scenes/` if present, and natives from `third_party/$GOOS` (on Windows: `libc++.dll` + `libunwind.dll`). Audio is Oto — OpenAL DLLs are not copied. Zip `dist` and run from that folder. A missing quoted asset prints a warning (`-strict` fails).
+
+```
+moon build game.mb -profile release -name "Star Game" -version 1.2.0 -icon icon.png
+moon build server.mb -headless -tags enet
+```
+
+`-profile release` packs the assets into `Star Game.pak` (opened automatically at startup; loose files still win), strips the binary, and hides the console on Windows. `-headless` builds a dedicated server that opens no window; `moon run -headless game.mb` runs any script that way. Profiles, `moon.json` defaults, and what headless skips: [RELEASE.md](RELEASE.md).
 
 ## Menu / level
 

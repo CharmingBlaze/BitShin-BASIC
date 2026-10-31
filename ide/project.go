@@ -40,13 +40,16 @@ type ProjectWindow struct {
 	Title  string `json:"title"`
 }
 
-// ProjectBuild is used by the Build dialog. Icon, version, and company are
-// stored for packaging; moon build does not stamp them into the binary yet.
+// ProjectBuild is used by the Build dialog and by moon build, which stamps
+// icon, version, and company into the Windows binary. Profile and Profiles
+// are moon build's; the IDE keeps them as they are (cmd/moon/build_profile.go).
 type ProjectBuild struct {
-	OutputDir string `json:"outputDir"`
-	Icon      string `json:"icon"`
-	Version   string `json:"version"`
-	Company   string `json:"company"`
+	OutputDir string          `json:"outputDir"`
+	Icon      string          `json:"icon"`
+	Version   string          `json:"version"`
+	Company   string          `json:"company"`
+	Profile   string          `json:"profile,omitempty"`
+	Profiles  json.RawMessage `json:"profiles,omitempty"`
 }
 
 // ProjectInfo is a loaded project plus the absolute paths the IDE needs.

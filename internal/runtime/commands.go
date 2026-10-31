@@ -833,6 +833,9 @@ func (w *World) commandTable() map[string]cmd {
 	for k, v := range w.gameplayCommands(n, z, need) {
 		m[k] = v
 	}
+	if w.headless {
+		w.applyHeadless(m, n, z, need)
+	}
 	applyModernAliases(m)
 	return m
 }
