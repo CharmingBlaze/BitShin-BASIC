@@ -8,6 +8,8 @@
 | `.obj` | + `.mtl` if present |
 | `.dae` | Collada |
 | `.fbx` | Mesh triangles, normals, vertex UVs, and skin clusters (indexes, weights, limb translation). Z-up files become Y-up. A unit scale of 50 or more (centimetres) is converted to metres. Moving a limb node drags its weighted vertices. Cameras and animation clips are not read |
+| `.stl` | ASCII or binary. Facet normals (computed when zero); corners that share a position and normal are welded, so edges stay sharp. No UVs or colours |
+| `.ply` | ASCII or binary little-endian. Positions, normals (`nx ny nz`), UVs (`u v` / `s t`), and vertex colours (`red green blue`, uchar or float). Triangle, quad, and polygon faces are fanned. Vertex colours show under the lit shader (the default when shadows are on). Big-endian and point clouds are not read |
 
 **Large levels.** `LoadLevel(file$ [, cell#])` loads a file and merges its static meshes into one mesh per material per 64 m cell. A 1500-node glTF city becomes 48 draws, and the `city.mb` example's 20,000 script-built meshes become 676. G3N pays per mesh, not per triangle, so this is what keeps a big level fast. Cells are frustum culled and hidden past the fog. `MergeLevel(root)` does the same to anything already built; doors, pickups, and anything with a body, collider, animation, or name stay separate.
 
@@ -15,13 +17,15 @@
 
 ## Textures
 
-PNG / JPEG via `LoadTexture` / `LoadImage`. Heightmaps: PNG/JPEG grayscale (`LoadHeightmap`, `GenerateHeightmap`, `SaveHeightmap`).
+PNG, JPEG, BMP, TGA, WebP, and (static) GIF via `LoadTexture` / `LoadImage`, and anywhere else an image is read (heightmaps, LUT strips, skybox faces, palettes). TGA covers uncompressed and RLE truecolor (15/16/24/32-bit), greyscale, and colour-mapped files, either origin; a 32-bit TGA whose alpha is all zero loads opaque. WebP is lossy or lossless. Heightmaps: PNG/JPEG grayscale (`LoadHeightmap`, `GenerateHeightmap`, `SaveHeightmap`).
 
 `LoadTexture` also accepts `.dds` (DXT1, DXT3, DXT5, or 32-bit uncompressed) and `.ktx` / `.ktx2` when the image is S3TC/BC1–BC3. KTX2 Zstandard and ZLIB supercompression are inflated first. BasisLZ is not transcoded. The blocks stay compressed on the GPU (`EXT_texture_compression_s3tc` on OpenGL 3.3).
 
 ## Audio (Oto)
 
-`.wav` / `.ogg`. No OpenAL.
+`.wav` / `.ogg` / `.mp3` / `.flac`, resampled to 44.1 kHz stereo. No OpenAL.
+
+`LoadSound` decodes the whole file to PCM so it can start instantly and overlap. `LoadMusic` streams: it checks the file decodes, then each `PlayMusic` decodes from disk (or the file extracted from an `OpenPak` archive) a block at a time while it plays, so a long track never sits in memory as PCM. Music loops by reopening the file at its end; `SetMusicVolume`, `StopMusic`, and `SetSoundPitch` work as before.
 
 ## Packaging
 

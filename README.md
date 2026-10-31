@@ -8,7 +8,7 @@ BASIC for small 3D and 2D games. The window, meshes, and physics are this runtim
 - **3D physics:** native Jolt on Windows, Linux amd64/arm64, and macOS ARM (cars, tanks, bikes, cloth, and rotated colliders). Linux and macOS link the Jolt 5.4 libraries from [jolt-go](https://github.com/bbitechnologies/jolt-go). `-tags nojolt` or another OS/arch: software fallback (`PhysicsBackend$()` = `fallback`)
 - **2D physics:** [jakecoffman/cp](https://github.com/jakecoffman/cp) (Chipmunk2D, pure Go)
 - **Network:** one player hosts, friends join on the same network. [go-enet](https://github.com/codecat/go-enet) with `-tags enet`, otherwise UDP. See [docs/NETWORK.md](docs/NETWORK.md)
-- **Audio:** [Oto](https://github.com/ebitengine/oto) v3 for `.wav` / `.ogg` (no OpenAL)
+- **Audio:** [Oto](https://github.com/ebitengine/oto) v3 for `.wav` / `.ogg` / `.mp3` / `.flac`, music streamed from disk (no OpenAL)
 - **UI:** [cimgui-go](https://github.com/AllenDang/cimgui-go) v1.6.0 on the same G3N GLFW window
 - **ECS:** Flecs 4.1.6 (`github.com/SanderMertens/flecs-go` → `third_party/flecs-go`)
 - **Pathfinding:** Detour + grid A*
@@ -250,7 +250,7 @@ This workspace maps `*.mb` → language id `moonbasic` (`.vscode/settings.json`)
 - [docs/RETRO.md](docs/RETRO.md) — retro looks: PS1 / Game Boy / PICO-8 presets, low resolution, palettes, dither, vertex snapping
 - [docs/PARTICLES.md](docs/PARTICLES.md) — CPU and GPU (transform feedback) emitters
 - [docs/SHADERS.md](docs/SHADERS.md) — GLSL 330 programs + PBR
-- [docs/ASSETS.md](docs/ASSETS.md) — formats (`LoadMesh`: glTF, OBJ, DAE, FBX meshes)
+- [docs/ASSETS.md](docs/ASSETS.md) — formats (`LoadMesh`: glTF, OBJ, DAE, FBX, STL, PLY meshes; PNG/JPEG/BMP/TGA/WebP images; WAV/OGG/MP3/FLAC audio)
 - [docs/NAV.md](docs/NAV.md) — Detour, crowd, terrain slopes
 - [docs/SHADOWS.md](docs/SHADOWS.md) — CSM / cache / filters
 - [docs/ECS.md](docs/ECS.md) — Flecs

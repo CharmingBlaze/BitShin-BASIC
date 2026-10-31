@@ -1754,6 +1754,10 @@ func (w *World) loadMeshFile(path string, parent int) (int, error) {
 		id, err = w.loadColladaAt(realPath, parent)
 	case ".fbx":
 		id, err = w.loadFBXAt(realPath, parent)
+	case ".stl":
+		id, err = w.loadSTLAt(realPath, parent)
+	case ".ply":
+		id, err = w.loadPLYAt(realPath, parent)
 	default:
 		id, err = w.loadObjAt(realPath, parent)
 	}

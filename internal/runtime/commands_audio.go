@@ -174,7 +174,13 @@ func (w *World) loadClip(a []value.Value, music bool) (value.Value, error) {
 	if err != nil {
 		return value.Num(0), nil
 	}
-	clip, err := bsaudio.Load(path)
+	// Music streams from disk while it plays; sounds decode up front so
+	// they can start instantly and overlap.
+	load := bsaudio.Load
+	if music {
+		load = bsaudio.LoadStream
+	}
+	clip, err := load(path)
 	if err != nil {
 		return value.Num(0), nil
 	}

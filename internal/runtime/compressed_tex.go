@@ -12,6 +12,8 @@ import (
 
 	"github.com/g3n/engine/texture"
 	"github.com/klauspost/compress/zstd"
+
+	_ "moonbasic/internal/imgfmt" // BMP, TGA, WebP for every image.Decode
 )
 
 // Desktop GL 3.3 uploads these through EXT_texture_compression_s3tc.
