@@ -549,6 +549,11 @@ var modernAliases = map[string]string{
 	"addanimlayer":         "setanimlayer",
 	"btaddnode":            "btadd",
 	"setagentdestination":  "crowdsetagentdestination",
+	"crossfadeanimation":   "crossfadeanim",
+	"crossfade":            "crossfadeanim",
+	"setblendparameter":    "setblendparam",
+	"getblendweight":       "blendweight",
+	"deleteblendtree":      "freeblendtree",
 }
 
 // CommandNames is every command and alias the interpreter will run.

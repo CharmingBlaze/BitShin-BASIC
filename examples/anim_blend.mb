@@ -1,0 +1,94 @@
+; Animation blend trees — idle/walk/run by speed, a 2D strafe tree, crossfades.
+; Up/Down: speed   Left/Right: strafe (2D tree)   T: toggle 1D/2D tree
+; C: crossfade to wave and back   Esc quits.
+
+SetWindowTitle("moonBASIC — animation blend trees")
+Graphics3D(1280, 720, 0, 2)
+SetBuffer(BackBuffer())
+SetCameraClsColor(40, 50, 65)
+SetAmbientLight(70, 75, 85)
+
+cam = CreateCamera()
+PositionEntity(cam, 2.2, 1.6, 3.6)
+PointEntity(cam, 0, 0.9, 0)
+sun = CreateDirectionalLight()
+SetLightDirection(sun, 50, 35, 0)
+
+ground = CreateCube().Scale(12, 0.1, 12).Position([0, -0.05, 0]).Color(50, 70, 60)
+
+; examples/assets/walker.gltf: idle, walk, run, strafe_left, strafe_right, wave
+hero = LoadAnimMesh("assets/walker.gltf")
+
+; 1D locomotion: threshold = speed in m/s
+loco = CreateBlendTree(hero, 1)
+AddBlendClip(loco, "idle", 0)
+AddBlendClip(loco, "walk", 1.5)
+AddBlendClip(loco, "run", 4.0)
+
+; 2D strafe: x = side speed, y = forward speed
+strafe = CreateBlendTree(hero, 2)
+AddBlendClip(strafe, "idle", 0, 0)
+AddBlendClip(strafe, "walk", 0, 1.5)
+AddBlendClip(strafe, "run", 0, 4.0)
+AddBlendClip(strafe, "strafe_left", -1.5, 0)
+AddBlendClip(strafe, "strafe_right", 1.5, 0)
+
+PlayBlendTree(hero, loco)
+tree = loco
+waving = 0
+speed# = 0.0
+side# = 0.0
+
+frames = 0
+While 1
+    frames = frames + 1
+    If frames > 8 And Input.KeyHit(KEY_ESCAPE) Then Exit
+    dt# = Time.Delta()
+
+    speed = speed + GetAxis(KEY_DOWN, KEY_UP) * 2.5 * dt
+    If speed < 0 Then speed = 0
+    If speed > 5 Then speed = 5
+    side = side + GetAxis(KEY_LEFT, KEY_RIGHT) * 2.5 * dt
+    If side < -1.5 Then side = -1.5
+    If side > 1.5 Then side = 1.5
+
+    ; Intro: the first two seconds ramp speed, toggle trees and wave on their own.
+    If frames > 20 And frames < 110 Then speed = (frames - 20) / 18.0
+
+    If Input.KeyHit(KEY_T) Or frames = 70 Then
+        If tree = loco Then
+            tree = strafe
+        Else
+            tree = loco
+        EndIf
+        If waving = 0 Then PlayBlendTree(hero, tree, 0.3)
+    EndIf
+    If Input.KeyHit(KEY_C) Or frames = 90 Or frames = 105 Then
+        If waving = 0 Then
+            CrossfadeAnim(hero, "wave", 0.35)
+            waving = 1
+        Else
+            PlayBlendTree(hero, tree, 0.35)
+            waving = 0
+        EndIf
+    EndIf
+
+    SetBlendParam(loco, speed)
+    SetBlendParam(strafe, side, speed)
+
+    Cls
+    UpdateWorld
+    RenderWorld
+
+    Text(20, 20, "Blend trees — Up/Down speed, Left/Right strafe, T 1D/2D, C wave crossfade, Esc quit")
+    If tree = loco Then
+        Text(20, 44, "1D locomotion  speed=" + Str(Int(speed * 100) / 100.0))
+        Text(20, 68, "idle " + Str(Int(BlendWeight(loco, 0) * 100)) + "%   walk " + Str(Int(BlendWeight(loco, 1) * 100)) + "%   run " + Str(Int(BlendWeight(loco, 2) * 100)) + "%")
+    Else
+        Text(20, 44, "2D strafe  side=" + Str(Int(side * 100) / 100.0) + "  forward=" + Str(Int(speed * 100) / 100.0))
+        Text(20, 68, "idle " + Str(Int(BlendWeight(strafe, 0) * 100)) + "%   walk " + Str(Int(BlendWeight(strafe, 1) * 100)) + "%   run " + Str(Int(BlendWeight(strafe, 2) * 100)) + "%   left " + Str(Int(BlendWeight(strafe, 3) * 100)) + "%   right " + Str(Int(BlendWeight(strafe, 4) * 100)) + "%")
+    EndIf
+    Text(20, 92, "phase " + Str(Int(BlendTreePhase(tree) * 100)) + "%   crossfade " + Str(Int(CrossfadeProgress(hero) * 100)) + "%   waving=" + Str(waving))
+    Flip
+Wend
+End
