@@ -1,0 +1,76 @@
+; Tiled maps — LoadTiledMap reads a .tmj/.tmx level: layers, a parallax
+; background, animated water, mirrored tiles, tile properties, and an
+; object layer for the spawn point. Left mouse paints autotiled road,
+; right mouse erases it. Arrows move. 1-4 toggle layers. Esc quits.
+
+Graphics2D(960, 540)
+SetClsColor(40, 52, 80)
+SetWindowTitle("moonBASIC — Tiled maps")
+
+map = LoadTiledMap("assets/tiled/level.tmj")
+ground = TileLayerIndex(map, "Ground")
+road = TileLayerIndex(map, "Path")
+SetTileCollisionLayer(map, ground)
+; The road tiles are 16 autotiles starting at tile 9
+SetAutoTile(map, 9, road)
+
+; Spawn where the level's object layer says
+px# = 100
+py# = 100
+For i = 0 To TileObjectCount(map) - 1
+    If TileObjectName$(map, i) = "player" Then
+        px# = TileObjectX(map, i)
+        py# = TileObjectY(map, i)
+    EndIf
+Next
+
+coin = LoadImage("assets/coin.png")
+player = CreateSprite(coin)
+ScaleSprite(player, 0.5, 0.5)
+PositionSprite(player, px#, py#)
+
+levelW = TileMapWidth(map) * TileWidth(map)
+levelH = TileMapHeight(map) * TileHeight(map)
+CameraTarget2D(0, player)
+CameraSmooth2D(0, 0.25)
+CameraBounds2D(0, 0, 0, levelW, levelH)
+CameraZoom2D(0, 2)
+
+Dim layerOff(4)
+frame = 0
+While Not Input.KeyDown(KEY_ESCAPE)
+    dt# = Time.Delta()
+    frame = frame + 1
+    sp# = 120 * dt#
+    ox# = SpriteX(player)
+    oy# = SpriteY(player)
+    If Input.KeyDown(KEY_LEFT) Then MoveSprite(player, -sp#, 0)
+    If Input.KeyDown(KEY_RIGHT) Then MoveSprite(player, sp#, 0)
+    If Input.KeyDown(KEY_UP) Then MoveSprite(player, 0, -sp#)
+    If Input.KeyDown(KEY_DOWN) Then MoveSprite(player, 0, sp#)
+    If frame < 80 Then MoveSprite(player, sp#, 0)
+    ; Solid tiles (stone, crates) come from the tileset's "solid" property
+    tile = TileAt(map, SpriteX(player), SpriteY(player))
+    If TileData(map, tile, "solid") Then PositionSprite(player, ox#, oy#)
+
+    ; Paint road under the mouse
+    tx = Int(MouseWorldX2D(0) / TileWidth(map))
+    ty = Int(MouseWorldY2D(0) / TileHeight(map))
+    If Input.MouseDown(1) Or frame = 40 Then PaintAutoTile(map, tx, ty, 1, road)
+    If Input.MouseDown(2) Then PaintAutoTile(map, tx, ty, 0, road)
+
+    For k = 1 To 4
+        If Input.KeyHit(KEY_1 + k - 1) Then
+            layerOff(k) = 1 - layerOff(k)
+            SetTileLayerVisible(map, k - 1, 1 - layerOff(k))
+        EndIf
+    Next
+
+    Cls
+    DrawTileMap(map, 0, 0)
+    SetColor(240, 240, 250)
+    Text(12, 10, "TILED MAP  arrows move  left/right mouse paint/erase road  1-4 layers")
+    Text(12, 30, "tile under player " + tile + "   water " + TileData(map, tile, "water") + "   objects " + TileObjectCount(map))
+    Flip
+Wend
+End

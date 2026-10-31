@@ -544,9 +544,15 @@ func (w *World) tickEmitters(dt float32) {
 	}
 }
 
-func (w *World) drawParticles2D(screen *ebiten.Image) {
+func (w *World) drawParticles2D(screen *ebiten.Image, cam *camera2D) {
 	if !w.mode2D {
 		return
+	}
+	// Particles live in the world, so they pan, zoom, and turn with the camera.
+	cm := cam.geoM(w)
+	zoom := cam.zoom
+	if zoom <= 0 {
+		zoom = 1
 	}
 	for _, e := range w.emitters {
 		if e == nil || !e.space2D {
@@ -581,11 +587,13 @@ func (w *World) drawParticles2D(screen *ebiten.Image) {
 				opt.GeoM.Translate(-float64(b.Dx())/2, -float64(b.Dy())/2)
 				opt.GeoM.Scale(s/float64(b.Dx()), s*e.tall/float64(b.Dy()))
 				opt.GeoM.Translate(p.x, p.y)
+				opt.GeoM.Concat(cm)
 				opt.ColorScale.Scale(float32(cr), float32(cg), float32(cb), float32(ca))
 				screen.DrawImage(e.img, opt)
 				continue
 			}
-			vector.FillCircle(screen, float32(p.x), float32(p.y), float32(s), c, true)
+			px, py := cm.Apply(p.x, p.y)
+			vector.FillCircle(screen, float32(px), float32(py), float32(s*zoom), c, true)
 		}
 	}
 }

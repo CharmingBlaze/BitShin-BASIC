@@ -76,8 +76,10 @@ func TestSpriteBlockedBySolidTile(t *testing.T) {
 	if _, err := cmds["camerafollow2d"]([]value.Value{value.Num(7), value.Num(0), value.Num(0)}); err != nil {
 		t.Fatal(err)
 	}
-	if w.cam2X != 16-400 || w.cam2Y != 80-240 {
-		t.Fatalf("camera %v,%v", w.cam2X, w.cam2Y)
+	cx, _ := cmds["camera2dx"](nil)
+	cy, _ := cmds["camera2dy"](nil)
+	if cx.Num != 16-400 || cy.Num != 80-240 {
+		t.Fatalf("camera %v,%v", cx.Num, cy.Num)
 	}
 }
 

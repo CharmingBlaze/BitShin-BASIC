@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/go-gl/gl/v3.3-core/gl"
+	"github.com/hajimehoshi/ebiten/v2"
 
 	"moonbasic/internal/value"
 )
@@ -35,6 +36,27 @@ func (w *World) captureShot(fbw, fbh int) {
 	for i := 3; i < len(img.Pix); i += 4 {
 		img.Pix[i] = 255
 	}
+	writeShot(path, img)
+}
+
+// captureShot2D is captureShot for the Ebiten window: the drawn frame, HUD
+// included.
+func (w *World) captureShot2D(screen *ebiten.Image) {
+	path := w.shotPath
+	if path == "" || screen == nil {
+		return
+	}
+	w.shotPath = ""
+	b := screen.Bounds()
+	img := image.NewRGBA(image.Rect(0, 0, b.Dx(), b.Dy()))
+	screen.ReadPixels(img.Pix)
+	for i := 3; i < len(img.Pix); i += 4 {
+		img.Pix[i] = 255
+	}
+	writeShot(path, img)
+}
+
+func writeShot(path string, img image.Image) {
 	if dir := filepath.Dir(path); dir != "" {
 		_ = os.MkdirAll(dir, 0o755)
 	}

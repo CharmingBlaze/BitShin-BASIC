@@ -3,6 +3,7 @@ package runtime
 import (
 	"image"
 	"image/color"
+	"math"
 	"sort"
 	"time"
 
@@ -38,6 +39,13 @@ type ebiSprite struct {
 	alpha               float64
 	cr, cg, cb          float64
 	layer               int
+	order               int     // draw order inside a layer
+	pvx, pvy            float64 // pivot offset from the centre, in sprite sizes
+	blend               int     // blendAlpha, blendAdd, blendMultiply, blendScreen
+	parent              int     // sprite this one is positioned relative to
+	ux, uy, uw, uh      int     // source rectangle; uw 0 uses the frame
+	occluder            bool    // blocks 2D light
+	unlit               bool    // drawn after 2D lighting, at full brightness
 }
 
 type drawOp struct {
@@ -52,6 +60,9 @@ type drawOp struct {
 	r, g, b, a     uint8
 	text           string
 	filled         bool
+	world          bool // x, y are world coordinates seen through the camera
+	tm             *tileMap
+	layer          int
 }
 
 var ebiKeys = map[int]ebiten.Key{
@@ -112,6 +123,8 @@ func (g *ebiGame) Update() error {
 	g.first = false
 	g.w.tickFX()
 	g.w.tickSpriteAnims()
+	g.w.tickCameras2D()
+	g.w.tileClock += g.w.delta
 	if g.in.Done() || g.w.quit {
 		return ebiten.Termination
 	}
@@ -121,6 +134,7 @@ func (g *ebiGame) Update() error {
 func (g *ebiGame) Draw(screen *ebiten.Image) {
 	screen.Fill(color.RGBA{g.w.clsRGB[0], g.w.clsRGB[1], g.w.clsRGB[2], 255})
 	g.w.draw2D(screen)
+	g.w.captureShot2D(screen)
 }
 
 func (g *ebiGame) Layout(ow, oh int) (int, int) {
@@ -198,11 +212,59 @@ func (w *World) pollEbitenInput() {
 	_ = inpututil.IsKeyJustPressed
 }
 
+// draw2D draws the frame. With only camera 0 it keeps the old order: the
+// queued draws, HudPrint, particles, fog, then sprites. With more cameras,
+// each viewport gets the world (tiles, particles, sprites) and the
+// screen-space draws go on top once.
 func (w *World) draw2D(screen *ebiten.Image) {
+	views := w.views2D()
+	lit := w.lighting2DOn()
+	if !lit && len(views) == 1 && views[0].id == 0 && views[0].vw == 0 {
+		c := views[0]
+		w.drawOps2D(screen, c, true, true)
+		w.drawHudPrint2D(screen)
+		w.drawParticles2D(screen, c)
+		w.drawFog2D(screen)
+		w.drawSprites2D(screen, c, spritesAll)
+		return
+	}
+	for _, c := range views {
+		x, y, vw, vh := c.viewport(w)
+		dst := screen.SubImage(rectXYWH(x, y, vw, vh)).(*ebiten.Image)
+		w.drawOps2D(dst, c, true, false)
+		w.drawParticles2D(dst, c)
+		if lit {
+			w.drawSprites2D(dst, c, spritesLit)
+			w.renderLight2D(dst, c)
+			w.drawSprites2D(dst, c, spritesUnlit)
+			continue
+		}
+		w.drawSprites2D(dst, c, spritesAll)
+	}
+	w.drawOps2D(screen, nil, false, true)
+	w.drawHudPrint2D(screen)
+	w.drawFog2D(screen)
+}
+
+// drawOps2D draws the queued draws in order: world ones through camera c,
+// screen ones as given.
+func (w *World) drawOps2D(dst *ebiten.Image, c *camera2D, world, scr bool) {
+	var cm ebiten.GeoM
+	var x0, y0, x1, y1 float64
+	if c != nil {
+		cm = c.geoM(w)
+		x0, y0, x1, y1 = c.worldRect(w)
+	}
 	for _, op := range w.draws {
+		if op.world && !world || !op.world && !scr {
+			continue
+		}
 		switch op.kind {
 		case 0:
 			if op.img == nil {
+				continue
+			}
+			if op.world && (float64(op.x+op.w) < x0 || float64(op.x) > x1 || float64(op.y+op.h) < y0 || float64(op.y) > y1) {
 				continue
 			}
 			src := op.img
@@ -215,68 +277,83 @@ func (w *World) draw2D(screen *ebiten.Image) {
 				opt.GeoM.Scale(float64(op.w)/float64(b.Dx()), float64(op.h)/float64(b.Dy()))
 			}
 			opt.GeoM.Translate(float64(op.x), float64(op.y))
-			screen.DrawImage(src, opt)
+			if op.world {
+				opt.GeoM.Concat(cm)
+			}
+			dst.DrawImage(src, opt)
 		case 1:
+			if op.world {
+				// A world rect turns and zooms with the camera: a scaled white pixel.
+				if op.filled {
+					opt := &ebiten.DrawImageOptions{}
+					opt.GeoM.Scale(float64(op.w), float64(op.h))
+					opt.GeoM.Translate(float64(op.x), float64(op.y))
+					opt.GeoM.Concat(cm)
+					opt.ColorScale.Scale(float32(op.r)/255, float32(op.g)/255, float32(op.b)/255, 1)
+					dst.DrawImage(w.whitePixel(), opt)
+				}
+				continue
+			}
 			c := color.RGBA{op.r, op.g, op.b, 255}
 			if op.filled {
-				vector.FillRect(screen, op.x, op.y, op.w, op.h, c, true)
+				vector.FillRect(dst, op.x, op.y, op.w, op.h, c, true)
 			} else {
-				vector.StrokeRect(screen, op.x, op.y, op.w, op.h, 1, c, true)
+				vector.StrokeRect(dst, op.x, op.y, op.w, op.h, 1, c, true)
 			}
 		case 2:
 			c := color.RGBA{op.r, op.g, op.b, 255}
-			vector.FillCircle(screen, op.x+op.w/2, op.y+op.h/2, op.w/2, c, true)
+			vector.FillCircle(dst, op.x+op.w/2, op.y+op.h/2, op.w/2, c, true)
 		case 3:
 			c := color.RGBA{op.r, op.g, op.b, 255}
-			vector.StrokeLine(screen, op.x, op.y, op.x2, op.y2, 1, c, true)
+			vector.StrokeLine(dst, op.x, op.y, op.x2, op.y2, 1, c, true)
+		case 5:
+			if c != nil {
+				w.drawTileLayer(dst, c, op.tm, op.tm.layer(op.layer), float64(op.x), float64(op.y))
+			}
 		case 4:
-			if !w.drawFont(screen, op) {
-				ebitenutil.DebugPrintAt(screen, op.text, int(op.x), int(op.y))
+			if !w.drawFont(dst, op) {
+				ebitenutil.DebugPrintAt(dst, op.text, int(op.x), int(op.y))
 			}
 		}
 	}
-	w.drawHudPrint2D(screen)
-	w.drawParticles2D(screen)
-	w.drawFog2D(screen)
+}
+
+const (
+	spritesAll = iota
+	spritesLit
+	spritesUnlit
+)
+
+func (w *World) drawSprites2D(dst *ebiten.Image, c *camera2D, which int) {
 	list := make([]*ebiSprite, 0, len(w.sprites))
 	for _, s := range w.sprites {
-		if s != nil && s.visible && s.img != nil {
-			list = append(list, s)
+		if s == nil || !s.visible || s.img == nil {
+			continue
 		}
+		if which == spritesLit && s.unlit || which == spritesUnlit && !s.unlit {
+			continue
+		}
+		list = append(list, s)
 	}
 	sort.SliceStable(list, func(i, j int) bool {
 		if list[i].layer != list[j].layer {
 			return list[i].layer < list[j].layer
 		}
+		if list[i].order != list[j].order {
+			return list[i].order < list[j].order
+		}
 		return list[i].id < list[j].id
 	})
+	cm := c.geoM(w)
+	x0, y0, x1, y1 := c.worldRect(w)
 	for _, s := range list {
-		src := s.img
-		bw, bh := src.Bounds().Dx(), src.Bounds().Dy()
-		if s.fw > 0 && s.fh > 0 {
-			cols := bw / s.fw
-			if cols < 1 {
-				cols = 1
-			}
-			fr := s.frame
-			if fr < 0 {
-				fr = 0
-			}
-			sx, sy := (fr%cols)*s.fw, (fr/cols)*s.fh
-			if sx+s.fw <= bw && sy+s.fh <= bh {
-				src = src.SubImage(rectXYWH(sx, sy, s.fw, s.fh)).(*ebiten.Image)
-				bw, bh = s.fw, s.fh
-			}
+		src, bw, bh := s.frameImage()
+		x, y, rot, sx, sy := w.spriteWorld(s, 0)
+		if r := float64(bw)*math.Abs(sx) + float64(bh)*math.Abs(sy); x+r < x0 || x-r > x1 || y+r < y0 || y-r > y1 {
+			continue
 		}
 		opt := &ebiten.DrawImageOptions{}
-		opt.GeoM.Translate(-float64(bw)/2, -float64(bh)/2)
-		sx, sy := s.sx, s.sy
-		if sx == 0 {
-			sx = 1
-		}
-		if sy == 0 {
-			sy = 1
-		}
+		opt.GeoM.Translate(-float64(bw)*(0.5+s.pvx), -float64(bh)*(0.5+s.pvy))
 		if s.flipX {
 			sx = -sx
 		}
@@ -284,10 +361,12 @@ func (w *World) draw2D(screen *ebiten.Image) {
 			sy = -sy
 		}
 		opt.GeoM.Scale(sx, sy)
-		opt.GeoM.Rotate(s.rot * 3.141592653589793 / 180)
-		opt.GeoM.Translate(s.x-w.cam2X, s.y-w.cam2Y)
+		opt.GeoM.Rotate(rot * math.Pi / 180)
+		opt.GeoM.Translate(x, y)
+		opt.GeoM.Concat(cm)
 		opt.ColorScale.Scale(float32(s.cr), float32(s.cg), float32(s.cb), float32(s.alpha))
-		screen.DrawImage(src, opt)
+		opt.Blend = spriteBlend(s.blend)
+		dst.DrawImage(src, opt)
 	}
 }
 

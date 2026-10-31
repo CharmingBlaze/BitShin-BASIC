@@ -240,35 +240,40 @@ func (w *World) twoDCommands(n func(func([]value.Value) (value.Value, error)) cm
 			}
 			return value.Num(0), nil
 		}),
+		// SetCamera2D x, y puts the window's top-left corner at a world point
+		// (camera 0). PositionCamera2D centres any camera instead.
 		"setcamera2d": n(func(a []value.Value) (value.Value, error) {
-			w.cam2X, w.cam2Y = argN(a, 0, 0), argN(a, 1, 0)
+			c := w.cam2D(0)
+			hw, hh := c.halfView(w)
+			c.cx, c.cy = argN(a, 0, 0)+hw, argN(a, 1, 0)+hh
 			return z()
 		}),
 		"movecamera2d": n(func(a []value.Value) (value.Value, error) {
-			w.cam2X += argN(a, 0, 0)
-			w.cam2Y += argN(a, 1, 0)
+			c := w.cam2D(0)
+			c.cx += argN(a, 0, 0)
+			c.cy += argN(a, 1, 0)
 			return z()
 		}),
 		"camera2dx": n(func(a []value.Value) (value.Value, error) {
-			return value.Num(w.cam2X), nil
+			c := w.cam2D(0)
+			hw, _ := c.halfView(w)
+			return value.Num(c.cx - hw), nil
 		}),
 		"camera2dy": n(func(a []value.Value) (value.Value, error) {
-			return value.Num(w.cam2Y), nil
+			c := w.cam2D(0)
+			_, hh := c.halfView(w)
+			return value.Num(c.cy - hh), nil
 		}),
 		"camerafollow2d": need2(func(a []value.Value) (value.Value, error) {
 			s := w.sprites[argI(a, 0, 0)]
 			if s == nil {
 				return z()
 			}
-			sw, sh := w.scrW, w.scrH
-			if sw < 1 {
-				sw = 800
-			}
-			if sh < 1 {
-				sh = 600
-			}
-			w.cam2X = s.x - float64(sw)/2 + argN(a, 1, 0)
-			w.cam2Y = s.y - float64(sh)/2 + argN(a, 2, 0)
+			// One snap of camera 0; CameraTarget2D follows every frame.
+			c := w.cam2D(0)
+			x, y, _, _, _ := w.spriteWorld(s, 0)
+			c.cx, c.cy = x+argN(a, 1, 0), y+argN(a, 2, 0)
+			c.clampBounds(w)
 			return z()
 		}),
 		"setspritesheet": need2(func(a []value.Value) (value.Value, error) {

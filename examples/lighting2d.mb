@@ -1,0 +1,99 @@
+; 2D lighting — a dark dungeon. Walls on a tile layer cast shadows, torches
+; flicker, the player carries a lantern, the mouse aims a flashlight cone,
+; a crate sprite blocks light, and a pickup glows unlit in the dark.
+; Arrows move. L toggles the lantern. N toggles day (a sun with long
+; shadows). Esc quits.
+
+Graphics2D(960, 540)
+SetClsColor(0, 0, 0)
+SetWindowTitle("moonBASIC — 2D lighting")
+
+; Floor on layer 0, walls on layer 1 (16 px tiles, coloured blocks)
+map = CreateTileMap(32, 32, 30, 17)
+walls = AddTileLayer(map, "walls")
+For y = 0 To 16
+    For x = 0 To 29
+        SetTile(map, x, y, 1)
+        If x = 0 Or y = 0 Or x = 29 Or y = 16 Then SetTile(map, x, y, 3, walls)
+        If x = 10 And y < 11 Then SetTile(map, x, y, 3, walls)
+        If x = 20 And y > 5 Then SetTile(map, x, y, 3, walls)
+        If y = 8 And x > 13 And x < 18 Then SetTile(map, x, y, 3, walls)
+    Next
+Next
+SetTileCollisionLayer(map, walls)
+
+EnableLighting2D(1)
+SetAmbient2D(18, 18, 30)
+SetTileOccluders(map, walls)
+
+; Torches
+t1 = CreateLight2D(5 * 32, 3 * 32, 260, 255, 170, 90, 1.2)
+t2 = CreateLight2D(15 * 32, 13 * 32, 240, 255, 140, 70, 1.1)
+t3 = CreateLight2D(25 * 32, 3 * 32, 300, 120, 170, 255, 1.0)
+
+coin = LoadImage("assets/coin.png")
+player = CreateSprite(coin)
+ScaleSprite(player, 0.5, 0.5)
+PositionSprite(player, 3 * 32, 12 * 32)
+lantern = CreateLight2D(0, 0, 160, 255, 230, 190, 0.8)
+ParentLight2D(lantern, player)
+SetLight2DShadows(lantern, 1)
+
+torch = CreateLight2D(0, 0, 420, 230, 240, 255, 1.3)
+SetLight2DCone(torch, 0, 50)
+
+crate = CreateSprite(coin)
+PositionSprite(crate, 6 * 32, 9 * 32)
+SpriteColor(crate, 160, 110, 70)
+SetSpriteOccluder(crate, 1)
+
+gem = CreateSprite(coin)
+PositionSprite(gem, 24 * 32, 13 * 32)
+SpriteColor(gem, 120, 255, 200)
+SetSpriteLit(gem, 0)
+
+CameraTarget2D(0, player)
+CameraSmooth2D(0, 0.2)
+CameraBounds2D(0, 0, 0, 30 * 32, 17 * 32)
+
+lanternOn = 1
+day = 0
+frame = 0
+While Not Input.KeyDown(KEY_ESCAPE)
+    dt# = Time.Delta()
+    frame = frame + 1
+    sp# = 160 * dt#
+    ox# = SpriteX(player)
+    oy# = SpriteY(player)
+    If Input.KeyDown(KEY_LEFT) Then MoveSprite(player, -sp#, 0)
+    If Input.KeyDown(KEY_RIGHT) Then MoveSprite(player, sp#, 0)
+    If Input.KeyDown(KEY_UP) Then MoveSprite(player, 0, -sp#)
+    If Input.KeyDown(KEY_DOWN) Then MoveSprite(player, 0, sp#)
+    If frame < 70 Then MoveSprite(player, sp#, -sp# * 0.4)
+    If SpriteHitTile(player, map) Then PositionSprite(player, ox#, oy#)
+
+    If Input.KeyHit(KEY_L) Then
+        lanternOn = 1 - lanternOn
+        ShowLight2D(lantern, lanternOn)
+    EndIf
+    If Input.KeyHit(KEY_N) Or frame = 100 Then
+        day = 1 - day
+        If day Then SetSunLight2D(255, 236, 200, 0.9, 60, 180) Else SetSunLight2D(0, 0, 0, 0)
+    EndIf
+
+    ; Flicker, and aim the flashlight at the mouse
+    SetLight2DIntensity(t1, 1.1 + Sin(frame * 23) * 0.08 + Rnd(0.06))
+    SetLight2DIntensity(t2, 1.0 + Sin(frame * 17 + 40) * 0.08 + Rnd(0.06))
+    px# = SpriteWorldX(player)
+    py# = SpriteWorldY(player)
+    PositionLight2D(torch, px#, py#)
+    SetLight2DCone(torch, ATan2(MouseWorldY2D(0) - py#, MouseWorldX2D(0) - px#), 50)
+    RotateSprite(gem, frame * 2)
+
+    Cls
+    DrawTileMap(map, 0, 0)
+    SetColor(240, 240, 250)
+    Text(12, 10, "2D LIGHTING  arrows move  mouse aims the flashlight  L lantern  N day/night")
+    Flip
+Wend
+End

@@ -1,0 +1,97 @@
+; 2D cameras — follow with smoothing and a dead zone, level bounds, zoom,
+; rotation, shake, and split screen. A shield sprite is parented to the
+; player and a glow uses additive blending.
+; Arrows move. Z / X zoom, Q / E rotate, Space shakes, Tab splits the screen.
+; Esc quits.
+
+Graphics2D(960, 540)
+SetClsColor(16, 18, 28)
+SetWindowTitle("moonBASIC — 2D cameras")
+
+; A 60 x 34 tile level (16 px tiles), drawn in world space
+map = CreateTileMap(16, 16, 60, 34)
+For y = 0 To 33
+    For x = 0 To 59
+        t = 1
+        If (x + y) Mod 7 = 0 Then t = 2
+        If x = 0 Or y = 0 Or x = 59 Or y = 33 Then t = 3
+        SetTile(map, x, y, t)
+    Next
+Next
+levelW = 60 * 16
+levelH = 34 * 16
+
+coin = LoadImage("assets/coin.png")
+player = CreateSprite(coin)
+PositionSprite(player, 200, 200)
+SetSpritePivot(player, 0.5, 1)
+
+; Child sprites move, turn, and scale with their parent
+shield = CreateSprite(coin)
+SetSpriteParent(shield, player)
+ScaleSprite(shield, 0.5, 0.5)
+glow = CreateSprite(coin)
+SetSpriteParent(glow, player)
+PositionSprite(glow, 0, -8)
+ScaleSprite(glow, 2.2, 2.2)
+SetSpriteBlend(glow, "add")
+SpriteAlpha(glow, 0.35)
+SpriteLayer(glow, -1)
+
+rival = CreateSprite(coin)
+PositionSprite(rival, 700, 400)
+SpriteColor(rival, 255, 120, 120)
+
+; Camera 0 is the whole window. It follows the player.
+CameraTarget2D(0, player, 0, -16)
+CameraSmooth2D(0, 0.35)
+CameraDeadZone2D(0, 80, 50)
+CameraBounds2D(0, 0, 0, levelW, levelH)
+
+; A second camera for split screen, hidden until Tab
+cam2 = CreateCamera2D(480, 0, 480, 540)
+CameraTarget2D(cam2, rival)
+CameraSmooth2D(cam2, 0.2)
+CameraBounds2D(cam2, 0, 0, levelW, levelH)
+ShowCamera2D(cam2, 0)
+
+zoom# = 1
+turn# = 0
+split = 0
+frame = 0
+While Not Input.KeyDown(KEY_ESCAPE)
+    dt# = Time.Delta()
+    frame = frame + 1
+    sp# = 260 * dt#
+    If Input.KeyDown(KEY_LEFT) Then MoveSprite(player, -sp#, 0)
+    If Input.KeyDown(KEY_RIGHT) Then MoveSprite(player, sp#, 0)
+    If Input.KeyDown(KEY_UP) Then MoveSprite(player, 0, -sp#)
+    If Input.KeyDown(KEY_DOWN) Then MoveSprite(player, 0, sp#)
+    If Input.KeyDown(KEY_Z) Then zoom# = Min(zoom# + dt#, 3)
+    If Input.KeyDown(KEY_X) Then zoom# = Max(zoom# - dt#, 0.5)
+    If Input.KeyDown(KEY_Q) Then turn# = turn# - 40 * dt#
+    If Input.KeyDown(KEY_E) Then turn# = turn# + 40 * dt#
+    If Input.KeyHit(KEY_SPACE) Then CameraShake2D(0, 10, 0.4)
+    If Input.KeyHit(KEY_TAB) Or frame = 90 Then
+        split = 1 - split
+        ShowCamera2D(cam2, split)
+        If split Then CameraViewport2D(0, 0, 0, 480, 540) Else CameraViewport2D(0, 0, 0, 0, 0)
+    EndIf
+    ; A short tour on its own so a hidden run touches every path
+    If frame < 60 Then MoveSprite(player, sp#, sp# * 0.5)
+    If frame = 30 Then CameraShake2D(0, 8, 0.3)
+
+    CameraZoom2D(0, zoom#)
+    CameraRotation2D(0, turn#)
+    RotateSprite(shield, frame * 3)
+    PositionSprite(shield, Cos(frame * 3) * 24, Sin(frame * 3) * 24 - 8)
+    PositionSprite(rival, 480 + Cos(frame) * 300, 270 + Sin(frame * 2) * 150)
+
+    Cls
+    DrawTileMap(map, 0, 0)
+    SetColor(235, 235, 245)
+    Text(12, 10, "2D CAMERAS  arrows move  Z/X zoom  Q/E rotate  Space shake  Tab split")
+    Text(12, 30, "zoom " + Int(zoom# * 100) + "%   turn " + Int(turn#) + "   mouse world " + Int(MouseWorldX2D(0)) + ", " + Int(MouseWorldY2D(0)))
+    Flip
+Wend
+End

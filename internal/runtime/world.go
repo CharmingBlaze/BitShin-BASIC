@@ -26,6 +26,7 @@ import (
 	"github.com/g3n/engine/renderer"
 	"github.com/g3n/engine/texture"
 	"github.com/g3n/engine/window"
+	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/go-gl/gl/v3.3-core/gl"
 	"github.com/go-gl/glfw/v3.3/glfw"
 
@@ -262,7 +263,11 @@ type World struct {
 	rainBlitOK                       bool
 	tiles                            map[int]*tileMap
 	nextTile                         int
-	cam2X, cam2Y                     float64
+	cams2                            map[int]*camera2D
+	white2D                          *ebiten.Image
+	tileClock                        float64 // seconds, for animated tiles
+	lit2                             *lighting2D
+	nextCam2                         int
 	fonts                            map[int]*fontSlot
 	nextFont                         int
 	curFont                          int

@@ -728,6 +728,18 @@ func (w *World) commandTable() map[string]cmd {
 	for k, v := range w.areaLightCommands(n, z, need) {
 		m[k] = v
 	}
+	for k, v := range w.camera2DCommands(n, z) {
+		m[k] = v
+	}
+	for k, v := range w.sprite2DCommands(n, z) {
+		m[k] = v
+	}
+	for k, v := range w.tileMap2DCommands(n, z) {
+		m[k] = v
+	}
+	for k, v := range w.lighting2DCommands(n, z) {
+		m[k] = v
+	}
 	for k, v := range w.screenshotCommands(n, z) {
 		m[k] = v
 	}

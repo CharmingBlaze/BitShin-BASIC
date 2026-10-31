@@ -15,10 +15,16 @@ import (
 
 type tileMap struct {
 	tw, th, cols, rows int
-	cells              []int
+	cells              []int // layer 0
+	layers             []*tileLayer
 	atlas              int
 	atlasCols          int
 	open               map[int]bool // tile ids that do not block, even when id > 0
+	sets               []*tileSet   // Tiled tilesets; empty uses atlas
+	anims              map[int]tileAnim
+	data               map[int]map[string]value.Value
+	objects            []tileObject
+	collide            int // layer that blocks sprites
 }
 
 type fontSlot struct {
@@ -68,7 +74,9 @@ func (w *World) tileCommands(n func(func([]value.Value) (value.Value, error)) cm
 			}
 			id := w.nextTile
 			w.nextTile++
-			w.tiles[id] = &tileMap{tw: tw, th: th, cols: cols, rows: rows, cells: make([]int, cols*rows), atlasCols: 8}
+			tm := &tileMap{tw: tw, th: th, cols: cols, rows: rows, atlasCols: 8}
+			tm.addLayer("")
+			w.tiles[id] = tm
 			return value.Num(float64(id)), nil
 		}),
 		"settile": n(func(a []value.Value) (value.Value, error) {
@@ -80,7 +88,11 @@ func (w *World) tileCommands(n func(func([]value.Value) (value.Value, error)) cm
 			if x < 0 || y < 0 || x >= tm.cols || y >= tm.rows {
 				return value.Value{}, fmt.Errorf("SetTile: %d,%d out of map", x, y)
 			}
-			tm.cells[y*tm.cols+x] = id
+			l, err := tm.layerByArg(a, 4)
+			if err != nil {
+				return value.Value{}, fmt.Errorf("SetTile: %w", err)
+			}
+			l.cells[y*tm.cols+x] = id
 			return z()
 		}),
 		"drawtile": need2(func(a []value.Value) (value.Value, error) {
@@ -117,39 +129,19 @@ func (w *World) tileCommands(n func(func([]value.Value) (value.Value, error)) cm
 			if atlasID != 0 {
 				tm.atlas = atlasID
 			}
+			// One queued draw per layer: each camera draws only the cells it
+			// can see when the frame is drawn. DrawTileMap map, x, y [, atlas,
+			// layer] draws one layer; without a layer, all of them in order.
 			ox, oy := argN(a, 1, 0), argN(a, 2, 0)
-			im := w.images[tm.atlas]
-			for y := 0; y < tm.rows; y++ {
-				for x := 0; x < tm.cols; x++ {
-					id := tm.cells[y*tm.cols+x]
-					if id <= 0 {
-						continue
-					}
-					px := float32(ox + float64(x*tm.tw) - w.cam2X)
-					py := float32(oy + float64(y*tm.th) - w.cam2Y)
-					if im != nil {
-						acols := tm.atlasCols
-						if acols < 1 {
-							acols = im.w / tm.tw
-							if acols < 1 {
-								acols = 1
-							}
-						}
-						tile := id - 1
-						sx, sy := (tile%acols)*tm.tw, (tile/acols)*tm.th
-						w.draws = append(w.draws, drawOp{
-							kind: 0, img: im.img, x: px, y: py,
-							w: float32(tm.tw), h: float32(tm.th),
-							sx: sx, sy: sy, sw: tm.tw, sh: tm.th,
-						})
-					} else {
-						w.draws = append(w.draws, drawOp{
-							kind: 1, x: px, y: py, w: float32(tm.tw - 1), h: float32(tm.th - 1),
-							r: uint8(40 + (id*40)%200), g: uint8(80 + (id*20)%160), b: uint8(120),
-							filled: true,
-						})
-					}
+			if len(a) > 4 {
+				if tm.layer(argI(a, 4, 0)) == nil {
+					return value.Value{}, fmt.Errorf("DrawTileMap: layer %d of %d", argI(a, 4, 0), len(tm.layers))
 				}
+				w.draws = append(w.draws, drawOp{kind: 5, tm: tm, layer: argI(a, 4, 0), x: float32(ox), y: float32(oy), world: true})
+				return z()
+			}
+			for i := range tm.layers {
+				w.draws = append(w.draws, drawOp{kind: 5, tm: tm, layer: i, x: float32(ox), y: float32(oy), world: true})
 			}
 			return z()
 		}),
@@ -180,7 +172,8 @@ func (w *World) tileCommands(n func(func([]value.Value) (value.Value, error)) cm
 			tw, th := argI(a, 1, 16), argI(a, 2, 16)
 			id := w.nextTile
 			w.nextTile++
-			tm := &tileMap{tw: tw, th: th, cols: cols, rows: len(rows), cells: make([]int, cols*len(rows)), atlasCols: 8}
+			tm := &tileMap{tw: tw, th: th, cols: cols, rows: len(rows), atlasCols: 8}
+			tm.addLayer("")
 			for y, row := range rows {
 				for x, cell := range row {
 					n, _ := strconv.Atoi(strings.TrimSpace(cell))
@@ -190,8 +183,18 @@ func (w *World) tileCommands(n func(func([]value.Value) (value.Value, error)) cm
 			w.tiles[id] = tm
 			return value.Num(float64(id)), nil
 		}),
+		// GetTile(map, x, y [, layer]); the default is the collision layer.
 		"gettile": n(func(a []value.Value) (value.Value, error) {
-			return value.Num(float64(tileCell(w.tiles[argI(a, 0, 0)], argI(a, 1, 0), argI(a, 2, 0)))), nil
+			tm := w.tiles[argI(a, 0, 0)]
+			if tm != nil && len(a) > 3 {
+				l := tm.layer(argI(a, 3, 0))
+				x, y := argI(a, 1, 0), argI(a, 2, 0)
+				if l == nil || x < 0 || y < 0 || x >= tm.cols || y >= tm.rows {
+					return value.Num(0), nil
+				}
+				return value.Num(float64(tileID(l.cells[y*tm.cols+x]))), nil
+			}
+			return value.Num(float64(tileCell(tm, argI(a, 1, 0), argI(a, 2, 0)))), nil
 		}),
 		"tileat": n(func(a []value.Value) (value.Value, error) {
 			tm := w.tiles[argI(a, 0, 0)]
@@ -258,7 +261,11 @@ func tileCell(tm *tileMap, x, y int) int {
 	if tm == nil || x < 0 || y < 0 || x >= tm.cols || y >= tm.rows {
 		return 0
 	}
-	return tm.cells[y*tm.cols+x]
+	l := tm.layer(tm.collide)
+	if l == nil {
+		return 0
+	}
+	return tileID(l.cells[y*tm.cols+x])
 }
 
 func tileBlocks(tm *tileMap, id int) bool {
