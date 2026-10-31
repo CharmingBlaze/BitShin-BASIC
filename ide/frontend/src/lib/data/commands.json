@@ -10226,6 +10226,72 @@
           "category": "Editor / stats"
         },
         {
+          "syntax": "ShowProfiler [on]",
+          "name": "ShowProfiler",
+          "description": "Overlay in the top-right corner, 2D and 3D: FPS, frame time (average and worst of the last 120 frames), script / physics / render CPU time, GPU time, draws, triangles, entities, Go heap, GC, and allocation per frame, over a frame-time graph (green under 16.7 ms, yellow under 33.3, red above)",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "StatsFrameMs()",
+          "name": "StatsFrameMs",
+          "description": "Average and worst frame time over the last 120 frames",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "StatsWorstMs()",
+          "name": "StatsWorstMs",
+          "description": "Average and worst frame time over the last 120 frames",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "StatsScriptMs()",
+          "name": "StatsScriptMs",
+          "description": "CPU time per frame in the script, the physics step, and drawing (smoothed)",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "StatsPhysicsMs()",
+          "name": "StatsPhysicsMs",
+          "description": "CPU time per frame in the script, the physics step, and drawing (smoothed)",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "StatsRenderMs()",
+          "name": "StatsRenderMs",
+          "description": "CPU time per frame in the script, the physics step, and drawing (smoothed)",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "StatsGPUMs()",
+          "name": "StatsGPUMs",
+          "description": "GPU time of the frame from timestamp queries, a frame late; 0 in 2D",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "StatsTriangles()",
+          "name": "StatsTriangles",
+          "description": "Triangles in visible meshes",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "StatsMemoryMB()",
+          "name": "StatsMemoryMB",
+          "description": "Go heap in use, the last GC pause, and KB allocated per frame",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "StatsGCPauseMs()",
+          "name": "StatsGCPauseMs",
+          "description": "Go heap in use, the last GC pause, and KB allocated per frame",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "StatsAllocKB()",
+          "name": "StatsAllocKB",
+          "description": "Go heap in use, the last GC pause, and KB allocated per frame",
+          "category": "Editor / stats"
+        },
+        {
           "syntax": "SetGraphicsQuality(q$)",
           "name": "SetGraphicsQuality",
           "description": "`\"low\"` `\"medium\"` `\"high\"` `\"ultra\"` or `\"auto\"`. One call sets shadow size, water reflection and refraction, post FX, terrain detail window and triangle size, tree/prop/grass count and reach. Low is aimed at a 2016 laptop iGPU at 720p: no water passes, cheap terrain texturing. High adds ambient occlusion and a coarse vista out to the fog; ultra adds soft (PCSS) shadow edges and 4× MSAA. On a fast GPU, `SetMSAA(2)` after this call gives high smooth edges for about 2 ms. Low draws cheaper clouds. `\"auto\"` reads the GPU name, then steps down a tier whenever frames average over 26 ms for 2 s. It never steps up. A setting you change after this call is yours until the next tier change. A script that never calls it gets `\"auto\"` from `Graphics3D`, so post FX, AO, and anti-aliasing are on by default",
@@ -18911,6 +18977,72 @@
       "syntax": "GetStatsFPS()",
       "name": "GetStatsFPS",
       "description": "`1 / DeltaTime`",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "ShowProfiler [on]",
+      "name": "ShowProfiler",
+      "description": "Overlay in the top-right corner, 2D and 3D: FPS, frame time (average and worst of the last 120 frames), script / physics / render CPU time, GPU time, draws, triangles, entities, Go heap, GC, and allocation per frame, over a frame-time graph (green under 16.7 ms, yellow under 33.3, red above)",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "StatsFrameMs()",
+      "name": "StatsFrameMs",
+      "description": "Average and worst frame time over the last 120 frames",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "StatsWorstMs()",
+      "name": "StatsWorstMs",
+      "description": "Average and worst frame time over the last 120 frames",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "StatsScriptMs()",
+      "name": "StatsScriptMs",
+      "description": "CPU time per frame in the script, the physics step, and drawing (smoothed)",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "StatsPhysicsMs()",
+      "name": "StatsPhysicsMs",
+      "description": "CPU time per frame in the script, the physics step, and drawing (smoothed)",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "StatsRenderMs()",
+      "name": "StatsRenderMs",
+      "description": "CPU time per frame in the script, the physics step, and drawing (smoothed)",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "StatsGPUMs()",
+      "name": "StatsGPUMs",
+      "description": "GPU time of the frame from timestamp queries, a frame late; 0 in 2D",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "StatsTriangles()",
+      "name": "StatsTriangles",
+      "description": "Triangles in visible meshes",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "StatsMemoryMB()",
+      "name": "StatsMemoryMB",
+      "description": "Go heap in use, the last GC pause, and KB allocated per frame",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "StatsGCPauseMs()",
+      "name": "StatsGCPauseMs",
+      "description": "Go heap in use, the last GC pause, and KB allocated per frame",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "StatsAllocKB()",
+      "name": "StatsAllocKB",
+      "description": "Go heap in use, the last GC pause, and KB allocated per frame",
       "category": "Editor / stats"
     },
     {

@@ -31,7 +31,7 @@ Coverage counts a partial item as half.
 
 | Area | Done | Partial | Missing | Coverage |
 | --- | --- | --- | --- | --- |
-| [1. Core engine architecture](#1-core-engine-architecture) | 10 | 16 | 1 | 67% |
+| [1. Core engine architecture](#1-core-engine-architecture) | 11 | 15 | 1 | 69% |
 | [2. MoonBASIC programming language](#2-moonbasic-programming-language) | 46 | 20 | 14 | 70% |
 | [3. 2D graphics engine](#3-2d-graphics-engine) | 74 | 4 | 12 | 84% |
 | [4. 3D graphics engine](#4-3d-graphics-engine) | 106 | 16 | 16 | 83% |
@@ -50,14 +50,14 @@ Coverage counts a partial item as half.
 | [17. Scenes and prefabs](#17-scenes-and-prefabs) | 10 | 7 | 14 | 44% |
 | [18. Moon Studio (IDE / editor)](#18-moon-studio-ide--editor) | 20 | 14 | 47 | 33% |
 | [19. Shaders and visual programming](#19-shaders-and-visual-programming) | 7 | 3 | 3 | 65% |
-| [20. Development and debugging tools](#20-development-and-debugging-tools) | 18 | 8 | 20 | 48% |
-| [21. Optimization and performance](#21-optimization-and-performance) | 12 | 7 | 19 | 41% |
+| [20. Development and debugging tools](#20-development-and-debugging-tools) | 24 | 9 | 13 | 62% |
+| [21. Optimization and performance](#21-optimization-and-performance) | 12 | 8 | 18 | 42% |
 | [22. Graphics API and platform](#22-graphics-api-and-platform) | 11 | 3 | 4 | 69% |
 | [23. Build system and export](#23-build-system-and-export) | 11 | 8 | 13 | 47% |
 | [24. Project management](#24-project-management) | 1 | 4 | 6 | 27% |
 | [25. Documentation and community](#25-documentation-and-community) | 3 | 9 | 4 | 47% |
 | [26. Plugins and extensions](#26-plugins-and-extensions) | 0 | 3 | 12 | 10% |
-| **Total** | **560** | **198** | **319** | **61%** |
+| **Total** | **567** | **199** | **311** | **62%** |
 
 **Strongest:** water and environment, the 2D and 3D engines, terrain, physics, and input. **Weakest:** plugins, project management, Moon Studio's visual editing, debugging and profiling tools, and audio.
 
