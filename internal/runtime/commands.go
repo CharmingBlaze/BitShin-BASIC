@@ -833,7 +833,7 @@ func (w *World) spawnCamera(parent int) int {
 // there is centered. High chase cameras (car/boat/tank) look forward
 // at ground height — looking at the origin from (0,8,-16) puts the
 // vehicle above the ray and the playfield out of frame.
-// PointEntity / SetRotation still win afterwards (claw.bb).
+// PointEntity / SetRotation still win afterwards (claw.mb).
 func (w *World) aimDefaultCamera(e *Entity) {
 	if e == nil || e.cam == nil {
 		return

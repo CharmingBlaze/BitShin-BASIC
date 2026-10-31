@@ -20,7 +20,7 @@ func testLattice(gw, gd int, cell float32) (*sculptLattice, []float32) {
 	}, h
 }
 
-func near(a, b, eps float32) bool { return float32(math.Abs(float64(a-b))) <= eps }
+func nearEps(a, b, eps float32) bool { return float32(math.Abs(float64(a-b))) <= eps }
 
 func TestBrushWeightFalloff(t *testing.T) {
 	if w := brushWeight(0, 4, 0.5); w != 1 {
@@ -35,7 +35,7 @@ func TestBrushWeightFalloff(t *testing.T) {
 	if w := brushWeight(1.9, 4, 0.5); w != 1 {
 		t.Fatalf("inner disc should be full, got %v", w)
 	}
-	if w := brushWeight(3, 4, 0.5); !near(w, 0.5, 1e-5) {
+	if w := brushWeight(3, 4, 0.5); !nearEps(w, 0.5, 1e-5) {
 		t.Fatalf("smoothstep midpoint want 0.5 got %v", w)
 	}
 	if w := brushWeight(3.99, 4, 0); w != 1 {
@@ -71,7 +71,7 @@ func TestSculptRaiseAndLower(t *testing.T) {
 	}
 	l.applyBrush(brushRaise, 8, 8, 3, -2, 0, 0.5)
 	for i, v := range h {
-		if !near(v, 0, 1e-5) {
+		if !nearEps(v, 0, 1e-5) {
 			t.Fatalf("lower did not undo raise at %d: %v", i, v)
 		}
 	}
@@ -107,7 +107,7 @@ func TestFlattenTerrainMath(t *testing.T) {
 	l.applyBrush(brushFlatten, 8, 8, 4, 3, 1, 0)
 	for j := 6; j <= 10; j++ {
 		for i := 6; i <= 10; i++ {
-			if !near(h[j*17+i], 3, 1e-5) {
+			if !nearEps(h[j*17+i], 3, 1e-5) {
 				t.Fatalf("full-strength flatten node %d,%d = %v", i, j, h[j*17+i])
 			}
 		}
@@ -115,7 +115,7 @@ func TestFlattenTerrainMath(t *testing.T) {
 	l2, h2 := testLattice(5, 5, 1)
 	h2[12] = 10
 	l2.applyBrush(brushFlatten, 2, 2, 1, 0, 0.5, 0)
-	if !near(h2[12], 5, 1e-5) {
+	if !nearEps(h2[12], 5, 1e-5) {
 		t.Fatalf("half-strength flatten want 5 got %v", h2[12])
 	}
 }
@@ -124,10 +124,10 @@ func TestSmoothTerrainMath(t *testing.T) {
 	l, h := testLattice(9, 9, 1)
 	h[4*9+4] = 9
 	l.applyBrush(brushSmooth, 4, 4, 2.5, 0, 1, 0)
-	if !near(h[4*9+4], 1, 1e-5) {
+	if !nearEps(h[4*9+4], 1, 1e-5) {
 		t.Fatalf("spike should average to 1, got %v", h[4*9+4])
 	}
-	if !near(h[4*9+5], 1, 1e-5) {
+	if !nearEps(h[4*9+5], 1, 1e-5) {
 		t.Fatalf("neighbour should read the snapshot spike (1), got %v", h[4*9+5])
 	}
 	// A plane is a fixed point of the 3x3 average.
@@ -140,7 +140,7 @@ func TestSmoothTerrainMath(t *testing.T) {
 	l2.applyBrush(brushSmooth, 4, 4, 2.5, 0, 1, 0)
 	for j := 2; j <= 6; j++ {
 		for i := 2; i <= 6; i++ {
-			if !near(h2[j*9+i], float32(i)+2*float32(j), 1e-4) {
+			if !nearEps(h2[j*9+i], float32(i)+2*float32(j), 1e-4) {
 				t.Fatalf("plane changed at %d,%d: %v", i, j, h2[j*9+i])
 			}
 		}
@@ -157,7 +157,7 @@ func TestSculptOverlaySparse(t *testing.T) {
 	if o.get(-1, -1) != 2 || o.get(0, -1) != 4 || o.get(-33, -1) != 0 {
 		t.Fatalf("negative tile index: %v %v", o.get(-1, -1), o.get(0, -1))
 	}
-	if v := o.sample(-0.25, -0.5); !near(v, 3, 1e-5) {
+	if v := o.sample(-0.25, -0.5); !nearEps(v, 3, 1e-5) {
 		t.Fatalf("bilinear midpoint want 3 got %v", v)
 	}
 	if v := o.sample(100, 100); v != 0 {
@@ -235,7 +235,7 @@ func TestSculptTerrainCommandsHeightmap(t *testing.T) {
 		return r
 	}
 	call("sculptterrain", float64(id), 2, 2, 6, 3)
-	if y := w.terrainHeight(2, 2); !near(y, 3, 0.01) {
+	if y := w.terrainHeight(2, 2); !nearEps(y, 3, 0.01) {
 		t.Fatalf("TerrainHeight after sculpt %v", y)
 	}
 	w.flushTerrainSculpt()
@@ -246,14 +246,14 @@ func TestSculptTerrainCommandsHeightmap(t *testing.T) {
 		t.Fatalf("chunk mesh not rebuilt, max y %v", y)
 	}
 	call("flattenterrain", float64(id), 2, 2, 8, 1, 1)
-	if y := w.terrainHeight(2, 2); !near(y, 1, 0.01) {
+	if y := w.terrainHeight(2, 2); !nearEps(y, 1, 0.01) {
 		t.Fatalf("flatten %v", y)
 	}
 	call("setterrainheight", float64(id), 0, 0, 7)
 	if y := call("terraingridheight", float64(id), 0, 0).Num; y != 7 {
 		t.Fatalf("grid height %v", y)
 	}
-	if y := w.terrainHeight(-32, -32); !near(y, 7, 0.01) {
+	if y := w.terrainHeight(-32, -32); !nearEps(y, 7, 0.01) {
 		t.Fatalf("grid corner world height %v", y)
 	}
 	if _, err := w.Call("setterrainheight", []value.Value{value.Num(float64(id)), value.Num(99), value.Num(0), value.Num(1)}); err == nil {
@@ -285,10 +285,10 @@ func TestSculptProcTerrainOverlay(t *testing.T) {
 	}
 	cell := w.terrains[id].hf.edit.dx
 	// Off-lattice the overlay is bilinear; a hard brush keeps the full delta near the centre.
-	if y := w.terrainHeight(3, 4); !near(y-base, -2, 0.05) {
+	if y := w.terrainHeight(3, 4); !nearEps(y-base, -2, 0.05) {
 		t.Fatalf("crater depth %v (cell %v)", y-base, cell)
 	}
-	if y := w.terrainHeight(30, 30); !near(y, w.terrains[id].hf.baseAt(30, 30), 1e-5) {
+	if y := w.terrainHeight(30, 30); !nearEps(y, w.terrains[id].hf.baseAt(30, 30), 1e-5) {
 		t.Fatal("far ground changed")
 	}
 	w.flushTerrainSculpt()
@@ -322,7 +322,7 @@ func TestPatchHeightMeshMatchesRebuild(t *testing.T) {
 				t.Fatalf("step %d: size %d vs %d", c.step, len(got), len(exp))
 			}
 			for i := range got {
-				if !near(got[i], exp[i], 1e-4) {
+				if !nearEps(got[i], exp[i], 1e-4) {
 					t.Fatalf("step %d attrib %v: [%d] patched %v rebuilt %v", c.step, at, i, got[i], exp[i])
 				}
 			}
@@ -353,20 +353,20 @@ func TestSculptCompactHeightmap(t *testing.T) {
 		t.Fatal(err)
 	}
 	// Raised far past the stored 16-bit range: the overlay carries it.
-	if y := w.terrainHeight(2, 2); !near(y-before, 50, 0.05) {
+	if y := w.terrainHeight(2, 2); !nearEps(y-before, 50, 0.05) {
 		t.Fatalf("compact map raise %v", y-before)
 	}
 	if _, err := w.Call("setterrainheight", []value.Value{value.Num(float64(id)), value.Num(0), value.Num(0), value.Num(-4)}); err != nil {
 		t.Fatal(err)
 	}
-	if y := w.terrainHeight(-32, -32); !near(y, -4, 0.01) {
+	if y := w.terrainHeight(-32, -32); !nearEps(y, -4, 0.01) {
 		t.Fatalf("compact grid corner %v", y)
 	}
 	w.flushTerrainSculpt()
 	if _, err := w.Call("resetterrainedits", []value.Value{value.Num(float64(id))}); err != nil {
 		t.Fatal(err)
 	}
-	if y := w.terrainHeight(2, 2); !near(y, before, 1e-4) {
+	if y := w.terrainHeight(2, 2); !nearEps(y, before, 1e-4) {
 		t.Fatalf("reset %v want %v", y, before)
 	}
 }

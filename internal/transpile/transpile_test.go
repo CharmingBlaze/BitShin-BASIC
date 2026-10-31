@@ -41,7 +41,7 @@ cube = CreateCube()
 	goCode, err := Transpile(prog, Options{
 		PackageName:  "main",
 		IsExecutable: true,
-		SourceFile:   "test.bb",
+		SourceFile:   "test.mb",
 	})
 	if err != nil {
 		t.Fatalf("Transpile error: %v", err)
@@ -82,7 +82,7 @@ Until x <= 0
 	goCode, err := Transpile(prog, Options{
 		PackageName:  "main",
 		IsExecutable: true,
-		SourceFile:   "loops.bb",
+		SourceFile:   "loops.mb",
 	})
 	if err != nil {
 		t.Fatalf("Transpile error: %v", err)
@@ -111,7 +111,7 @@ Wend
 	if err != nil {
 		t.Fatal(err)
 	}
-	goCode, err := Transpile(prog, Options{PackageName: "main", IsExecutable: true, SourceFile: "game.bb"})
+	goCode, err := Transpile(prog, Options{PackageName: "main", IsExecutable: true, SourceFile:   "game.mb"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +163,7 @@ Read a, b, c
 	goCode, err := Transpile(prog, Options{
 		PackageName:  "main",
 		IsExecutable: true,
-		SourceFile:   "types_demo.bb",
+		SourceFile:   "types_demo.mb",
 	})
 	if err != nil {
 		t.Fatalf("Transpile error: %v", err)
@@ -204,7 +204,7 @@ cam.Point(box)
 	if err != nil {
 		t.Fatal(err)
 	}
-	goCode, err := Transpile(prog, Options{PackageName: "main", IsExecutable: true, SourceFile: "chain.bb"})
+	goCode, err := Transpile(prog, Options{PackageName: "main", IsExecutable: true, SourceFile:   "chain.mb"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -224,7 +224,7 @@ func TestTranspileStringCommandSuffix(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	goCode, err := Transpile(prog, Options{PackageName: "main", IsExecutable: true, SourceFile: "ecs.bb"})
+	goCode, err := Transpile(prog, Options{PackageName: "main", IsExecutable: true, SourceFile:   "ecs.mb"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -278,7 +278,7 @@ func TestTranspileLogicalAndShortCircuit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	goCode, err := Transpile(prog, Options{PackageName: "main", IsExecutable: true, SourceFile: "logic.bb"})
+	goCode, err := Transpile(prog, Options{PackageName: "main", IsExecutable: true, SourceFile:   "logic.mb"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -295,7 +295,7 @@ func TestTranspileStringBuiltins(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	goCode, err := Transpile(prog, Options{PackageName: "main", IsExecutable: true, SourceFile: "str.bb"})
+	goCode, err := Transpile(prog, Options{PackageName: "main", IsExecutable: true, SourceFile:   "str.mb"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -312,7 +312,7 @@ func TestTranspileMathBuiltins(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	goCode, err := Transpile(prog, Options{PackageName: "main", IsExecutable: true, SourceFile: "math.bb"})
+	goCode, err := Transpile(prog, Options{PackageName: "main", IsExecutable: true, SourceFile:   "math.mb"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -333,7 +333,7 @@ func TestPhysicsConstantsInline(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	goCode, err := Transpile(prog, Options{PackageName: "main", IsExecutable: true, SourceFile: "phys.bb"})
+	goCode, err := Transpile(prog, Options{PackageName: "main", IsExecutable: true, SourceFile:   "phys.mb"})
 	if err != nil {
 		t.Fatal(err)
 	}

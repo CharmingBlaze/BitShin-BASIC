@@ -1,14 +1,11 @@
 package runtime
 
 import (
-	"math"
 	"strings"
 	"testing"
 
 	"github.com/g3n/engine/math32"
 )
-
-func near32(a, b float32) bool { return math.Abs(float64(a-b)) < 1e-4 }
 
 func TestAreaLightPacking(t *testing.T) {
 	w := New(".")
@@ -31,12 +28,12 @@ func TestAreaLightPacking(t *testing.T) {
 		t.Errorf("not nearest first: %v .. %v", u.pos[0], u.pos[3])
 	}
 	// Half extents, and the emitting normal on -Z.
-	if !near32(u.right[0].Length(), 1) || !near32(u.up[0].Length(), 0.5) {
+	if !near32(u.right[0].Length(), 1, 1e-4) || !near32(u.up[0].Length(), 0.5, 1e-4) {
 		t.Errorf("half extents %v %v", u.right[0].Length(), u.up[0].Length())
 	}
 	var nrm math32.Vector3
 	nrm.CrossVectors(&u.right[0], &u.up[0]).Normalize()
-	if !near32(nrm.Z, -1) {
+	if !near32(nrm.Z, -1, 1e-4) {
 		t.Errorf("emitting normal %v, want -Z", nrm)
 	}
 	if want := float32(4); u.color[0].R != want {
