@@ -21,7 +21,10 @@ func (w *World) pbrCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			if tex == nil {
 				return value.Value{}, fmt.Errorf("SetAlbedo: texture %d not found", argI(a, 1, 0))
 			}
-			apply := func(m *pbrMat) { m.SetBaseColorMap(tex) }
+			apply := func(m *pbrMat) {
+				m.SetBaseColorMap(tex)
+				m.noteTexPath("SetAlbedoMap", w.texPathOf(argI(a, 1, 0)))
+			}
 			if e != nil {
 				w.eachEntityPBR(e, apply)
 			} else {
@@ -85,6 +88,7 @@ func (w *World) pbrCommands(n func(func([]value.Value) (value.Value, error)) cmd
 				case "SetAlbedoMap":
 					m.SetBaseColorMap(tex)
 				}
+				m.noteTexPath(kind, w.texPathOf(argI(a, 1, 0)))
 			}
 			if e != nil {
 				w.eachEntityPBR(e, apply)

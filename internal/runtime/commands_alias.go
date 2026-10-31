@@ -283,8 +283,11 @@ var modernAliases = map[string]string{
 	"getanimationlength": "animlength",
 	"setanimation":       "setanimseq",
 	"blendanimation":     "setanimblend",
-	"savescene":          "scenesave",
 	"loadscenejson":      "sceneload",
+	"loadprefab":         "instantiateprefab",
+	"sceneinstance":      "instantiateprefab",
+	"findentitybyname":   "findentity",
+	"getentitybyuid":     "entitybyuid",
 	"setentityshader":    "setshader",
 	"getentityshader":    "entityshader",
 

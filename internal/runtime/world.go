@@ -107,6 +107,7 @@ type Entity struct {
 	hitbox                             bool
 	collKind                           int // 0 none, 1 box, 2 sphere, 3 capsule, 4 cylinder, 5 sensor, 6 compound
 	physMat                            string
+	meta                               *entMeta // scene uid, tags, script, prefab link (scene_v2.go)
 }
 
 type texSlot struct {
@@ -382,6 +383,7 @@ type World struct {
 	navMaxSlope                      float32
 	pbrLib                           map[int]*pbrMat
 	areaLights                       map[int]*areaLight
+	scn                              sceneState // scene v2: uid index, sky source (scene_v2.go)
 	areaPack                         areaUniforms
 	nextPBR                          int
 	iblOn                            bool

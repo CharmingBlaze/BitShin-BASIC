@@ -212,63 +212,6 @@ func (w *World) appCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			}
 			return value.Str(string(b)), nil
 		}),
-		"saveprefab": need(func(a []value.Value) (value.Value, error) {
-			e, err := w.ent(argI(a, 1, 0))
-			if err != nil {
-				return value.Value{}, err
-			}
-			pos := e.node.GetNode().Position()
-			x, y, z := fromG3N(pos.X, pos.Y, pos.Z)
-			body := map[string]any{
-				"kind": e.kind, "src": e.src, "name": e.name,
-				"x": x, "y": y, "z": z,
-			}
-			raw, err := json.MarshalIndent(body, "", "  ")
-			if err != nil {
-				return value.Num(0), err
-			}
-			path := filepath.Join(w.base, "prefabs", argS(a, 0)+".json")
-			if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-				return value.Num(0), err
-			}
-			return value.Num(1), os.WriteFile(path, raw, 0o644)
-		}),
-		"spawnprefab": need(func(a []value.Value) (value.Value, error) {
-			path := filepath.Join(w.base, "prefabs", argS(a, 0)+".json")
-			b, err := os.ReadFile(path)
-			if err != nil {
-				return value.Num(0), err
-			}
-			var body struct {
-				Kind string  `json:"kind"`
-				Src  string  `json:"src"`
-				Name string  `json:"name"`
-				X    float32 `json:"x"`
-				Y    float32 `json:"y"`
-				Z    float32 `json:"z"`
-			}
-			if err := json.Unmarshal(b, &body); err != nil {
-				return value.Num(0), err
-			}
-			var id int
-			if body.Src != "" {
-				id, err = w.loadMeshFile(body.Src, 0)
-				if err != nil {
-					return value.Num(0), err
-				}
-			} else {
-				id = w.createCubeMesh(nil)
-			}
-			e := w.ents[id]
-			if e != nil {
-				e.kind = body.Kind
-				e.name = body.Name
-				e.src = body.Src
-				gx, gy, gz := toG3N(body.X, body.Y, body.Z)
-				e.node.GetNode().SetPosition(gx, gy, gz)
-			}
-			return value.Num(float64(id)), nil
-		}),
 		"createanimgraph": need(func(a []value.Value) (value.Value, error) {
 			st := w.extState()
 			st.nextGraph++

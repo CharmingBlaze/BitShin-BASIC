@@ -487,7 +487,7 @@ func (w *World) fxCommands(n func(func([]value.Value) (value.Value, error)) cmd,
 			return z()
 		}),
 		"loadscene": n(func(a []value.Value) (value.Value, error) {
-			if err := w.loadSceneFile(argS(a, 0)); err != nil {
+			if err := w.loadSceneFile(argS(a, 0), argI(a, 1, 0) != 0); err != nil {
 				return value.Value{}, err
 			}
 			return z()
@@ -620,9 +620,13 @@ func (w *World) clearWorld() {
 	w.nextTile = 1
 	w.nextSky = 1
 	w.skyID = 0
+	w.scn = sceneState{}
 }
 
-func (w *World) loadSceneFile(rel string) error {
+// loadSceneFile runs a .mb scene chunk or loads a JSON/YAML scene. A v2
+// .scene.json replaces the scene unless additive; a SceneSave dump is added
+// to it as before.
+func (w *World) loadSceneFile(rel string, additive bool) error {
 	ext := strings.ToLower(filepath.Ext(rel))
 	if ext == ".json" || ext == ".yaml" || ext == ".yml" {
 		var root any
@@ -636,6 +640,11 @@ func (w *World) loadSceneFile(rel string) error {
 			return fmt.Errorf("LoadScene: %w", err)
 		}
 		if w.ready && !w.mode2D {
+			if m, ok := root.(map[string]any); ok && sceneVersionOf(m) >= 2 {
+				w.scn.dir = w.sceneFileDir(rel)
+				warnScene("LoadScene", w.loadSceneV2(m, additive))
+				return nil
+			}
 			w.applySceneJSON(root)
 		}
 		return nil
