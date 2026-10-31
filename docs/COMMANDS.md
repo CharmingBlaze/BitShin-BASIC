@@ -255,9 +255,52 @@ Weighted clip mixing by a parameter, plus timed state changes. Layers from `SetA
 `SpriteAlpha s, a` — 0 invisible, 1 solid  
 `SpriteColor s, r, g, b`  
 `SpriteLayer s, n` — higher layers draw on top  
+`SetSpritePivot s, px, py` — 0..1 across the sprite; 0.5, 0.5 (the centre) is the default, 0.5, 1 the feet  
+`SetSpriteBlend s, mode$` — `"alpha"`, `"add"`, `"multiply"`, or `"screen"`  
+`SetSpriteParent child, parent [, keepWorld]` — the child's position is in the parent's space: it moves, turns, and scales with it. 0 detaches; `keepWorld` 1 leaves it where it is on screen. `SpriteWorldX(s)` / `SpriteWorldY(s)`  
+`SetSpriteRect s, x, y, w, h` — draw only that part of the image; `SetSpriteRect s` alone goes back to the whole image or sheet frame  
+`SetSpriteOrder s, n` — draw order inside the sprite's layer  
 `SetCamera2D x, y` — world point at the top-left of the screen. `MoveCamera2D`, `Camera2DX`, `Camera2DY`  
-`CameraFollow2D sprite [, ox, oy]` — keeps the sprite at screen center, plus an optional nudge  
-Sprites and `DrawTileMap` scroll with the camera. `Rect`, `Oval`, `Line`, `Text`, and `DrawImage` stay on the screen (HUD).  
+`CameraFollow2D sprite [, ox, oy]` — one snap that centres the sprite, plus an optional nudge  
+Sprites, `DrawTileMap`, and 2D particles are in the world and move with the camera. `Rect`, `Oval`, `Line`, `Text`, `DrawImage`, and `DrawTile` stay on the screen (HUD).
+
+### 2D cameras
+
+Camera 0 always exists and fills the window; the commands above drive it. Every camera command takes a camera handle first, and 0 is that one. A camera looks at a world point (its centre).
+
+`CreateCamera2D([x, y, w, h])` — another camera with its own viewport (split screen). `FreeCamera2D cam`  
+`PositionCamera2D cam, x, y` — centre on a world point. `TranslateCamera2D cam, dx, dy`  
+`CameraZoom2D cam, z` — 2 is twice as close. `CameraRotation2D cam, deg` / `TurnCamera2D cam, deg`  
+`CameraViewport2D cam, x, y, w, h` — window pixels; 0, 0, 0, 0 fills the window  
+`CameraTarget2D cam, sprite [, ox, oy]` — follow every frame; sprite 0 stops  
+`CameraSmooth2D cam, seconds` — time to close 95% of the gap; 0 snaps  
+`CameraDeadZone2D cam, w, h` — the target can move this much (world units) before the camera does  
+`CameraBounds2D cam, x0, y0, x1, y1` — keep the view inside a world box (a smaller level is centred); `CameraBounds2D cam` removes it  
+`CameraShake2D cam, pixels [, seconds]` — fades out  
+`ShowCamera2D cam, on`, `CameraOrder2D cam, n` — later cameras draw on top  
+`GetCameraX2D(cam)`, `GetCameraY2D(cam)`, `GetCameraZoom2D(cam)`, `GetCameraRotation2D(cam)`  
+`ScreenToWorldX2D(cam, sx, sy)` / `ScreenToWorldY2D`, `WorldToScreenX2D(cam, wx, wy)` / `WorldToScreenY2D`  
+`MouseWorldX2D([cam])` / `MouseWorldY2D([cam])` — the mouse in world space
+
+`examples/camera2d.mb`: follow, dead zone, bounds, zoom, rotation, shake, split screen.
+
+### 2D lighting
+
+When lighting is on, the world (tiles, particles, sprites) is multiplied by a light map: the ambient colour plus each light. Screen draws (`Text`, `Rect`, `HudPrint`) stay unlit.
+
+`EnableLighting2D [on]`, `SetAmbient2D r, g, b` — the light where no lamp reaches (0–255)  
+`CreateLight2D(x, y, radius [, r, g, b, intensity])` — a point light with a smooth falloff. `FreeLight2D l`  
+`PositionLight2D l, x, y`, `SetLight2DColor l, r, g, b`, `SetLight2DRadius l, r`, `SetLight2DIntensity l, n`, `ShowLight2D l, on`  
+`SetLight2DCone l, direction, angle` — a spotlight; angle 0 or 360 is all round  
+`SetLight2DShadows l, on` — default on  
+`ParentLight2D l, sprite [, ox, oy]` — the light rides along and its cone turns with the sprite  
+`SetSunLight2D r, g, b [, intensity, angle, shadowLength]` — light everywhere with shadows cast along `angle` (90 is straight down); intensity 0 turns it off  
+`AddOccluder2D(x, y, w, h)` / `FreeOccluder2D o` — a wall that blocks light  
+`SetSpriteOccluder s [, on]` — the sprite's outline blocks light  
+`SetTileOccluders map, layer [, on]` — non-empty cells of that layer block light  
+`SetSpriteLit s, on` — 0 draws the sprite after lighting at full brightness (lamps, glowing eyes, pickups)
+
+Shadows are hard-edged; only edges facing away from a light throw shadow, so the lit faces of walls stay lit. `examples/lighting2d.mb`.
 `Rect x, y, w, h [, filled]`, `Oval`, `Line`  
 `RectsOverlap`, `SpritesOverlap`, `ImagesOverlap`, `ImagesCollide`  
 `LoadFont file.ttf, size` — following `Text` uses it; otherwise the debug font  
@@ -267,15 +310,28 @@ Sprites and `DrawTileMap` scroll with the camera. `Rect`, `Oval`, `Line`, `Text`
 
 ### Tiles
 
-`CreateTileMap tw, th, cols, rows`  
-`SetTile map, tx, ty, id` — `id` 0 empty; 1+ is a tile  
-`GetTile map, tx, ty` — 0 outside the map  
-`TileAt map, x, y` — cell under a world pixel  
+`CreateTileMap tw, th, cols, rows` — one layer to start  
+`SetTile map, tx, ty, id [, layer]` — `id` 0 empty; 1+ is a tile  
+`GetTile map, tx, ty [, layer]` — 0 outside the map; without a layer, the collision layer  
+`TileAt map, x, y` — cell of the collision layer under a world pixel  
 `SetTileSolid map, id, on` — ids above 0 block by default; `on` 0 lets the player pass through that id  
 `SpriteHitTile sprite, map` — 1 when the sprite box overlaps a blocking cell  
-`DrawTileMap map, x, y [, atlas]` — colored cells if no atlas; scrolls with `SetCamera2D`  
-`DrawTile atlas, tile, x, y, tw, th`  
-`LoadTileMap file.csv [, tw, th]` — CSV of integer ids
+`DrawTileMap map, x, y [, atlas, layer]` — every layer in order, or one; colored cells if no atlas. Each camera draws only the cells it can see  
+`DrawTile atlas, tile, x, y, tw, th` — on the screen, not the world  
+`LoadTileMap file.csv [, tw, th]` — CSV of integer ids  
+`LoadTiledMap(file$)` — a [Tiled](https://www.mapeditor.org/) `.tmx` or `.tmj`/`.json` map: tile layers (CSV or base64, zlib or gzip), groups, multiple and external (`.tsx`/`.tsj`) single-image tilesets, flipped tiles, tile animations and properties, infinite maps, and object layers. Image-collection tilesets are not supported  
+`AddTileLayer(map [, name$])` — returns the layer index. `TileLayerCount(map)`, `TileLayerIndex(map, name$)` (-1 if none)  
+`SetTileLayerVisible map, layer, on`, `SetTileLayerAlpha map, layer, a`, `SetTileLayerOffset map, layer, x, y`  
+`SetTileLayerParallax map, layer, f` — 1 moves with the world, 0.5 is a far background (measured from the view's top-left, as in Tiled)  
+`SetTileCollisionLayer map, layer` — the layer `TileAt`, `GetTile`, and `SpriteHitTile` read  
+`SetTileFlip map, tx, ty, flipX, flipY [, diagonal, layer]`  
+`SetTileAnim map, tile, frames, fps` — the tile cycles through `tile` .. `tile + frames - 1`  
+`SetTileData map, tile, key$, value` / `TileData(map, tile, key$)` — properties per tile id; Tiled tile properties load here  
+`SetAutoTile map, firstTile [, layer]`, `PaintAutoTile map, tx, ty [, on, layer]` — 16 tiles from `firstTile` chosen by which of the four neighbours are filled (north 1, east 2, south 4, west 8)  
+`TileMapWidth(map)`, `TileMapHeight(map)` (cells), `TileWidth(map)`, `TileHeight(map)` (pixels)  
+`TileObjectCount(map)`, `TileObjectName$(map, i)`, `TileObjectType$(map, i)`, `TileObjectX/Y/Width/Height(map, i)`, `TileObjectProperty(map, i, key$)` — Tiled object layers (spawn points, triggers)
+
+`examples/tilemap2d.mb` loads `examples/assets/tiled/level.tmj` (made by `tools/gen_tiled_assets.go`).
 
 ## Skyboxes
 

@@ -1894,6 +1894,54 @@
           "category": "2D (Ebiten)"
         },
         {
+          "syntax": "SetSpritePivot s, px, py",
+          "name": "SetSpritePivot",
+          "description": "0..1 across the sprite; 0.5, 0.5 (the centre) is the default, 0.5, 1 the feet",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetSpriteBlend s, mode$",
+          "name": "SetSpriteBlend",
+          "description": "`\"alpha\"`, `\"add\"`, `\"multiply\"`, or `\"screen\"`",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetSpriteParent child, parent [, keepWorld]",
+          "name": "SetSpriteParent",
+          "description": "the child's position is in the parent's space: it moves, turns, and scales with it. 0 detaches; `keepWorld` 1 leaves it where it is on screen. `SpriteWorldX(s)` / `SpriteWorldY(s)`",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SpriteWorldX(s)",
+          "name": "SpriteWorldX",
+          "description": "the child's position is in the parent's space: it moves, turns, and scales with it. 0 detaches; `keepWorld` 1 leaves it where it is on screen. `SpriteWorldX(s)` / `SpriteWorldY(s)`",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SpriteWorldY(s)",
+          "name": "SpriteWorldY",
+          "description": "the child's position is in the parent's space: it moves, turns, and scales with it. 0 detaches; `keepWorld` 1 leaves it where it is on screen. `SpriteWorldX(s)` / `SpriteWorldY(s)`",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetSpriteRect s, x, y, w, h",
+          "name": "SetSpriteRect",
+          "description": "draw only that part of the image; `SetSpriteRect s` alone goes back to the whole image or sheet frame",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetSpriteRect s",
+          "name": "SetSpriteRect",
+          "description": "draw only that part of the image; `SetSpriteRect s` alone goes back to the whole image or sheet frame",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetSpriteOrder s, n",
+          "name": "SetSpriteOrder",
+          "description": "draw order inside the sprite's layer",
+          "category": "2D (Ebiten)"
+        },
+        {
           "syntax": "SetCamera2D x, y",
           "name": "SetCamera2D",
           "description": "world point at the top-left of the screen. `MoveCamera2D`, `Camera2DX`, `Camera2DY`",
@@ -1920,7 +1968,7 @@
         {
           "syntax": "CameraFollow2D sprite [, ox, oy]",
           "name": "CameraFollow2D",
-          "description": "keeps the sprite at screen center, plus an optional nudge",
+          "description": "one snap that centres the sprite, plus an optional nudge",
           "category": "2D (Ebiten)"
         },
         {
@@ -1957,6 +2005,294 @@
           "syntax": "DrawImage",
           "name": "DrawImage",
           "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "DrawTile",
+          "name": "DrawTile",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "CreateCamera2D([x, y, w, h])",
+          "name": "CreateCamera2D",
+          "description": "another camera with its own viewport (split screen). `FreeCamera2D cam`",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "FreeCamera2D cam",
+          "name": "FreeCamera2D",
+          "description": "another camera with its own viewport (split screen). `FreeCamera2D cam`",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "PositionCamera2D cam, x, y",
+          "name": "PositionCamera2D",
+          "description": "centre on a world point. `TranslateCamera2D cam, dx, dy`",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "TranslateCamera2D cam, dx, dy",
+          "name": "TranslateCamera2D",
+          "description": "centre on a world point. `TranslateCamera2D cam, dx, dy`",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "CameraZoom2D cam, z",
+          "name": "CameraZoom2D",
+          "description": "2 is twice as close. `CameraRotation2D cam, deg` / `TurnCamera2D cam, deg`",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "CameraRotation2D cam, deg",
+          "name": "CameraRotation2D",
+          "description": "2 is twice as close. `CameraRotation2D cam, deg` / `TurnCamera2D cam, deg`",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "TurnCamera2D cam, deg",
+          "name": "TurnCamera2D",
+          "description": "2 is twice as close. `CameraRotation2D cam, deg` / `TurnCamera2D cam, deg`",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "CameraViewport2D cam, x, y, w, h",
+          "name": "CameraViewport2D",
+          "description": "window pixels; 0, 0, 0, 0 fills the window",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "CameraTarget2D cam, sprite [, ox, oy]",
+          "name": "CameraTarget2D",
+          "description": "follow every frame; sprite 0 stops",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "CameraSmooth2D cam, seconds",
+          "name": "CameraSmooth2D",
+          "description": "time to close 95% of the gap; 0 snaps",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "CameraDeadZone2D cam, w, h",
+          "name": "CameraDeadZone2D",
+          "description": "the target can move this much (world units) before the camera does",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "CameraBounds2D cam, x0, y0, x1, y1",
+          "name": "CameraBounds2D",
+          "description": "keep the view inside a world box (a smaller level is centred); `CameraBounds2D cam` removes it",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "CameraBounds2D cam",
+          "name": "CameraBounds2D",
+          "description": "keep the view inside a world box (a smaller level is centred); `CameraBounds2D cam` removes it",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "CameraShake2D cam, pixels [, seconds]",
+          "name": "CameraShake2D",
+          "description": "fades out",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "ShowCamera2D cam, on",
+          "name": "ShowCamera2D",
+          "description": "later cameras draw on top",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "CameraOrder2D cam, n",
+          "name": "CameraOrder2D",
+          "description": "later cameras draw on top",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "GetCameraX2D(cam)",
+          "name": "GetCameraX2D",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "GetCameraY2D(cam)",
+          "name": "GetCameraY2D",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "GetCameraZoom2D(cam)",
+          "name": "GetCameraZoom2D",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "GetCameraRotation2D(cam)",
+          "name": "GetCameraRotation2D",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "ScreenToWorldX2D(cam, sx, sy)",
+          "name": "ScreenToWorldX2D",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "ScreenToWorldY2D",
+          "name": "ScreenToWorldY2D",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "WorldToScreenX2D(cam, wx, wy)",
+          "name": "WorldToScreenX2D",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "WorldToScreenY2D",
+          "name": "WorldToScreenY2D",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "MouseWorldX2D([cam])",
+          "name": "MouseWorldX2D",
+          "description": "the mouse in world space",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "MouseWorldY2D([cam])",
+          "name": "MouseWorldY2D",
+          "description": "the mouse in world space",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "Text",
+          "name": "Text",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "Rect",
+          "name": "Rect",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "HudPrint",
+          "name": "HudPrint",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "EnableLighting2D [on]",
+          "name": "EnableLighting2D",
+          "description": "the light where no lamp reaches (0–255)",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetAmbient2D r, g, b",
+          "name": "SetAmbient2D",
+          "description": "the light where no lamp reaches (0–255)",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "CreateLight2D(x, y, radius [, r, g, b, intensity])",
+          "name": "CreateLight2D",
+          "description": "a point light with a smooth falloff. `FreeLight2D l`",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "FreeLight2D l",
+          "name": "FreeLight2D",
+          "description": "a point light with a smooth falloff. `FreeLight2D l`",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "PositionLight2D l, x, y",
+          "name": "PositionLight2D",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetLight2DColor l, r, g, b",
+          "name": "SetLight2DColor",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetLight2DRadius l, r",
+          "name": "SetLight2DRadius",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetLight2DIntensity l, n",
+          "name": "SetLight2DIntensity",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "ShowLight2D l, on",
+          "name": "ShowLight2D",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetLight2DCone l, direction, angle",
+          "name": "SetLight2DCone",
+          "description": "a spotlight; angle 0 or 360 is all round",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetLight2DShadows l, on",
+          "name": "SetLight2DShadows",
+          "description": "default on",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "ParentLight2D l, sprite [, ox, oy]",
+          "name": "ParentLight2D",
+          "description": "the light rides along and its cone turns with the sprite",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetSunLight2D r, g, b [, intensity, angle, shadowLength]",
+          "name": "SetSunLight2D",
+          "description": "light everywhere with shadows cast along `angle` (90 is straight down); intensity 0 turns it off",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "AddOccluder2D(x, y, w, h)",
+          "name": "AddOccluder2D",
+          "description": "a wall that blocks light",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "FreeOccluder2D o",
+          "name": "FreeOccluder2D",
+          "description": "a wall that blocks light",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetSpriteOccluder s [, on]",
+          "name": "SetSpriteOccluder",
+          "description": "the sprite's outline blocks light",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetTileOccluders map, layer [, on]",
+          "name": "SetTileOccluders",
+          "description": "non-empty cells of that layer block light",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetSpriteLit s, on",
+          "name": "SetSpriteLit",
+          "description": "0 draws the sprite after lighting at full brightness (lamps, glowing eyes, pickups)",
           "category": "2D (Ebiten)"
         },
         {
@@ -2022,25 +2358,25 @@
         {
           "syntax": "CreateTileMap tw, th, cols, rows",
           "name": "CreateTileMap",
-          "description": "",
+          "description": "one layer to start",
           "category": "2D (Ebiten)"
         },
         {
-          "syntax": "SetTile map, tx, ty, id",
+          "syntax": "SetTile map, tx, ty, id [, layer]",
           "name": "SetTile",
           "description": "`id` 0 empty; 1+ is a tile",
           "category": "2D (Ebiten)"
         },
         {
-          "syntax": "GetTile map, tx, ty",
+          "syntax": "GetTile map, tx, ty [, layer]",
           "name": "GetTile",
-          "description": "0 outside the map",
+          "description": "0 outside the map; without a layer, the collision layer",
           "category": "2D (Ebiten)"
         },
         {
           "syntax": "TileAt map, x, y",
           "name": "TileAt",
-          "description": "cell under a world pixel",
+          "description": "cell of the collision layer under a world pixel",
           "category": "2D (Ebiten)"
         },
         {
@@ -2056,27 +2392,183 @@
           "category": "2D (Ebiten)"
         },
         {
-          "syntax": "DrawTileMap map, x, y [, atlas]",
+          "syntax": "DrawTileMap map, x, y [, atlas, layer]",
           "name": "DrawTileMap",
-          "description": "colored cells if no atlas; scrolls with `SetCamera2D`",
-          "category": "2D (Ebiten)"
-        },
-        {
-          "syntax": "SetCamera2D",
-          "name": "SetCamera2D",
-          "description": "colored cells if no atlas; scrolls with `SetCamera2D`",
+          "description": "every layer in order, or one; colored cells if no atlas. Each camera draws only the cells it can see",
           "category": "2D (Ebiten)"
         },
         {
           "syntax": "DrawTile atlas, tile, x, y, tw, th",
           "name": "DrawTile",
-          "description": "",
+          "description": "on the screen, not the world",
           "category": "2D (Ebiten)"
         },
         {
           "syntax": "LoadTileMap file.csv [, tw, th]",
           "name": "LoadTileMap",
           "description": "CSV of integer ids",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "LoadTiledMap(file$)",
+          "name": "LoadTiledMap",
+          "description": "a [Tiled](https://www.mapeditor.org/) `.tmx` or `.tmj`/`.json` map: tile layers (CSV or base64, zlib or gzip), groups, multiple and external (`.tsx`/`.tsj`) single-image tilesets, flipped tiles, tile animations and properties, infinite maps, and object layers. Image-collection tilesets are not supported",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "AddTileLayer(map [, name$])",
+          "name": "AddTileLayer",
+          "description": "returns the layer index. `TileLayerCount(map)`, `TileLayerIndex(map, name$)` (-1 if none)",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "TileLayerCount(map)",
+          "name": "TileLayerCount",
+          "description": "returns the layer index. `TileLayerCount(map)`, `TileLayerIndex(map, name$)` (-1 if none)",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "TileLayerIndex(map, name$)",
+          "name": "TileLayerIndex",
+          "description": "returns the layer index. `TileLayerCount(map)`, `TileLayerIndex(map, name$)` (-1 if none)",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetTileLayerVisible map, layer, on",
+          "name": "SetTileLayerVisible",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetTileLayerAlpha map, layer, a",
+          "name": "SetTileLayerAlpha",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetTileLayerOffset map, layer, x, y",
+          "name": "SetTileLayerOffset",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetTileLayerParallax map, layer, f",
+          "name": "SetTileLayerParallax",
+          "description": "1 moves with the world, 0.5 is a far background (measured from the view's top-left, as in Tiled)",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetTileCollisionLayer map, layer",
+          "name": "SetTileCollisionLayer",
+          "description": "the layer `TileAt`, `GetTile`, and `SpriteHitTile` read",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "TileAt",
+          "name": "TileAt",
+          "description": "the layer `TileAt`, `GetTile`, and `SpriteHitTile` read",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "GetTile",
+          "name": "GetTile",
+          "description": "the layer `TileAt`, `GetTile`, and `SpriteHitTile` read",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SpriteHitTile",
+          "name": "SpriteHitTile",
+          "description": "the layer `TileAt`, `GetTile`, and `SpriteHitTile` read",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetTileFlip map, tx, ty, flipX, flipY [, diagonal, layer]",
+          "name": "SetTileFlip",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetTileAnim map, tile, frames, fps",
+          "name": "SetTileAnim",
+          "description": "the tile cycles through `tile` .. `tile + frames - 1`",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetTileData map, tile, key$, value",
+          "name": "SetTileData",
+          "description": "properties per tile id; Tiled tile properties load here",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "TileData(map, tile, key$)",
+          "name": "TileData",
+          "description": "properties per tile id; Tiled tile properties load here",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "SetAutoTile map, firstTile [, layer]",
+          "name": "SetAutoTile",
+          "description": "16 tiles from `firstTile` chosen by which of the four neighbours are filled (north 1, east 2, south 4, west 8)",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "PaintAutoTile map, tx, ty [, on, layer]",
+          "name": "PaintAutoTile",
+          "description": "16 tiles from `firstTile` chosen by which of the four neighbours are filled (north 1, east 2, south 4, west 8)",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "TileMapWidth(map)",
+          "name": "TileMapWidth",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "TileMapHeight(map)",
+          "name": "TileMapHeight",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "TileWidth(map)",
+          "name": "TileWidth",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "TileHeight(map)",
+          "name": "TileHeight",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "TileObjectCount(map)",
+          "name": "TileObjectCount",
+          "description": "Tiled object layers (spawn points, triggers)",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "TileObjectName$(map, i)",
+          "name": "TileObjectName$",
+          "description": "Tiled object layers (spawn points, triggers)",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "TileObjectType$(map, i)",
+          "name": "TileObjectType$",
+          "description": "Tiled object layers (spawn points, triggers)",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "TileObjectX/Y/Width/Height(map, i)",
+          "name": "TileObjectX",
+          "description": "Tiled object layers (spawn points, triggers)",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "TileObjectProperty(map, i, key$)",
+          "name": "TileObjectProperty",
+          "description": "Tiled object layers (spawn points, triggers)",
           "category": "2D (Ebiten)"
         }
       ]
@@ -11859,6 +12351,48 @@
       "category": "2D (Ebiten)"
     },
     {
+      "syntax": "SetSpritePivot s, px, py",
+      "name": "SetSpritePivot",
+      "description": "0..1 across the sprite; 0.5, 0.5 (the centre) is the default, 0.5, 1 the feet",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetSpriteBlend s, mode$",
+      "name": "SetSpriteBlend",
+      "description": "`\"alpha\"`, `\"add\"`, `\"multiply\"`, or `\"screen\"`",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetSpriteParent child, parent [, keepWorld]",
+      "name": "SetSpriteParent",
+      "description": "the child's position is in the parent's space: it moves, turns, and scales with it. 0 detaches; `keepWorld` 1 leaves it where it is on screen. `SpriteWorldX(s)` / `SpriteWorldY(s)`",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SpriteWorldX(s)",
+      "name": "SpriteWorldX",
+      "description": "the child's position is in the parent's space: it moves, turns, and scales with it. 0 detaches; `keepWorld` 1 leaves it where it is on screen. `SpriteWorldX(s)` / `SpriteWorldY(s)`",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SpriteWorldY(s)",
+      "name": "SpriteWorldY",
+      "description": "the child's position is in the parent's space: it moves, turns, and scales with it. 0 detaches; `keepWorld` 1 leaves it where it is on screen. `SpriteWorldX(s)` / `SpriteWorldY(s)`",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetSpriteRect s, x, y, w, h",
+      "name": "SetSpriteRect",
+      "description": "draw only that part of the image; `SetSpriteRect s` alone goes back to the whole image or sheet frame",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetSpriteOrder s, n",
+      "name": "SetSpriteOrder",
+      "description": "draw order inside the sprite's layer",
+      "category": "2D (Ebiten)"
+    },
+    {
       "syntax": "SetCamera2D x, y",
       "name": "SetCamera2D",
       "description": "world point at the top-left of the screen. `MoveCamera2D`, `Camera2DX`, `Camera2DY`",
@@ -11885,7 +12419,7 @@
     {
       "syntax": "CameraFollow2D sprite [, ox, oy]",
       "name": "CameraFollow2D",
-      "description": "keeps the sprite at screen center, plus an optional nudge",
+      "description": "one snap that centres the sprite, plus an optional nudge",
       "category": "2D (Ebiten)"
     },
     {
@@ -11910,6 +12444,276 @@
       "syntax": "Line",
       "name": "Line",
       "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "DrawTile",
+      "name": "DrawTile",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "CreateCamera2D([x, y, w, h])",
+      "name": "CreateCamera2D",
+      "description": "another camera with its own viewport (split screen). `FreeCamera2D cam`",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "FreeCamera2D cam",
+      "name": "FreeCamera2D",
+      "description": "another camera with its own viewport (split screen). `FreeCamera2D cam`",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "PositionCamera2D cam, x, y",
+      "name": "PositionCamera2D",
+      "description": "centre on a world point. `TranslateCamera2D cam, dx, dy`",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "TranslateCamera2D cam, dx, dy",
+      "name": "TranslateCamera2D",
+      "description": "centre on a world point. `TranslateCamera2D cam, dx, dy`",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "CameraZoom2D cam, z",
+      "name": "CameraZoom2D",
+      "description": "2 is twice as close. `CameraRotation2D cam, deg` / `TurnCamera2D cam, deg`",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "CameraRotation2D cam, deg",
+      "name": "CameraRotation2D",
+      "description": "2 is twice as close. `CameraRotation2D cam, deg` / `TurnCamera2D cam, deg`",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "TurnCamera2D cam, deg",
+      "name": "TurnCamera2D",
+      "description": "2 is twice as close. `CameraRotation2D cam, deg` / `TurnCamera2D cam, deg`",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "CameraViewport2D cam, x, y, w, h",
+      "name": "CameraViewport2D",
+      "description": "window pixels; 0, 0, 0, 0 fills the window",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "CameraTarget2D cam, sprite [, ox, oy]",
+      "name": "CameraTarget2D",
+      "description": "follow every frame; sprite 0 stops",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "CameraSmooth2D cam, seconds",
+      "name": "CameraSmooth2D",
+      "description": "time to close 95% of the gap; 0 snaps",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "CameraDeadZone2D cam, w, h",
+      "name": "CameraDeadZone2D",
+      "description": "the target can move this much (world units) before the camera does",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "CameraBounds2D cam, x0, y0, x1, y1",
+      "name": "CameraBounds2D",
+      "description": "keep the view inside a world box (a smaller level is centred); `CameraBounds2D cam` removes it",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "CameraShake2D cam, pixels [, seconds]",
+      "name": "CameraShake2D",
+      "description": "fades out",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "ShowCamera2D cam, on",
+      "name": "ShowCamera2D",
+      "description": "later cameras draw on top",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "CameraOrder2D cam, n",
+      "name": "CameraOrder2D",
+      "description": "later cameras draw on top",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "GetCameraX2D(cam)",
+      "name": "GetCameraX2D",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "GetCameraY2D(cam)",
+      "name": "GetCameraY2D",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "GetCameraZoom2D(cam)",
+      "name": "GetCameraZoom2D",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "GetCameraRotation2D(cam)",
+      "name": "GetCameraRotation2D",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "ScreenToWorldX2D(cam, sx, sy)",
+      "name": "ScreenToWorldX2D",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "ScreenToWorldY2D",
+      "name": "ScreenToWorldY2D",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "WorldToScreenX2D(cam, wx, wy)",
+      "name": "WorldToScreenX2D",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "WorldToScreenY2D",
+      "name": "WorldToScreenY2D",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "MouseWorldX2D([cam])",
+      "name": "MouseWorldX2D",
+      "description": "the mouse in world space",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "MouseWorldY2D([cam])",
+      "name": "MouseWorldY2D",
+      "description": "the mouse in world space",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "HudPrint",
+      "name": "HudPrint",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "EnableLighting2D [on]",
+      "name": "EnableLighting2D",
+      "description": "the light where no lamp reaches (0–255)",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetAmbient2D r, g, b",
+      "name": "SetAmbient2D",
+      "description": "the light where no lamp reaches (0–255)",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "CreateLight2D(x, y, radius [, r, g, b, intensity])",
+      "name": "CreateLight2D",
+      "description": "a point light with a smooth falloff. `FreeLight2D l`",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "FreeLight2D l",
+      "name": "FreeLight2D",
+      "description": "a point light with a smooth falloff. `FreeLight2D l`",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "PositionLight2D l, x, y",
+      "name": "PositionLight2D",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetLight2DColor l, r, g, b",
+      "name": "SetLight2DColor",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetLight2DRadius l, r",
+      "name": "SetLight2DRadius",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetLight2DIntensity l, n",
+      "name": "SetLight2DIntensity",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "ShowLight2D l, on",
+      "name": "ShowLight2D",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetLight2DCone l, direction, angle",
+      "name": "SetLight2DCone",
+      "description": "a spotlight; angle 0 or 360 is all round",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetLight2DShadows l, on",
+      "name": "SetLight2DShadows",
+      "description": "default on",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "ParentLight2D l, sprite [, ox, oy]",
+      "name": "ParentLight2D",
+      "description": "the light rides along and its cone turns with the sprite",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetSunLight2D r, g, b [, intensity, angle, shadowLength]",
+      "name": "SetSunLight2D",
+      "description": "light everywhere with shadows cast along `angle` (90 is straight down); intensity 0 turns it off",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "AddOccluder2D(x, y, w, h)",
+      "name": "AddOccluder2D",
+      "description": "a wall that blocks light",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "FreeOccluder2D o",
+      "name": "FreeOccluder2D",
+      "description": "a wall that blocks light",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetSpriteOccluder s [, on]",
+      "name": "SetSpriteOccluder",
+      "description": "the sprite's outline blocks light",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetTileOccluders map, layer [, on]",
+      "name": "SetTileOccluders",
+      "description": "non-empty cells of that layer block light",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetSpriteLit s, on",
+      "name": "SetSpriteLit",
+      "description": "0 draws the sprite after lighting at full brightness (lamps, glowing eyes, pickups)",
       "category": "2D (Ebiten)"
     },
     {
@@ -11951,25 +12755,25 @@
     {
       "syntax": "CreateTileMap tw, th, cols, rows",
       "name": "CreateTileMap",
-      "description": "",
+      "description": "one layer to start",
       "category": "2D (Ebiten)"
     },
     {
-      "syntax": "SetTile map, tx, ty, id",
+      "syntax": "SetTile map, tx, ty, id [, layer]",
       "name": "SetTile",
       "description": "`id` 0 empty; 1+ is a tile",
       "category": "2D (Ebiten)"
     },
     {
-      "syntax": "GetTile map, tx, ty",
+      "syntax": "GetTile map, tx, ty [, layer]",
       "name": "GetTile",
-      "description": "0 outside the map",
+      "description": "0 outside the map; without a layer, the collision layer",
       "category": "2D (Ebiten)"
     },
     {
       "syntax": "TileAt map, x, y",
       "name": "TileAt",
-      "description": "cell under a world pixel",
+      "description": "cell of the collision layer under a world pixel",
       "category": "2D (Ebiten)"
     },
     {
@@ -11985,15 +12789,153 @@
       "category": "2D (Ebiten)"
     },
     {
-      "syntax": "DrawTile atlas, tile, x, y, tw, th",
-      "name": "DrawTile",
+      "syntax": "LoadTileMap file.csv [, tw, th]",
+      "name": "LoadTileMap",
+      "description": "CSV of integer ids",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "LoadTiledMap(file$)",
+      "name": "LoadTiledMap",
+      "description": "a [Tiled](https://www.mapeditor.org/) `.tmx` or `.tmj`/`.json` map: tile layers (CSV or base64, zlib or gzip), groups, multiple and external (`.tsx`/`.tsj`) single-image tilesets, flipped tiles, tile animations and properties, infinite maps, and object layers. Image-collection tilesets are not supported",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "AddTileLayer(map [, name$])",
+      "name": "AddTileLayer",
+      "description": "returns the layer index. `TileLayerCount(map)`, `TileLayerIndex(map, name$)` (-1 if none)",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "TileLayerCount(map)",
+      "name": "TileLayerCount",
+      "description": "returns the layer index. `TileLayerCount(map)`, `TileLayerIndex(map, name$)` (-1 if none)",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "TileLayerIndex(map, name$)",
+      "name": "TileLayerIndex",
+      "description": "returns the layer index. `TileLayerCount(map)`, `TileLayerIndex(map, name$)` (-1 if none)",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetTileLayerVisible map, layer, on",
+      "name": "SetTileLayerVisible",
       "description": "",
       "category": "2D (Ebiten)"
     },
     {
-      "syntax": "LoadTileMap file.csv [, tw, th]",
-      "name": "LoadTileMap",
-      "description": "CSV of integer ids",
+      "syntax": "SetTileLayerAlpha map, layer, a",
+      "name": "SetTileLayerAlpha",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetTileLayerOffset map, layer, x, y",
+      "name": "SetTileLayerOffset",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetTileLayerParallax map, layer, f",
+      "name": "SetTileLayerParallax",
+      "description": "1 moves with the world, 0.5 is a far background (measured from the view's top-left, as in Tiled)",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetTileCollisionLayer map, layer",
+      "name": "SetTileCollisionLayer",
+      "description": "the layer `TileAt`, `GetTile`, and `SpriteHitTile` read",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetTileFlip map, tx, ty, flipX, flipY [, diagonal, layer]",
+      "name": "SetTileFlip",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetTileAnim map, tile, frames, fps",
+      "name": "SetTileAnim",
+      "description": "the tile cycles through `tile` .. `tile + frames - 1`",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetTileData map, tile, key$, value",
+      "name": "SetTileData",
+      "description": "properties per tile id; Tiled tile properties load here",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "TileData(map, tile, key$)",
+      "name": "TileData",
+      "description": "properties per tile id; Tiled tile properties load here",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "SetAutoTile map, firstTile [, layer]",
+      "name": "SetAutoTile",
+      "description": "16 tiles from `firstTile` chosen by which of the four neighbours are filled (north 1, east 2, south 4, west 8)",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "PaintAutoTile map, tx, ty [, on, layer]",
+      "name": "PaintAutoTile",
+      "description": "16 tiles from `firstTile` chosen by which of the four neighbours are filled (north 1, east 2, south 4, west 8)",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "TileMapWidth(map)",
+      "name": "TileMapWidth",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "TileMapHeight(map)",
+      "name": "TileMapHeight",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "TileWidth(map)",
+      "name": "TileWidth",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "TileHeight(map)",
+      "name": "TileHeight",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "TileObjectCount(map)",
+      "name": "TileObjectCount",
+      "description": "Tiled object layers (spawn points, triggers)",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "TileObjectName$(map, i)",
+      "name": "TileObjectName$",
+      "description": "Tiled object layers (spawn points, triggers)",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "TileObjectType$(map, i)",
+      "name": "TileObjectType$",
+      "description": "Tiled object layers (spawn points, triggers)",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "TileObjectX/Y/Width/Height(map, i)",
+      "name": "TileObjectX",
+      "description": "Tiled object layers (spawn points, triggers)",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "TileObjectProperty(map, i, key$)",
+      "name": "TileObjectProperty",
+      "description": "Tiled object layers (spawn points, triggers)",
       "category": "2D (Ebiten)"
     },
     {

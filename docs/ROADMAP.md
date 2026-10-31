@@ -23,7 +23,7 @@ The design goal is the simplicity of Blitz3D with the capabilities of a modern e
 
 Command names in the spec are suggestions. Where moonBASIC has the feature under another name (often the Blitz3D one), the item is marked done and the real name is given. Each item was checked against the registered command tables in `internal/runtime`, the language in `internal/parse` and `internal/interp`, `cmd/moon`, and `ide/`. Documentation alone was not counted.
 
-**Keeping it current:** when a feature lands, tick its item here in the same change, name the command, and update the counts in the table below.
+**Keeping it current:** when a feature lands, tick its item here in the same change and name the command, then run `go run tools/roadmap_counts.go` to recount the table below.
 
 ## Where things stand
 
@@ -33,7 +33,7 @@ Coverage counts a partial item as half.
 | --- | --- | --- | --- | --- |
 | [1. Core engine architecture](#1-core-engine-architecture) | 10 | 16 | 1 | 67% |
 | [2. MoonBASIC programming language](#2-moonbasic-programming-language) | 46 | 20 | 14 | 70% |
-| [3. 2D graphics engine](#3-2d-graphics-engine) | 44 | 8 | 38 | 53% |
+| [3. 2D graphics engine](#3-2d-graphics-engine) | 74 | 4 | 12 | 84% |
 | [4. 3D graphics engine](#4-3d-graphics-engine) | 106 | 16 | 16 | 83% |
 | [5. Physics (Jolt)](#5-physics-jolt) | 38 | 9 | 9 | 76% |
 | [6. Terrain and world building](#6-terrain-and-world-building) | 36 | 9 | 5 | 81% |
@@ -57,13 +57,13 @@ Coverage counts a partial item as half.
 | [24. Project management](#24-project-management) | 1 | 4 | 6 | 27% |
 | [25. Documentation and community](#25-documentation-and-community) | 3 | 9 | 4 | 47% |
 | [26. Plugins and extensions](#26-plugins-and-extensions) | 0 | 3 | 12 | 10% |
-| **Total** | **522** | **206** | **349** | **58%** |
+| **Total** | **552** | **202** | **323** | **61%** |
 
-**Strongest:** water and environment, the 3D engine, terrain, physics, and input. **Weakest:** plugins, project management, Moon Studio's visual editing, debugging and profiling tools, and audio.
+**Strongest:** water and environment, the 2D and 3D engines, terrain, physics, and input. **Weakest:** plugins, project management, Moon Studio's visual editing, debugging and profiling tools, and audio.
 
 ## The MoonBASIC 1.0 checklist
 
-The 32 features the spec will not compromise on for 1.0. **17 of 32 are done.**
+The 32 features the spec will not compromise on for 1.0. **21 of 32 are done.**
 
 ### Language
 - [x] Stable BASIC syntax and compiler/runtime — interpreter, `moon compile` AOT, `moon transpile`; no frozen language spec yet
@@ -74,10 +74,10 @@ The 32 features the spec will not compromise on for 1.0. **17 of 32 are done.**
 
 ### 2D engine
 - [x] Sprite rendering and animation — `CreateSprite`, `SetSpriteSheet`, `AnimateSprite`, `FlipSprite`, layers
-- [ ] Tilemaps — **Partial:** one CSV grid with solid tiles; no layers, Tiled import, or culling
-- [ ] 2D cameras — **Partial:** position and follow; no zoom, rotation, bounds, smoothing, or shake
-- [ ] 2D collision and physics — **Partial:** Chipmunk bodies, shapes, joints, rays; no layers, sensors, kinematic bodies
-- [ ] Basic lighting and particles — **Partial:** 2D particles done; no 2D lighting
+- [x] Tilemaps — layers, `LoadTiledMap` (.tmx/.tmj), flips, animated tiles, autotiling, per-camera culling
+- [x] 2D cameras — camera objects with zoom, rotation, viewports, smooth follow, dead zone, bounds, shake
+- [x] 2D collision and physics — Chipmunk bodies, capsules, kinematic, layers and masks, sensors, shape casts, `CreateCharacter2D`
+- [x] Basic lighting and particles — `CreateLight2D`, sun, occluder shadows; 2D particles in world space
 
 ### 3D engine
 - [x] Primitive geometry and model importing — 13 primitives; glTF/GLB, OBJ, DAE, FBX meshes
@@ -118,7 +118,7 @@ The 32 features the spec will not compromise on for 1.0. **17 of 32 are done.**
 | 0.3 Moon Studio | Project manager, scene editor, inspector, asset browser, code editor, debugger, play-in-editor, undo/redo | **Partial:** code editor and asset browser only |
 | 0.4 Advanced engine | Terrain, water, particles, navigation, advanced materials, post-processing, visual shader editor, prefabs | **Mostly done:** no visual shader editor; prefabs minimal |
 | 0.5 Production pipeline | Asset optimization, export system, build profiles, profilers, platform compatibility, plugins | **Partial:** mesh optimization and export done; no profiles, profilers, or plugins |
-| 1.0 Production release | Stable language and API, complete docs, reliable export, automated tests, compatibility testing, example games, production editor | **Not yet:** 17 of 32 checklist items |
+| 1.0 Production release | Stable language and API, complete docs, reliable export, automated tests, compatibility testing, example games, production editor | **Not yet:** 21 of 32 checklist items |
 
 `moon version` already reports 1.0.0 for the runtime. Against this spec, the product is between 0.4 and 0.5: the engine is ahead, the editor and tooling are behind.
 
@@ -126,8 +126,8 @@ The 32 features the spec will not compromise on for 1.0. **17 of 32 are done.**
 
 What to build next, in order. Each milestone closes 1.0 checklist items or strengthens what makes moonBASIC different.
 
-### Milestone A: finish the 2D engine
-2D is the weakest part of "one language for 2D and 3D".
+### Milestone A: finish the 2D engine — done 2026-10-31
+2D was the weakest part of "one language for 2D and 3D". Examples: `camera2d.mb`, `tilemap2d.mb`, `lighting2d.mb`, `platformer2d_physics.mb`. Left for later: 2D skeletal animation, light masks, normal-mapped sprites, growing (infinite) tilemaps.
 - 2D camera: zoom, rotation, bounds, smoothing, dead zone, shake, viewports, camera objects
 - Tilemaps: layers, Tiled (TMX/JSON) import, view culling and chunking, animated tiles, flip/rotate, per-tile metadata
 - 2D lighting: point and ambient lights with falloff and an occluder shadow pass
@@ -311,56 +311,56 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] SpriteAlpha — `spritealpha`
 - [x] SpriteVisible — `hidesprite` / `showsprite`
 - [x] SpriteLayer — `spritelayer` (sorted by layer in graphics2d.go)
-- [ ] SpriteOrder — **Partial:** order within a layer is creation id only; use `spritelayer`
-- [ ] SpriteParent — Missing
+- [x] SpriteOrder — `SetSpriteOrder` (within a layer)
+- [x] SpriteParent — `SetSpriteParent` (position, rotation, scale), `SpriteWorldX/Y`
 - [x] SpriteCollision — `spritesoverlap`, `imagescollide` (AABB only, no rotation/pixel-perfect)
 - [x] SpriteAnimation — `setspritesheet`, `animatesprite`, `setspriteframe`
-- [ ] SpritePivot — Missing (pivot fixed at sprite centre)
+- [x] SpritePivot — `SetSpritePivot`
 - [x] SpriteFlip — `flipsprite` (X/Y)
-- [ ] SpriteBlendMode — Missing
-- [ ] SpriteUV — **Partial:** only grid frame selection via `setspritesheet`/`setspriteframe`; no arbitrary UV rect
+- [x] SpriteBlendMode — `SetSpriteBlend` alpha / add / multiply / screen
+- [x] SpriteUV — `SetSpriteRect` (any source rectangle), sheets via `SetSpriteSheet`
 
 #### 3.2 2D camera
-- [ ] CreateCamera2D — **Partial:** single global 2D camera (`setcamera2d`); no camera objects
-- [x] CameraPosition2D — `setcamera2d`, `movecamera2d`, `camera2dx`/`camera2dy`
-- [ ] CameraZoom2D — Missing
-- [ ] CameraRotation2D — Missing
-- [x] CameraFollow (2D) — `camerafollow2d` (centres on sprite with offset, instant snap)
-- [ ] CameraBounds — Missing
-- [ ] CameraShake (2D) — Missing (`camerashake`/`screenshake` affect 3D camera only)
-- [ ] CameraSmoothing — Missing (`smoothdamp`/`lerp` helpers usable manually)
-- [ ] CameraViewport (2D) — Missing (`setcameraviewport` is 3D)
-- [ ] CameraDeadZone — Missing
-- [x] CameraTarget (2D) — `camerafollow2d` sprite target
+- [x] CreateCamera2D — `CreateCamera2D`; camera 0 is the window
+- [x] CameraPosition2D — `PositionCamera2D`, `SetCamera2D`, `MoveCamera2D`
+- [x] CameraZoom2D — `CameraZoom2D`
+- [x] CameraRotation2D — `CameraRotation2D`, `TurnCamera2D`
+- [x] CameraFollow (2D) — `CameraTarget2D` (every frame), `CameraFollow2D` (one snap)
+- [x] CameraBounds — `CameraBounds2D`
+- [x] CameraShake (2D) — `CameraShake2D` (fading)
+- [x] CameraSmoothing — `CameraSmooth2D` (frame-rate independent)
+- [x] CameraViewport (2D) — `CameraViewport2D`, split screen with several cameras
+- [x] CameraDeadZone — `CameraDeadZone2D`
+- [x] CameraTarget (2D) — `CameraTarget2D` with offset; `MouseWorldX2D`, `ScreenToWorldX2D`
 
 #### 3.3 Tilemaps
 - [x] Tilemap creation — `createtilemap`, `settile`, `gettile`, `drawtilemap`
 - [x] Tile atlas — atlas image arg to `drawtilemap`; `drawtile` for single atlas tiles
-- [ ] Multiple layers — **Partial:** stack separate tilemaps manually; no layer API
-- [ ] Autotiling — Missing
-- [ ] Terrain painting — Missing (manual `settile` only)
+- [x] Multiple layers — `AddTileLayer`, per-layer visibility, opacity, offset, parallax
+- [x] Autotiling — `SetAutoTile`, `PaintAutoTile` (16-tile, 4-neighbour)
+- [x] Terrain painting — `PaintAutoTile` from script (mouse painting in `examples/tilemap2d.mb`)
 - [x] Collision tiles — `settilesolid`, `spritehittile`
-- [ ] Animated tiles — Missing
+- [x] Animated tiles — `SetTileAnim`; Tiled tile animations load
 - [x] Tile selection — `tileat` (world coords to tile id)
-- [ ] Tile rotation — Missing
-- [ ] Tile flipping — Missing
-- [ ] Tile metadata — **Partial:** only solid flag per tile id (`settilesolid`)
-- [ ] Infinite tilemaps — Missing (fixed cols x rows)
-- [ ] Chunk-based rendering — Missing (draws every cell, no culling)
-- [ ] Tilemap importing (e.g. Tiled) — **Partial:** `loadtilemap` reads CSV only; no TMX/Tiled JSON
-- [ ] Tilemap editing tools — Missing
+- [x] Tile rotation — `SetTileFlip` diagonal bit (90° steps, as in Tiled)
+- [x] Tile flipping — `SetTileFlip`; Tiled flip bits load
+- [x] Tile metadata — `SetTileData` / `TileData`; Tiled tile properties load
+- [ ] Infinite tilemaps — **Partial:** Tiled infinite (chunked) maps load into a fixed grid; no growing at runtime
+- [x] Chunk-based rendering — each camera draws only visible cells, one queued draw per layer
+- [x] Tilemap importing (e.g. Tiled) — `LoadTiledMap` (.tmx/.tmj, objects, properties), `LoadTileMap` CSV
+- [ ] Tilemap editing tools — Missing (script painting only; editor is Milestone C)
 
 #### 3.4 2D lighting
-- [ ] Point lights — Missing (all light commands are 3D)
-- [ ] Directional lights — Missing
+- [x] Point lights — `CreateLight2D`, `SetLight2DCone` spotlights, `ParentLight2D`
+- [x] Directional lights — `SetSunLight2D` with directional shadows
 - [ ] Normal-mapped sprites — Missing
-- [ ] Shadow casting — Missing
-- [ ] Ambient lighting — Missing (only `spritecolor` tint / 2D fog overlay)
-- [ ] Light masks — Missing
-- [ ] Light attenuation — Missing
-- [ ] 2D glow — Missing
-- [ ] Day/night lighting — Missing
-- [ ] Light occluders — Missing
+- [x] Shadow casting — hard shadows per light and from the sun
+- [x] Ambient lighting — `SetAmbient2D`
+- [ ] Light masks — **Partial:** `SetSpriteLit` 0 opts a sprite out; no per-light layer masks
+- [x] Light attenuation — smooth `(1-d²)²` falloff to `SetLight2DRadius`
+- [x] 2D glow — `SetSpriteLit` 0 with `SetSpriteBlend "add"`
+- [x] Day/night lighting — `SetAmbient2D` + `SetSunLight2D` (`examples/lighting2d.mb`)
+- [x] Light occluders — `AddOccluder2D`, `SetSpriteOccluder`, `SetTileOccluders`
 
 #### 3.5 2D animation
 - [x] Sprite sheet animation — `setspritesheet` + `animatesprite` (grid frames, FPS)

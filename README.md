@@ -162,6 +162,7 @@ Do not mix `Graphics3D` and `Graphics2D` in one program.
 | `examples/draw2d.mb` | 2D `Rect` / `Oval` (Ebiten) |
 | `examples/platform64.mb` | 3D platformer (WASD + jump + coins, skybox, weather, shadows) |
 | `examples/platform2d.mb` | Ebiten + Chipmunk |
+| `examples/platformer2d_physics.mb` | `CreateCharacter2D`, one-way and moving platforms, sensors, collision layers |
 | `examples/chipmunk2d.mb` | Chipmunk in a 3D view |
 | `examples/net_echo.mb` | `HostGame` / `JoinGame` / `NetSay` |
 | `examples/net_lobby.mb` | Waiting room: `NetLobby$`, `NetReady`, `StartGame` |
@@ -170,6 +171,9 @@ Do not mix `Graphics3D` and `Graphics2D` in one program.
 | `examples/anim.mb` | `LoadAnimation` (needs `hero.glb`) |
 | `examples/anim_blend.mb` | Blend trees: idle/walk/run by speed, 2D strafe, `CrossfadeAnim` (`docs/ANIMATION.md`) |
 | `examples/tiles.mb` | Tilemap |
+| `examples/tilemap2d.mb` | `LoadTiledMap` level: layers, parallax, animated water, autotile painting |
+| `examples/camera2d.mb` | 2D cameras: smooth follow, zoom, rotation, shake, split screen |
+| `examples/lighting2d.mb` | 2D lights, flashlight cone, sun, tile and sprite shadows |
 | `examples/particles.mb` | 3D particles: `SetEmitterShape` `"soft"` or `"cube"` |
 | `examples/particles2d.mb` | 2D `CreateEmitter2D` |
 | `examples/gpu_particles.mb` | `CreateGPUEmitter`: 100k particles, five presets (`docs/PARTICLES.md`) |

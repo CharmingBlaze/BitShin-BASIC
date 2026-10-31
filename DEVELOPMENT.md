@@ -133,4 +133,4 @@ scripts             PowerShell / sh helpers
 3. Document it in `docs/COMMANDS.md`. Network commands also go in `docs/NETWORK.md`.
 4. Prefer a tiny `examples/*.mb` if the command is user-visible.
 5. Regenerate the IDE's command data with `go run tools/gen_commands_json.go`. It rebuilds `ide/frontend/src/lib/data/commands.json` (completion, hover, and command search) from `docs/COMMANDS.md`; rebuild the IDE to ship it. The language server reads `docs/COMMANDS.md` directly.
-6. Tick the feature in [docs/ROADMAP.md](docs/ROADMAP.md) if it closes an item there.
+6. Tick the feature in [docs/ROADMAP.md](docs/ROADMAP.md) if it closes an item there, then `go run tools/roadmap_counts.go` to recount it.
