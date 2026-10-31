@@ -434,4 +434,16 @@ Demos: `examples/car.mb` `plane.mb` `jet.mb` `spaceship.mb` `boat.mb` `motorcycl
 
 ## 2D (Chipmunk)
 
-`Physics2D`, `CreateCircle2D` / `CreateBox2D`, `ApplyImpulse2D`, `CreatePin2D` / `CreateSpring2D` / `CreateSlide2D`. Not Box2D. See [COMMANDS.md](COMMANDS.md).
+`Physics2D`, `CreateCircle2D` / `CreateBox2D` / `CreateCapsule2D` / `CreatePoly2D`, `ApplyImpulse2D`, `CreatePin2D` / `CreateSpring2D` / `CreateSlide2D`. Not Box2D. Bodies live on a sprite (or entity) handle and `UpdateWorld` copies their positions back. Scripts usually run Y-down in pixels with `Gravity2D(0, 900)`; "up" for one-way platforms and characters is always against gravity. See [COMMANDS.md](COMMANDS.md).
+
+**Body types.** Dynamic is the default; a dynamic flag of `0` (or mass `0`) is static; `2` is kinematic, as is `SetKinematic2D body`. Kinematic bodies move only by their own velocity, push dynamic bodies out of the way, and ignore gravity and forces. Drive moving platforms with `SetVelocity2D` rather than `Position2D`: a teleport has no velocity, so nothing riding it is carried.
+
+**Layers.** `SetCollisionLayer2D body, layer` (1-32; everything starts on 1) and `SetLayerCollides2D a, b, 0` mirror the 3D `SetCollisionLayer` / `SetLayerCollides`. `SetCollisionMask2D body, mask` narrows one body further (bit 0 is layer 1). They are Chipmunk shape filters, so contacts, `Collides2D`, sensors, casts and character ground checks all honour them. Until a layer command runs, every body keeps the old collide-with-everything filter.
+
+**Sensors.** `SetSensor2D body` keeps the shape but stops it pushing. After each step the sensor's overlap set is rebuilt with a shape query: `SensorCount2D`, `SensorBody2D(sensor, i)` (1-based), `SensorOverlaps2D(sensor, body)`, and the per-step edges `SensorEntered2D` / `SensorExited2D`. Static bodies are left out so a zone resting on the floor does not report the floor.
+
+**Casts.** `Raycast2D`, `CircleCast2D` (a Chipmunk segment query with a radius) and `ShapeCast2D` / `BoxCast2D`. Chipmunk has no box sweep, so the box is stepped along the path at a quarter of its smaller side, then the first touching step is bisected. Read the hit with `CastBody2D`, `CastX2D` / `CastY2D`, `CastNormalX2D` / `CastNormalY2D`, `CastFraction2D`.
+
+**Platformer character.** `CreateCharacter2D` is a dynamic, non-rotating rounded box with zero friction. Its controller runs as the body's velocity integrator, after Chipmunk has found contacts and before it solves them, so the solver still stops it at a crate pinned on a wall. Three rays down from the centre and both sides find the ground; a hit counts only if its normal is within `SetCharacterMaxSlope2D` of up, so walls are never ground and the body slides down them. While grounded, gravity is off, the velocity follows the ground's tangent plus the ground body's own velocity (it stands still on slopes and rides kinematic platforms), and any small gap below the feet is closed in one step, which keeps it down when walking down a slope. Jumps are buffered (`SetCharacterJumpBuffer2D`) and allowed for `SetCharacterCoyote2D` seconds after leaving a ledge; `SetCharacterJump2D` is the apex height, so the take-off speed is `sqrt(2 * g * scale * height)`. A one-way platform (`SetOneWay2D`) counts as ground only once the feet are on its top. Defaults scale with the box height. Demo: `examples/platformer2d_physics.mb`.
+
+Limits: no drop-through for one-way platforms, no variable-height jump on release, no ceiling corner nudge, and the ground rays assume the character is upright against gravity.

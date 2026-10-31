@@ -351,6 +351,9 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 			dyn := argI(a, 3, 1) != 0
 			x, y := w.pos2D(id)
 			w.phys2.AddCircle(id, x, y, r, mass, dyn)
+			if argI(a, 3, 1) == 2 {
+				w.phys2.SetKinematic(id, true)
+			}
 			return z()
 		}),
 		"createbox2d": n(func(a []value.Value) (value.Value, error) {
@@ -363,6 +366,9 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 			dyn := argI(a, 4, 1) != 0
 			x, y := w.pos2D(id)
 			w.phys2.AddBox(id, x, y, ww, hh, mass, dyn)
+			if argI(a, 4, 1) == 2 {
+				w.phys2.SetKinematic(id, true)
+			}
 			return z()
 		}),
 		"setvelocity2d": need(func(a []value.Value) (value.Value, error) {
@@ -584,12 +590,13 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 		}),
 		"raycast2d": n(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys2()
-			id, x, y, ok := w.phys2.Raycast(argN(a, 0, 0), argN(a, 1, 0), argN(a, 2, 0), argN(a, 3, 0))
-			if !ok {
+			h := w.phys2.RaycastHit(argN(a, 0, 0), argN(a, 1, 0), argN(a, 2, 0), argN(a, 3, 0))
+			if !h.OK {
 				return value.Num(0), nil
 			}
-			w.pickID, w.pickX, w.pickY = id, float32(x), float32(y)
-			return value.Num(float64(id)), nil
+			w.pickID, w.pickX, w.pickY = h.ID, float32(h.X), float32(h.Y)
+			w.pickNX, w.pickNY, w.pickFrac = float32(h.NX), float32(h.NY), float32(h.Fraction)
+			return value.Num(float64(h.ID)), nil
 		}),
 		"updateworld2d": n(func(a []value.Value) (value.Value, error) {
 			w.updateWorld()

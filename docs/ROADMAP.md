@@ -33,7 +33,7 @@ Coverage counts a partial item as half.
 | --- | --- | --- | --- | --- |
 | [1. Core engine architecture](#1-core-engine-architecture) | 10 | 16 | 1 | 67% |
 | [2. MoonBASIC programming language](#2-moonbasic-programming-language) | 46 | 20 | 14 | 70% |
-| [3. 2D graphics engine](#3-2d-graphics-engine) | 37 | 9 | 44 | 46% |
+| [3. 2D graphics engine](#3-2d-graphics-engine) | 44 | 8 | 38 | 53% |
 | [4. 3D graphics engine](#4-3d-graphics-engine) | 106 | 16 | 16 | 83% |
 | [5. Physics (Jolt)](#5-physics-jolt) | 38 | 9 | 9 | 76% |
 | [6. Terrain and world building](#6-terrain-and-world-building) | 36 | 9 | 5 | 81% |
@@ -57,7 +57,7 @@ Coverage counts a partial item as half.
 | [24. Project management](#24-project-management) | 1 | 4 | 6 | 27% |
 | [25. Documentation and community](#25-documentation-and-community) | 3 | 9 | 4 | 47% |
 | [26. Plugins and extensions](#26-plugins-and-extensions) | 0 | 3 | 12 | 10% |
-| **Total** | **515** | **207** | **355** | **57%** |
+| **Total** | **522** | **206** | **349** | **58%** |
 
 **Strongest:** water and environment, the 3D engine, terrain, physics, and input. **Weakest:** plugins, project management, Moon Studio's visual editing, debugging and profiling tools, and audio.
 
@@ -391,18 +391,18 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] Rigid bodies — Chipmunk via internal/phys2d: `physics2d`, `body2d`, `gravity2d`
 - [x] Static bodies — `setstatic2d`, or dynamic=0 arg on `createbox2d`/`createcircle2d`
 - [x] Dynamic bodies — `createbox2d`/`createcircle2d`, `setmass2d`, `applyforce2d`, `applyimpulse2d`
-- [ ] Kinematic bodies — Missing in 2D (`motion_kinematic` is 3D Jolt)
+- [x] Kinematic bodies — `SetKinematic2D`, or dynamic=2 on `CreateBox2D`/`CreateCircle2D`/`CreateCapsule2D`
 - [x] Box colliders — `createbox2d`
 - [x] Circle colliders — `createcircle2d`
 - [x] Polygon colliders — `createpoly2d` (alias `createpolygon2d`)
-- [ ] Capsule colliders — Missing in 2D (capsules are 3D only)
-- [ ] Collision layers — Missing in 2D (`setcollisionlayer` is 3D only)
-- [ ] Collision masks — Missing in 2D (`setlayercollides` is 3D only)
+- [x] Capsule colliders — `CreateCapsule2D`
+- [x] Collision layers — `SetCollisionLayer2D`, `SetLayerCollides2D`
+- [x] Collision masks — `SetCollisionMask2D`
 - [x] Raycasts — `raycast2d`
-- [ ] Shape casts — Missing in 2D (`shapecast` is 3D only)
+- [x] Shape casts — `ShapeCast2D`/`BoxCast2D`, `CircleCast2D`, `CastX2D`/`CastNormalX2D`/`CastFraction2D`
 - [x] Joints — `createpin2d`, `createspring2d`, `createslide2d`, `createjoint2d`, `freejoint2d`
-- [ ] Character controllers — Missing in 2D (`createplatformercontroller` uses 3D Jolt)
-- [ ] Sensors and triggers — **Partial:** contact queries `collides2d`/`countcollisions2d`; no sensor shapes
+- [x] Character controllers — `CreateCharacter2D`, `MoveCharacter2D`, `JumpCharacter2D`, `CharacterOnGround2D` (coyote time, jump buffer, max slope, one-way platforms via `SetOneWay2D`)
+- [x] Sensors and triggers — `SetSensor2D`, `SensorCount2D`, `SensorBody2D`, `SensorEntered2D`/`SensorExited2D`
 - Also: `setccd2d` continuous collision, `velocity2d`/`position2d` getters.
 
 ### 4. 3D graphics engine

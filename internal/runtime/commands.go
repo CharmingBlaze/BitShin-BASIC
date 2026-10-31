@@ -603,6 +603,9 @@ func (w *World) commandTable() map[string]cmd {
 	for k, v := range w.physCommands(n, z, need) {
 		m[k] = v
 	}
+	for k, v := range w.phys2DCommands(n, z, need) {
+		m[k] = v
+	}
 	for k, v := range w.easyPhysCommands(n, z, need) {
 		m[k] = v
 	}

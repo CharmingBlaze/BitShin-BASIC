@@ -1,0 +1,108 @@
+; 2D platformer physics — a Chipmunk character controller with a one-way
+; platform, a moving kinematic platform, a sensor zone that lights up, and a
+; ghost wall on its own collision layer that the player walks through but
+; the crate cannot.
+; Arrows move, Space or Up jumps. Esc or X quits.
+
+SetWindowTitle("moonBASIC — 2D platformer physics")
+Graphics2D(800, 480)
+SetClsColor(18, 22, 34)
+
+Physics2D()
+Gravity2D(0, 900)
+
+; Every body sits on a sprite; white images are tinted with SpriteColor.
+SetColor(255, 255, 255)
+
+; Floor, top edge at y = 440
+floor = CreateSprite(CreateImage(800, 40))
+SetSpritePosition(floor, 400, 460)
+SpriteColor(floor, 60, 70, 90)
+CreateBox2D(floor, 800, 40, 0, 0)
+
+; Solid ledge, top left
+ledge = CreateSprite(CreateImage(140, 16))
+SetSpritePosition(ledge, 110, 260)
+SpriteColor(ledge, 60, 70, 90)
+CreateBox2D(ledge, 140, 16, 0, 0)
+
+; One-way platform: jump up through it from below, land on top
+oneway = CreateSprite(CreateImage(160, 12))
+SetSpritePosition(oneway, 300, 330)
+SpriteColor(oneway, 230, 200, 90)
+CreateBox2D(oneway, 160, 12, 0, 0)
+SetOneWay2D(oneway)
+
+; Moving platform: kinematic (dynamic flag 2), driven by its velocity
+mover = CreateSprite(CreateImage(110, 14))
+SetSpritePosition(mover, 600, 350)
+SpriteColor(mover, 120, 200, 140)
+CreateBox2D(mover, 110, 14, 0, 2)
+SetVelocity2D(mover, 80, 0)
+
+; Sensor zone: reports what is inside, pushes nothing
+zone = CreateSprite(CreateImage(80, 60))
+SetSpritePosition(zone, 200, 410)
+SpriteColor(zone, 70, 90, 160)
+CreateBox2D(zone, 80, 60, 0, 0)
+SetSensor2D(zone)
+
+; Layers: 1 world (default), 2 ghost wall, 3 player. Ghost walls block
+; everything except the player.
+SetLayerCollides2D(2, 3, 0)
+ghost = CreateSprite(CreateImage(16, 80))
+SetSpritePosition(ghost, 470, 400)
+SpriteColor(ghost, 170, 110, 220)
+CreateBox2D(ghost, 16, 80, 0, 0)
+SetCollisionLayer2D(ghost, 2)
+
+; A crate the player can push into the ghost wall
+crate = CreateSprite(CreateImage(30, 30))
+SetSpritePosition(crate, 380, 420)
+SpriteColor(crate, 180, 110, 70)
+CreateBox2D(crate, 30, 30, 1, 1)
+
+; Player: a character controller on the player sprite
+player = CreateSprite(CreateImage(24, 48))
+SetSpritePosition(player, 80, 400)
+SpriteColor(player, 80, 190, 255)
+CreateCharacter2D(player, 24, 48)
+SetCollisionLayer2D(player, 3)
+SetCharacterSpeed2D(player, 220)
+SetCharacterJump2D(player, 110)
+SetCharacterCoyote2D(player, 0.1)
+SetCharacterJumpBuffer2D(player, 0.12)
+SetCharacterAirControl2D(player, 0.7)
+SetCharacterMaxSlope2D(player, 50)
+
+While Not Input.KeyDown(1) And Not Input.KeyDown(KEY_X)
+    dx# = 0
+    If Input.KeyDown(KEY_LEFT) Then dx = dx - 1
+    If Input.KeyDown(KEY_RIGHT) Then dx = dx + 1
+    MoveCharacter2D(player, dx)
+    If Input.KeyHit(KEY_SPACE) Or Input.KeyHit(KEY_UP) Then JumpCharacter2D(player)
+
+    ; Turn the moving platform around at the ends of its track
+    mx# = BodyX2D(mover)
+    If mx > 720 Then SetVelocity2D(mover, -80, 0)
+    If mx < 560 Then SetVelocity2D(mover, 80, 0)
+
+    UpdateWorld
+
+    If SensorOverlaps2D(zone, player) Then
+        SpriteColor(zone, 90, 220, 120)
+    Else
+        SpriteColor(zone, 70, 90, 160)
+    EndIf
+    If SensorEntered2D(zone, player) Then SpriteColor(player, 255, 255, 255)
+    If SensorExited2D(zone, player) Then SpriteColor(player, 80, 190, 255)
+
+    Cls
+    SetColor(230, 230, 240)
+    Text(16, 16, "Arrows move  |  Space/Up jump  |  Esc/X quit")
+    ground$ = "air"
+    If CharacterOnGround2D(player) Then ground$ = "ground " + Str(CharacterGroundBody2D(player))
+    Text(16, 36, "player " + Str(Int(BodyX2D(player))) + "," + Str(Int(BodyY2D(player))) + "  " + ground$ + "  in zone " + Str(SensorCount2D(zone)))
+    Flip
+Wend
+End
