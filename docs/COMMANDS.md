@@ -44,7 +44,7 @@ Dotted topic names call these same commands: `Math.Abs`, `String.Upper`, `Input.
 `CreatePyramid([size, parent])`, `CreateWedge(w, h, d [, parent])`, `CreateTube(radius, height [, segs, parent])`, `CreateQuad([size, parent])`  
 `CreatePivot`  
 A single whole-number argument that is a live entity id is read as the parent, not a size. If that id is 64 or less, a one-time warning is printed, since you may have meant a size; pass `(size, 0)` to say so.  
-`LoadMesh file$ [, parent]` — `.obj`, `.gltf`, `.glb`, `.dae`, `.fbx` (triangles only)
+`LoadMesh file$ [, parent]` — `.obj`, `.gltf`, `.glb`, `.dae`, `.fbx` (triangles only), `.stl`, `.ply`
 `LoadLevel file$ [, cell#]` — `LoadMesh`, then `MergeLevel` on it. For large static levels  
 `MergeLevel root [, cell# [, keep]]` — bakes every visible static mesh under `root` into one mesh per material per `cell` (default 64 m), frustum culled, hidden past the fog. Untextured lit materials of any color share one draw (their color goes per vertex). Meshes with a collision type, a body, a collider, animation, wind sway, or a name are left alone. The merged entities are freed; `keep = True` hides them instead. Returns the cell count  
 `LevelCells(root)` / `LevelSources(root)` — merged draws, and the meshes they replaced  
@@ -99,7 +99,7 @@ How to light a scene, from one sun through falloff, materials, indoor / outdoor,
 `CameraFogColor([cam,] r, g, b)`, `CameraFogRange([cam,] near, far)`, `CameraFogDensity([cam,] n)`  
 `EnableFog on`  
 `SetFog(mode)` or `SetFog(r, g, b [, near, far])` or `SetFog(mode, r, g, b, near, far)`  
-`LoadTexture file$ [, flags]`, `EntityTexture e, tex`, `ScaleTexture`. Flag 2 blends the texture's alpha (never cut), flag 4 cuts it out. With neither, an opaque material cuts alpha below 0.45 and a blended one (`EntityAlpha` < 1) does not  
+`LoadTexture file$ [, flags]` (PNG, JPEG, BMP, TGA, WebP, GIF, DDS, KTX/KTX2), `EntityTexture e, tex`, `ScaleTexture`. Flag 2 blends the texture's alpha (never cut), flag 4 cuts it out. With neither, an opaque material cuts alpha below 0.45 and a blended one (`EntityAlpha` < 1) does not  
 `EntityCutout e, on` — cut texture alpha below 0.45 (fences, leaves) or keep partial alpha (a window, a coin's soft edge). Cut edges are antialiased, and a far card keeps its silhouette as its mips shrink  
 `Wireframe on`, `UpdateWorld`, `RenderWorld`
 
@@ -650,9 +650,9 @@ See `examples/math.mb`.
 
 ## Audio (Ebiten / Oto)
 
-`LoadSound file$` (`.wav` / `.ogg`), `PlaySound`, `LoopSound`, `StopSound`, `FreeSound`  
+`LoadSound file$` (`.wav` / `.ogg` / `.mp3` / `.flac`), `PlaySound`, `LoopSound`, `StopSound`, `FreeSound`  
 `SetSoundVolume s, n` `SetSoundPitch s, n` (1 = normal)  
-`LoadMusic file$` `PlayMusic [s]` `StopMusic` `SetMusicVolume n`  
+`LoadMusic file$` (streams from disk) `PlayMusic [s]` `StopMusic` `SetMusicVolume n`  
 `EmitSound s, x, y, z` or `EmitSound s, entity` — distance volume + stereo pan from the listener (default camera). `SetListener e`  
 Playback is Oto v3. No OpenAL.
 

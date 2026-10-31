@@ -38,7 +38,7 @@ What is wired and what is not. Classic command names still work; 2026 `Set*` / `
 | G3N widgets | Real | `CreatePanel` / `CreateButton` / `CreateSlider` / `SetOnClick` (scene-graph UI; names do not clash with `Gui*`) |
 | GLFW window / input | Real | Primary + extra shared-context windows |
 | PBR | Real | Opt-in metallic-roughness on `mbphysical` (GLSL 330). Shading modes: PBR, `SetUnlit`, `SetToon`; Blitz `EntityFX` flags 1/8/16. Shadows × direct only. IBL: analytic hemi + UE4 EnvBRDF split-sum + prefiltered sky cubemap (`textureLod`) + optional 2D `SetEnvMap`. `docs/PBR.md` |
-| Assets | Real | `LoadMesh`: `.glb` / `.gltf` / `.obj` / `.dae` / `.fbx` (mesh triangles). Textures: PNG/JPEG plus DDS and KTX/KTX2 **S3TC** uploaded compressed. `OptimizeMesh` uses the Go `meshoptim` package (Forsyth vertex cache, overdraw, vertex fetch). `SimplifyMesh` uses quadric error. KTX2 Zstd and ZLIB supercompression inflate to BC1–BC3. **No** BasisLZ transcoder or the meshoptimizer C++ library |
+| Assets | Real | `LoadMesh`: `.glb` / `.gltf` / `.obj` / `.dae` / `.fbx` (mesh triangles) / `.stl` / `.ply`. Textures: PNG/JPEG/BMP/TGA/WebP plus DDS and KTX/KTX2 **S3TC** uploaded compressed. `OptimizeMesh` uses the Go `meshoptim` package (Forsyth vertex cache, overdraw, vertex fetch). `SimplifyMesh` uses quadric error. KTX2 Zstd and ZLIB supercompression inflate to BC1–BC3. **No** BasisLZ transcoder or the meshoptimizer C++ library |
 | PostFX | Real | GL 3.3 FBO blit: tonemap, exposure, half-res bloom chain, FXAA, color grade, 3D LUT (`SetLUT`: presets, `.cube`, PNG), depth-edge outlines (`SetOutline`), grain, vignette, chromatic aberration, sharpen. Not deferred MRT |
 | Shader programs | Real | `CreateShader` / `LoadShader` / `SetShaderUniform` — GLSL 330 + PBR nodes. Not an Unreal graph |
 | Input | Real | Keys, `KeyHit`, mouse, `MouseLook`, gamepad + deadzone |
@@ -60,7 +60,7 @@ What is wired and what is not. Classic command names still work; 2026 `Set*` / `
 | 10 Audio (Oto) | Real | — |
 | 11 Editor tools | Real | ImGui + G3N widgets + stats |
 | 12 Networking | Real | Hosted room plus a raw socket API. UDP by default; ENet with `-tags enet`. LAN discovery only. See `docs/NETWORK.md` |
-| 13 Asset pipeline | Real | glTF/GLB/OBJ/DAE/FBX mesh and skin clusters + PNG/JPEG + DDS/KTX S3TC + KTX2 Zstd/ZLIB + `OptimizeMesh` + `SimplifyMesh` + `moon build`. No FBX clips, BasisLZ, or meshoptimizer C++ |
+| 13 Asset pipeline | Real | glTF/GLB/OBJ/DAE/FBX/STL/PLY mesh and skin clusters + PNG/JPEG/BMP/TGA/WebP + WAV/OGG/MP3/FLAC (music streamed) + DDS/KTX S3TC + KTX2 Zstd/ZLIB + `OptimizeMesh` + `SimplifyMesh` + `moon build`. No FBX clips, BasisLZ, or meshoptimizer C++ |
 | 14 Serialization | Real | JSON/YAML/msgpack + tagged scene dump + `ExportGLTF` for every mesh under the entity. Not skin, materials, or a full scene graph |
 
 ## Not in this product

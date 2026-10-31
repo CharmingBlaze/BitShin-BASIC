@@ -79,7 +79,7 @@ Exactly one display mode per process:
 | Grid A* | `github.com/quasilyte/pathing` | 2D cell paths |
 | Data | `gopkg.in/yaml.v3`, `github.com/vmihailenco/msgpack/v5` | Plus `encoding/json` |
 | Pool | `github.com/gobwas/pool` v0.2.1 | Banks and scratch buffers |
-| Audio | `github.com/ebitengine/oto/v3` | Oto playback; wav/ogg decode is pure Go (no OpenAL) |
+| Audio | `github.com/ebitengine/oto/v3` | Oto playback; wav/ogg/mp3/flac decode is pure Go (no OpenAL), music streams from disk |
 | OpenGL | `github.com/go-gl/gl` (G3N dep) | 3.3 core context; 4.x loaded only after feature-detect |
 | Numerics | `gonum.org/v1/gonum` | Heavy CPU math; G3N stays `math32` |
 

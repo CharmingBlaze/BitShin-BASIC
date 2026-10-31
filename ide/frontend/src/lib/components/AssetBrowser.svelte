@@ -19,7 +19,7 @@
     const ext = name.split('.').pop()?.toLowerCase() || '';
     const normRel = relPath.replace(/\\/g, '/');
 
-    if (['glb', 'gltf', 'obj', 'dae', 'b3d'].includes(ext)) {
+    if (['glb', 'gltf', 'obj', 'dae', 'fbx', 'stl', 'ply', 'b3d'].includes(ext)) {
       return {
         name,
         path: relPath,
@@ -29,7 +29,7 @@
         snippet: `mesh = LoadMesh("${normRel}")`
       };
     }
-    if (['png', 'jpg', 'jpeg', 'bmp', 'tga'].includes(ext)) {
+    if (['png', 'jpg', 'jpeg', 'bmp', 'tga', 'webp', 'gif', 'dds', 'ktx', 'ktx2'].includes(ext)) {
       return {
         name,
         path: relPath,
@@ -39,7 +39,7 @@
         snippet: `tex = LoadTexture("${normRel}")`
       };
     }
-    if (['wav', 'ogg', 'mp3'].includes(ext)) {
+    if (['wav', 'ogg', 'mp3', 'flac'].includes(ext)) {
       return {
         name,
         path: relPath,

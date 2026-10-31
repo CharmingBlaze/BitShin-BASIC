@@ -1,19 +1,15 @@
 // Package audio plays clips through Oto v3 (github.com/ebitengine/oto/v3,
-// the current module for hajimehoshi/oto). Decode is pure Go (.wav / .ogg).
+// the current module for hajimehoshi/oto). Decode is pure Go
+// (.wav / .ogg / .mp3 / .flac). Sounds decode to PCM up front; music streams.
 package audio
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"math"
-	"os"
-	"strings"
 	"sync"
 
 	oto "github.com/ebitengine/oto/v3"
-	"github.com/hajimehoshi/ebiten/v2/audio/vorbis"
-	"github.com/hajimehoshi/ebiten/v2/audio/wav"
 )
 
 const (
@@ -44,34 +40,21 @@ func ensure() (*oto.Context, error) {
 	return otoCtx, ctxErr
 }
 
-// Clip is decoded stereo PCM at SampleRate.
+// Clip is decoded stereo PCM at SampleRate, or, when Stream is set, a file
+// that is decoded while it plays.
 type Clip struct {
-	PCM []byte
+	PCM    []byte
+	Stream string
 }
 
-// Load reads a .wav or .ogg file.
+// Load reads a .wav, .ogg, .mp3, or .flac file and decodes all of it.
 func Load(path string) (*Clip, error) {
-	raw, err := os.ReadFile(path)
+	r, c, err := openDecoded(path)
 	if err != nil {
 		return nil, fmt.Errorf("LoadSound: %w", err)
 	}
-	lower := strings.ToLower(path)
-	var stream io.Reader
-	switch {
-	case strings.HasSuffix(lower, ".ogg"):
-		s, err := vorbis.DecodeWithSampleRate(SampleRate, bytes.NewReader(raw))
-		if err != nil {
-			return nil, fmt.Errorf("LoadSound: %w", err)
-		}
-		stream = s
-	default:
-		s, err := wav.DecodeWithSampleRate(SampleRate, bytes.NewReader(raw))
-		if err != nil {
-			return nil, fmt.Errorf("LoadSound: need a .wav or .ogg file (%w)", err)
-		}
-		stream = s
-	}
-	pcm, err := io.ReadAll(stream)
+	defer c.Close()
+	pcm, err := io.ReadAll(r)
 	if err != nil {
 		return nil, fmt.Errorf("LoadSound: %w", err)
 	}
@@ -80,10 +63,11 @@ func Load(path string) (*Clip, error) {
 
 // Voice is one playing instance.
 type Voice struct {
-	p     *oto.Player
-	src   *rateReader
-	vol   float64
-	pitch float64
+	p      *oto.Player
+	src    interface{ setRate(float64) }
+	stream *streamReader
+	vol    float64
+	pitch  float64
 }
 
 func (c *Clip) play(loop bool, vol, pitch, pan float64) (*Voice, error) {
@@ -96,6 +80,16 @@ func (c *Clip) play(loop bool, vol, pitch, pan float64) (*Voice, error) {
 	}
 	if vol < 0 {
 		vol = 0
+	}
+	if c.Stream != "" {
+		src, err := newStreamReader(c.Stream, pitch, pan, loop)
+		if err != nil {
+			return nil, err
+		}
+		p := ctx.NewPlayer(src)
+		p.SetVolume(min(vol, 1))
+		p.Play()
+		return &Voice{p: p, src: src, stream: src, vol: vol, pitch: pitch}, nil
 	}
 	pcm := c.PCM
 	if pan != 0 || vol != 1 {
@@ -277,6 +271,10 @@ func (v *Voice) Close() {
 	if v != nil && v.p != nil {
 		_ = v.p.Close()
 		v.p = nil
+	}
+	if v != nil && v.stream != nil {
+		v.stream.Close()
+		v.stream = nil
 	}
 }
 
