@@ -24,7 +24,18 @@ type pbrMat struct {
 	ibl        int // -1 world default, 0 off, 1 on
 	envTex     *texture.Texture2D
 	recvShadow bool
+	shading    int // shadePBR, shadeUnlit, shadeToon
+	toonBands  float32
+	toonRim    float32
+	toonSpec   float32
+	noFog      bool
 }
+
+const (
+	shadePBR = iota
+	shadeUnlit
+	shadeToon
+)
 
 func (m *pbrMat) GetMaterial() *material.Material { return m.Physical.GetMaterial() }
 
@@ -470,6 +481,22 @@ func (w *World) bindPBRUniforms(gs *gls.GLS, m *pbrMat) {
 		grade = 1
 	}
 	setUni1i(gs, "uPostGrade", grade)
+	shading, bands, rim, spec, noFog := shadePBR, float32(3), float32(0.5), float32(0.6), 0
+	if m != nil {
+		shading = m.shading
+		if m.toonBands > 0 {
+			bands, rim, spec = m.toonBands, m.toonRim, m.toonSpec
+		}
+		if m.noFog {
+			noFog = 1
+		}
+	}
+	setUni1i(gs, "uShading", shading)
+	setUni1f(gs, "uToonBands", bands)
+	setUni1f(gs, "uToonRim", rim)
+	setUni1f(gs, "uToonSpec", spec)
+	setUni1i(gs, "uNoFog", noFog)
+	w.bindAreaLights(gs)
 }
 
 func (w *World) setPBREnvMap(m *pbrMat, tex *texture.Texture2D) {

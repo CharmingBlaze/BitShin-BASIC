@@ -716,6 +716,15 @@ func (w *World) commandTable() map[string]cmd {
 	for k, v := range w.qualityCommands(n, z) {
 		m[k] = v
 	}
+	for k, v := range w.shadingCommands(n, z) {
+		m[k] = v
+	}
+	for k, v := range w.lutCommands(n, z) {
+		m[k] = v
+	}
+	for k, v := range w.areaLightCommands(n, z, need) {
+		m[k] = v
+	}
 	for k, v := range w.screenshotCommands(n, z) {
 		m[k] = v
 	}

@@ -139,7 +139,7 @@ uniform vec3 SpotAmb[8];
 out vec4 FragColor;
 `
 
-const mbshadowFragmentTail = shadeLightGLSL + `
+const mbshadowFragmentTail = shadeLightGLSL + areaLightGLSL + `
 vec2 shadeMapUV() {
     vec2 uv = FragTexcoord;
 #if MAT_TEXTURES > 0
@@ -326,6 +326,23 @@ void main() {
         }
     }
 #endif
+
+    if (AreaCount > 0) {
+        vec3 wV = normalize(AreaCam - WorldPos);
+        for (int i = 0; i < AreaCount; i++) {
+            float win = areaWindow(i, WorldPos);
+            if (win <= 0.0) { continue; }
+            float ff = areaFormFactor(i, WorldPos, wN);
+            totalDiffuse += AreaColor[i] * vec3(matDiffuse) * (ff * win);
+            if (MatShininess > 0.0) {
+                vec3 Ls = normalize(areaSpecPoint(i, WorldPos, reflect(-wV, wN)) - WorldPos);
+                float ndl = max(dot(wN, Ls), 0.0);
+                float ndh = max(dot(wN, normalize(Ls + wV)), 0.0);
+                float nearK = clamp(ff * 6.0, 0.0, 1.0);
+                totalSpec += AreaColor[i] * specTint * (shadeSpec(ndh, MatShininess) * ndl * nearK * win * areaFacing(i, WorldPos));
+            }
+        }
+    }
 
     float sky = clamp(wN.y * 0.5 + 0.5, 0.0, 1.0);
     vec3 hemiLo = vec3(0.24, 0.20, 0.16);

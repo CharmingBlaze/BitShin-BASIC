@@ -32,6 +32,16 @@ uniform float uGrain;
 uniform float uVignette;
 uniform float uCA;
 uniform float uSharpen;
+uniform int uLUTOn;
+uniform sampler3D uLUT;
+uniform float uLUTAmount;
+uniform float uLUTSize;
+uniform int uOutlineOn;
+uniform sampler2D uDepth;
+uniform vec2 uNearFar;
+uniform float uOutlineWidth;
+uniform vec3 uOutlineColor;
+uniform float uOutlineDepth;
 
 uniform int uSSAO;
 uniform sampler2D uAOTex;
@@ -121,6 +131,37 @@ float rainStreaks(vec2 uv) {
 	return n * uRain * clamp(uWet * 1.15, 0.18, 1.0);
 }
 
+float linDepth(vec2 uv) {
+	float z = texture(uDepth, uv).r * 2.0 - 1.0;
+	float n = uNearFar.x;
+	float f = uNearFar.y;
+	return 2.0 * n * f / (f + n - z * (f - n));
+}
+
+// outlineEdge is 1 where the depth around the pixel jumps by more than
+// uOutlineDepth of its own distance, so silhouettes get a line and flat
+// floors do not.
+float outlineEdge(vec2 uv) {
+	vec2 px = uTexel * uOutlineWidth;
+	float d = linDepth(uv);
+	float dn = linDepth(uv + vec2(0.0, px.y));
+	float ds = linDepth(uv - vec2(0.0, px.y));
+	float de = linDepth(uv + vec2(px.x, 0.0));
+	float dw = linDepth(uv - vec2(px.x, 0.0));
+	float nearest = min(d, min(min(dn, ds), min(de, dw)));
+	float farthest = max(d, max(max(dn, ds), max(de, dw)));
+	float jump = (farthest - nearest) / max(nearest, 1e-3);
+	// Lines fade with distance so the horizon does not turn into ink.
+	float fade = 1.0 - smoothstep(uNearFar.y * 0.15, uNearFar.y * 0.4, nearest);
+	return smoothstep(uOutlineDepth, uOutlineDepth * 2.0, jump) * fade;
+}
+
+vec3 applyLUT(vec3 c) {
+	// Sample texel centres: scale into [half texel, 1 - half texel].
+	vec3 uvw = clamp(c, 0.0, 1.0) * ((uLUTSize - 1.0) / uLUTSize) + 0.5 / uLUTSize;
+	return mix(c, texture(uLUT, uvw).rgb, uLUTAmount);
+}
+
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
 	p3 += dot(p3, p3.yzx + 33.33);
@@ -179,6 +220,12 @@ void main() {
 		}
 	}
 	rgb = grade(tonemap(rgb + bloom));
+	if (uLUTOn != 0) {
+		rgb = applyLUT(rgb);
+	}
+	if (uOutlineOn != 0) {
+		rgb = mix(rgb, uOutlineColor, outlineEdge(vUV));
+	}
 	if (uSharpen > 0.001) {
 		vec2 px = uTexel;
 		vec3 blur = texture(uTex, vUV + vec2(px.x, 0.0)).rgb;

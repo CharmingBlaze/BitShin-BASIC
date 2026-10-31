@@ -123,6 +123,11 @@ uniform vec3 CamWorldPos;
 uniform float uAO;
 uniform int uPostGrade;
 uniform float uOcclusionStrength;
+uniform int uShading;      // 0 PBR, 1 unlit, 2 toon
+uniform float uToonBands;  // diffuse steps
+uniform float uToonRim;    // rim light strength
+uniform float uToonSpec;   // hard highlight strength
+uniform int uNoFog;
 uniform sampler2D WaterCaustic;
 uniform int WaterCausticsOn;
 uniform float WaterCausticLevel;
@@ -207,8 +212,26 @@ float microfacetDistribution(PBRInfo pbrInputs, PBRLightInfo pbrLight) {
     return roughnessSq / (M_PI * f * f);
 }
 
+// toonDirect steps the diffuse into bands with a soft edge between them and
+// keeps one hard highlight, so lights still read but surfaces look painted.
+vec3 toonDirect(PBRInfo pbrInputs, vec3 n, vec3 v, vec3 lightColor, vec3 l) {
+    float ndl = max(dot(n, l), 0.0);
+    float bands = max(uToonBands, 1.0);
+    float x = ndl * bands;
+    float edge = fwidth(x) + 0.02;
+    float stepped = (floor(x) + smoothstep(0.5 - edge, 0.5 + edge, fract(x))) / bands;
+    vec3 h = normalize(l + v);
+    float gloss = mix(256.0, 8.0, pbrInputs.perceptualRoughness);
+    float s = pow(max(dot(n, h), 0.0), gloss);
+    float spec = smoothstep(0.45, 0.55, s) * uToonSpec * step(0.001, ndl);
+    return lightColor * (pbrInputs.diffuseColor * stepped + vec3(spec) * mix(vec3(1.0), pbrInputs.specularColor * 4.0, pbrInputs.metalness));
+}
+
 vec3 pbrDirect(PBRInfo pbrInputs, vec3 n, vec3 v, vec3 lightColor, vec3 lightDir) {
     vec3 l = normalize(lightDir);
+    if (uShading == 2) {
+        return toonDirect(pbrInputs, n, v, lightColor, l);
+    }
     vec3 h = normalize(l + v);
     float NdotL = clamp(dot(n, l), 0.001, 1.0);
     float NdotV = min(abs(dot(n, v)) + 0.001, 1.0);
@@ -222,6 +245,19 @@ vec3 pbrDirect(PBRInfo pbrInputs, vec3 n, vec3 v, vec3 lightColor, vec3 lightDir
     vec3 diffuseContrib = (1.0 - F) * diffuseBRDF(pbrInputs);
     vec3 specContrib = min(F * G * D / (4.0 * NdotL * NdotV), vec3(6.0));
     return NdotL * lightColor * (diffuseContrib + specContrib);
+}
+
+// pbrSpecOnly is pbrDirect's highlight alone, for lights whose diffuse is
+// worked out another way (area lights).
+vec3 pbrSpecOnly(PBRInfo pbrInputs, vec3 n, vec3 v, vec3 lightColor, vec3 l) {
+    vec3 h = normalize(l + v);
+    float NdotL = clamp(dot(n, l), 0.001, 1.0);
+    float NdotV = min(abs(dot(n, v)) + 0.001, 1.0);
+    PBRLightInfo pbrLight = PBRLightInfo(NdotL, NdotV, clamp(dot(n, h), 0.0, 1.0), clamp(dot(l, h), 0.0, 1.0), clamp(dot(v, h), 0.0, 1.0));
+    vec3 F = specularReflection(pbrInputs, pbrLight);
+    float G = geometricOcclusion(pbrInputs, pbrLight);
+    float D = microfacetDistribution(pbrInputs, pbrLight);
+    return NdotL * lightColor * min(F * G * D / (4.0 * NdotL * NdotV), vec3(6.0));
 }
 
 #ifdef HAS_ENVMAP
@@ -272,7 +308,7 @@ vec3 iblTerm(PBRInfo pbrInputs, vec3 n, vec3 v) {
 }
 `
 
-const mbphysicalFragmentTail = shadeLightGLSL + `
+const mbphysicalFragmentTail = shadeLightGLSL + areaLightGLSL + `
 uniform vec4 WaterClipPlane;
 void main() {
     if (dot(WaterClipPlane.xyz, WaterClipPlane.xyz) > 1e-8) {
@@ -298,8 +334,14 @@ void main() {
 #endif
 
     vec3 f0 = vec3(0.04);
+    if (uShading == 2) {
+        // Toon keeps the albedo flat; metal only tints the highlight.
+        f0 = vec3(0.0);
+    }
     vec3 diffuseColor = baseColor.rgb * (vec3(1.0) - f0);
-    diffuseColor *= 1.0 - metallic;
+    if (uShading != 2) {
+        diffuseColor *= 1.0 - metallic;
+    }
     vec3 specularColor = mix(f0, baseColor.rgb, metallic);
     float reflectance = max(max(specularColor.r, specularColor.g), specularColor.b);
     float reflectance90 = clamp(reflectance * 25.0, 0.0, 1.0);
@@ -371,6 +413,28 @@ void main() {
     }
 #endif
 
+    if (AreaCount > 0) {
+        vec3 wV = normalize(AreaCam - WorldPos);
+        for (int i = 0; i < AreaCount; i++) {
+            float win = areaWindow(i, WorldPos);
+            if (win <= 0.0) { continue; }
+            direct += AreaColor[i] * pbrInputs.diffuseColor * (areaFormFactor(i, WorldPos, wN) * win);
+            // Representative point: the light seen as a small sphere at
+            // the spot the mirror ray reaches, its lobe widened by its size.
+            vec3 sp = areaSpecPoint(i, WorldPos, reflect(-wV, wN));
+            vec3 Ls = sp - WorldPos;
+            float ds = max(length(Ls), 1e-3);
+            Ls /= ds;
+            float size = length(AreaRight[i]) + length(AreaUp[i]);
+            float a = pbrInputs.alphaRoughness;
+            float a2 = clamp(a + size / (2.0 * ds), 0.0, 1.0);
+            float norm = (a / a2) * (a / a2);
+            float area = 4.0 * length(AreaRight[i]) * length(AreaUp[i]);
+            float solid = min(area / (ds * ds), 6.2832);
+            direct += pbrSpecOnly(pbrInputs, wN, wV, AreaColor[i] * (solid * norm * win * areaFacing(i, WorldPos)), Ls);
+        }
+    }
+
     float ao = clamp(uAO, 0.0, 1.0);
 #ifdef HAS_OCCLUSIONMAP
     float mapAO = texture(uOcclusionSampler, FragTexcoord).r;
@@ -383,12 +447,29 @@ void main() {
     vec3 emissive = vec3(uEmissiveColor);
 #endif
 
+    if (uShading == 2) {
+        // Flat fill instead of the IBL gradient, and a rim against the sky.
+        float sky = step(0.0, wN.y);
+        // Bright enough that the darkest band still shows the albedo.
+        ambient = mix(IBLGround, IBLSky, 0.55 + 0.3 * sky) * pbrInputs.diffuseColor * 1.1;
+#if AMB_LIGHTS>0
+        for (int i = 0; i < AMB_LIGHTS; i++) {
+            ambient += AmbientLightColor[i] * pbrInputs.diffuseColor;
+        }
+#endif
+        float rim = 1.0 - max(dot(n, v), 0.0);
+        rim = smoothstep(0.62, 0.72, rim) * uToonRim * (0.4 + 0.6 * sunOcc);
+        ambient += IBLSky * rim;
+    }
     vec3 color = ambient * ao + direct + emissive + ShadowColor * ((1.0 - sunOcc) * pbrInputs.diffuseColor * 0.35);
+    if (uShading == 1) {
+        color = baseColor.rgb + emissive;
+    }
     if (uPostGrade == 0) {
         color = pow(max(color, vec3(0.0)), vec3(1.0 / 2.2));
     }
     FragColor = vec4(color, baseColor.a);
-    if (Wetness > 0.001) {
+    if (Wetness > 0.001 && uShading != 1) {
         float up = clamp(WorldNormal.y, 0.0, 1.0);
         FragColor.rgb *= mix(1.0, 0.58, Wetness * up);
         FragColor.rgb += vec3(0.10, 0.11, 0.13) * Wetness * up;
@@ -407,7 +488,7 @@ void main() {
         float ndl = max(dot(normalize(WorldNormal), Lc), 0.0);
         FragColor.rgb += vec3(0.45, 0.72, 0.85) * c * ndl * fade * 0.7;
     }
-    if (FogMode != 0) {
+    if (FogMode != 0 && uNoFog == 0) {
         float dist = length(Position.xyz);
         float f = 1.0;
         if (FogMode == 1) {

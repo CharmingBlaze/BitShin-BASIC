@@ -250,6 +250,20 @@ SetLightCookie spot, gobo
 
 The mask is only drawn inside the outer cone. Spots after the second ignore `SetLightCookie`.
 
+### Area lights
+
+A soft box, a window, a strip light, or a screen is a rectangle, not a point. `CreateAreaLight` makes one. It is an entity, so position, turn, parent, and aim it like any other: it shines along its −Z, the way `PointEntity` points it.
+
+```basic
+box = CreateAreaLight(2, 1.2)              ; 2 m wide, 1.2 m tall
+PositionEntity box, -3, 2.8, -0.5
+PointEntity box, hero
+SetAreaLight(box, 255, 214, 170, 6)        ; warm, intensity 6
+SetAreaLightRange(box, 12)                 ; optional smooth cut-off
+```
+
+Bigger lights give softer, wider highlights and gentler falloff. The four lights nearest the camera are used. They cast no shadows, and they light PBR and default lit meshes, not terrain or water. See `examples/area_lights.mb`.
+
 ## 9. Showing the picture
 
 The shaders write linear-ish color. Two ways to put that on the screen:

@@ -148,6 +148,7 @@ func (m *litMat) RenderSetup(gs *gls.GLS) {
 		}
 		setUni1i(gs, "MeshReceiveShadow", recv)
 		setUni1i(gs, "MeshVertexColor", bool01(m.vertexColor))
+		m.w.bindAreaLights(gs)
 		// Always set: the value would otherwise carry over from the last
 		// mesh drawn with this shader.
 		cut := m.cutout

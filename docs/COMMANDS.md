@@ -86,6 +86,11 @@ How to light a scene, from one sun through falloff, materials, indoor / outdoor,
 | `SetTimeOfDay hours` / `GetTimeOfDay()` | Outdoor clock. Aims every directional, sky, fog, ambient. Bands in [PLAY.md](PLAY.md). |
 | `CreateThreePoint()` | Returns the key. Adds a cool fill and a rim. |
 | `SetLightCookie spot, tex` | Gobo on the first two spots. Red channel, inside the cone. |
+| `CreateAreaLight([w, h [, parent]])` | Rectangular light (default 1 × 1 m), an entity that emits along its −Z: aim it with `PointEntity`. Draws a glowing panel. Four nearest the camera are used; no shadows. Lights PBR and default lit meshes, not terrain or water |
+| `SetAreaLight light, r, g, b [, intensity]` | Colour (0–255 or 0–1) and brightness (default 4) |
+| `SetAreaLightIntensity light, n` / `SetAreaLightSize light, w, h` | |
+| `SetAreaLightRange light, m` | Smooth cut-off distance; 0 (default) is unlimited |
+| `SetAreaLightTwoSided light [, on]` / `ShowAreaLightPanel light, on` | Emit from both faces / hide the glowing rectangle |
 | `SetTonemap mode$` | `reinhard` (default), `neutral`, `aces`, `none`. Needs `EnablePostFX`. Pair with `SetExposure`. |
 | `SetGammaCorrection 0\|1` | Phong sRGB encode when post FX is off. Leave off if `EnablePostFX` is on. |  
 `CameraRange cam, near, far`, `CameraZoom cam, z`, `CameraViewport cam, x, y, w, h`  
@@ -173,6 +178,10 @@ SetIBL(True)
 | `SetIBL [e,] on` / `EnableIBL on` | Hemisphere, prefiltered sky cubemap, optional 2D env. One arg = world |
 | `GetIBL([e])` | |
 | `SetIBLIntensity n` / `GetIBLIntensity()` | Scale (default 1) |
+| `SetMaterialShading e, mode$` / `GetMaterialShading(e)` | `"pbr"` (0), `"unlit"` (1), or `"toon"` (2). Converts the entity to PBR first |
+| `SetUnlit e [, on]` | Base colour plus emissive, no lighting. Fog still applies |
+| `SetToon e [, bands, rim, spec]` | Stepped diffuse (1–16 bands, default 3), sky rim 0–1 (0.5), hard highlight 0–1 (0.6). Pair with `SetOutline` |
+| `EntityFX e, flags` | Blitz flags: `1` fullbright (unlit), `8` no fog, `16` two-sided. Others are ignored |
 
 `LoadMesh` glTF/GLB Physical materials already use `mbphysical` (shadows, fog, these commands). IBL is an analytic hemisphere, a UE4 EnvBRDF split-sum, and a prefiltered sky cubemap (`textureLod` by roughness). The nearest light probe replaces that cubemap after its six faces have been drawn. `SetEnvMap` is still an optional 2D lat-long.
 
@@ -1234,6 +1243,9 @@ Scene renders to a color FBO, then one blit: tonemap (`reinhard`, `neutral`, `ac
 | `SetVignette n` | 0–1 darkening toward the corners | `SetVignette(0.35)` |
 | `SetChromaticAberration n` | 0–1 red/blue split from the center | `SetChromaticAberration(0.2)` |
 | `SetSharpen n` | 0–2 unsharp amount | `SetSharpen(0.4)` |
+| `SetLUT name$ [, amount]` | Colour lookup after the grade. A preset (`warm`, `cool`, `teal_orange`, `bleach`, `noir`, `vintage`, `vivid`, `night`, `identity`), a `.cube` file, or a PNG strip (size² × size) or tile square (512 × 512). `"none"` turns it off. Turns the stack on | `SetLUT("teal_orange", 0.7)` |
+| `SetLUTAmount n` / `GetLUTAmount()` / `ClearLUT` | Blend 0–1 between graded and looked-up colour | `SetLUTAmount(0.5)` |
+| `SetOutline width [, r, g, b [, depthStep]]` | Ink lines where depth jumps, `width` 0–6 px (0 off). `depthStep` is the relative jump that counts as an edge (default 0.06) | `SetOutline(1.5, 20, 16, 28)` |
 
 See `examples/postfx.mb`.
 

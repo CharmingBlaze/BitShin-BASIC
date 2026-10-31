@@ -1,0 +1,76 @@
+; Area lights — a warm soft box and a cool light strip in a dark room.
+; The soft box swings slowly. Up / Down change its size, Left / Right its
+; intensity. Esc quits. Area lights are entities: move and turn them like any other.
+
+Graphics3D(1100, 640)
+SetWindowTitle("moonBASIC — Area lights")
+SetCameraClsColor(6, 7, 10)
+SetAmbientLight(6, 7, 10)
+; Only a faint moonlight: the room is lit by the two panels.
+moon = CreateDirectionalLight()
+SetLightDirection moon, 60, -30, 0
+SetLightColor moon, 40, 46, 60
+SetIBL True
+SetIBLIntensity 0.08
+
+cam = CreateCamera().Position([0, 3.2, -7])
+cam.Point(0, 1, 1)
+
+; Room: floor and back wall
+floor = CreatePlane().Scale(14, 1, 14).Position([0, 0, 2])
+SetMaterialPBR(floor, 1)
+SetAlbedo(floor, 150, 150, 155)
+SetRoughness(floor, 0.35)
+wall = CreateBox(14, 6, 0.2).Position([0, 3, 6])
+SetMaterialPBR(wall, 1)
+SetAlbedo(wall, 120, 118, 115)
+SetRoughness(wall, 0.9)
+
+; Subjects: rough clay, polished metal, and a default (non-PBR) cube
+clay = CreateSphere(32).Position([-2, 0.8, 2])
+SetMaterialPBR(clay, 1)
+SetAlbedo(clay, 200, 190, 180)
+SetRoughness(clay, 0.8)
+chrome = CreateSphere(32).Position([0.2, 0.8, 2.4])
+SetMaterialPBR(chrome, 1)
+SetAlbedo(chrome, 230, 230, 235)
+SetMetallic(chrome, 1)
+SetRoughness(chrome, 0.15)
+crate = CreateCube().Position([2.4, 0.6, 1.8]).Scale(0.6, 0.6, 0.6)
+EntityColor(crate, 190, 120, 80)
+EntityShininess(crate, 0.6)
+
+; A 2 x 1.2 m soft box up and to the left, facing the subjects
+softbox = CreateAreaLight(2, 1.2)
+PositionEntity softbox, -3.2, 2.8, -0.5
+PointEntity softbox, clay
+SetAreaLight(softbox, 255, 214, 170, 6)
+
+; A long thin strip above the back wall, facing down and forward
+strip = CreateAreaLight(5, 0.25)
+PositionEntity strip, 0.5, 4.6, 4.5
+PointEntity strip, chrome
+SetAreaLight(strip, 140, 190, 255, 5)
+SetAreaLightRange(strip, 12)
+
+sizeK# = 1
+power# = 6
+t# = 0
+While Not KeyHit(1)
+    dt# = Time.Delta()
+    t# = t# + dt#
+    If KeyDown(200) Then sizeK# = Min(sizeK# + dt#, 2.5)
+    If KeyDown(208) Then sizeK# = Max(sizeK# - dt#, 0.2)
+    If KeyDown(205) Then power# = Min(power# + dt# * 6, 20)
+    If KeyDown(203) Then power# = Max(power# - dt# * 6, 0)
+    SetAreaLightSize(softbox, 2 * sizeK#, 1.2 * sizeK#)
+    SetAreaLightIntensity(softbox, power#)
+    PositionEntity softbox, -3.2 + Sin(t# * 25) * 1.2, 2.8, -0.5
+    PointEntity softbox, clay
+    Cls
+    UpdateWorld
+    RenderWorld
+    Text(20, 18, "AREA LIGHTS   warm soft box + cool strip   (clay, chrome, plain lit cube)")
+    Text(20, 42, "Up/Down size " + Int(sizeK# * 100) + "%   Left/Right intensity " + Int(power#) + "   Esc quit")
+    Flip
+Wend

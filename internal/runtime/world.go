@@ -372,6 +372,8 @@ type World struct {
 	physThreads                      int
 	navMaxSlope                      float32
 	pbrLib                           map[int]*pbrMat
+	areaLights                       map[int]*areaLight
+	areaPack                         areaUniforms
 	nextPBR                          int
 	iblOn                            bool
 	iblIntensity                     float32

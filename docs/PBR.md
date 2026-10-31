@@ -75,7 +75,27 @@ All of these are registered (plus Get/Set aliases). Parentheses in examples.
 `SetAOMap e, tex` / `SetOcclusionMap e, tex`  
 `SetEnvMap e, tex` / `SetEnvMap tex`  
 `SetIBL True` / `SetIBL e, 1` / `EnableIBL True` / `GetIBL()` / `GetIBL(e)`  
-`SetIBLIntensity n` / `GetIBLIntensity()`
+`SetIBLIntensity n` / `GetIBLIntensity()`  
+`SetMaterialShading e, mode$` / `GetMaterialShading(e)` / `SetUnlit e [, on]` / `SetToon e [, bands, rim, spec]` / `EntityFX e, flags`
+
+## Shading modes
+
+The PBR material has three shading modes. All keep their textures, alpha, fog, and received shadows.
+
+| Mode | What it draws |
+| --- | --- |
+| `pbr` | Metallic-roughness GGX (the default) |
+| `unlit` | Base colour plus emissive, no lights. UI cards, skies on meshes, glowing signs |
+| `toon` | Diffuse in hard bands with a soft edge, one hard highlight, a flat fill instead of IBL, and a rim against the sky. Metal only tints the highlight |
+
+```basic
+SetToon(hero, 3, 0.5, 0.6)     ; 3 bands, rim 0.5, highlight 0.6
+SetOutline(1.5, 20, 16, 28)    ; post-pass ink lines
+SetUnlit(sign)
+EntityFX(card, 1 + 8 + 16)     ; Blitz: fullbright, no fog, two-sided
+```
+
+See `examples/shading.mb`.
 
 ## Shader / GL
 

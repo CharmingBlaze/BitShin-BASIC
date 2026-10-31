@@ -72,6 +72,8 @@ type postFX struct {
 	lumProg        uint32
 	lumTex         uint32
 	lumFBO         uint32
+	lut            lutState
+	outline        outlineState
 }
 
 // enableGrade turns on the Khronos neutral curve and a small bloom.
@@ -1133,9 +1135,11 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uVignette\x00")), w.post.vignette)
 	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uCA\x00")), w.post.chroma)
 	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uSharpen\x00")), w.post.sharpen)
+	w.bindLUTAndOutline(w.post.prog)
 	gl.BindVertexArray(w.post.vao)
 	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
 	gl.BindVertexArray(0)
+	w.unbindLUTAndOutline()
 	for i := 0; i < len(w.post.bloomTex); i++ {
 		gl.ActiveTexture(gl.TEXTURE2 + uint32(i))
 		gl.BindTexture(gl.TEXTURE_2D, 0)
@@ -1149,10 +1153,6 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 	drainGL("PostFX blit")
 }
 
-// rearmSceneProgram forces the next material draw to call glUseProgram.
-// ImGui and the shadow depth pass bind other programs, but G3N's shader
-// manager still thinks the lit program is current and skips the bind.
-// The depth program writes no color, so the window stays the clear color.
 // liftPanels takes the scene's top-level GUI panels (Text, HudPrint labels)
 // out for the post pass, so tonemap, bloom, and FXAA do not grey and blur
 // them. drawLiftedPanels puts them back after the blit.
@@ -1203,6 +1203,10 @@ func (w *World) drawLiftedPanels(rend *renderer.Renderer, hud *core.Node, ww, hh
 	}
 }
 
+// rearmSceneProgram forces the next material draw to call glUseProgram.
+// ImGui and the shadow depth pass bind other programs, but G3N's shader
+// manager still thinks the lit program is current and skips the bind.
+// The depth program writes no color, so the window stays the clear color.
 func rearmSceneProgram(rend *renderer.Renderer) {
 	if rend == nil {
 		return
