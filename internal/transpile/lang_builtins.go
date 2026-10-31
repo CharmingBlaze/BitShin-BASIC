@@ -60,6 +60,48 @@ func emitLangHelpers(w *writer) {
 }
 
 const langHelperSrc = `
+// _bb_debuglog prints only when MOON_DEBUG is set, like the interpreter outside -debug.
+func _bb_debuglog(where string, args ...value.Value) value.Value {
+	switch strings.ToLower(os.Getenv("MOON_DEBUG")) {
+	case "1", "true", "yes", "on":
+	default:
+		return value.Num(0)
+	}
+	msg, level := "", "info"
+	if len(args) > 0 {
+		msg = args[0].String()
+	}
+	if len(args) > 1 {
+		level = strings.ToLower(strings.TrimSpace(args[1].String()))
+	}
+	switch level {
+	case "warn", "warning":
+		fmt.Fprintf(os.Stderr, "[debug:warn] %s: %s\n", where, msg)
+	case "error", "err":
+		fmt.Fprintf(os.Stderr, "[debug:error] %s: %s\n", where, msg)
+	default:
+		fmt.Printf("[debug] %s: %s\n", where, msg)
+	}
+	return value.Num(0)
+}
+
+func _bb_assert(where string, args ...value.Value) value.Value {
+	if len(args) > 0 && args[0].IsTrue() {
+		return value.Num(1)
+	}
+	msg := "assertion failed"
+	if len(args) > 1 && args[1].String() != "" {
+		msg = args[1].String()
+	}
+	err := fmt.Errorf("%s: Assert failed: %s", where, msg)
+	_bb_err = err
+	if _bb_try == 0 {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	return value.Num(0)
+}
+
 var _bb_rng_seed int64
 var _bb_lists = map[int][]value.Value{}
 var _bb_list_n int

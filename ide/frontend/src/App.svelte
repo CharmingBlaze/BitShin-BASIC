@@ -9,6 +9,7 @@
   import ExamplesGallery from './lib/components/ExamplesGallery.svelte';
   import AssetBrowser from './lib/components/AssetBrowser.svelte';
   import ScenePanel from './lib/components/ScenePanel.svelte';
+  import DebugPanel from './lib/components/DebugPanel.svelte';
   import OutputPanel from './lib/components/OutputPanel.svelte';
   import Editor from './lib/editor/Editor.svelte';
   import NewFileModal from './lib/components/NewFileModal.svelte';
@@ -63,7 +64,23 @@
   }
 
   function handleKeyDown(e: KeyboardEvent) {
-    if (e.key === 'F5' && !e.shiftKey) {
+    if (editorStore.debugPaused && (e.key === 'F5' || e.key === 'F10' || e.key === 'F11') && !e.ctrlKey && !(e.key === 'F5' && e.shiftKey)) {
+      // Continue (F5), Step Over (F10), Step Into (F11), Step Out (Shift+F11)
+      e.preventDefault();
+      if (e.key === 'F5') editorStore.debugContinue();
+      else if (e.key === 'F10') editorStore.debugStepOver();
+      else if (e.shiftKey) editorStore.debugStepOut();
+      else editorStore.debugStepInto();
+      return;
+    }
+    if (e.key === 'F10' || e.key === 'F11') {
+      e.preventDefault();
+      return;
+    }
+    if (e.key === 'F5' && e.ctrlKey && !e.shiftKey) {
+      e.preventDefault();
+      editorStore.runActiveProgram(true);
+    } else if (e.key === 'F5' && !e.shiftKey) {
       e.preventDefault();
       editorStore.runActiveProgram();
     } else if (e.key === 'F5' && e.shiftKey) {
@@ -118,6 +135,8 @@
           <AssetBrowser />
         {:else if editorStore.activeSidebarTab === 'scene'}
           <ScenePanel />
+        {:else if editorStore.activeSidebarTab === 'debug'}
+          <DebugPanel />
         {/if}
       </div>
     {/if}

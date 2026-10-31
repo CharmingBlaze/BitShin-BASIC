@@ -43,7 +43,7 @@ go build -o moonsls.exe ./cmd/moonsls
 
 ### moonBASIC IDE (Neutralino + Svelte 5)
 
-Modern desktop IDE with Monaco code editor, full IntelliSense autocomplete, instant F5 run & real-time console, 790+ searchable command reference browser, symbol outline, demo gallery, and standalone game packager:
+Modern desktop IDE with Monaco code editor, full IntelliSense autocomplete, instant F5 run & real-time console, a debugger (breakpoints, step over/into/out, call stack, variables, watches), 790+ searchable command reference browser, symbol outline, demo gallery, and standalone game packager:
 
 ```powershell
 .\scripts\build_ide.ps1

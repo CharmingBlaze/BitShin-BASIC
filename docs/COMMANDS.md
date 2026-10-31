@@ -718,6 +718,16 @@ UDP can drop a packet. `go build -tags enet` is the reliable build.
 
 Math is in the **Math** section above. See [LANGUAGE.md](LANGUAGE.md) for `Select` / `Const` / `Struct`.
 
+## Debugging
+
+| Command | Meaning |
+| --- | --- |
+| `DebugLog msg$ [, level$]` | Prints `[debug] file.mb:12: msg` (stdout). `level$` `"warn"` / `"error"` prints `[debug:warn]` / `[debug:error]` on stderr. Silent unless `-debug`, `MOON_DEBUG=1`, or the IDE runs the game |
+| `Assert cond [, msg$]` | When `cond` is false, stops with `file.mb:12: Assert failed: msg`. Also stops after `Flip`. `Try` / `Catch` catches it. Under `-debug` it pauses at that line first |
+| `DebugBreak` | Pauses in the debugger at this line. Does nothing without `-debug` |
+
+See [LANGUAGE.md](LANGUAGE.md#debugging) for the debugger commands.
+
 ## Packaging
 
 ```

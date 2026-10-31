@@ -261,9 +261,19 @@ type Interp struct {
 	fastCache   map[string]fastCode
 	debug       bool
 	breaks      map[int]bool
-	stepNext    bool
+	stepMode    stepMode
+	stepDepth   int
 	debugIn     *bufio.Reader
 	debugOut    io.Writer
+	debugJSON   bool
+	outer       [][]frame // caller stacks saved while a Function or Method runs
+	curLine     int       // line of the statement now running
+	waitStmt    ast.Stmt  // statement held by WaitKey / Delay; do not re-break on it
+	evaluating  int       // > 0 while a watch expression runs
+	fatal       error     // failed Assert; survives ClearLiveError
+	File        string    // script name for DebugLog, Assert, and the call stack
+	ErrOut      io.Writer // DebugLog warn / error; nil means os.Stderr
+	DebugLogs   bool      // DebugLog prints (-debug or MOON_DEBUG=1)
 	types       map[string]*ast.TypeDecl
 	methods     map[string]*ast.FuncDecl
 	namespaces  map[string]bool
@@ -304,11 +314,13 @@ func New(prog *ast.Program, host Host) *Interp {
 		methods:    map[string]*ast.FuncDecl{},
 		namespaces: map[string]bool{},
 		liveInst:   map[string][]value.Value{},
+		DebugLogs:  debugEnvOn(),
 	}
 	s0, s1 := entropySeed()
 	in.rngSeed = int64(s0)
 	in.rng = newRNG(s0, s1)
 	in.installBuiltins()
+	in.installDebugBuiltins()
 	in.global.define("true", value.Num(1))
 	in.global.define("false", value.Num(0))
 	in.global.define("yes", value.Num(1))
@@ -429,7 +441,7 @@ func (in *Interp) Done() bool {
 }
 
 func (in *Interp) Finished() bool {
-	return in.Done() && in.err == nil
+	return in.Done() && in.Err() == nil
 }
 
 func (in *Interp) ClearLiveError() {
@@ -442,7 +454,12 @@ func (in *Interp) ClearLiveError() {
 	}
 }
 
-func (in *Interp) Err() error { return in.err }
+func (in *Interp) Err() error {
+	if in.err != nil {
+		return in.err
+	}
+	return in.fatal
+}
 
 func (in *Interp) Run() error {
 	in.bootCoros()
@@ -501,13 +518,15 @@ func (in *Interp) Step() Status {
 			continue
 		}
 		s := f.stmts[f.pc]
+		in.curLine, _ = s.Pos()
 		if in.debug {
-			in.maybeBreak(s)
+			in.maybeBreak(s, in.curLine)
 		}
 		f.pc++
 		st := in.exec(s)
 		if st == StatusWaitYield {
 			f.pc--
+			in.waitStmt = s
 			in.status = StatusYield
 			return StatusYield
 		}
@@ -1096,8 +1115,18 @@ func (in *Interp) cmdFail(n ast.Node, err error) Status {
 		return StatusYieldCo
 	}
 	werr := in.wrap(n, err)
+	var ae *assertError
+	if errors.As(err, &ae) {
+		werr = err
+	}
 	if in.raise(werr) {
 		return StatusOK
+	}
+	if ae != nil && !in.hasTry() {
+		// A failed Assert stops the game even after Flip, where other command errors only print.
+		in.fatal = werr
+		in.err = werr
+		return StatusEnd
 	}
 	if in.live {
 		fmt.Fprintln(in.Out, werr)
@@ -1823,9 +1852,11 @@ func (in *Interp) prepareCall(fn *ast.FuncDecl, args []value.Value) (*env, []val
 	local.funcScope = true
 	savedStack := in.stack
 	savedBind := in.bindEnv
+	line := in.enterCall(savedStack)
 	in.stack = nil
 	in.bindEnv = local
 	defer func() {
+		in.leaveCall(line)
 		in.stack = savedStack
 		in.bindEnv = savedBind
 	}()
@@ -1865,6 +1896,8 @@ func (in *Interp) callUser(fn *ast.FuncDecl, args []value.Value) (value.Value, e
 	}
 	saved := in.stack
 	savedStatus := in.status
+	line := in.enterCall(saved)
+	defer in.leaveCall(line)
 	in.stack = []frame{{kind: frameFunc, stmts: filterTop(fn.Body), env: local, fn: lex.IdentKey(fn.Name)}}
 	in.ret = value.Num(0)
 	var yieldErr error
@@ -2062,6 +2095,8 @@ func (in *Interp) callStructMethod(recv value.Value, method string, args []value
 		local.define(p, v)
 	}
 	saved := in.stack
+	line := in.enterCall(saved)
+	defer in.leaveCall(line)
 	in.stack = []frame{{kind: frameFunc, stmts: filterTop(fn.Body), env: local, fn: lex.IdentKey(fn.Name)}}
 	in.ret = value.Num(0)
 	for {
@@ -2664,6 +2699,8 @@ func (in *Interp) pump(c *coro) {
 	savedStatus := in.status
 	savedRet := in.ret
 	savedErr := in.err
+	line := in.enterCall(savedStack)
+	defer in.leaveCall(line)
 	in.stack = c.stack
 	in.status = StatusOK
 	in.err = nil

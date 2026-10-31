@@ -38,6 +38,9 @@ type fastCode struct {
 }
 
 func (in *Interp) compiled(fn *ast.FuncDecl) (fastCode, bool) {
+	if in.debug {
+		return fastCode{}, false // the debugger steps through every statement
+	}
 	key := lex.IdentKey(fn.Name)
 	if c, ok := in.fastCache[key]; ok {
 		return c, c.ok

@@ -294,6 +294,43 @@ Weather: `WEATHER_CLEAR` `WEATHER_RAIN` `WEATHER_SNOW` `WEATHER_FOG` `WEATHER_ST
 
 `Replace`, `String`, and `Instr` with a start index are the rest of the classic string set. `ReadFile` / `WriteFile` / `OpenFile` plus `ReadLine` / `WriteLine` and the little-endian `Read*` / `Write*` calls are sequential files. A failed open is `0`. See [COMMANDS.md](COMMANDS.md).
 
+## Debugging
+
+```basic
+Function Damage(hp, amount)
+    Assert amount >= 0, "negative damage " + amount
+    DebugLog "hp " + hp + " -> " + (hp - amount)
+    If hp - amount < 0 Then DebugLog "overkill", "warn"
+    Return hp - amount
+End Function
+```
+
+`DebugLog msg$ [, level$]` prints `[debug] game.mb:3: hp 10 -> 7` on stdout. Level `"warn"` or `"error"` prints `[debug:warn]` / `[debug:error]` on stderr, so the IDE lists it under Problems. It is silent unless the game runs with `-debug`, with `MOON_DEBUG=1`, or from the IDE, so a shipped game stays quiet.
+
+`Assert cond [, msg$]` does nothing when `cond` is true. When it is false the program stops with `game.mb:2: Assert failed: negative damage -3` and exit code 1, even inside the game loop after `Flip` (other command errors only print there). `Try` / `Catch` catches it like any runtime error.
+
+`DebugBreak` pauses in the debugger at its line. Without `-debug` it does nothing.
+
+`moon game.mb -debug [-break 10,20]` runs under the debugger. It pauses on `-break` lines, on `DebugBreak`, and on a failed `Assert`, prints the line and the variables in scope, and reads commands at `debug>`:
+
+| Command | Meaning |
+| --- | --- |
+| `c` | Continue to the next breakpoint |
+| `s` | Step into: the next statement, inside a `Function` or `Method` if this line calls one |
+| `n` | Step over: the next statement at this call depth or shallower |
+| `o` | Step out: run until the current `Function` / `Method` returns |
+| `bt` | Call stack, innermost first: `#0 Sq game.mb:6`, `#1 (main) game.mb:14` |
+| `locals` / `globals` / `vars` | Variables with values. Strings are quoted, arrays show their size and first elements, `Type` instances show their fields |
+| `p expr` | Evaluate any expression in the paused frame: `p player.x + 1`, `p arr(2)` |
+| `b 30` / `d 30` | Add or remove a breakpoint (`d` alone clears all) |
+| `q` | Stop the program |
+
+Names show without their `$` / `%` / `#` suffix. `-debugjson` prints each pause as one `@debug {...}` line (reason, line, depth, stack, locals, globals) and each `p` as `@eval {...}`. The IDE uses that form.
+
+In the IDE, Ctrl+F5 runs with the debugger. F9 or a gutter click toggles a breakpoint. When paused, the line is highlighted and the Debug sidebar shows the call stack (click a frame to jump to its line), locals, globals, and a watch list that is re-evaluated at every pause. F5 continues, F10 steps over, F11 steps into, Shift+F11 steps out, Shift+F5 stops.
+
+Line numbers are those of the main file. Lines inside `Include` / `Import` files are reported with their own line numbers but the main file's name, and a breakpoint on line 10 also stops on line 10 of an included file. A compiled game (`moon compile`) keeps `DebugLog` (under `MOON_DEBUG=1`) and `Assert`; `DebugBreak` compiles to nothing.
+
 ## Editor / language server
 
 `moonsls` (also `moon lsp`) is a stdio LSP for `*.mb` files (language id `moonbasic`). The IDE looks for `moonsls.exe` beside the project, and runs games with `moon.exe`.

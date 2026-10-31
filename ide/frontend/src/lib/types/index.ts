@@ -57,6 +57,36 @@ export interface UserSettings {
   sidebarWidth: number;
 }
 
+export interface DebugFrame {
+  name: string;
+  file: string;
+  line: number;
+}
+
+export interface DebugVar {
+  name: string;
+  kind: string;
+  value: string;
+}
+
+// One "@debug {json}" line from moon -debugjson.
+export interface DebugState {
+  reason: string;
+  message?: string;
+  file: string;
+  line: number;
+  depth: number;
+  stack: DebugFrame[];
+  locals: DebugVar[];
+  globals: DebugVar[];
+}
+
+export interface WatchItem {
+  expr: string;
+  value?: string;
+  error?: string;
+}
+
 export interface SymbolItem {
   name: string;
   type: 'function' | 'type' | 'const' | 'label';

@@ -45,9 +45,11 @@
 
       {#if editorStore.debugPaused}
         <span class="ide-badge err">Paused</span>
-        <button class="ide-iconbtn" title="Continue" onclick={() => editorStore.sendDebug('c')}>C</button>
-        <button class="ide-iconbtn" title="Step" onclick={() => editorStore.sendDebug('s')}>S</button>
-        <button class="ide-iconbtn" title="Quit" onclick={() => editorStore.sendDebug('q')}>Q</button>
+        <button class="ide-iconbtn" title="Continue (F5)" onclick={() => editorStore.debugContinue()}>C</button>
+        <button class="ide-iconbtn" title="Step Over (F10)" onclick={() => editorStore.debugStepOver()}>N</button>
+        <button class="ide-iconbtn" title="Step Into (F11)" onclick={() => editorStore.debugStepInto()}>S</button>
+        <button class="ide-iconbtn" title="Step Out (Shift+F11)" onclick={() => editorStore.debugStepOut()}>O</button>
+        <button class="ide-iconbtn" title="Quit" onclick={() => editorStore.debugQuit()}>Q</button>
       {:else if editorStore.isRunning}
         <span class="ide-badge run">Running</span>
       {:else if editorStore.exitCode !== null}

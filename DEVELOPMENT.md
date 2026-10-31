@@ -58,6 +58,7 @@ Under the hood it sets environment switches you can use yourself, for example fo
 | `MOON_SMOKE_FRAMES=n` | Stop after `n` frames. Exit 0 clean, 3 if any GL error was seen |
 | `MOON_HIDDEN=1` | Create the 3D window hidden and unfocused |
 | `MOON_NO_GRAB=1` | `HidePointer`, `MoveMouse`, `SetCursorMode`, free look, and `FocusWindow` leave the pointer and focus alone |
+| `MOON_DEBUG=1` | `DebugLog` prints without `-debug` (the IDE sets it for every run) |
 
 Texture units for the hand-bound samplers live in `internal/runtime/texunits.go`. `TestTextureUnitsDoNotClash` fails if a shader declares a sampler without a unit there, or if two samplers in one program share a unit.
 
@@ -87,6 +88,8 @@ The IDE window is [Neutralino](https://neutralino.js.org/). The Go process in `i
 ```
 
 `go build -o moonbasic.exe .` from `ide/` is a normal Go build. The Neutralino binary is `ide/bin/neutralino-win_x64.exe`.
+
+Ctrl+F5 debugs: the IDE runs `moon.exe <file> -debug -debugjson -break ...`, reads one `@debug {json}` line per pause from stderr, and writes `c` / `n` / `s` / `o` / `p expr` / `b line` / `q` to its stdin. See [docs/LANGUAGE.md](docs/LANGUAGE.md#debugging).
 
 ```powershell
 .\moon.exe build examples\hello_console.mb -o dist
