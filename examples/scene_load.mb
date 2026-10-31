@@ -1,0 +1,31 @@
+; Scene load — LoadScene builds scenes/demo.scene.json: a sun, PBR and toon
+; objects, crates and a ball with physics bodies, and two lamp prefabs (the
+; right one overrides its bulb and light colour). Space drops another lamp.
+; Esc or X quits after a few frames. See docs/SCENES.md for the format.
+
+SetWindowTitle("moonBASIC — Scene load")
+Graphics3D(960, 600, 0, 2)
+
+LoadScene("scenes/demo.scene.json")
+
+crate = FindEntity("Crate")
+Print("Crate uid " + EntityUID$(crate) + ", script " + EntityScript$(crate) + ", tag " + EntityTag$(crate))
+Print("Lamps: " + Str(CountEntitiesByTag("lamp")))
+
+spinners = CountEntitiesByTag("spin")
+frames = 0
+While 1
+    frames = frames + 1
+    For i = 1 To spinners
+        TurnEntity(FindEntityByTag("spin", i), 0, 0.8, 0)
+    Next
+    If Input.KeyHit(KEY_SPACE) Then InstantiatePrefab("scenes/lamp.prefab.json", Rnd(8) - 4, 1.2, 8)
+    UpdateWorld
+    RenderWorld
+    Text(16, 16, "Scene load  |  Space drops a lamp prefab  |  Esc/X quit  |  lamps " + Str(CountEntitiesByTag("lamp")))
+    Flip
+    If frames > 8
+        If Input.KeyHit(KEY_ESCAPE) Or Input.KeyDown(KEY_X) Then End
+    EndIf
+Wend
+End

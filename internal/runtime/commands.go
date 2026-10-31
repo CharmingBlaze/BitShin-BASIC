@@ -734,6 +734,9 @@ func (w *World) commandTable() map[string]cmd {
 	for k, v := range w.areaLightCommands(n, z, need) {
 		m[k] = v
 	}
+	for k, v := range w.sceneV2Commands(n, z, need) {
+		m[k] = v
+	}
 	for k, v := range w.camera2DCommands(n, z) {
 		m[k] = v
 	}

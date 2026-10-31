@@ -1419,13 +1419,39 @@ See `examples/shader.mb`.
 ## Data
 
 `JSONLoad` `JSONSave` `JSONParse` `JSONGet` `JSONSet` `JSON$`  
-`SceneSave` / `SaveScene file$` — JSON of tagged primitives / `LoadMesh` paths, lights, cameras (`fov`/`near`/`far`), parent, transform, tint, visibility. Controllers keep their live velocity and view (FPS pitch/yaw, TPS camera, platformer jumps left); dynamic bodies and vehicles keep linear and angular velocity  
-`SceneLoad` / `LoadSceneJSON file$` — rebuild those kinds (`mesh` reloads `src`; `camera` restores frustum; unknown / old dumps → cubes)  
-`LoadScene file$` — `.mb` setup script, **or** `.json` / `.yaml` scene dump  
+`SceneSave file$` — runtime dump for save games: JSON of tagged primitives / `LoadMesh` paths, lights, cameras (`fov`/`near`/`far`), parent, transform, tint, visibility. Controllers keep their live velocity and view (FPS pitch/yaw, TPS camera, platformer jumps left); dynamic bodies and vehicles keep linear and angular velocity  
+`SceneLoad` / `LoadSceneJSON file$ [, additive]` — rebuild those kinds (`mesh` reloads `src`; `camera` restores frustum; unknown / old dumps → cubes); a v2 file loads as `LoadScene` does  
+`LoadScene file$ [, additive]` — `.mb` setup script, a `.json` / `.yaml` `SceneSave` dump (added to the world), **or** a v2 `.scene.json` (replaces the scene unless `additive`)  
 `YAMLLoad` `YAMLSave` `YAMLParse` `YAMLGet` `YAMLSet`  
 `PackSave` `PackLoad` `PackEncode$` `PackDecode`
 
-Scene JSON is not a glTF graph (no materials or clips). Lights and cameras round-trip. See `docs/ASSETS.md`.
+### Scene files and prefabs
+
+Scene format v2 (`.scene.json`) holds every entity with a stable uid, name, tags, transform, colour, material, body, light, camera, and script string, plus the environment. A prefab is a scene file. See `docs/SCENES.md`.
+
+| Command | Meaning | Example |
+| --- | --- | --- |
+| `SaveScene file$` | Write the scene as v2: entities, environment, prefab instances as references plus overrides | `SaveScene("level.scene.json")` |
+| `LoadScene file$ [, additive]` | Load a v2 scene; replaces scene entities unless `additive` is 1 | `LoadScene("level.scene.json")` |
+| `SavePrefab name$, e` | Save `e` and its children as a prefab (root at the origin). No extension → `prefabs/name.json` | `SavePrefab("tower", t)` |
+| `InstantiatePrefab(path$ [, x, y, z, parent])` | Build a prefab or any scene file as an instance; returns the root | `p = InstantiatePrefab("tower", 4, 0, 2)` |
+| `SpawnPrefab(name$)` / `LoadPrefab` / `SceneInstance` | Same as `InstantiatePrefab` | `p = SpawnPrefab("tower")` |
+| `EntityPrefab$(e)` | Prefab path of an instance root, or "" | `src$ = EntityPrefab$(p)` |
+| `FindEntity(name$)` | First entity with that name (any case), or 0 | `door = FindEntity("Door")` |
+| `FindEntityByTag(tag$ [, n])` | The nth (from 1) entity with the tag, or 0 | `e = FindEntityByTag("enemy", 2)` |
+| `CountEntitiesByTag(tag$)` | How many entities have the tag | `n = CountEntitiesByTag("enemy")` |
+| `EntityTag$(e [, n])` | The nth tag (from 1), or "" | `t$ = EntityTag$(e)` |
+| `EntityTags$(e)` | All tags, comma separated | `all$ = EntityTags$(e)` |
+| `SetEntityTag e, tags$` | Replace the tags (comma separated) | `SetEntityTag(e, "enemy, boss")` |
+| `AddEntityTag e, tag$` / `RemoveEntityTag e, tag$` | Add or remove tags | `AddEntityTag(e, "lit")` |
+| `EntityHasTag(e, tag$)` | 1 if `e` has the tag | `If EntityHasTag(e, "enemy") Then` |
+| `EntityUID$(e)` | Stable scene uid (made on first use) | `id$ = EntityUID$(e)` |
+| `EntityByUID(uid$)` | Entity with that uid, or 0 | `e = EntityByUID(id$)` |
+| `EntityScript$(e)` / `SetEntityScript e, s$` | Free-form string saved with the entity | `SetEntityScript(e, "speed=4")` |
+
+See `examples/scene_load.mb`.
+
+A `SceneSave` dump is not a glTF graph (no materials or clips); scene format v2 carries materials but not animation clips. See `docs/ASSETS.md` and `docs/SCENES.md`.
 
 ## Pools
 

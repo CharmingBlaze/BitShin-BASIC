@@ -442,6 +442,7 @@ func (w *World) skyHaze() *math32.Color {
 }
 
 func (w *World) applySkyPreset(name string) {
+	w.scn.sky, w.scn.skybox = name, ""
 	switch strings.ToLower(strings.TrimSpace(name)) {
 	case "sunset":
 		// Dusky blue-violet over a warm peach horizon. The old olive top
@@ -572,6 +573,7 @@ func (w *World) trySkyPrefix(prefix string) ([6]*image.RGBA, bool) {
 }
 
 func (w *World) makeSkyBox(prefix string) (int, error) {
+	w.scn.sky, w.scn.skybox = "", prefix
 	if imgs, ok := w.trySkyPrefix(prefix); ok {
 		w.skyProc = false
 		return w.publishSky(imgs)

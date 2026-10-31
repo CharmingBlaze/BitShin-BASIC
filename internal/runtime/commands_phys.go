@@ -217,6 +217,7 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 		"setcollisionlayer": n(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys3()
 			w.phys3.SetCollisionLayer(argI(a, 0, 0), argI(a, 1, 0))
+			w.noteBodyLayer(argI(a, 0, 0), argI(a, 1, 0))
 			return z()
 		}),
 		"setlayercollides": n(func(a []value.Value) (value.Value, error) {
@@ -236,6 +237,7 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 		"setbodysensor": n(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys3()
 			w.phys3.SetSensor(argI(a, 0, 0), argI(a, 1, 1) != 0)
+			w.noteBodySensor(argI(a, 0, 0), argI(a, 1, 1) != 0)
 			return z()
 		}),
 		"checktrigger": need(func(a []value.Value) (value.Value, error) {

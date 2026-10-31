@@ -10690,39 +10690,45 @@
           "category": "Data"
         },
         {
-          "syntax": "SceneSave",
+          "syntax": "SceneSave file$",
           "name": "SceneSave",
-          "description": "JSON of tagged primitives / `LoadMesh` paths, lights, cameras (`fov`/`near`/`far`), parent, transform, tint, visibility. Controllers keep their live velocity and view (FPS pitch/yaw, TPS camera, platformer jumps left); dynamic bodies and vehicles keep linear and angular velocity",
-          "category": "Data"
-        },
-        {
-          "syntax": "SaveScene file$",
-          "name": "SaveScene",
-          "description": "JSON of tagged primitives / `LoadMesh` paths, lights, cameras (`fov`/`near`/`far`), parent, transform, tint, visibility. Controllers keep their live velocity and view (FPS pitch/yaw, TPS camera, platformer jumps left); dynamic bodies and vehicles keep linear and angular velocity",
+          "description": "runtime dump for save games: JSON of tagged primitives / `LoadMesh` paths, lights, cameras (`fov`/`near`/`far`), parent, transform, tint, visibility. Controllers keep their live velocity and view (FPS pitch/yaw, TPS camera, platformer jumps left); dynamic bodies and vehicles keep linear and angular velocity",
           "category": "Data"
         },
         {
           "syntax": "LoadMesh",
           "name": "LoadMesh",
-          "description": "JSON of tagged primitives / `LoadMesh` paths, lights, cameras (`fov`/`near`/`far`), parent, transform, tint, visibility. Controllers keep their live velocity and view (FPS pitch/yaw, TPS camera, platformer jumps left); dynamic bodies and vehicles keep linear and angular velocity",
+          "description": "runtime dump for save games: JSON of tagged primitives / `LoadMesh` paths, lights, cameras (`fov`/`near`/`far`), parent, transform, tint, visibility. Controllers keep their live velocity and view (FPS pitch/yaw, TPS camera, platformer jumps left); dynamic bodies and vehicles keep linear and angular velocity",
           "category": "Data"
         },
         {
           "syntax": "SceneLoad",
           "name": "SceneLoad",
-          "description": "rebuild those kinds (`mesh` reloads `src`; `camera` restores frustum; unknown / old dumps → cubes)",
+          "description": "rebuild those kinds (`mesh` reloads `src`; `camera` restores frustum; unknown / old dumps → cubes); a v2 file loads as `LoadScene` does",
           "category": "Data"
         },
         {
-          "syntax": "LoadSceneJSON file$",
+          "syntax": "LoadSceneJSON file$ [, additive]",
           "name": "LoadSceneJSON",
-          "description": "rebuild those kinds (`mesh` reloads `src`; `camera` restores frustum; unknown / old dumps → cubes)",
+          "description": "rebuild those kinds (`mesh` reloads `src`; `camera` restores frustum; unknown / old dumps → cubes); a v2 file loads as `LoadScene` does",
           "category": "Data"
         },
         {
-          "syntax": "LoadScene file$",
+          "syntax": "LoadScene",
           "name": "LoadScene",
-          "description": "`.mb` setup script, **or** `.json` / `.yaml` scene dump",
+          "description": "rebuild those kinds (`mesh` reloads `src`; `camera` restores frustum; unknown / old dumps → cubes); a v2 file loads as `LoadScene` does",
+          "category": "Data"
+        },
+        {
+          "syntax": "LoadScene file$ [, additive]",
+          "name": "LoadScene",
+          "description": "`.mb` setup script, a `.json` / `.yaml` `SceneSave` dump (added to the world), **or** a v2 `.scene.json` (replaces the scene unless `additive`)",
+          "category": "Data"
+        },
+        {
+          "syntax": "SceneSave",
+          "name": "SceneSave",
+          "description": "`.mb` setup script, a `.json` / `.yaml` `SceneSave` dump (added to the world), **or** a v2 `.scene.json` (replaces the scene unless `additive`)",
           "category": "Data"
         },
         {
@@ -10776,6 +10782,138 @@
         {
           "syntax": "PackDecode",
           "name": "PackDecode",
+          "description": "",
+          "category": "Data"
+        },
+        {
+          "syntax": "SaveScene file$",
+          "name": "SaveScene",
+          "description": "Write the scene as v2: entities, environment, prefab instances as references plus overrides",
+          "category": "Data"
+        },
+        {
+          "syntax": "LoadScene file$ [, additive]",
+          "name": "LoadScene",
+          "description": "Load a v2 scene; replaces scene entities unless `additive` is 1",
+          "category": "Data"
+        },
+        {
+          "syntax": "SavePrefab name$, e",
+          "name": "SavePrefab",
+          "description": "Save `e` and its children as a prefab (root at the origin). No extension → `prefabs/name.json`",
+          "category": "Data"
+        },
+        {
+          "syntax": "InstantiatePrefab(path$ [, x, y, z, parent])",
+          "name": "InstantiatePrefab",
+          "description": "Build a prefab or any scene file as an instance; returns the root",
+          "category": "Data"
+        },
+        {
+          "syntax": "SpawnPrefab(name$)",
+          "name": "SpawnPrefab",
+          "description": "Same as `InstantiatePrefab`",
+          "category": "Data"
+        },
+        {
+          "syntax": "LoadPrefab",
+          "name": "LoadPrefab",
+          "description": "Same as `InstantiatePrefab`",
+          "category": "Data"
+        },
+        {
+          "syntax": "SceneInstance",
+          "name": "SceneInstance",
+          "description": "Same as `InstantiatePrefab`",
+          "category": "Data"
+        },
+        {
+          "syntax": "EntityPrefab$(e)",
+          "name": "EntityPrefab$",
+          "description": "Prefab path of an instance root, or \"\"",
+          "category": "Data"
+        },
+        {
+          "syntax": "FindEntity(name$)",
+          "name": "FindEntity",
+          "description": "First entity with that name (any case), or 0",
+          "category": "Data"
+        },
+        {
+          "syntax": "FindEntityByTag(tag$ [, n])",
+          "name": "FindEntityByTag",
+          "description": "The nth (from 1) entity with the tag, or 0",
+          "category": "Data"
+        },
+        {
+          "syntax": "CountEntitiesByTag(tag$)",
+          "name": "CountEntitiesByTag",
+          "description": "How many entities have the tag",
+          "category": "Data"
+        },
+        {
+          "syntax": "EntityTag$(e [, n])",
+          "name": "EntityTag$",
+          "description": "The nth tag (from 1), or \"\"",
+          "category": "Data"
+        },
+        {
+          "syntax": "EntityTags$(e)",
+          "name": "EntityTags$",
+          "description": "All tags, comma separated",
+          "category": "Data"
+        },
+        {
+          "syntax": "SetEntityTag e, tags$",
+          "name": "SetEntityTag",
+          "description": "Replace the tags (comma separated)",
+          "category": "Data"
+        },
+        {
+          "syntax": "AddEntityTag e, tag$",
+          "name": "AddEntityTag",
+          "description": "Add or remove tags",
+          "category": "Data"
+        },
+        {
+          "syntax": "RemoveEntityTag e, tag$",
+          "name": "RemoveEntityTag",
+          "description": "Add or remove tags",
+          "category": "Data"
+        },
+        {
+          "syntax": "EntityHasTag(e, tag$)",
+          "name": "EntityHasTag",
+          "description": "1 if `e` has the tag",
+          "category": "Data"
+        },
+        {
+          "syntax": "EntityUID$(e)",
+          "name": "EntityUID$",
+          "description": "Stable scene uid (made on first use)",
+          "category": "Data"
+        },
+        {
+          "syntax": "EntityByUID(uid$)",
+          "name": "EntityByUID",
+          "description": "Entity with that uid, or 0",
+          "category": "Data"
+        },
+        {
+          "syntax": "EntityScript$(e)",
+          "name": "EntityScript$",
+          "description": "Free-form string saved with the entity",
+          "category": "Data"
+        },
+        {
+          "syntax": "SetEntityScript e, s$",
+          "name": "SetEntityScript",
+          "description": "Free-form string saved with the entity",
+          "category": "Data"
+        },
+        {
+          "syntax": "SceneSave",
+          "name": "SceneSave",
           "description": "",
           "category": "Data"
         }
@@ -19477,21 +19615,21 @@
       "category": "Data"
     },
     {
-      "syntax": "SceneSave",
+      "syntax": "SceneSave file$",
       "name": "SceneSave",
-      "description": "JSON of tagged primitives / `LoadMesh` paths, lights, cameras (`fov`/`near`/`far`), parent, transform, tint, visibility. Controllers keep their live velocity and view (FPS pitch/yaw, TPS camera, platformer jumps left); dynamic bodies and vehicles keep linear and angular velocity",
+      "description": "runtime dump for save games: JSON of tagged primitives / `LoadMesh` paths, lights, cameras (`fov`/`near`/`far`), parent, transform, tint, visibility. Controllers keep their live velocity and view (FPS pitch/yaw, TPS camera, platformer jumps left); dynamic bodies and vehicles keep linear and angular velocity",
       "category": "Data"
     },
     {
       "syntax": "SceneLoad",
       "name": "SceneLoad",
-      "description": "rebuild those kinds (`mesh` reloads `src`; `camera` restores frustum; unknown / old dumps → cubes)",
+      "description": "rebuild those kinds (`mesh` reloads `src`; `camera` restores frustum; unknown / old dumps → cubes); a v2 file loads as `LoadScene` does",
       "category": "Data"
     },
     {
-      "syntax": "LoadSceneJSON file$",
+      "syntax": "LoadSceneJSON file$ [, additive]",
       "name": "LoadSceneJSON",
-      "description": "rebuild those kinds (`mesh` reloads `src`; `camera` restores frustum; unknown / old dumps → cubes)",
+      "description": "rebuild those kinds (`mesh` reloads `src`; `camera` restores frustum; unknown / old dumps → cubes); a v2 file loads as `LoadScene` does",
       "category": "Data"
     },
     {
@@ -19546,6 +19684,120 @@
       "syntax": "PackDecode",
       "name": "PackDecode",
       "description": "",
+      "category": "Data"
+    },
+    {
+      "syntax": "SavePrefab name$, e",
+      "name": "SavePrefab",
+      "description": "Save `e` and its children as a prefab (root at the origin). No extension → `prefabs/name.json`",
+      "category": "Data"
+    },
+    {
+      "syntax": "InstantiatePrefab(path$ [, x, y, z, parent])",
+      "name": "InstantiatePrefab",
+      "description": "Build a prefab or any scene file as an instance; returns the root",
+      "category": "Data"
+    },
+    {
+      "syntax": "SpawnPrefab(name$)",
+      "name": "SpawnPrefab",
+      "description": "Same as `InstantiatePrefab`",
+      "category": "Data"
+    },
+    {
+      "syntax": "LoadPrefab",
+      "name": "LoadPrefab",
+      "description": "Same as `InstantiatePrefab`",
+      "category": "Data"
+    },
+    {
+      "syntax": "SceneInstance",
+      "name": "SceneInstance",
+      "description": "Same as `InstantiatePrefab`",
+      "category": "Data"
+    },
+    {
+      "syntax": "EntityPrefab$(e)",
+      "name": "EntityPrefab$",
+      "description": "Prefab path of an instance root, or \"\"",
+      "category": "Data"
+    },
+    {
+      "syntax": "FindEntity(name$)",
+      "name": "FindEntity",
+      "description": "First entity with that name (any case), or 0",
+      "category": "Data"
+    },
+    {
+      "syntax": "FindEntityByTag(tag$ [, n])",
+      "name": "FindEntityByTag",
+      "description": "The nth (from 1) entity with the tag, or 0",
+      "category": "Data"
+    },
+    {
+      "syntax": "CountEntitiesByTag(tag$)",
+      "name": "CountEntitiesByTag",
+      "description": "How many entities have the tag",
+      "category": "Data"
+    },
+    {
+      "syntax": "EntityTag$(e [, n])",
+      "name": "EntityTag$",
+      "description": "The nth tag (from 1), or \"\"",
+      "category": "Data"
+    },
+    {
+      "syntax": "EntityTags$(e)",
+      "name": "EntityTags$",
+      "description": "All tags, comma separated",
+      "category": "Data"
+    },
+    {
+      "syntax": "SetEntityTag e, tags$",
+      "name": "SetEntityTag",
+      "description": "Replace the tags (comma separated)",
+      "category": "Data"
+    },
+    {
+      "syntax": "AddEntityTag e, tag$",
+      "name": "AddEntityTag",
+      "description": "Add or remove tags",
+      "category": "Data"
+    },
+    {
+      "syntax": "RemoveEntityTag e, tag$",
+      "name": "RemoveEntityTag",
+      "description": "Add or remove tags",
+      "category": "Data"
+    },
+    {
+      "syntax": "EntityHasTag(e, tag$)",
+      "name": "EntityHasTag",
+      "description": "1 if `e` has the tag",
+      "category": "Data"
+    },
+    {
+      "syntax": "EntityUID$(e)",
+      "name": "EntityUID$",
+      "description": "Stable scene uid (made on first use)",
+      "category": "Data"
+    },
+    {
+      "syntax": "EntityByUID(uid$)",
+      "name": "EntityByUID",
+      "description": "Entity with that uid, or 0",
+      "category": "Data"
+    },
+    {
+      "syntax": "EntityScript$(e)",
+      "name": "EntityScript$",
+      "description": "Free-form string saved with the entity",
+      "category": "Data"
+    },
+    {
+      "syntax": "SetEntityScript e, s$",
+      "name": "SetEntityScript",
+      "description": "Free-form string saved with the entity",
       "category": "Data"
     },
     {

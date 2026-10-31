@@ -47,7 +47,7 @@ Coverage counts a partial item as half.
 | [14. Input and controller system](#14-input-and-controller-system) | 21 | 5 | 6 | 73% |
 | [15. Rendering and graphics quality](#15-rendering-and-graphics-quality) | 20 | 7 | 18 | 52% |
 | [16. Assets and import pipeline](#16-assets-and-import-pipeline) | 20 | 10 | 27 | 44% |
-| [17. Scenes and prefabs](#17-scenes-and-prefabs) | 10 | 7 | 14 | 44% |
+| [17. Scenes and prefabs](#17-scenes-and-prefabs) | 16 | 7 | 8 | 63% |
 | [18. Moon Studio (IDE / editor)](#18-moon-studio-ide--editor) | 20 | 14 | 47 | 33% |
 | [19. Shaders and visual programming](#19-shaders-and-visual-programming) | 7 | 3 | 3 | 65% |
 | [20. Development and debugging tools](#20-development-and-debugging-tools) | 33 | 8 | 5 | 80% |
@@ -57,7 +57,7 @@ Coverage counts a partial item as half.
 | [24. Project management](#24-project-management) | 1 | 4 | 6 | 27% |
 | [25. Documentation and community](#25-documentation-and-community) | 3 | 9 | 4 | 47% |
 | [26. Plugins and extensions](#26-plugins-and-extensions) | 0 | 3 | 12 | 10% |
-| **Total** | **583** | **197** | **297** | **63%** |
+| **Total** | **589** | **197** | **291** | **64%** |
 
 **Strongest:** water and environment, the 2D and 3D engines, terrain, physics, and input. **Weakest:** plugins, project management, Moon Studio's visual editing, optimization tooling, and audio.
 
@@ -1101,7 +1101,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [ ] Binary optimized meshes — Missing (GLB only)
 - [ ] Packed animation data — Missing
 - [ ] Streaming / decoded audio — **Partial:** WAV/OGG fully decoded to PCM; no streaming
-- [x] Serialized scene format — `SaveScene`/`LoadScene` JSON/YAML
+- [x] Serialized scene format — scene format v2 `.scene.json` (`SaveScene`/`LoadScene`, scene_v2.go, docs/SCENES.md): stable uids, tags, materials, bodies, lights, cameras, environment, prefab references with overrides; `SceneSave` runtime dumps still load
 - [ ] Compiled materials — Missing
 - [ ] Cached compiled shaders — Missing
 - [ ] Pack files for release builds — **Partial:** `OpenPak`/`SetPak` read zip paks; `moon build` doesn't create one
@@ -1110,31 +1110,31 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 
 #### Scenes
 - [ ] CreateScene — Missing (single world; `ClearWorld`)
-- [x] LoadScene — `LoadScene` (.mb setup or JSON/YAML), `SceneLoad`, `LoadSceneJSON`
-- [x] SaveScene — `SaveScene`/`SceneSave` (primitives, meshes, lights, joints)
-- [ ] UnloadScene — **Partial:** `ClearWorld` clears everything
+- [x] LoadScene — `LoadScene path$ [, additive]` (v2 `.scene.json`, .mb setup, or `SceneSave` JSON/YAML), `SceneLoad`, `LoadSceneJSON`
+- [x] SaveScene — `SaveScene` writes scene format v2 (scene_v2.go); `SceneSave` keeps the runtime dump (velocities, controllers, joints)
+- [ ] UnloadScene — **Partial:** `ClearWorld` clears everything; a non-additive `LoadScene` replaces the scene's entities; no unload of one loaded file
 - [ ] SwitchScene — **Partial:** `ClearWorld` + `LoadScene` (examples/scenes.mb)
 - [x] SceneBackground — `CameraClsColor`, `SetSkybox`
 - [x] SceneGravity — `SetGravity`, `SetGravity2D`
-- [ ] SceneEnvironment — **Partial:** global sky/weather/time setters; not stored per scene
+- [x] SceneEnvironment — the v2 `environment` block: ambient, clear colour, fog, sky preset / skybox, IBL, sun direction, graphics quality, post (tonemap, exposure, bloom, LUT)
 - [ ] SceneRoot / SceneParent / SceneChild — **Partial:** `EntityParent`/`GetEntityParent`; no child enumeration
-- [ ] SceneInstance — Missing (`LoadLevel`/`SpawnPrefab` nearest)
+- [x] SceneInstance — `InstantiatePrefab(path$ [, x, y, z, parent])` builds any scene file as an instance (`SceneInstance` alias)
 
 #### Prefabs
-- [ ] CreatePrefab — **Partial:** `SavePrefab(name, e)` stores kind/src/name/position only
-- [x] SavePrefab — `SavePrefab` → prefabs/name.json
-- [ ] LoadPrefab — **Partial:** `SpawnPrefab` loads and instantiates in one step
-- [x] InstantiatePrefab — `SpawnPrefab(name$)`
+- [x] CreatePrefab — `SavePrefab name$, e` saves the entity and its children with every v2 property
+- [x] SavePrefab — `SavePrefab` → prefabs/name.json or any `.json` path (v2, root at the origin)
+- [ ] LoadPrefab — **Partial:** `LoadPrefab` is an alias of `InstantiatePrefab` (load and instantiate in one step); no prefab handle
+- [x] InstantiatePrefab — `InstantiatePrefab(path$ [, x, y, z, parent])`, `SpawnPrefab(name$)`
 - [ ] DestroyPrefab — Missing (`FreeEntity` on instance)
-- [ ] Prefab overrides — Missing
-- [ ] Nested prefabs — Missing
-- [ ] Prefab inheritance — Missing
-- [ ] Prefab variants — Missing
-- [ ] Prefab updates — Missing
+- [x] Prefab overrides — `overrides` keyed by member uid; `SaveScene` writes only what differs from the prefab (scene_v2.go)
+- [x] Nested prefabs — prefab rows inside prefab files, any depth, with a cycle guard
+- [ ] Prefab inheritance — **Partial:** a variant inherits its base prefab and overrides it; no multi-base or class-style inheritance
+- [x] Prefab variants — a prefab file whose root is a prefab instance with overrides (`SavePrefab` of an instance writes one)
+- [ ] Prefab updates — **Partial:** instances are references, so prefab file edits reach them on the next load; no live refresh
 
 #### Larger games
 - [x] Scene streaming — `CreateWorldStream`, `LoadChunk`/`UnloadChunk` (stream.go)
-- [x] Additive scene loading — `LoadScene` adds to current world without clearing
+- [x] Additive scene loading — `LoadScene path$, 1` (v2; uids kept unique) and `SceneSave` dumps add to the current world
 - [ ] Persistent objects — Missing
 - [ ] Scene transitions — Missing
 - [ ] Scene references — Missing

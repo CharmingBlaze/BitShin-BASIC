@@ -29,6 +29,7 @@ type pbrMat struct {
 	toonRim    float32
 	toonSpec   float32
 	noFog      bool
+	texPaths   map[string]string // scene slot (albedo, normal, ...) -> LoadTexture path
 }
 
 const (

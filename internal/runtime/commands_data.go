@@ -97,7 +97,12 @@ func (w *World) dataCommands(n func(func([]value.Value) (value.Value, error)) cm
 				return value.Value{}, err
 			}
 			if w.ready && !w.mode2D {
-				w.applySceneJSON(root)
+				if m, ok := root.(map[string]any); ok && sceneVersionOf(m) >= 2 {
+					w.scn.dir = w.sceneFileDir(argS(a, 0))
+					warnScene("SceneLoad", w.loadSceneV2(m, argI(a, 1, 0) != 0))
+				} else {
+					w.applySceneJSON(root)
+				}
 			}
 			return value.Num(float64(w.allocDoc(root))), nil
 		}),
