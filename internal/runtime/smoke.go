@@ -4,17 +4,19 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"sync/atomic"
 
 	"github.com/go-gl/glfw/v3.3/glfw"
 )
 
 // Smoke mode runs a script for a set number of frames in a hidden window and
-// exits with its GL error count. `bs smoke` runs every example this way.
+// exits with its GL error count. `moon smoke` runs every example this way.
 //
 //	MOON_SMOKE_FRAMES=n  stop after n frames: exit 0 clean, 3 on GL errors
 //	MOON_NO_GRAB=1       leave the pointer and focus alone (smoke sets it)
 //	MOON_HIDDEN=1        create the 3D window hidden (smoke sets it)
+//	MOON_SHOT=n:path     save frame n as a PNG (docs and visual checks)
 
 // glErrCount counts GL errors drainGL has seen, logged or not.
 var glErrCount atomic.Int64
@@ -54,6 +56,11 @@ func hideWindow() {
 
 // tickSmoke ends a smoke run once its frames are done.
 func (w *World) tickSmoke() {
+	if at, path, ok := strings.Cut(os.Getenv("MOON_SHOT"), ":"); ok {
+		if n, err := strconv.Atoi(at); err == nil && n == w.loopFrames {
+			w.shotPath = w.resolve(path)
+		}
+	}
 	if w.smokeLeft <= 0 {
 		return
 	}

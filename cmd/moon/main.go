@@ -76,6 +76,13 @@ Examples live in the examples/ folder.
 		}
 		return
 	}
+	if args[0] == "edit" {
+		if err := runEdit(args[1:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if args[0] == "smoke" {
 		if err := runSmoke(args[1:]); err != nil {
 			fmt.Fprintln(os.Stderr, err)

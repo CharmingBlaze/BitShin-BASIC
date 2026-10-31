@@ -67,6 +67,7 @@ const (
 	KeyDown      = 208
 	KeyRShift    = 54
 	KeyRControl  = 157
+	KeyDelete    = 211
 )
 
 var dikToKey = map[int]window.Key{
@@ -133,6 +134,7 @@ var dikToKey = map[int]window.Key{
 	KeyDown:      window.KeyDown,
 	KeyRShift:    window.KeyRightShift,
 	KeyRControl:  window.KeyRightControl,
+	KeyDelete:    window.KeyDelete,
 }
 
 var namedKeys = map[string]int{
