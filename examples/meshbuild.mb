@@ -1,0 +1,65 @@
+; Building a mesh from a script: a grid of vertices and triangles,
+; coloured per vertex and rippled every frame. Esc quits.
+; Commands: CreateMesh, AddVertex, AddTriangle, VertexCoords,
+; VertexColor, UpdateMesh. See docs/MESHES.md.
+
+Graphics3D(960, 600)
+SetWindowTitle("moonBASIC — mesh building")
+SetCameraClsColor(18, 22, 34)
+SetAmbientLight(70, 70, 90)
+
+cam = CreateCamera()
+PositionEntity(cam, 0, 14, -22)
+sun = CreateDirectionalLight()
+SetLightDirection(sun, 50, 40, 0)
+
+N = 32
+SIZE# = 24
+grid = CreateMesh()
+For z = 0 To N
+    For x = 0 To N
+        AddVertex(grid, (x / N - 0.5) * SIZE#, 0, (z / N - 0.5) * SIZE#, x / N, z / N)
+    Next
+Next
+For z = 0 To N - 1
+    For x = 0 To N - 1
+        a = z * (N + 1) + x
+        AddTriangle(grid, a, a + N + 1, a + 1)
+        AddTriangle(grid, a + 1, a + N + 1, a + N + 2)
+    Next
+Next
+
+; A pyramid with one colour per face, built from shared-free vertices
+pyr = CreateMesh()
+PositionEntity(pyr, 0, 6, 0)
+For side = 0 To 3
+    a0# = side * 90 : a1# = a0# + 90
+    v0 = AddVertex(pyr, Cos(a0#) * 2, 0, Sin(a0#) * 2)
+    v1 = AddVertex(pyr, Cos(a1#) * 2, 0, Sin(a1#) * 2)
+    v2 = AddVertex(pyr, 0, 3, 0)
+    AddTriangle(pyr, v0, v2, v1)
+    For v = v0 To v2
+        VertexColor(pyr, v, 120 + side * 40, 220 - side * 40, 255)
+    Next
+Next
+UpdateMesh(pyr)
+
+t# = 0
+PointEntity(cam, grid)
+While Not Input.KeyDown(KEY_ESCAPE)
+    t# = t# + Time.Delta()
+    For i = 0 To CountVertices(grid) - 1
+        x# = VertexX(grid, i) : z# = VertexZ(grid, i)
+        h# = Sin(x# * 25 + t# * 120) * 0.8 + Cos(z# * 20 + t# * 90) * 0.6
+        VertexCoords(grid, i, x#, h#, z#)
+        VertexColor(grid, i, 60 + h# * 90, 140 + h# * 60, 200)
+    Next
+    UpdateNormals(grid)
+    TurnEntity(pyr, 0, 30 * Time.Delta(), 0)
+
+    UpdateWorld
+    RenderWorld
+    Text(16, 14, "MESH BUILDING  " + CountVertices(grid) + " vertices, " + CountTriangles(grid) + " triangles, rebuilt every frame")
+    Flip
+Wend
+End

@@ -323,6 +323,7 @@ type World struct {
 	stream                           *worldStream
 	bubble                           *worldBubble
 	instances                        map[int]*instancedMesh
+	meshBuilds                       map[int]*meshBuild
 	probes                           map[int]*lightProbe
 	freeProbes                       []int
 	nextProbe                        int
@@ -1194,6 +1195,7 @@ func (w *World) tickFX() {
 	w.tickWater()
 	w.tickClouds(dt)
 	w.tickInstances()
+	w.tickMeshBuilds()
 	w.applyProbes()
 	w.tickAnims(dt)
 	w.applySkins()

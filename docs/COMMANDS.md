@@ -212,6 +212,27 @@ Post-pass effects; HUD text and ImGui stay at full resolution. See `docs/RETRO.m
 | `SetRetroTextures on` | Nearest-neighbour filtering on every scene texture | `SetRetroTextures(True)` |
 | `SetTextureFilter tex, mode$` | `"nearest"` or `"linear"` for one texture | `SetTextureFilter(tex, "nearest")` |
 
+### Building meshes
+
+Vertices and triangles from a script; works on primitives and loaded meshes too. See `docs/MESHES.md`.
+
+| Command | Meaning | Example |
+| --- | --- | --- |
+| `CreateMesh([parent])` | Empty mesh entity | `m = CreateMesh()` |
+| `AddVertex(m, x, y, z [, u, v])` | Add a vertex; returns its index (from 0) | `v = AddVertex(m, 0, 1, 0)` |
+| `AddTriangle(m, v0, v1, v2)` | Add a triangle (counter-clockwise from the front); returns its index | `AddTriangle(m, a, b, c)` |
+| `VertexCoords m, i, x, y, z` | Move a vertex | `VertexCoords(m, 0, 0, 2, 0)` |
+| `VertexNormal m, i, nx, ny, nz` | Set a normal (unset normals are smoothed on update) | `VertexNormal(m, 0, 0, 1, 0)` |
+| `VertexColor m, i, r, g, b` | Vertex colour 0–255, multiplies the material colour | `VertexColor(m, 0, 255, 0, 0)` |
+| `VertexTexCoords m, i, u, v [, set]` | UVs; `set` 1 is the second UV set | `VertexTexCoords(m, 0, 0.5, 1)` |
+| `VertexX/Y/Z(m, i)`, `VertexNX/NY/NZ(m, i)` | Position and normal | `y# = VertexY(m, 3)` |
+| `VertexU/V(m, i [, set])`, `VertexRed/Green/Blue(m, i)` | UVs and colour | `u# = VertexU(m, 3)` |
+| `CountVertices(m)`, `CountTriangles(m)` | Sizes | `n = CountVertices(m)` |
+| `TriangleVertex(m, t, corner)` | Vertex index at corner 0–2 of triangle `t` | `v = TriangleVertex(m, 0, 2)` |
+| `UpdateMesh m` | Upload now (otherwise done before the next frame) | `UpdateMesh(m)` |
+| `UpdateNormals m` | Recompute smooth normals | `UpdateNormals(m)` |
+| `ClearMesh m` | Remove all vertices and triangles | `ClearMesh(m)` |
+
 ## Mesh animation (glTF)
 
 Source must be `.gltf` / `.glb` **with clips**.

@@ -1565,6 +1565,108 @@
           "name": "SetTextureFilter",
           "description": "`\"nearest\"` or `\"linear\"` for one texture",
           "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "CreateMesh([parent])",
+          "name": "CreateMesh",
+          "description": "Empty mesh entity",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "AddVertex(m, x, y, z [, u, v])",
+          "name": "AddVertex",
+          "description": "Add a vertex; returns its index (from 0)",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "AddTriangle(m, v0, v1, v2)",
+          "name": "AddTriangle",
+          "description": "Add a triangle (counter-clockwise from the front); returns its index",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "VertexCoords m, i, x, y, z",
+          "name": "VertexCoords",
+          "description": "Move a vertex",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "VertexNormal m, i, nx, ny, nz",
+          "name": "VertexNormal",
+          "description": "Set a normal (unset normals are smoothed on update)",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "VertexColor m, i, r, g, b",
+          "name": "VertexColor",
+          "description": "Vertex colour 0–255, multiplies the material colour",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "VertexTexCoords m, i, u, v [, set]",
+          "name": "VertexTexCoords",
+          "description": "UVs; `set` 1 is the second UV set",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "VertexX/Y/Z(m, i)",
+          "name": "VertexX",
+          "description": "Position and normal",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "VertexNX/NY/NZ(m, i)",
+          "name": "VertexNX",
+          "description": "Position and normal",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "VertexU/V(m, i [, set])",
+          "name": "VertexU",
+          "description": "UVs and colour",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "VertexRed/Green/Blue(m, i)",
+          "name": "VertexRed",
+          "description": "UVs and colour",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "CountVertices(m)",
+          "name": "CountVertices",
+          "description": "Sizes",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "CountTriangles(m)",
+          "name": "CountTriangles",
+          "description": "Sizes",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "TriangleVertex(m, t, corner)",
+          "name": "TriangleVertex",
+          "description": "Vertex index at corner 0–2 of triangle `t`",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "UpdateMesh m",
+          "name": "UpdateMesh",
+          "description": "Upload now (otherwise done before the next frame)",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "UpdateNormals m",
+          "name": "UpdateNormals",
+          "description": "Recompute smooth normals",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "ClearMesh m",
+          "name": "ClearMesh",
+          "description": "Remove all vertices and triangles",
+          "category": "PBR (opt-in metallic-roughness)"
         }
       ]
     },
@@ -12460,6 +12562,108 @@
       "syntax": "SetTextureFilter tex, mode$",
       "name": "SetTextureFilter",
       "description": "`\"nearest\"` or `\"linear\"` for one texture",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "CreateMesh([parent])",
+      "name": "CreateMesh",
+      "description": "Empty mesh entity",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "AddVertex(m, x, y, z [, u, v])",
+      "name": "AddVertex",
+      "description": "Add a vertex; returns its index (from 0)",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "AddTriangle(m, v0, v1, v2)",
+      "name": "AddTriangle",
+      "description": "Add a triangle (counter-clockwise from the front); returns its index",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "VertexCoords m, i, x, y, z",
+      "name": "VertexCoords",
+      "description": "Move a vertex",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "VertexNormal m, i, nx, ny, nz",
+      "name": "VertexNormal",
+      "description": "Set a normal (unset normals are smoothed on update)",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "VertexColor m, i, r, g, b",
+      "name": "VertexColor",
+      "description": "Vertex colour 0–255, multiplies the material colour",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "VertexTexCoords m, i, u, v [, set]",
+      "name": "VertexTexCoords",
+      "description": "UVs; `set` 1 is the second UV set",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "VertexX/Y/Z(m, i)",
+      "name": "VertexX",
+      "description": "Position and normal",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "VertexNX/NY/NZ(m, i)",
+      "name": "VertexNX",
+      "description": "Position and normal",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "VertexU/V(m, i [, set])",
+      "name": "VertexU",
+      "description": "UVs and colour",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "VertexRed/Green/Blue(m, i)",
+      "name": "VertexRed",
+      "description": "UVs and colour",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "CountVertices(m)",
+      "name": "CountVertices",
+      "description": "Sizes",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "CountTriangles(m)",
+      "name": "CountTriangles",
+      "description": "Sizes",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "TriangleVertex(m, t, corner)",
+      "name": "TriangleVertex",
+      "description": "Vertex index at corner 0–2 of triangle `t`",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "UpdateMesh m",
+      "name": "UpdateMesh",
+      "description": "Upload now (otherwise done before the next frame)",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "UpdateNormals m",
+      "name": "UpdateNormals",
+      "description": "Recompute smooth normals",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "ClearMesh m",
+      "name": "ClearMesh",
+      "description": "Remove all vertices and triangles",
       "category": "PBR (opt-in metallic-roughness)"
     },
     {
