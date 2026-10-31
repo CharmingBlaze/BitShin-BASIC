@@ -32,6 +32,11 @@ uniform float uGrain;
 uniform float uVignette;
 uniform float uCA;
 uniform float uSharpen;
+uniform vec2 uSrcSize;
+uniform float uRetroLevels;
+uniform float uRetroDither;
+uniform int uRetroPalN;
+uniform sampler2D uRetroPal;
 uniform int uLUTOn;
 uniform sampler3D uLUT;
 uniform float uLUTAmount;
@@ -162,6 +167,35 @@ vec3 applyLUT(vec3 c) {
 	return mix(c, texture(uLUT, uvw).rgb, uLUTAmount);
 }
 
+// bayer4 is the 4x4 ordered-dither threshold for a source pixel, 0..1.
+float bayer4(vec2 p) {
+	ivec2 i = ivec2(mod(p, 4.0));
+	int m[16] = int[16](0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5);
+	return (float(m[i.y * 4 + i.x]) + 0.5) / 16.0;
+}
+
+// retro bands colour into levels or snaps it to the palette, with an
+// ordered dither in source pixels so it stays crisp after the upscale.
+vec3 retro(vec3 c, vec2 uv) {
+	float b = bayer4(floor(uv * uSrcSize)) - 0.5;
+	c = clamp(c, 0.0, 1.0);
+	if (uRetroPalN > 0) {
+		c = clamp(c + b * uRetroDither * 0.25, 0.0, 1.0);
+		vec3 best = c;
+		float bestD = 1e9;
+		for (int i = 0; i < 256; i++) {
+			if (i >= uRetroPalN) { break; }
+			vec3 p = texelFetch(uRetroPal, ivec2(i, 0), 0).rgb;
+			vec3 d = (c - p) * vec3(0.30, 0.59, 0.11);
+			float dd = dot(d, d) + dot(c - p, c - p) * 0.25;
+			if (dd < bestD) { bestD = dd; best = p; }
+		}
+		return best;
+	}
+	float l = uRetroLevels - 1.0;
+	return clamp(floor(c * l + 0.5 + b * uRetroDither) / l, 0.0, 1.0);
+}
+
 float hash12(vec2 p) {
 	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
 	p3 += dot(p3, p3.yzx + 33.33);
@@ -243,6 +277,9 @@ void main() {
 	if (uGrain > 0.001) {
 		float n = hash12(vUV * vec2(1920.0, 1080.0) + uTime * 13.0) - 0.5;
 		rgb += n * uGrain;
+	}
+	if (uRetroPalN > 0 || uRetroLevels > 1.0) {
+		rgb = retro(rgb, vUV);
 	}
 	rgb += vec3(0.78, 0.84, 0.94) * rainStreaks(vUV);
 	frag = vec4(rgb, 1.0);

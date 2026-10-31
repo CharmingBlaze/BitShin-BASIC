@@ -1059,7 +1059,14 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 	}
 	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
 	if dw, dh := w.drawableSize(ww, hh); dw > 0 && dh > 0 {
-		gl.Viewport(0, 0, int32(dw), int32(dh))
+		x, y, vw, vh := w.retroViewport(dw, dh, ww, hh)
+		if vw != dw || vh != dh {
+			// Pixel-perfect: black bars around a whole-number scale.
+			gl.Viewport(0, 0, int32(dw), int32(dh))
+			gl.ClearColor(0, 0, 0, 1)
+			gl.Clear(gl.COLOR_BUFFER_BIT)
+		}
+		gl.Viewport(int32(x), int32(y), int32(vw), int32(vh))
 	}
 	gl.Disable(gl.DEPTH_TEST)
 	gl.Disable(gl.BLEND)
@@ -1136,10 +1143,15 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uCA\x00")), w.post.chroma)
 	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uSharpen\x00")), w.post.sharpen)
 	w.bindLUTAndOutline(w.post.prog)
+	w.bindRetroPost(w.post.prog, ww, hh)
+	gl.ActiveTexture(gl.TEXTURE0)
+	gl.BindTexture(gl.TEXTURE_2D, w.post.color)
+	w.setPostFilter()
 	gl.BindVertexArray(w.post.vao)
 	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
 	gl.BindVertexArray(0)
 	w.unbindLUTAndOutline()
+	w.unbindRetroPost()
 	for i := 0; i < len(w.post.bloomTex); i++ {
 		gl.ActiveTexture(gl.TEXTURE2 + uint32(i))
 		gl.BindTexture(gl.TEXTURE_2D, 0)

@@ -752,6 +752,9 @@ func (w *World) commandTable() map[string]cmd {
 	for k, v := range w.profilerCommands(n, z) {
 		m[k] = v
 	}
+	for k, v := range w.retroCommands(n, z) {
+		m[k] = v
+	}
 	for k, v := range w.screenshotCommands(n, z) {
 		m[k] = v
 	}

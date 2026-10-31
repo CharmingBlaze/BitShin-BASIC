@@ -269,6 +269,7 @@ type World struct {
 	tileClock                        float64 // seconds, for animated tiles
 	lit2                             *lighting2D
 	prof                             profiler
+	retro                            retroPost
 	nextCam2                         int
 	fonts                            map[int]*fontSlot
 	nextFont                         int
@@ -1250,11 +1251,20 @@ func (w *World) render(rend *renderer.Renderer) {
 	}
 	w.guiRestoreSceneGL()
 	w.stepProbeCapture(rend)
-	usedOffscreen := w.beginPostTarget(ww, hh)
+	// A retro resolution or render scale renders the scene smaller; the
+	// post pass scales it back up.
+	pw, ph := ww, hh
+	if w.post.on && w.retroOn() {
+		pw, ph = w.retroTarget(ww, hh)
+	}
+	usedOffscreen := w.beginPostTarget(pw, ph)
 	drainGL("render")
 	vw, vh := w.drawableSize(ww, hh)
 	if usedOffscreen {
-		vw, vh = ww, hh
+		vw, vh = pw, ph
+		if w.retro.lowW > 0 && w.cam != nil {
+			w.cam.SetAspect(w.retroAspect(ww, hh, pw, ph))
+		}
 	}
 	gl.Disable(gl.SCISSOR_TEST)
 	w.setViewport(0, 0, vw, vh)
@@ -1267,11 +1277,13 @@ func (w *World) render(rend *renderer.Renderer) {
 	if usedOffscreen {
 		hud = w.liftPanels()
 	}
+	w.bindRetroSampler()
 	w.renderSceneCams(rend, vw, vh)
+	w.unbindRetroSampler()
 	w.drawDebugOverlay(vw, vh)
 	fbw, fbh := w.drawableSize(ww, hh)
 	if usedOffscreen {
-		w.endPostTarget(w.app.Gls(), ww, hh)
+		w.endPostTarget(w.app.Gls(), pw, ph)
 		w.drawLiftedPanels(rend, hud, fbw, fbh)
 	}
 	w.drawHUDOverlay3D(fbw, fbh)
