@@ -1401,8 +1401,13 @@ ImGui panels use the existing `Gui*` commands. These query live numbers:
 | `StatsJobs()` / `GetStatsJobs()` | Job pool pending | `j = StatsJobs()` |
 | `EntityCount()` / `GetEntityCount()` | G3N entity handles | `n = EntityCount()` |
 | `EntityByIndex(i)` | 1-based id | `e = EntityByIndex(1)` |
-| `ReloadTexture(tex, file$)` | Swap image (GL thread) | `ReloadTexture(tex, "a.png")` |
-| `ReloadMesh(ent, file$)` | Load a new mesh, copy pose | `ReloadMesh(e, "tree.glb")` |
+| `ReloadTexture(tex [, file$])` | Decode the file again (or `file$`) into the same texture; every entity using it updates | `ReloadTexture(tex, "a.png")` |
+| `ReloadMesh(ent [, file$])` | No file: reload the entity's `LoadMesh` file in place, keeping handle, transform, children, colour, and texture. With a file: load a new mesh, copy pose, return it | `ReloadMesh(e)` |
+| `ReloadScripts [file$]` | Reparse the script and its includes and replace its functions | `ReloadScripts` |
+| `SetHotReload on` | Watch loaded textures, meshes, images, shader files, and the script; reload changed files between frames (about every 0.5 s). On by default under the IDE and `moon run -watch`, off in built games. Files in a pak are not watched; a failed load keeps the old asset | `SetHotReload True` |
+| `HotReloadEnabled()` | True while the watcher is on | `If HotReloadEnabled() Then ...` |
+| `OnAssetReloaded fn$` | Call `Function fn(path$)` after each hot reload; `""` clears | `OnAssetReloaded "Reloaded"` |
+| `AssetChanged(path$)` | True once after that file hot reloaded | `If AssetChanged("map.png") Then RebuildMap()` |
 
 See `examples/editor.mb`. Material sliders: `GuiSlider` + `EntityShininess` / `EntityColor` / `EntitySpecular`.
 

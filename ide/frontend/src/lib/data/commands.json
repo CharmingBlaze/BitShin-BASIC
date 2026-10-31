@@ -10550,15 +10550,45 @@
           "category": "Editor / stats"
         },
         {
-          "syntax": "ReloadTexture(tex, file$)",
+          "syntax": "ReloadTexture(tex [, file$])",
           "name": "ReloadTexture",
-          "description": "Swap image (GL thread)",
+          "description": "Decode the file again (or `file$`) into the same texture; every entity using it updates",
           "category": "Editor / stats"
         },
         {
-          "syntax": "ReloadMesh(ent, file$)",
+          "syntax": "ReloadMesh(ent [, file$])",
           "name": "ReloadMesh",
-          "description": "Load a new mesh, copy pose",
+          "description": "No file: reload the entity's `LoadMesh` file in place, keeping handle, transform, children, colour, and texture. With a file: load a new mesh, copy pose, return it",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "ReloadScripts [file$]",
+          "name": "ReloadScripts",
+          "description": "Reparse the script and its includes and replace its functions",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "SetHotReload on",
+          "name": "SetHotReload",
+          "description": "Watch loaded textures, meshes, images, shader files, and the script; reload changed files between frames (about every 0.5 s). On by default under the IDE and `moon run -watch`, off in built games. Files in a pak are not watched; a failed load keeps the old asset",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "HotReloadEnabled()",
+          "name": "HotReloadEnabled",
+          "description": "True while the watcher is on",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "OnAssetReloaded fn$",
+          "name": "OnAssetReloaded",
+          "description": "Call `Function fn(path$)` after each hot reload; `\"\"` clears",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "AssetChanged(path$)",
+          "name": "AssetChanged",
+          "description": "True once after that file hot reloaded",
           "category": "Editor / stats"
         },
         {
@@ -19705,15 +19735,45 @@
       "category": "Editor / stats"
     },
     {
-      "syntax": "ReloadTexture(tex, file$)",
+      "syntax": "ReloadTexture(tex [, file$])",
       "name": "ReloadTexture",
-      "description": "Swap image (GL thread)",
+      "description": "Decode the file again (or `file$`) into the same texture; every entity using it updates",
       "category": "Editor / stats"
     },
     {
-      "syntax": "ReloadMesh(ent, file$)",
+      "syntax": "ReloadMesh(ent [, file$])",
       "name": "ReloadMesh",
-      "description": "Load a new mesh, copy pose",
+      "description": "No file: reload the entity's `LoadMesh` file in place, keeping handle, transform, children, colour, and texture. With a file: load a new mesh, copy pose, return it",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "ReloadScripts [file$]",
+      "name": "ReloadScripts",
+      "description": "Reparse the script and its includes and replace its functions",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "SetHotReload on",
+      "name": "SetHotReload",
+      "description": "Watch loaded textures, meshes, images, shader files, and the script; reload changed files between frames (about every 0.5 s). On by default under the IDE and `moon run -watch`, off in built games. Files in a pak are not watched; a failed load keeps the old asset",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "HotReloadEnabled()",
+      "name": "HotReloadEnabled",
+      "description": "True while the watcher is on",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "OnAssetReloaded fn$",
+      "name": "OnAssetReloaded",
+      "description": "Call `Function fn(path$)` after each hot reload; `\"\"` clears",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "AssetChanged(path$)",
+      "name": "AssetChanged",
+      "description": "True once after that file hot reloaded",
       "category": "Editor / stats"
     },
     {

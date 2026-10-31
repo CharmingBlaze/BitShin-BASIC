@@ -128,6 +128,7 @@ type World struct {
 	lightEnv                         int // 0 unset, 1 outdoor sun+sky, 2 indoor practicals
 	timeOfDay                        float64
 	retro                            retroGeom // PS1-style geometry effects (retro_geom.go)
+	hot                              hotReload // asset watcher (hotreload.go)
 	ents                             map[int]*Entity
 	nextID                           int
 	title                            string
@@ -1065,6 +1066,7 @@ func (w *World) Loop(in *interp.Interp) error {
 		if !w.presentOK {
 			w.drainPhantomQuit()
 		}
+		w.pollHotReload()
 		if !first {
 			w.clearFrameText()
 			w.draws = w.draws[:0]

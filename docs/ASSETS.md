@@ -37,3 +37,19 @@ PNG, JPEG, BMP, TGA, WebP, and (static) GIF via `LoadTexture` / `LoadImage`, and
 - `SaveScene "level.scene.json"` / `LoadScene "level.scene.json" [, additive]` — scene format v2: stable uids, names, tags, materials, bodies, lights, cameras, environment, and prefab references with overrides. [SCENES.md](SCENES.md) is the reference.
 - `SceneSave` — the older runtime dump (primitive `kind`, `LoadMesh` `src`, parent, transform, tint, visibility, lights, cameras, controller and body velocities, joints). Good for save games.
 - `LoadScene "dump.json"` — rebuilds a `SceneSave` dump: tagged primitives, meshes from `src`, lights, camera frustum. Pre-1.0 dumps without `kind` still spawn cubes.
+
+## Hot reload
+
+While a game runs from the IDE (`MOON_IDE=1`) or with `moon run game.mb -watch`, the engine checks the files it loaded about twice a second, between frames, and reloads the ones that changed. Built and compiled games leave it off. `SetHotReload on` turns it on or off from the script, and `HotReloadEnabled()` reports it.
+
+| Asset | What reloads |
+| --- | --- |
+| `LoadTexture` | The image is decoded into the same texture, so every entity, material, and sprite using the handle shows it |
+| `LoadMesh` | The entity keeps its handle, transform, visibility, parent, child entities, colour, alpha, texture, and `SetShader` program. Other material settings come from the file again. Physics shapes and `LoadAnimMesh` entities are not rebuilt |
+| `LoadImage` | Redrawn in place; in 2D, a resized image is swapped into its sprites and emitters |
+| `LoadShader` / `CreateShader` with files | Both files are read and validated again; bound entities switch to the new program |
+| The script and its `Include` files | Functions are replaced, as `ReloadScripts` does. The main loop that is already running keeps going. Under the IDE the saved tab is watched, not the temp run copy |
+
+Each reload prints one line, such as `HotReload: texture gfx/crate.png`. A file that fails to load prints the error and the old asset stays, so the game keeps running; fix the file and save again. Files read from a pak (`OpenPak`) are not watched.
+
+`OnAssetReloaded "fn"` calls `Function fn(path$)` after each reload, and `AssetChanged(path$)` returns True once after that file reloaded, for state the script derives from an asset. `ReloadTexture(tex [, file$])`, `ReloadMesh(ent)`, and `ReloadScripts` do the same by hand.
