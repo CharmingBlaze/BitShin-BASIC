@@ -34,30 +34,30 @@ Coverage counts a partial item as half.
 | [1. Core engine architecture](#1-core-engine-architecture) | 11 | 15 | 1 | 69% |
 | [2. MoonBASIC programming language](#2-moonbasic-programming-language) | 46 | 20 | 14 | 70% |
 | [3. 2D graphics engine](#3-2d-graphics-engine) | 74 | 4 | 12 | 84% |
-| [4. 3D graphics engine](#4-3d-graphics-engine) | 106 | 16 | 16 | 83% |
+| [4. 3D graphics engine](#4-3d-graphics-engine) | 109 | 15 | 14 | 84% |
 | [5. Physics (Jolt)](#5-physics-jolt) | 45 | 8 | 3 | 88% |
 | [6. Terrain and world building](#6-terrain-and-world-building) | 36 | 9 | 5 | 81% |
 | [7. Water and environment](#7-water-and-environment) | 26 | 4 | 1 | 90% |
 | [8. Particles and visual effects](#8-particles-and-visual-effects) | 17 | 10 | 6 | 67% |
 | [9. Animation and skeletal systems](#9-animation-and-skeletal-systems) | 7 | 6 | 7 | 50% |
-| [10. Audio engine](#10-audio-engine) | 11 | 4 | 22 | 35% |
+| [10. Audio engine](#10-audio-engine) | 12 | 4 | 21 | 38% |
 | [11. UI engine](#11-ui-engine) | 17 | 4 | 17 | 50% |
 | [12. Navigation and AI](#12-navigation-and-ai) | 9 | 4 | 10 | 48% |
 | [13. Networking and multiplayer](#13-networking-and-multiplayer) | 9 | 4 | 6 | 58% |
 | [14. Input and controller system](#14-input-and-controller-system) | 21 | 5 | 6 | 73% |
 | [15. Rendering and graphics quality](#15-rendering-and-graphics-quality) | 33 | 5 | 7 | 79% |
-| [16. Assets and import pipeline](#16-assets-and-import-pipeline) | 20 | 10 | 27 | 44% |
+| [16. Assets and import pipeline](#16-assets-and-import-pipeline) | 29 | 8 | 20 | 58% |
 | [17. Scenes and prefabs](#17-scenes-and-prefabs) | 16 | 7 | 8 | 63% |
 | [18. Moon Studio (IDE / editor)](#18-moon-studio-ide--editor) | 34 | 12 | 35 | 49% |
-| [19. Shaders and visual programming](#19-shaders-and-visual-programming) | 7 | 3 | 3 | 65% |
+| [19. Shaders and visual programming](#19-shaders-and-visual-programming) | 8 | 3 | 2 | 73% |
 | [20. Development and debugging tools](#20-development-and-debugging-tools) | 33 | 8 | 5 | 80% |
-| [21. Optimization and performance](#21-optimization-and-performance) | 13 | 8 | 17 | 45% |
+| [21. Optimization and performance](#21-optimization-and-performance) | 14 | 8 | 16 | 47% |
 | [22. Graphics API and platform](#22-graphics-api-and-platform) | 11 | 3 | 4 | 69% |
 | [23. Build system and export](#23-build-system-and-export) | 11 | 8 | 13 | 47% |
 | [24. Project management](#24-project-management) | 4 | 3 | 4 | 50% |
 | [25. Documentation and community](#25-documentation-and-community) | 3 | 9 | 4 | 47% |
 | [26. Plugins and extensions](#26-plugins-and-extensions) | 0 | 3 | 12 | 10% |
-| **Total** | **620** | **192** | **265** | **66%** |
+| **Total** | **635** | **189** | **253** | **68%** |
 
 **Strongest:** water and environment, the 2D and 3D engines, terrain, physics, and input. **Weakest:** plugins, optimization tooling, audio, and build/export polish.
 
@@ -265,7 +265,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] Native compilation — `moon compile` transpiles to Go and builds a native binary
 - [x] Runtime errors with source line numbers — interp errors formatted `line %d:%d`
 - [x] Debugger integration — `moon run -debug -break`, interp/debug.go step/continue/print
-- [x] Hot reload — `reloadscripts` reparses and reloads the running script
+- [x] Hot reload — saved scripts and includes reload by themselves under `moon run -watch` and the IDE; `ReloadScripts` by hand
 - [x] Code completion — internal/lsp completion/hover/definition (`moon lsp`)
 - [x] Syntax highlighting — editors/vscode/syntaxes/moonbasic.tmLanguage.json
 - [ ] Documentation comments — Missing
@@ -835,7 +835,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [ ] Compressor — Missing
 - [ ] Limiter — Missing (only clamp16 sample clipping)
 - [ ] Audio visualization — Missing
-- [ ] Music streaming — Missing (`loadmusic` decodes whole file to PCM)
+- [x] Music streaming — `LoadMusic` streams OGG/MP3/FLAC/WAV from disk or pak
 - [ ] Sound event editor — Missing
 - [ ] Audio import settings — Missing
 - Also: procedural clips (engine loop, thunder, footsteps, cloth) in internal/audio; `setmusicvolume`.
@@ -1040,8 +1040,8 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] GLB — `LoadMesh`/`LoadAnimMesh` .glb
 - [x] OBJ — `LoadMesh` .obj + .mtl
 - [x] FBX — fbx.go, fbx_skin.go (mesh + skin clusters)
-- [ ] STL — Missing
-- [ ] PLY — Missing
+- [x] STL — ASCII and binary, `LoadMesh`
+- [x] PLY — ASCII and binary little-endian, normals, UVs, vertex colours
 - [x] Collada — `LoadMesh` .dae
 - [x] Static meshes — `LoadMesh`, `LoadLevel`
 - [x] Skeletal meshes — `LoadAnimMesh` glTF skins, FBX skin clusters
@@ -1055,9 +1055,9 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 #### 16.2 2D formats
 - [x] PNG — `LoadTexture`, `LoadImage`
 - [x] JPG / JPEG — `LoadTexture`, `LoadImage`
-- [ ] BMP — Missing (no decoder registered)
-- [ ] TGA — Missing (listed in AssetBrowser, no decoder)
-- [ ] WebP — Missing
+- [x] BMP — `internal/imgfmt` (x/image)
+- [x] TGA — own decoder: raw and RLE, truecolour, greyscale, colour-mapped
+- [x] WebP — `internal/imgfmt` (x/image)
 - [ ] SVG — Missing
 - [ ] GIF — **Partial:** static decode via image/gif; no animated GIF
 - [x] Sprite sheets — `SetSpriteSheet`, `SetSpriteFrame`, `AnimateSprite`
@@ -1069,8 +1069,8 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 #### 16.3 Audio formats
 - [x] WAV — `LoadSound`/`LoadMusic` (internal/audio)
 - [x] OGG — `LoadSound`/`LoadMusic` vorbis
-- [ ] MP3 — Missing
-- [ ] FLAC — Missing
+- [x] MP3 — `LoadSound`/`LoadMusic` (go-mp3)
+- [x] FLAC — `LoadSound`/`LoadMusic` (mewkiz/flac)
 - [ ] MIDI — Missing
 
 #### 16.4 Pipeline
@@ -1088,7 +1088,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [ ] Asset versioning — Missing
 - [ ] Asset caching — Missing
 - [ ] Incremental importing — Missing
-- [ ] Hot reloading — **Partial:** `ReloadScripts`, `ReloadTexture`/`ReloadMesh` (manual); no file watcher
+- [x] Hot reloading — file watcher (`SetHotReload`, `moon run -watch`, on in the IDE): textures, meshes, images, shaders, scripts; `OnAssetReloaded`. Not sounds, fonts, or animated meshes
 - [ ] Asset preview — **Partial:** IDE AssetBrowser.svelte lists by type with load snippet; no thumbnails
 - [ ] Duplicate detection — Missing
 - [ ] Missing asset detection — **Partial:** load errors at runtime; `moon build` silently skips missing
@@ -1098,7 +1098,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] Compressed GPU-ready textures — DDS/KTX S3TC stay compressed on GPU (compressed_tex.go)
 - [ ] Binary optimized meshes — Missing (GLB only)
 - [ ] Packed animation data — Missing
-- [ ] Streaming / decoded audio — **Partial:** WAV/OGG fully decoded to PCM; no streaming
+- [x] Streaming / decoded audio — music streams; sounds are decoded to PCM for instant playback
 - [x] Serialized scene format — scene format v2 `.scene.json` (`SaveScene`/`LoadScene`, scene_v2.go, docs/SCENES.md): stable uids, tags, materials, bodies, lights, cameras, environment, prefab references with overrides; `SceneSave` runtime dumps still load
 - [ ] Compiled materials — Missing
 - [ ] Cached compiled shaders — Missing
@@ -1260,7 +1260,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] Shader uniforms — `SetShaderUniform`, `CreateUniformBuffer`
 - [x] Shader variants — G3N `ShaderDefines` per program spec
 - [ ] Shader caching — **Partial:** in-memory G3N programs / no binary disk cache
-- [ ] Shader hot reload — Missing
+- [x] Shader hot reload — `LoadShader` files reload when saved; a failed compile keeps the old program
 - [x] Shader debugging — `ShaderLog`, `ShaderOK`, `CompileShader` (glslang validate)
 - [ ] Shader templates — **Partial:** default vert/frag when args empty (user_shader.go)
 
@@ -1363,7 +1363,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [ ] Memory budgets — Missing
 - [ ] Texture memory management — Missing
 - [ ] Mesh memory management — Missing
-- [ ] Audio streaming — Missing (full PCM decode)
+- [x] Audio streaming — `LoadMusic` streams; sounds stay decoded
 - [x] Scene unloading — `ClearWorld`, `UnloadChunk`, `FreeEntity`
 - [ ] Leak detection — Missing
 - [ ] Memory diagnostics — **Partial:** `StatsMemoryMB`, `StatsAllocKB`; no per-asset breakdown

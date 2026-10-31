@@ -305,7 +305,7 @@
         {
           "syntax": "LoadMesh file$ [, parent]",
           "name": "LoadMesh",
-          "description": "`.obj`, `.gltf`, `.glb`, `.dae`, `.fbx` (triangles only)",
+          "description": "`.obj`, `.gltf`, `.glb`, `.dae`, `.fbx` (triangles only), `.stl`, `.ply`",
           "category": "3D scene (G3N)"
         },
         {
@@ -11457,7 +11457,7 @@
     {
       "syntax": "LoadMesh file$ [, parent]",
       "name": "LoadMesh",
-      "description": "`.obj`, `.gltf`, `.glb`, `.dae`, `.fbx` (triangles only)",
+      "description": "`.obj`, `.gltf`, `.glb`, `.dae`, `.fbx` (triangles only), `.stl`, `.ply`",
       "category": "3D scene (G3N)"
     },
     {
