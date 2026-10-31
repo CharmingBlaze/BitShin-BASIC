@@ -6,7 +6,9 @@ import (
 	"strings"
 
 	"github.com/g3n/engine/camera"
+	"github.com/g3n/engine/core"
 	"github.com/g3n/engine/gls"
+	"github.com/g3n/engine/gui"
 	"github.com/g3n/engine/math32"
 	"github.com/g3n/engine/renderer"
 	"github.com/go-gl/gl/v3.3-core/gl"
@@ -1151,6 +1153,56 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 // ImGui and the shadow depth pass bind other programs, but G3N's shader
 // manager still thinks the lit program is current and skips the bind.
 // The depth program writes no color, so the window stays the clear color.
+// liftPanels takes the scene's top-level GUI panels (Text, HudPrint labels)
+// out for the post pass, so tonemap, bloom, and FXAA do not grey and blur
+// them. drawLiftedPanels puts them back after the blit.
+func (w *World) liftPanels() *core.Node {
+	if w.scene == nil {
+		return nil
+	}
+	var hud *core.Node
+	// Remove shifts the child slice, so walk a copy.
+	for _, c := range append([]core.INode(nil), w.scene.Children()...) {
+		if _, ok := c.(gui.IPanel); !ok {
+			continue
+		}
+		if hud == nil {
+			hud = core.NewNode()
+		}
+		w.scene.Remove(c)
+		hud.Add(c)
+	}
+	return hud
+}
+
+func (w *World) drawLiftedPanels(rend *renderer.Renderer, hud *core.Node, ww, hh int) {
+	if hud == nil {
+		return
+	}
+	cam := w.cam
+	for _, e := range w.ents {
+		if cam != nil {
+			break
+		}
+		cam = e.cam
+	}
+	if cam != nil && rend != nil {
+		// The blit's raw GL calls leave G3N's state cache stale; without
+		// this the labels draw with blending off, on black boxes.
+		w.guiRestoreSceneGL()
+		bindColorTarget(0)
+		gl.Viewport(0, 0, int32(ww), int32(hh))
+		gl.Clear(gl.DEPTH_BUFFER_BIT)
+		if err := rend.Render(hud, cam); err != nil {
+			fmt.Println("RenderWorld:", err)
+		}
+	}
+	for _, c := range append([]core.INode(nil), hud.Children()...) {
+		hud.Remove(c)
+		w.scene.Add(c)
+	}
+}
+
 func rearmSceneProgram(rend *renderer.Renderer) {
 	if rend == nil {
 		return

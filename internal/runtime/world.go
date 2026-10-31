@@ -707,6 +707,7 @@ func (w *World) graphics3D(width, height, depth, mode int) (value.Value, error) 
 	w.loopFrames = 0
 	w.app.beforeDestroy = w.destroyExtraWindows
 	w.detectModernGL()
+	w.defaultQuality()
 	_ = depth
 	// Blitz3D-style: shadows are on after Graphics3D. Authors call EnableShadows False.
 	w.ensureShadowOn()
@@ -1225,10 +1226,15 @@ func (w *World) render(rend *renderer.Renderer) {
 	}
 	w.app.Gls().ClearColor(cr, cg, cb, 1)
 	w.app.Gls().Clear(gls.DEPTH_BUFFER_BIT | gls.STENCIL_BUFFER_BIT | gls.COLOR_BUFFER_BIT)
+	var hud *core.Node
+	if usedOffscreen {
+		hud = w.liftPanels()
+	}
 	w.renderSceneCams(rend, vw, vh)
 	fbw, fbh := w.drawableSize(ww, hh)
 	if usedOffscreen {
 		w.endPostTarget(w.app.Gls(), ww, hh)
+		w.drawLiftedPanels(rend, hud, fbw, fbh)
 	}
 	w.drawHUDOverlay3D(fbw, fbh)
 	w.guiPresent()

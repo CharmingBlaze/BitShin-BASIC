@@ -189,6 +189,21 @@ func (w *World) waterTargets() (reflect, refract int) {
 	return s.reflect, s.refract
 }
 
+// defaultQuality gives a script that never calls SetGraphicsQuality the auto
+// tier, so tonemap, bloom, AO, and AA are on without asking. It runs inside
+// Graphics3D, before the script's own setup, so anything the script sets
+// afterwards still wins.
+func (w *World) defaultQuality() {
+	if w.quality.set {
+		return
+	}
+	tier := autoTier(w.glmod.caps.renderer)
+	w.quality.auto = true
+	w.quality.warm, w.quality.acc, w.quality.frames = 0, 0, 0
+	w.setQuality(tier)
+	fmt.Printf("quality: %s (default auto, %s)\n", qualityNames[tier], w.glmod.caps.renderer)
+}
+
 // tickQuality steps an auto tier down while frames stay slow. It never
 // steps up, so a busy moment cannot make the picture flicker between tiers.
 func (w *World) tickQuality() {
