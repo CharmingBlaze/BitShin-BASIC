@@ -7,13 +7,14 @@ import "github.com/jakecoffman/cp/v2"
 // go-zero/go-chipmunk is abandoned (2015); ByteArena/box2d is frozen at 2017;
 // CGO Box2D bindings add Windows compiler pain. cp is the maintained game-oriented pick.
 type Space struct {
-	sp     *cp.Space
-	body   map[int]*cp.Body
-	size   map[int][2]float64
-	hits   map[int][]int
-	joint  map[int]*cp.Constraint
-	nextJ  int
-	ready  bool
+	sp    *cp.Space
+	body  map[int]*cp.Body
+	size  map[int][2]float64
+	hits  map[int][]int
+	joint map[int]*cp.Constraint
+	nextJ int
+	ready bool
+	ext   extras
 }
 
 func New() *Space {
@@ -28,6 +29,7 @@ func New() *Space {
 		joint: map[int]*cp.Constraint{},
 		nextJ: 1,
 		ready: true,
+		ext:   newExtras(),
 	}
 }
 
@@ -39,6 +41,7 @@ func (s *Space) Step(dt float64) {
 	}
 	s.sp.Step(dt)
 	s.collectHits()
+	s.updateSensors()
 }
 
 func (s *Space) SetGravity(x, y float64) {
@@ -60,6 +63,7 @@ func (s *Space) AddCircle(id int, x, y, radius, mass float64, dynamic bool) {
 	s.sp.AddShape(sh)
 	s.body[id] = b
 	s.size[id] = [2]float64{radius * 2, radius * 2}
+	s.track(id, mass, func(m float64) float64 { return cp.MomentForCircle(m, 0, radius, cp.Vector{}) })
 }
 
 func (s *Space) AddBox(id int, x, y, w, h, mass float64, dynamic bool) {
@@ -77,6 +81,7 @@ func (s *Space) AddBox(id int, x, y, w, h, mass float64, dynamic bool) {
 	s.sp.AddShape(sh)
 	s.body[id] = b
 	s.size[id] = [2]float64{w, h}
+	s.track(id, mass, func(m float64) float64 { return cp.MomentForBox(m, w, h) })
 }
 
 func (s *Space) SetPosition(id int, x, y float64) {
@@ -129,10 +134,17 @@ func (s *Space) Remove(id int) {
 				s.RemoveJoint(jid)
 			}
 		}
+		// Chipmunk leaves a removed body's shapes in the space; drop them first.
+		var shapes []*cp.Shape
+		b.EachShape(func(sh *cp.Shape) { shapes = append(shapes, sh) })
+		for _, sh := range shapes {
+			s.sp.RemoveShape(sh)
+		}
 		s.sp.RemoveBody(b)
 		delete(s.body, id)
 		delete(s.size, id)
 		delete(s.hits, id)
+		s.forget(id)
 	}
 }
 
@@ -224,14 +236,19 @@ func (s *Space) SetStatic(id int, stat bool) {
 		if stat {
 			b.SetType(cp.BODY_STATIC)
 		} else {
-			b.SetType(cp.BODY_DYNAMIC)
+			s.makeDynamic(id, b)
 		}
 	}
 }
 
 func (s *Space) SetMass(id int, mass float64) {
 	if b := s.body[id]; b != nil && mass > 0 {
-		b.SetMass(mass)
+		if b.GetType() == cp.BODY_DYNAMIC {
+			b.SetMass(mass)
+		}
+		if m := s.ext.mass[id]; m.moment != nil {
+			s.ext.mass[id] = massInfo{mass, m.moment}
+		}
 	}
 }
 
@@ -290,6 +307,7 @@ func (s *Space) AddPoly(id int, x, y float64, verts [][2]float64, mass float64, 
 	s.sp.AddShape(sh)
 	s.body[id] = b
 	s.size[id] = [2]float64{maxX - minX, maxY - minY}
+	s.track(id, mass, func(m float64) float64 { return cp.MomentForPoly(m, len(cv), cv, cp.Vector{}, 0) })
 }
 
 func (s *Space) SetCCD(on bool) {
@@ -339,6 +357,9 @@ func (s *Space) collectHits() {
 			bw, bh := s.size[ids[j]][0], s.size[ids[j]][1]
 			if bw <= 0 {
 				bw, bh = 2, 2
+			}
+			if s.ext.layersOn && !s.layersMeet(ids[i], ids[j]) {
+				continue
 			}
 			if ax-aw/2 < bx+bw/2 && ax+aw/2 > bx-bw/2 && ay-ah/2 < by+bh/2 && ay+ah/2 > by-bh/2 {
 				s.hits[ids[i]] = append(s.hits[ids[i]], ids[j])

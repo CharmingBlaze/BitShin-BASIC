@@ -4668,6 +4668,330 @@
           "name": "FreeJoint2D",
           "description": "",
           "category": "Physics"
+        },
+        {
+          "syntax": "SetKinematic2D body [, on]",
+          "name": "SetKinematic2D",
+          "description": "kinematic: moved only by its velocity (`SetVelocity2D`) or position, pushes dynamic bodies, ignores gravity and forces; `0` makes it dynamic again with its old mass. `IsKinematic2D(body)`. A dynamic flag of `2` on `CreateBox2D` / `CreateCircle2D` / `CreateCapsule2D` creates it kinematic. Move platforms by velocity so riders are carried",
+          "category": "Physics"
+        },
+        {
+          "syntax": "SetVelocity2D",
+          "name": "SetVelocity2D",
+          "description": "kinematic: moved only by its velocity (`SetVelocity2D`) or position, pushes dynamic bodies, ignores gravity and forces; `0` makes it dynamic again with its old mass. `IsKinematic2D(body)`. A dynamic flag of `2` on `CreateBox2D` / `CreateCircle2D` / `CreateCapsule2D` creates it kinematic. Move platforms by velocity so riders are carried",
+          "category": "Physics"
+        },
+        {
+          "syntax": "IsKinematic2D(body)",
+          "name": "IsKinematic2D",
+          "description": "kinematic: moved only by its velocity (`SetVelocity2D`) or position, pushes dynamic bodies, ignores gravity and forces; `0` makes it dynamic again with its old mass. `IsKinematic2D(body)`. A dynamic flag of `2` on `CreateBox2D` / `CreateCircle2D` / `CreateCapsule2D` creates it kinematic. Move platforms by velocity so riders are carried",
+          "category": "Physics"
+        },
+        {
+          "syntax": "CreateBox2D",
+          "name": "CreateBox2D",
+          "description": "kinematic: moved only by its velocity (`SetVelocity2D`) or position, pushes dynamic bodies, ignores gravity and forces; `0` makes it dynamic again with its old mass. `IsKinematic2D(body)`. A dynamic flag of `2` on `CreateBox2D` / `CreateCircle2D` / `CreateCapsule2D` creates it kinematic. Move platforms by velocity so riders are carried",
+          "category": "Physics"
+        },
+        {
+          "syntax": "CreateCircle2D",
+          "name": "CreateCircle2D",
+          "description": "kinematic: moved only by its velocity (`SetVelocity2D`) or position, pushes dynamic bodies, ignores gravity and forces; `0` makes it dynamic again with its old mass. `IsKinematic2D(body)`. A dynamic flag of `2` on `CreateBox2D` / `CreateCircle2D` / `CreateCapsule2D` creates it kinematic. Move platforms by velocity so riders are carried",
+          "category": "Physics"
+        },
+        {
+          "syntax": "CreateCapsule2D",
+          "name": "CreateCapsule2D",
+          "description": "kinematic: moved only by its velocity (`SetVelocity2D`) or position, pushes dynamic bodies, ignores gravity and forces; `0` makes it dynamic again with its old mass. `IsKinematic2D(body)`. A dynamic flag of `2` on `CreateBox2D` / `CreateCircle2D` / `CreateCapsule2D` creates it kinematic. Move platforms by velocity so riders are carried",
+          "category": "Physics"
+        },
+        {
+          "syntax": "CreateCapsule2D(body, w, h [, mass, dynamic])",
+          "name": "CreateCapsule2D",
+          "description": "Chipmunk segment with a radius; the long axis follows the larger of `w`/`h`. `FreeBody2D body` removes any 2D body",
+          "category": "Physics"
+        },
+        {
+          "syntax": "FreeBody2D body",
+          "name": "FreeBody2D",
+          "description": "Chipmunk segment with a radius; the long axis follows the larger of `w`/`h`. `FreeBody2D body` removes any 2D body",
+          "category": "Physics"
+        },
+        {
+          "syntax": "SetCollisionLayer2D body, layer",
+          "name": "SetCollisionLayer2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "GetCollisionLayer2D(body)",
+          "name": "GetCollisionLayer2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "SetLayerCollides2D a, b [, on]",
+          "name": "SetLayerCollides2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "SetCollisionMask2D body, mask",
+          "name": "SetCollisionMask2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "Collides2D",
+          "name": "Collides2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "SetSensor2D body [, on]",
+          "name": "SetSensor2D",
+          "description": "overlaps only, no push. After each `UpdateWorld`: `SensorCount2D(sensor)` (also `TriggerOverlaps2D`), `SensorBody2D(sensor, i)` (i from 1, id order), `SensorOverlaps2D(sensor, body)` (also `CheckTrigger2D`), `SensorEntered2D(sensor [, body])` / `SensorExited2D(sensor [, body])` — 1/0 for that body, or the first body that came in / left this step. Static bodies are not reported",
+          "category": "Physics"
+        },
+        {
+          "syntax": "SetTrigger2D",
+          "name": "SetTrigger2D",
+          "description": "overlaps only, no push. After each `UpdateWorld`: `SensorCount2D(sensor)` (also `TriggerOverlaps2D`), `SensorBody2D(sensor, i)` (i from 1, id order), `SensorOverlaps2D(sensor, body)` (also `CheckTrigger2D`), `SensorEntered2D(sensor [, body])` / `SensorExited2D(sensor [, body])` — 1/0 for that body, or the first body that came in / left this step. Static bodies are not reported",
+          "category": "Physics"
+        },
+        {
+          "syntax": "SetBodySensor2D",
+          "name": "SetBodySensor2D",
+          "description": "overlaps only, no push. After each `UpdateWorld`: `SensorCount2D(sensor)` (also `TriggerOverlaps2D`), `SensorBody2D(sensor, i)` (i from 1, id order), `SensorOverlaps2D(sensor, body)` (also `CheckTrigger2D`), `SensorEntered2D(sensor [, body])` / `SensorExited2D(sensor [, body])` — 1/0 for that body, or the first body that came in / left this step. Static bodies are not reported",
+          "category": "Physics"
+        },
+        {
+          "syntax": "UpdateWorld",
+          "name": "UpdateWorld",
+          "description": "overlaps only, no push. After each `UpdateWorld`: `SensorCount2D(sensor)` (also `TriggerOverlaps2D`), `SensorBody2D(sensor, i)` (i from 1, id order), `SensorOverlaps2D(sensor, body)` (also `CheckTrigger2D`), `SensorEntered2D(sensor [, body])` / `SensorExited2D(sensor [, body])` — 1/0 for that body, or the first body that came in / left this step. Static bodies are not reported",
+          "category": "Physics"
+        },
+        {
+          "syntax": "SensorCount2D(sensor)",
+          "name": "SensorCount2D",
+          "description": "overlaps only, no push. After each `UpdateWorld`: `SensorCount2D(sensor)` (also `TriggerOverlaps2D`), `SensorBody2D(sensor, i)` (i from 1, id order), `SensorOverlaps2D(sensor, body)` (also `CheckTrigger2D`), `SensorEntered2D(sensor [, body])` / `SensorExited2D(sensor [, body])` — 1/0 for that body, or the first body that came in / left this step. Static bodies are not reported",
+          "category": "Physics"
+        },
+        {
+          "syntax": "TriggerOverlaps2D",
+          "name": "TriggerOverlaps2D",
+          "description": "overlaps only, no push. After each `UpdateWorld`: `SensorCount2D(sensor)` (also `TriggerOverlaps2D`), `SensorBody2D(sensor, i)` (i from 1, id order), `SensorOverlaps2D(sensor, body)` (also `CheckTrigger2D`), `SensorEntered2D(sensor [, body])` / `SensorExited2D(sensor [, body])` — 1/0 for that body, or the first body that came in / left this step. Static bodies are not reported",
+          "category": "Physics"
+        },
+        {
+          "syntax": "SensorBody2D(sensor, i)",
+          "name": "SensorBody2D",
+          "description": "overlaps only, no push. After each `UpdateWorld`: `SensorCount2D(sensor)` (also `TriggerOverlaps2D`), `SensorBody2D(sensor, i)` (i from 1, id order), `SensorOverlaps2D(sensor, body)` (also `CheckTrigger2D`), `SensorEntered2D(sensor [, body])` / `SensorExited2D(sensor [, body])` — 1/0 for that body, or the first body that came in / left this step. Static bodies are not reported",
+          "category": "Physics"
+        },
+        {
+          "syntax": "SensorOverlaps2D(sensor, body)",
+          "name": "SensorOverlaps2D",
+          "description": "overlaps only, no push. After each `UpdateWorld`: `SensorCount2D(sensor)` (also `TriggerOverlaps2D`), `SensorBody2D(sensor, i)` (i from 1, id order), `SensorOverlaps2D(sensor, body)` (also `CheckTrigger2D`), `SensorEntered2D(sensor [, body])` / `SensorExited2D(sensor [, body])` — 1/0 for that body, or the first body that came in / left this step. Static bodies are not reported",
+          "category": "Physics"
+        },
+        {
+          "syntax": "CheckTrigger2D",
+          "name": "CheckTrigger2D",
+          "description": "overlaps only, no push. After each `UpdateWorld`: `SensorCount2D(sensor)` (also `TriggerOverlaps2D`), `SensorBody2D(sensor, i)` (i from 1, id order), `SensorOverlaps2D(sensor, body)` (also `CheckTrigger2D`), `SensorEntered2D(sensor [, body])` / `SensorExited2D(sensor [, body])` — 1/0 for that body, or the first body that came in / left this step. Static bodies are not reported",
+          "category": "Physics"
+        },
+        {
+          "syntax": "SensorEntered2D(sensor [, body])",
+          "name": "SensorEntered2D",
+          "description": "overlaps only, no push. After each `UpdateWorld`: `SensorCount2D(sensor)` (also `TriggerOverlaps2D`), `SensorBody2D(sensor, i)` (i from 1, id order), `SensorOverlaps2D(sensor, body)` (also `CheckTrigger2D`), `SensorEntered2D(sensor [, body])` / `SensorExited2D(sensor [, body])` — 1/0 for that body, or the first body that came in / left this step. Static bodies are not reported",
+          "category": "Physics"
+        },
+        {
+          "syntax": "SensorExited2D(sensor [, body])",
+          "name": "SensorExited2D",
+          "description": "overlaps only, no push. After each `UpdateWorld`: `SensorCount2D(sensor)` (also `TriggerOverlaps2D`), `SensorBody2D(sensor, i)` (i from 1, id order), `SensorOverlaps2D(sensor, body)` (also `CheckTrigger2D`), `SensorEntered2D(sensor [, body])` / `SensorExited2D(sensor [, body])` — 1/0 for that body, or the first body that came in / left this step. Static bodies are not reported",
+          "category": "Physics"
+        },
+        {
+          "syntax": "SetOneWay2D body [, on]",
+          "name": "SetOneWay2D",
+          "description": "one-way platform: bodies pass up through it and land on top (up is against gravity)",
+          "category": "Physics"
+        },
+        {
+          "syntax": "ShapeCast2D(x1,y1, x2,y2, w [, h, ignore])",
+          "name": "ShapeCast2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "BoxCast2D",
+          "name": "BoxCast2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "CircleCast2D(x1,y1, x2,y2, r [, ignore])",
+          "name": "CircleCast2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "PickedEntity",
+          "name": "PickedEntity",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "PickedX/Y",
+          "name": "PickedX",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "CastHit2D()",
+          "name": "CastHit2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "CastBody2D()",
+          "name": "CastBody2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "CastX2D()",
+          "name": "CastX2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "CastY2D()",
+          "name": "CastY2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "CastNormalX2D()",
+          "name": "CastNormalX2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "CastNormalY2D()",
+          "name": "CastNormalY2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "CastFraction2D()",
+          "name": "CastFraction2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "Raycast2D",
+          "name": "Raycast2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "CreateCharacter2D(x, y, w, h)",
+          "name": "CreateCharacter2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "CreateCharacter2D(sprite, w, h)",
+          "name": "CreateCharacter2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "MoveCharacter2D ch, dx",
+          "name": "MoveCharacter2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "JumpCharacter2D ch",
+          "name": "JumpCharacter2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "CharacterOnGround2D(ch)",
+          "name": "CharacterOnGround2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "CharacterGroundBody2D(ch)",
+          "name": "CharacterGroundBody2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "SetCharacterSpeed2D",
+          "name": "SetCharacterSpeed2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "SetCharacterJump2D",
+          "name": "SetCharacterJump2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "SetCharacterGravity2D",
+          "name": "SetCharacterGravity2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "SetCharacterAirControl2D",
+          "name": "SetCharacterAirControl2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "SetCharacterCoyote2D",
+          "name": "SetCharacterCoyote2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "SetCharacterJumpBuffer2D",
+          "name": "SetCharacterJumpBuffer2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "SetCharacterMaxSlope2D",
+          "name": "SetCharacterMaxSlope2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "BodyX2D(body)",
+          "name": "BodyX2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "BodyY2D(body)",
+          "name": "BodyY2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "FreeCharacter2D ch",
+          "name": "FreeCharacter2D",
+          "description": "",
+          "category": "Physics"
         }
       ]
     },
@@ -13871,6 +14195,270 @@
     {
       "syntax": "FreeJoint2D id",
       "name": "FreeJoint2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "SetKinematic2D body [, on]",
+      "name": "SetKinematic2D",
+      "description": "kinematic: moved only by its velocity (`SetVelocity2D`) or position, pushes dynamic bodies, ignores gravity and forces; `0` makes it dynamic again with its old mass. `IsKinematic2D(body)`. A dynamic flag of `2` on `CreateBox2D` / `CreateCircle2D` / `CreateCapsule2D` creates it kinematic. Move platforms by velocity so riders are carried",
+      "category": "Physics"
+    },
+    {
+      "syntax": "IsKinematic2D(body)",
+      "name": "IsKinematic2D",
+      "description": "kinematic: moved only by its velocity (`SetVelocity2D`) or position, pushes dynamic bodies, ignores gravity and forces; `0` makes it dynamic again with its old mass. `IsKinematic2D(body)`. A dynamic flag of `2` on `CreateBox2D` / `CreateCircle2D` / `CreateCapsule2D` creates it kinematic. Move platforms by velocity so riders are carried",
+      "category": "Physics"
+    },
+    {
+      "syntax": "CreateCapsule2D",
+      "name": "CreateCapsule2D",
+      "description": "kinematic: moved only by its velocity (`SetVelocity2D`) or position, pushes dynamic bodies, ignores gravity and forces; `0` makes it dynamic again with its old mass. `IsKinematic2D(body)`. A dynamic flag of `2` on `CreateBox2D` / `CreateCircle2D` / `CreateCapsule2D` creates it kinematic. Move platforms by velocity so riders are carried",
+      "category": "Physics"
+    },
+    {
+      "syntax": "FreeBody2D body",
+      "name": "FreeBody2D",
+      "description": "Chipmunk segment with a radius; the long axis follows the larger of `w`/`h`. `FreeBody2D body` removes any 2D body",
+      "category": "Physics"
+    },
+    {
+      "syntax": "SetCollisionLayer2D body, layer",
+      "name": "SetCollisionLayer2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "GetCollisionLayer2D(body)",
+      "name": "GetCollisionLayer2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "SetLayerCollides2D a, b [, on]",
+      "name": "SetLayerCollides2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "SetCollisionMask2D body, mask",
+      "name": "SetCollisionMask2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "SetSensor2D body [, on]",
+      "name": "SetSensor2D",
+      "description": "overlaps only, no push. After each `UpdateWorld`: `SensorCount2D(sensor)` (also `TriggerOverlaps2D`), `SensorBody2D(sensor, i)` (i from 1, id order), `SensorOverlaps2D(sensor, body)` (also `CheckTrigger2D`), `SensorEntered2D(sensor [, body])` / `SensorExited2D(sensor [, body])` — 1/0 for that body, or the first body that came in / left this step. Static bodies are not reported",
+      "category": "Physics"
+    },
+    {
+      "syntax": "SetTrigger2D",
+      "name": "SetTrigger2D",
+      "description": "overlaps only, no push. After each `UpdateWorld`: `SensorCount2D(sensor)` (also `TriggerOverlaps2D`), `SensorBody2D(sensor, i)` (i from 1, id order), `SensorOverlaps2D(sensor, body)` (also `CheckTrigger2D`), `SensorEntered2D(sensor [, body])` / `SensorExited2D(sensor [, body])` — 1/0 for that body, or the first body that came in / left this step. Static bodies are not reported",
+      "category": "Physics"
+    },
+    {
+      "syntax": "SetBodySensor2D",
+      "name": "SetBodySensor2D",
+      "description": "overlaps only, no push. After each `UpdateWorld`: `SensorCount2D(sensor)` (also `TriggerOverlaps2D`), `SensorBody2D(sensor, i)` (i from 1, id order), `SensorOverlaps2D(sensor, body)` (also `CheckTrigger2D`), `SensorEntered2D(sensor [, body])` / `SensorExited2D(sensor [, body])` — 1/0 for that body, or the first body that came in / left this step. Static bodies are not reported",
+      "category": "Physics"
+    },
+    {
+      "syntax": "SensorCount2D(sensor)",
+      "name": "SensorCount2D",
+      "description": "overlaps only, no push. After each `UpdateWorld`: `SensorCount2D(sensor)` (also `TriggerOverlaps2D`), `SensorBody2D(sensor, i)` (i from 1, id order), `SensorOverlaps2D(sensor, body)` (also `CheckTrigger2D`), `SensorEntered2D(sensor [, body])` / `SensorExited2D(sensor [, body])` — 1/0 for that body, or the first body that came in / left this step. Static bodies are not reported",
+      "category": "Physics"
+    },
+    {
+      "syntax": "TriggerOverlaps2D",
+      "name": "TriggerOverlaps2D",
+      "description": "overlaps only, no push. After each `UpdateWorld`: `SensorCount2D(sensor)` (also `TriggerOverlaps2D`), `SensorBody2D(sensor, i)` (i from 1, id order), `SensorOverlaps2D(sensor, body)` (also `CheckTrigger2D`), `SensorEntered2D(sensor [, body])` / `SensorExited2D(sensor [, body])` — 1/0 for that body, or the first body that came in / left this step. Static bodies are not reported",
+      "category": "Physics"
+    },
+    {
+      "syntax": "SensorBody2D(sensor, i)",
+      "name": "SensorBody2D",
+      "description": "overlaps only, no push. After each `UpdateWorld`: `SensorCount2D(sensor)` (also `TriggerOverlaps2D`), `SensorBody2D(sensor, i)` (i from 1, id order), `SensorOverlaps2D(sensor, body)` (also `CheckTrigger2D`), `SensorEntered2D(sensor [, body])` / `SensorExited2D(sensor [, body])` — 1/0 for that body, or the first body that came in / left this step. Static bodies are not reported",
+      "category": "Physics"
+    },
+    {
+      "syntax": "SensorOverlaps2D(sensor, body)",
+      "name": "SensorOverlaps2D",
+      "description": "overlaps only, no push. After each `UpdateWorld`: `SensorCount2D(sensor)` (also `TriggerOverlaps2D`), `SensorBody2D(sensor, i)` (i from 1, id order), `SensorOverlaps2D(sensor, body)` (also `CheckTrigger2D`), `SensorEntered2D(sensor [, body])` / `SensorExited2D(sensor [, body])` — 1/0 for that body, or the first body that came in / left this step. Static bodies are not reported",
+      "category": "Physics"
+    },
+    {
+      "syntax": "CheckTrigger2D",
+      "name": "CheckTrigger2D",
+      "description": "overlaps only, no push. After each `UpdateWorld`: `SensorCount2D(sensor)` (also `TriggerOverlaps2D`), `SensorBody2D(sensor, i)` (i from 1, id order), `SensorOverlaps2D(sensor, body)` (also `CheckTrigger2D`), `SensorEntered2D(sensor [, body])` / `SensorExited2D(sensor [, body])` — 1/0 for that body, or the first body that came in / left this step. Static bodies are not reported",
+      "category": "Physics"
+    },
+    {
+      "syntax": "SensorEntered2D(sensor [, body])",
+      "name": "SensorEntered2D",
+      "description": "overlaps only, no push. After each `UpdateWorld`: `SensorCount2D(sensor)` (also `TriggerOverlaps2D`), `SensorBody2D(sensor, i)` (i from 1, id order), `SensorOverlaps2D(sensor, body)` (also `CheckTrigger2D`), `SensorEntered2D(sensor [, body])` / `SensorExited2D(sensor [, body])` — 1/0 for that body, or the first body that came in / left this step. Static bodies are not reported",
+      "category": "Physics"
+    },
+    {
+      "syntax": "SensorExited2D(sensor [, body])",
+      "name": "SensorExited2D",
+      "description": "overlaps only, no push. After each `UpdateWorld`: `SensorCount2D(sensor)` (also `TriggerOverlaps2D`), `SensorBody2D(sensor, i)` (i from 1, id order), `SensorOverlaps2D(sensor, body)` (also `CheckTrigger2D`), `SensorEntered2D(sensor [, body])` / `SensorExited2D(sensor [, body])` — 1/0 for that body, or the first body that came in / left this step. Static bodies are not reported",
+      "category": "Physics"
+    },
+    {
+      "syntax": "SetOneWay2D body [, on]",
+      "name": "SetOneWay2D",
+      "description": "one-way platform: bodies pass up through it and land on top (up is against gravity)",
+      "category": "Physics"
+    },
+    {
+      "syntax": "ShapeCast2D(x1,y1, x2,y2, w [, h, ignore])",
+      "name": "ShapeCast2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "BoxCast2D",
+      "name": "BoxCast2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "CircleCast2D(x1,y1, x2,y2, r [, ignore])",
+      "name": "CircleCast2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "CastHit2D()",
+      "name": "CastHit2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "CastBody2D()",
+      "name": "CastBody2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "CastX2D()",
+      "name": "CastX2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "CastY2D()",
+      "name": "CastY2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "CastNormalX2D()",
+      "name": "CastNormalX2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "CastNormalY2D()",
+      "name": "CastNormalY2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "CastFraction2D()",
+      "name": "CastFraction2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "CreateCharacter2D(x, y, w, h)",
+      "name": "CreateCharacter2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "MoveCharacter2D ch, dx",
+      "name": "MoveCharacter2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "JumpCharacter2D ch",
+      "name": "JumpCharacter2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "CharacterOnGround2D(ch)",
+      "name": "CharacterOnGround2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "CharacterGroundBody2D(ch)",
+      "name": "CharacterGroundBody2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "SetCharacterSpeed2D",
+      "name": "SetCharacterSpeed2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "SetCharacterJump2D",
+      "name": "SetCharacterJump2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "SetCharacterGravity2D",
+      "name": "SetCharacterGravity2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "SetCharacterAirControl2D",
+      "name": "SetCharacterAirControl2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "SetCharacterCoyote2D",
+      "name": "SetCharacterCoyote2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "SetCharacterJumpBuffer2D",
+      "name": "SetCharacterJumpBuffer2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "SetCharacterMaxSlope2D",
+      "name": "SetCharacterMaxSlope2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "BodyX2D(body)",
+      "name": "BodyX2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "BodyY2D(body)",
+      "name": "BodyY2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "FreeCharacter2D ch",
+      "name": "FreeCharacter2D",
       "description": "",
       "category": "Physics"
     },
