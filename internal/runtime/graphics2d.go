@@ -116,7 +116,10 @@ func (g *ebiGame) Update() error {
 		return ebiten.Termination
 	}
 	if !g.first {
-		if err := g.in.Run(); err != nil {
+		g.w.prof.scriptBegin()
+		err := g.in.Run()
+		g.w.prof.scriptEnd()
+		if err != nil {
 			return err
 		}
 	}
@@ -133,7 +136,13 @@ func (g *ebiGame) Update() error {
 
 func (g *ebiGame) Draw(screen *ebiten.Image) {
 	screen.Fill(color.RGBA{g.w.clsRGB[0], g.w.clsRGB[1], g.w.clsRGB[2], 255})
+	p := &g.w.prof
+	p.frameStart()
+	p.renderStart = time.Now()
+	p.sampleMemory(g.w.loopFrames)
 	g.w.draw2D(screen)
+	p.rend = smooth(p.rend, ms(time.Since(p.renderStart)))
+	g.w.profilerOverlay2D(screen)
 	g.w.captureShot2D(screen)
 }
 

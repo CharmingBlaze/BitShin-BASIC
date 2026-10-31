@@ -267,6 +267,7 @@ type World struct {
 	white2D                          *ebiten.Image
 	tileClock                        float64 // seconds, for animated tiles
 	lit2                             *lighting2D
+	prof                             profiler
 	nextCam2                         int
 	fonts                            map[int]*fontSlot
 	nextFont                         int
@@ -644,7 +645,7 @@ func (w *World) graphics3D(width, height, depth, mode int) (value.Value, error) 
 		ww, hh := w.app.GetSize()
 		w.scrW, w.scrH = ww, hh
 		if ww > 0 && hh > 0 {
-			gl.Viewport(0, 0, int32(ww), int32(hh))
+			w.setViewport(0, 0, ww, hh)
 		}
 		if w.cam != nil {
 			w.cam.SetAspect(float32(ww) / float32(hh))
@@ -725,6 +726,20 @@ func (w *World) graphics3D(width, height, depth, mode int) (value.Value, error) 
 		w.runner.MarkLive()
 	}
 	return value.Num(0), nil
+}
+
+// setViewport sets the GL viewport through G3N's state cache. G3N panels
+// (Text, HudPrint, widgets) size themselves from the cached viewport, so a
+// raw gl.Viewport here left them zero-sized whenever no shadow pass had
+// set it first, and HUD text vanished in scenes without a sun.
+func (w *World) setViewport(x, y, vw, vh int) {
+	if w.app != nil {
+		if gs := w.app.Gls(); gs != nil {
+			gs.Viewport(int32(x), int32(y), int32(vw), int32(vh))
+			return
+		}
+	}
+	gl.Viewport(int32(x), int32(y), int32(vw), int32(vh))
 }
 
 func (w *World) setKey(k window.Key, down bool) {
@@ -1047,7 +1062,10 @@ func (w *World) Loop(in *interp.Interp) error {
 		if !first {
 			w.clearFrameText()
 			w.draws = w.draws[:0]
-			if err := in.Run(); err != nil {
+			w.prof.scriptBegin()
+			err := in.Run()
+			w.prof.scriptEnd()
+			if err != nil {
 				fmt.Println(err)
 				if w.presented {
 					in.ClearLiveError()
@@ -1209,7 +1227,12 @@ func (w *World) render(rend *renderer.Renderer) {
 	if hh <= 0 {
 		hh = 600
 	}
+	w.prof.frameStart()
+	w.prof.renderStart = time.Now()
+	w.prof.gpuBegin()
+	w.prof.sampleMemory(w.loopFrames)
 	w.flushHudPrint()
+	w.profilerOverlay3D()
 	if gw := w.glfwWin(); gw != nil {
 		gw.MakeContextCurrent()
 	}
@@ -1230,7 +1253,7 @@ func (w *World) render(rend *renderer.Renderer) {
 		vw, vh = ww, hh
 	}
 	gl.Disable(gl.SCISSOR_TEST)
-	gl.Viewport(0, 0, int32(vw), int32(vh))
+	w.setViewport(0, 0, vw, vh)
 	if !usedOffscreen {
 		bindColorTarget(0)
 	}
@@ -1249,6 +1272,8 @@ func (w *World) render(rend *renderer.Renderer) {
 	w.drawHUDOverlay3D(fbw, fbh)
 	w.guiPresent()
 	w.captureShot(fbw, fbh)
+	w.prof.gpuEnd()
+	w.prof.rend = smooth(w.prof.rend, ms(time.Since(w.prof.renderStart)))
 	w.presentExtraWindows(rend)
 }
 
@@ -1591,12 +1616,14 @@ func (w *World) updateWorld() {
 		w.applyRopeForces()
 		w.applyClothWind()
 		w.tickProjectiles(dt)
+		w.prof.physBegin()
 		if w.physAsync {
 			w.ensureJobs().submit(func() { w.phys3.Step(dt) })
 			w.jobs.waitAll()
 		} else {
 			w.phys3.Step(dt)
 		}
+		w.prof.physEnd()
 		w.resolveDrivenOverlaps()
 		w.syncPhys3Pose()
 		w.placeCharacterCameras()
@@ -1608,7 +1635,9 @@ func (w *World) updateWorld() {
 		w.processPhysicsContacts()
 	}
 	if w.phys2 != nil {
+		w.prof.physBegin()
 		w.phys2.Step(float64(dt))
+		w.prof.physEnd()
 		for id, e := range w.ents {
 			if x, y, ok := w.phys2.GetPosition(id); ok {
 				e.node.GetNode().SetPosition(float32(x), float32(y), e.node.GetNode().Position().Z)

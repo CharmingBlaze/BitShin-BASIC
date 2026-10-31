@@ -543,12 +543,7 @@ func (w *World) spawnSceneKind(kind, src string, parent int) int {
 	case "box":
 		return w.tagEnt(w.meshEnt(geometry.NewSegmentedBox(2, 2, 2, 1, 1, 1), parent), "box")
 	case "plane", "quad":
-		id := w.tagEnt(w.meshEnt(geometry.NewPlane(20, 20), parent), kind)
-		if e := w.ents[id]; e != nil {
-			e.node.GetNode().SetRotation(-3.14159265/2, 0, 0)
-			e.pitch = -90
-		}
-		return id
+		return w.tagEnt(w.meshEnt(flatGeom(geometry.NewPlane(20, 20)), parent), kind)
 	case "cylinder":
 		return w.tagEnt(w.meshEnt(geometry.NewCylinder(1, 2, 12, 1, true, true), parent), "cylinder")
 	case "cone":

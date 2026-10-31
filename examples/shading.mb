@@ -40,7 +40,7 @@ Next
 
 ; A two-sided card with fog off, the Blitz way.
 card = CreateQuad().Scale(1.4, 1.4, 1).Position([0, 2.6, 6.5])
-card.Turn(90, 0, 0)
+RotateEntity(card, 90, 0, 0)
 SetAlbedo(card, 255, 120, 200)
 EntityFX(card, 1 + 8 + 16)
 

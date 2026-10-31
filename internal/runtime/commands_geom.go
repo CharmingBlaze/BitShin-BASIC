@@ -187,10 +187,8 @@ func (w *World) createPlaneMesh(a []value.Value) int {
 	if ph <= 0 {
 		ph = 20
 	}
-	id := w.tagEnt(w.meshEnt(geometry.NewPlane(float32(pw), float32(ph)), parent), "plane")
+	id := w.tagEnt(w.meshEnt(flatGeom(geometry.NewPlane(float32(pw), float32(ph))), parent), "plane")
 	if e := w.ents[id]; e != nil {
-		e.node.GetNode().SetRotation(-math32.Pi/2, 0, 0)
-		e.pitch = -90
 		if e.mat != nil {
 			e.mat.SetSide(material.SideDouble)
 		}
@@ -289,12 +287,18 @@ func (w *World) createDiskMesh(a []value.Value) int {
 		r = 1
 	}
 	segs = clampSegs(segs, 3, 24)
-	id := w.tagEnt(w.meshEnt(geometry.NewDisk(r, segs), parent), "disk")
-	if e := w.ents[id]; e != nil {
-		e.node.GetNode().SetRotation(-math32.Pi/2, 0, 0)
-		e.pitch = -90
-	}
-	return id
+	return w.tagEnt(w.meshEnt(flatGeom(geometry.NewDisk(r, segs)), parent), "disk")
+}
+
+// flatGeom lays a G3N XY-plane shape flat on XZ, facing up. Doing it in
+// the mesh, not the entity, keeps the entity's own rotation at 0: before,
+// RotateEntity overwrote the hidden -90 pitch (standing a ground plane on
+// edge), and ScaleEntity x, 1, z scaled depth by the 1.
+func flatGeom(g *geometry.Geometry) *geometry.Geometry {
+	var m math32.Matrix4
+	m.MakeRotationX(-math32.Pi / 2)
+	g.ApplyMatrix(&m)
+	return g
 }
 
 func (w *World) createPyramidMesh(a []value.Value) int {
@@ -373,12 +377,7 @@ func (w *World) createQuadMesh(a []value.Value) int {
 	if size <= 0 {
 		size = 2
 	}
-	id := w.tagEnt(w.meshEnt(geometry.NewPlane(float32(size), float32(size)), parent), "quad")
-	if e := w.ents[id]; e != nil {
-		e.node.GetNode().SetRotation(-math32.Pi/2, 0, 0)
-		e.pitch = -90
-	}
-	return id
+	return w.tagEnt(w.meshEnt(flatGeom(geometry.NewPlane(float32(size), float32(size))), parent), "quad")
 }
 
 func newCapsuleGeom(radius, cylHeight float64, segs int) *geometry.Geometry {

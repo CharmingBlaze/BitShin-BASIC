@@ -192,7 +192,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] Error handling — engine errors and recovery — `Try`/`Catch`, `throw`, panic recover in world.go Flip/RenderWorld
 - [x] Serialization — save and load engine data — `scenesave`/`sceneload`, `saveslot`, `packsave`, `jsonsave`, `saveprefab`
 - [ ] Plugin system — Missing
-- [ ] Profiler — **Partial:** `statsfps`, `statsdraws`, `statsjobs`, `gpuparticlems`; no profiler UI/timings
+- [x] Profiler — `ShowProfiler` overlay and `Stats*` timings (CPU, GPU, memory)
 
 #### Architectural requirements
 - [x] Go-first implementation — Go module `moonbasic`; cgo only for Jolt/GLFW
@@ -1161,7 +1161,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] Code editor — Monaco in editor/Editor.svelte
 - [x] Console — OutputPanel.svelte (Output + Problems tabs)
 - [ ] Debugger — **Partial:** gutter breakpoints + continue/step/quit buttons; no watch/stack panes
-- [ ] Profiler — **Partial:** `examples/editor.mb` shows `StatsFPS`/`StatsDraws`; none in IDE
+- [ ] Profiler — **Partial:** in-game `ShowProfiler` overlay; no IDE panel
 - [ ] Animation timeline — Missing
 - [ ] Material editor — Missing
 
@@ -1289,18 +1289,18 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 
 #### Profiling
 - [x] FPS counter — `StatsFPS`
-- [ ] Frame-time graph — Missing (`DeltaTime` only)
-- [ ] CPU profiler — Missing
-- [ ] GPU profiler — **Partial:** `GPUParticleMs` timer query for particles only
-- [ ] Memory profiler / RAM usage — Missing
+- [x] Frame-time graph — `ShowProfiler` (120 frames, budget colours)
+- [x] CPU profiler — `ShowProfiler`, `StatsScriptMs` / `StatsPhysicsMs` / `StatsRenderMs`
+- [x] GPU profiler — `StatsGPUMs` (timestamp queries per frame), `GPUParticleMs`
+- [x] Memory profiler / RAM usage — `StatsMemoryMB`, heap and sys in `ShowProfiler`
 - [ ] VRAM usage — Missing
 - [x] Draw-call counter — `StatsDraws`
-- [ ] Triangle counter — Missing
+- [x] Triangle counter — `StatsTriangles`
 - [ ] Shader compilation statistics — **Partial:** `ShaderLog`/`GetShaderLog`, `moon shader` validation
-- [ ] Physics profiler — Missing
+- [ ] Physics profiler — **Partial:** `StatsPhysicsMs` step time; no per-body or broadphase breakdown
 - [ ] Audio profiler — Missing
-- [ ] Script execution profiler — Missing
-- [ ] GC monitoring — Missing
+- [ ] Script execution profiler — **Partial:** `StatsScriptMs` per frame; no per-function timing
+- [x] GC monitoring — `StatsGCPauseMs`, `StatsAllocKB`, GC count in `ShowProfiler`
 - [ ] Resource loading statistics — Missing
 - Also: `StatsChunks`, `StatsJobs`, `GPUParticleCount`.
 
@@ -1367,7 +1367,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [ ] Audio streaming — Missing (full PCM decode)
 - [x] Scene unloading — `ClearWorld`, `UnloadChunk`, `FreeEntity`
 - [ ] Leak detection — Missing
-- [ ] Memory diagnostics — Missing
+- [ ] Memory diagnostics — **Partial:** `StatsMemoryMB`, `StatsAllocKB`; no per-asset breakdown
 
 #### Hardware targets
 - [x] Automatic quality tier from the GPU — `autoTier` from GL renderer + frame-time step-down (quality.go)

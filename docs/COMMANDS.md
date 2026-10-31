@@ -1329,6 +1329,12 @@ ImGui panels use the existing `Gui*` commands. These query live numbers:
 | Command | Meaning | Example |
 | --- | --- | --- |
 | `StatsFPS()` / `GetStatsFPS()` | `1 / DeltaTime` | `fps = Int(StatsFPS())` |
+| `ShowProfiler [on]` | Overlay in the top-right corner, 2D and 3D: FPS, frame time (average and worst of the last 120 frames), script / physics / render CPU time, GPU time, draws, triangles, entities, Go heap, GC, and allocation per frame, over a frame-time graph (green under 16.7 ms, yellow under 33.3, red above) | `ShowProfiler(True)` |
+| `StatsFrameMs()`, `StatsWorstMs()` | Average and worst frame time over the last 120 frames | `If StatsWorstMs() > 33 Then ...` |
+| `StatsScriptMs()`, `StatsPhysicsMs()`, `StatsRenderMs()` | CPU time per frame in the script, the physics step, and drawing (smoothed) | `p = StatsPhysicsMs()` |
+| `StatsGPUMs()` | GPU time of the frame from timestamp queries, a frame late; 0 in 2D | `g = StatsGPUMs()` |
+| `StatsTriangles()` | Triangles in visible meshes | `t = StatsTriangles()` |
+| `StatsMemoryMB()`, `StatsGCPauseMs()`, `StatsAllocKB()` | Go heap in use, the last GC pause, and KB allocated per frame | `m = StatsMemoryMB()` |
 | `SetGraphicsQuality(q$)` | `"low"` `"medium"` `"high"` `"ultra"` or `"auto"`. One call sets shadow size, water reflection and refraction, post FX, terrain detail window and triangle size, tree/prop/grass count and reach. Low is aimed at a 2016 laptop iGPU at 720p: no water passes, cheap terrain texturing. High adds ambient occlusion and a coarse vista out to the fog; ultra adds soft (PCSS) shadow edges and 4× MSAA. On a fast GPU, `SetMSAA(2)` after this call gives high smooth edges for about 2 ms. Low draws cheaper clouds. `"auto"` reads the GPU name, then steps down a tier whenever frames average over 26 ms for 2 s. It never steps up. A setting you change after this call is yours until the next tier change. A script that never calls it gets `"auto"` from `Graphics3D`, so post FX, AO, and anti-aliasing are on by default | `SetGraphicsQuality("auto")` |
 | `GraphicsQuality()` | Current tier, `0` low to `3` ultra | `q = GraphicsQuality()` |
 | `SaveScreenshot(path$)` | Saves the next presented frame (scene, post, HUD) as a PNG | `SaveScreenshot("shot.png")` |

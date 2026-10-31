@@ -1191,7 +1191,7 @@ func (w *World) drawLiftedPanels(rend *renderer.Renderer, hud *core.Node, ww, hh
 		// this the labels draw with blending off, on black boxes.
 		w.guiRestoreSceneGL()
 		bindColorTarget(0)
-		gl.Viewport(0, 0, int32(ww), int32(hh))
+		w.setViewport(0, 0, ww, hh)
 		gl.Clear(gl.DEPTH_BUFFER_BIT)
 		if err := rend.Render(hud, cam); err != nil {
 			fmt.Println("RenderWorld:", err)
@@ -1257,7 +1257,7 @@ func (w *World) renderSceneCams(rend *renderer.Renderer, ww, hh int) {
 			w.renderWaterReflection(rend, cam)
 			bindColorTarget(targetFBO)
 			if ww > 0 && hh > 0 {
-				gl.Viewport(0, 0, int32(ww), int32(hh))
+				w.setViewport(0, 0, ww, hh)
 			}
 			// The shadow pass can leave the window depth buffer full. Clear
 			// it again or every mesh fragment fails the depth test.
@@ -1290,7 +1290,7 @@ func (w *World) renderSceneCams(rend *renderer.Renderer, ww, hh int) {
 		drainGL("pre-water")
 		w.renderWaterReflection(rend, c.cam)
 		bindColorTarget(targetFBO)
-		gl.Viewport(int32(c.x), int32(glY), int32(vw), int32(vh))
+		w.setViewport(c.x, glY, vw, vh)
 		gl.Enable(gl.SCISSOR_TEST)
 		gl.Scissor(int32(c.x), int32(glY), int32(vw), int32(vh))
 		gl.Clear(gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT)
@@ -1308,6 +1308,6 @@ func (w *World) renderSceneCams(rend *renderer.Renderer, ww, hh int) {
 		w.drawModernPass(c.cam)
 	}
 	if ww > 0 && hh > 0 {
-		gl.Viewport(0, 0, int32(ww), int32(hh))
+		w.setViewport(0, 0, ww, hh)
 	}
 }
