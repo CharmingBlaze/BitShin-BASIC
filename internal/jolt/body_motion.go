@@ -13,6 +13,14 @@ func (b *BodyID) Value() uint32 {
 	return uint32(C.JoltGetBodyIDValue(b.handle))
 }
 
+// IsActive reports whether the body is awake. Sleeping and static bodies are not.
+func (bi *BodyInterface) IsActive(bodyID *BodyID) bool {
+	if bi == nil || bodyID == nil {
+		return false
+	}
+	return C.JoltIsBodyActive(bi.handle, bodyID.handle) != 0
+}
+
 // GetRotation returns the current rotation of a body as a quaternion.
 func (bi *BodyInterface) GetRotation(bodyID *BodyID) Quat {
 	x, y, z, w := C.float(0), C.float(0), C.float(0), C.float(0)

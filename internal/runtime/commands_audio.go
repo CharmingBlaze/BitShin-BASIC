@@ -104,6 +104,7 @@ func (w *World) audioCommands(n func(func([]value.Value) (value.Value, error)) c
 			if rangeDist <= 0 {
 				rangeDist = 40
 			}
+			w.debugNoteSound(float32(x), float32(y), float32(zpos), float32(rangeDist))
 			lx, ly, lz, yaw := w.listenerPose()
 			vol, pan := bsaudio.DistancePan(lx, ly, lz, yaw, x, y, zpos, rangeDist)
 			voice, err := s.clip.PlayAt(vol*s.vol, s.pitch, pan, false)
@@ -134,6 +135,7 @@ func (w *World) audioCommands(n func(func([]value.Value) (value.Value, error)) c
 					x, y, zpos = float64(fx), float64(fy), float64(fz)
 				}
 			}
+			w.debugNoteSound(float32(x), float32(y), float32(zpos), float32(maxD))
 			lx, ly, lz, yaw := w.listenerPose()
 			vol, pan := bsaudio.DistancePan(lx, ly, lz, yaw, x, y, zpos, maxD)
 			voice, err := s.clip.PlayAt(vol*s.vol, s.pitch, pan, false)

@@ -668,6 +668,9 @@ func (w *World) commandTable() map[string]cmd {
 	for k, v := range w.xformCommands(n, z, need) {
 		m[k] = v
 	}
+	for k, v := range w.debugDrawCommands(n, z) {
+		m[k] = v
+	}
 	for k, v := range w.navCommands(n, z, need) {
 		m[k] = v
 	}

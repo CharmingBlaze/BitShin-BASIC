@@ -224,3 +224,19 @@ func CompoundAABB(parts []CompoundPart) (hx, hy, hz float32) {
 type planeAero struct {
 	thrust, cl, cd, stall, rho, area, mass float32
 }
+
+// SleepQuery is implemented by backends that can tell a sleeping body from
+// an awake one. Debug drawing type-asserts for it; it is not on World so
+// test doubles need not implement it.
+type SleepQuery interface {
+	IsSleeping(id int) bool
+}
+
+// IsSleeping reports whether body id is asleep, false when the backend
+// cannot tell.
+func IsSleeping(w World, id int) bool {
+	if q, ok := w.(SleepQuery); ok {
+		return q.IsSleeping(id)
+	}
+	return false
+}

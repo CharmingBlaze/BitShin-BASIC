@@ -175,6 +175,7 @@ func (w *World) characterCommands(n func(func([]value.Value) (value.Value, error
 			if e := w.ents[id]; e != nil {
 				e.bodyType = 3
 			}
+			w.debugNoteCharacter(id, float32(argN(a, 1, 1.8)), float32(argN(a, 2, 0.4)))
 			return value.Num(float64(id)), nil
 		}),
 		"setcharactershape": n(func(a []value.Value) (value.Value, error) {

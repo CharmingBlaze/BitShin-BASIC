@@ -9529,7 +9529,7 @@
         {
           "syntax": "EnablePhysicsDebug on",
           "name": "EnablePhysicsDebug",
-          "description": "Collider AABB overlay",
+          "description": "Collider shapes, contacts, velocities and joints overlay. See [Debug drawing](#debug-drawing)",
           "category": "Physics extras (Jolt)"
         },
         {
@@ -10309,6 +10309,89 @@
           "name": "EntitySpecular",
           "description": "",
           "category": "Editor / stats"
+        }
+      ]
+    },
+    {
+      "name": "Debug drawing",
+      "commands": [
+        {
+          "syntax": "DebugDraw what$ [, on]",
+          "name": "DebugDraw",
+          "description": "Toggle an overlay: `\"physics\"` `\"contacts\"` `\"velocity\"` `\"joints\"` `\"rays\"` `\"nav\"` `\"lights\"` `\"bounds\"` `\"normals\"` `\"ids\"` `\"frustums\"` `\"audio\"` or `\"all\"`",
+          "category": "Debug drawing"
+        },
+        {
+          "syntax": "DebugDrawEnabled(what$)",
+          "name": "DebugDrawEnabled",
+          "description": "1 when that overlay is on",
+          "category": "Debug drawing"
+        },
+        {
+          "syntax": "DebugDrawOnTop mode",
+          "name": "DebugDrawOnTop",
+          "description": "0 depth-tested, 1 always on top, 2 x-ray (hidden parts faint)",
+          "category": "Debug drawing"
+        },
+        {
+          "syntax": "DebugDrawNavMesh [nav [, on]]",
+          "name": "DebugDrawNavMesh",
+          "description": "Baked Detour polygons and agent paths; nav 0 is every mesh",
+          "category": "Debug drawing"
+        },
+        {
+          "syntax": "DebugRayTime seconds",
+          "name": "DebugRayTime",
+          "description": "How long picks and raycasts stay drawn (default 1)",
+          "category": "Debug drawing"
+        },
+        {
+          "syntax": "SetPhysicsDebug flags",
+          "name": "SetPhysicsDebug",
+          "description": "Physics overlays by bit: 1 shapes, 2 contacts, 4 velocity, 8 joints",
+          "category": "Debug drawing"
+        },
+        {
+          "syntax": "GetPhysicsDebug()",
+          "name": "GetPhysicsDebug",
+          "description": "Physics overlays by bit: 1 shapes, 2 contacts, 4 velocity, 8 joints",
+          "category": "Debug drawing"
+        },
+        {
+          "syntax": "DebugLine x1,y1,z1, x2,y2,z2 [, r,g,b [, seconds]]",
+          "name": "DebugLine",
+          "description": "One line; 0 seconds is this frame only",
+          "category": "Debug drawing"
+        },
+        {
+          "syntax": "DebugArrow x1,y1,z1, x2,y2,z2 [, r,g,b [, seconds]]",
+          "name": "DebugArrow",
+          "description": "Line with a head",
+          "category": "Debug drawing"
+        },
+        {
+          "syntax": "DebugSphere x,y,z, radius [, r,g,b [, seconds]]",
+          "name": "DebugSphere",
+          "description": "Wire sphere (three circles)",
+          "category": "Debug drawing"
+        },
+        {
+          "syntax": "DebugBox x,y,z, hx,hy,hz [, r,g,b [, seconds]]",
+          "name": "DebugBox",
+          "description": "Axis-aligned wire box",
+          "category": "Debug drawing"
+        },
+        {
+          "syntax": "DebugClear",
+          "name": "DebugClear",
+          "description": "Drop queued script shapes, rays, contacts and sounds",
+          "category": "Debug drawing"
+        },
+        {
+          "syntax": "DebugDrawLines()",
+          "name": "DebugDrawLines",
+          "description": "Lines drawn last frame",
+          "category": "Debug drawing"
         }
       ]
     },
@@ -18605,7 +18688,7 @@
     {
       "syntax": "EnablePhysicsDebug on",
       "name": "EnablePhysicsDebug",
-      "description": "Collider AABB overlay",
+      "description": "Collider shapes, contacts, velocities and joints overlay. See [Debug drawing](#debug-drawing)",
       "category": "Physics extras (Jolt)"
     },
     {
@@ -18955,6 +19038,84 @@
       "name": "ReloadMesh",
       "description": "Load a new mesh, copy pose",
       "category": "Editor / stats"
+    },
+    {
+      "syntax": "DebugDraw what$ [, on]",
+      "name": "DebugDraw",
+      "description": "Toggle an overlay: `\"physics\"` `\"contacts\"` `\"velocity\"` `\"joints\"` `\"rays\"` `\"nav\"` `\"lights\"` `\"bounds\"` `\"normals\"` `\"ids\"` `\"frustums\"` `\"audio\"` or `\"all\"`",
+      "category": "Debug drawing"
+    },
+    {
+      "syntax": "DebugDrawEnabled(what$)",
+      "name": "DebugDrawEnabled",
+      "description": "1 when that overlay is on",
+      "category": "Debug drawing"
+    },
+    {
+      "syntax": "DebugDrawOnTop mode",
+      "name": "DebugDrawOnTop",
+      "description": "0 depth-tested, 1 always on top, 2 x-ray (hidden parts faint)",
+      "category": "Debug drawing"
+    },
+    {
+      "syntax": "DebugDrawNavMesh [nav [, on]]",
+      "name": "DebugDrawNavMesh",
+      "description": "Baked Detour polygons and agent paths; nav 0 is every mesh",
+      "category": "Debug drawing"
+    },
+    {
+      "syntax": "DebugRayTime seconds",
+      "name": "DebugRayTime",
+      "description": "How long picks and raycasts stay drawn (default 1)",
+      "category": "Debug drawing"
+    },
+    {
+      "syntax": "SetPhysicsDebug flags",
+      "name": "SetPhysicsDebug",
+      "description": "Physics overlays by bit: 1 shapes, 2 contacts, 4 velocity, 8 joints",
+      "category": "Debug drawing"
+    },
+    {
+      "syntax": "GetPhysicsDebug()",
+      "name": "GetPhysicsDebug",
+      "description": "Physics overlays by bit: 1 shapes, 2 contacts, 4 velocity, 8 joints",
+      "category": "Debug drawing"
+    },
+    {
+      "syntax": "DebugLine x1,y1,z1, x2,y2,z2 [, r,g,b [, seconds]]",
+      "name": "DebugLine",
+      "description": "One line; 0 seconds is this frame only",
+      "category": "Debug drawing"
+    },
+    {
+      "syntax": "DebugArrow x1,y1,z1, x2,y2,z2 [, r,g,b [, seconds]]",
+      "name": "DebugArrow",
+      "description": "Line with a head",
+      "category": "Debug drawing"
+    },
+    {
+      "syntax": "DebugSphere x,y,z, radius [, r,g,b [, seconds]]",
+      "name": "DebugSphere",
+      "description": "Wire sphere (three circles)",
+      "category": "Debug drawing"
+    },
+    {
+      "syntax": "DebugBox x,y,z, hx,hy,hz [, r,g,b [, seconds]]",
+      "name": "DebugBox",
+      "description": "Axis-aligned wire box",
+      "category": "Debug drawing"
+    },
+    {
+      "syntax": "DebugClear",
+      "name": "DebugClear",
+      "description": "Drop queued script shapes, rays, contacts and sounds",
+      "category": "Debug drawing"
+    },
+    {
+      "syntax": "DebugDrawLines()",
+      "name": "DebugDrawLines",
+      "description": "Lines drawn last frame",
+      "category": "Debug drawing"
     },
     {
       "syntax": "EnablePostFX [on]",

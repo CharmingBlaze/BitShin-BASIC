@@ -1267,7 +1267,7 @@ See [PHYSICS.md](PHYSICS.md).
 | `CreateHitbox(e, hx,hy,hz)` | Query sensor + green debug. Alias `CreateQueryBox` | `CreateHitbox(hurt, 0.4, 0.8, 0.3)` |
 | `Explode x,y,z,r,imp` | Sphere overlap + falloff impulse. Alias `AreaDamage` | `Explode(x,y,z, 5, 20)` |
 | `FollowPath e, speed [, loop], pts…` | Polyline rail. Alias `FollowPolyline` | `FollowPath(cam, 8, 0,0,0, 10,2,0)` |
-| `EnablePhysicsDebug on` | Collider AABB overlay | `EnablePhysicsDebug(1)` |
+| `EnablePhysicsDebug on` | Collider shapes, contacts, velocities and joints overlay. See [Debug drawing](#debug-drawing) | `EnablePhysicsDebug(1)` |
 | `CreateFixedJoint` / `CreateConeJoint` / `CreateSwingTwistJoint` | Weld / cone / ragdoll-ish limits | `CreateFixedJoint(a, b, x,y,z)` |
 | `SetCollisionLayer` / `SetLayerCollides` | 32 layers; default all collide | `SetLayerCollides(0, 1, 0)` |
 | `CreateBodyConvex(e [, motion, mass])` | Convex hull from mesh tris (≤96 pts). Aliases `CreateConvexHull` / `CreateConvexBody` / `CreateRigidBodyConvex` | `CreateBodyConvex(wedge, 1)` |
@@ -1341,6 +1341,25 @@ ImGui panels use the existing `Gui*` commands. These query live numbers:
 | `ReloadMesh(ent, file$)` | Load a new mesh, copy pose | `ReloadMesh(e, "tree.glb")` |
 
 See `examples/editor.mb`. Material sliders: `GuiSlider` + `EntityShininess` / `EntityColor` / `EntitySpecular`.
+
+## Debug drawing
+
+Line overlay drawn after the scene, depth-tested. See [DEBUG.md](DEBUG.md) and `examples/debug_draw.mb`.
+
+| Command | Meaning | Example |
+| --- | --- | --- |
+| `DebugDraw what$ [, on]` | Toggle an overlay: `"physics"` `"contacts"` `"velocity"` `"joints"` `"rays"` `"nav"` `"lights"` `"bounds"` `"normals"` `"ids"` `"frustums"` `"audio"` or `"all"` | `DebugDraw "lights", 1` |
+| `DebugDrawEnabled(what$)` | 1 when that overlay is on | `If DebugDrawEnabled("rays") Then` |
+| `DebugDrawOnTop mode` | 0 depth-tested, 1 always on top, 2 x-ray (hidden parts faint) | `DebugDrawOnTop 2` |
+| `DebugDrawNavMesh [nav [, on]]` | Baked Detour polygons and agent paths; nav 0 is every mesh | `DebugDrawNavMesh nav` |
+| `DebugRayTime seconds` | How long picks and raycasts stay drawn (default 1) | `DebugRayTime 3` |
+| `SetPhysicsDebug flags` / `GetPhysicsDebug()` | Physics overlays by bit: 1 shapes, 2 contacts, 4 velocity, 8 joints | `SetPhysicsDebug 1 + 2` |
+| `DebugLine x1,y1,z1, x2,y2,z2 [, r,g,b [, seconds]]` | One line; 0 seconds is this frame only | `DebugLine 0,0,0, 0,5,0, 255,0,0` |
+| `DebugArrow x1,y1,z1, x2,y2,z2 [, r,g,b [, seconds]]` | Line with a head | `DebugArrow x,y,z, x,y+2,z` |
+| `DebugSphere x,y,z, radius [, r,g,b [, seconds]]` | Wire sphere (three circles) | `DebugSphere PickedX(), PickedY(), PickedZ(), 0.2` |
+| `DebugBox x,y,z, hx,hy,hz [, r,g,b [, seconds]]` | Axis-aligned wire box | `DebugBox 0,1,0, 2,1,2, 0,255,0, 5` |
+| `DebugClear` | Drop queued script shapes, rays, contacts and sounds | `DebugClear` |
+| `DebugDrawLines()` | Lines drawn last frame | `n = DebugDrawLines()` |
 
 ## Post-processing (GL 3.3 fullscreen blit)
 

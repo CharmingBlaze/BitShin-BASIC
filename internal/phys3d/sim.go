@@ -767,6 +767,12 @@ func (w *fallback) Wake(id int) {
 	}
 }
 
+// IsSleeping reports the fallback's own sleep flag.
+func (w *fallback) IsSleeping(id int) bool {
+	b := w.bodies[id]
+	return b != nil && b.asleep
+}
+
 func (w *fallback) GetRotation(id int) (float32, float32, float32, float32, bool) {
 	b := w.bodies[id]
 	if b == nil {

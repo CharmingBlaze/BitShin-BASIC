@@ -251,3 +251,17 @@ func (w *joltWorld) SetCollisionLayer(id, layer int) {
 func (w *joltWorld) SetLayerCollides(a, b int, on bool) {
 	jolt.SetLayerPairCollides(a, b, on)
 }
+
+// IsSleeping is true for a dynamic or kinematic body Jolt has deactivated.
+// Static bodies and characters are never reported asleep.
+func (w *joltWorld) IsSleeping(id int) bool {
+	id = w.resolvePhysID(id)
+	if w.char[id] != nil {
+		return false
+	}
+	b, ok := w.body[id]
+	if !ok || w.motion[id] == MotionTypeStatic {
+		return false
+	}
+	return !w.bi.IsActive(b)
+}
