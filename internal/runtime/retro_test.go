@@ -20,12 +20,12 @@ func TestRetroTargetAndViewport(t *testing.T) {
 	if pw, ph := w.retroTarget(1280, 720); pw != 1280 || ph != 720 {
 		t.Fatalf("off: %dx%d", pw, ph)
 	}
-	w.retro.lowW = 320 // height follows the window's shape
+	w.retroScr.lowW = 320 // height follows the window's shape
 	if pw, ph := w.retroTarget(1280, 720); pw != 320 || ph != 180 {
 		t.Fatalf("320 wide on 16:9: %dx%d", pw, ph)
 	}
-	w.retro.lowH = 240
-	w.retro.pixelPerfect = true
+	w.retroScr.lowH = 240
+	w.retroScr.pixelPerfect = true
 	// 1280x720 holds 320x240 three times: 960x720, centred.
 	if x, y, vw, vh := w.retroViewport(1280, 720, 320, 240); x != 160 || y != 0 || vw != 960 || vh != 720 {
 		t.Fatalf("pixel-perfect viewport %d,%d %dx%d", x, y, vw, vh)
@@ -33,7 +33,7 @@ func TestRetroTargetAndViewport(t *testing.T) {
 	if a := w.retroAspect(1280, 720, 320, 240); a < 1.333 || a > 1.334 {
 		t.Fatalf("letterboxed aspect %v", a)
 	}
-	w.retro = retroPost{scale: 0.5}
+	w.retroScr = retroPost{scale: 0.5}
 	if pw, ph := w.retroTarget(1280, 720); pw != 640 || ph != 360 || !w.retroOn() {
 		t.Fatalf("render scale: %dx%d", pw, ph)
 	}
@@ -83,33 +83,33 @@ func TestRetroCommands(t *testing.T) {
 	if err := run("setretroresolution", value.Num(320), value.Num(240), value.Num(1)); err != nil {
 		t.Fatal(err)
 	}
-	if w.retro.lowW != 320 || !w.retro.pixelPerfect || !w.post.on {
-		t.Fatalf("resolution %+v post %v", w.retro, w.post.on)
+	if w.retroScr.lowW != 320 || !w.retroScr.pixelPerfect || !w.post.on {
+		t.Fatalf("resolution %+v post %v", w.retroScr, w.post.on)
 	}
 	run("setretroresolution", value.Num(0))
 	if w.retroOn() {
 		t.Fatal("SetRetroResolution 0 did not turn it off")
 	}
 	run("setrenderscale", value.Num(0.1))
-	if w.retro.scale != 0.25 {
-		t.Fatalf("render scale clamps to 0.25: %v", w.retro.scale)
+	if w.retroScr.scale != 0.25 {
+		t.Fatalf("render scale clamps to 0.25: %v", w.retroScr.scale)
 	}
 	run("setrenderscale", value.Num(1))
-	if w.retro.scale != 0 {
+	if w.retroScr.scale != 0 {
 		t.Fatal("render scale 1 should turn it off")
 	}
 	run("setretrocolors", value.Num(1))
-	if w.retro.levels != 2 {
-		t.Fatalf("one level makes no image: %v", w.retro.levels)
+	if w.retroScr.levels != 2 {
+		t.Fatalf("one level makes no image: %v", w.retroScr.levels)
 	}
-	if err := run("setretropalette", value.Str("GameBoy")); err != nil || len(w.retro.palette) != 12 {
-		t.Fatalf("gameboy palette: %v %d", err, len(w.retro.palette))
+	if err := run("setretropalette", value.Str("GameBoy")); err != nil || len(w.retroScr.palette) != 12 {
+		t.Fatalf("gameboy palette: %v %d", err, len(w.retroScr.palette))
 	}
 	if err := run("setretropalette", value.Str("vaporwave")); err == nil || !strings.Contains(err.Error(), "pico8") {
 		t.Fatalf("unknown palette error %v", err)
 	}
 	run("setretropalette", value.Str("none"))
-	if w.retro.palette != nil {
+	if w.retroScr.palette != nil {
 		t.Fatal("palette not cleared")
 	}
 	if err := run("settexturefilter", value.Num(99), value.Str("nearest")); err == nil {

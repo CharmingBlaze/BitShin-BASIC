@@ -102,7 +102,7 @@ func imagePalette(path string) ([]float32, error) {
 
 // retroTarget is the size the scene renders at for a window of ww x hh.
 func (w *World) retroTarget(ww, hh int) (int, int) {
-	r := &w.retro
+	r := &w.retroScr
 	switch {
 	case r.lowW > 0:
 		h := r.lowH
@@ -117,12 +117,12 @@ func (w *World) retroTarget(ww, hh int) (int, int) {
 }
 
 // retroOn is true when the scene renders at a size other than the window.
-func (w *World) retroOn() bool { return w.retro.lowW > 0 || w.retro.scale > 0 && w.retro.scale < 1 }
+func (w *World) retroOn() bool { return w.retroScr.lowW > 0 || w.retroScr.scale > 0 && w.retroScr.scale < 1 }
 
 // retroViewport is where the upscaled scene goes in a dw x dh window:
 // the whole window, or a centred whole-number multiple when pixel-perfect.
 func (w *World) retroViewport(dw, dh, pw, ph int) (x, y, vw, vh int) {
-	if !w.retro.pixelPerfect || w.retro.lowW <= 0 || pw <= 0 || ph <= 0 {
+	if !w.retroScr.pixelPerfect || w.retroScr.lowW <= 0 || pw <= 0 || ph <= 0 {
 		return 0, 0, dw, dh
 	}
 	s := max(1, min(dw/pw, dh/ph))
@@ -133,7 +133,7 @@ func (w *World) retroViewport(dw, dh, pw, ph int) (x, y, vw, vh int) {
 // retroAspect is the camera aspect for the scene target: the target's own
 // shape when letterboxed, else the window's (the image is stretched to it).
 func (w *World) retroAspect(ww, hh, pw, ph int) float32 {
-	if w.retro.pixelPerfect && w.retro.lowW > 0 {
+	if w.retroScr.pixelPerfect && w.retroScr.lowW > 0 {
 		return float32(pw) / float32(max(ph, 1))
 	}
 	return float32(ww) / float32(max(hh, 1))
@@ -142,7 +142,7 @@ func (w *World) retroAspect(ww, hh, pw, ph int) float32 {
 // bindRetroSampler puts a nearest-filtering sampler on the material texture
 // units for the scene pass; unbindRetroSampler takes it off before the HUD.
 func (w *World) bindRetroSampler() {
-	r := &w.retro
+	r := &w.retroScr
 	if !r.nearestTex {
 		return
 	}
@@ -159,7 +159,7 @@ func (w *World) bindRetroSampler() {
 }
 
 func (w *World) unbindRetroSampler() {
-	if !w.retro.nearestTex {
+	if !w.retroScr.nearestTex {
 		return
 	}
 	for u := uint32(0); u < retroTexUnits; u++ {
@@ -169,7 +169,7 @@ func (w *World) unbindRetroSampler() {
 
 // bindRetroPost sets the post program's retro uniforms and palette.
 func (w *World) bindRetroPost(prog uint32, pw, ph int) {
-	r := &w.retro
+	r := &w.retroScr
 	gl.Uniform2f(gl.GetUniformLocation(prog, gl.Str("uSrcSize\x00")), float32(pw), float32(ph))
 	gl.Uniform1f(gl.GetUniformLocation(prog, gl.Str("uRetroLevels\x00")), r.levels)
 	gl.Uniform1f(gl.GetUniformLocation(prog, gl.Str("uRetroDither\x00")), r.dither)
@@ -197,7 +197,7 @@ func (w *World) bindRetroPost(prog uint32, pw, ph int) {
 }
 
 func (w *World) unbindRetroPost() {
-	if len(w.retro.palette) == 0 {
+	if len(w.retroScr.palette) == 0 {
 		return
 	}
 	gl.ActiveTexture(gl.TEXTURE0 + unitPostPalette)
@@ -209,7 +209,7 @@ func (w *World) unbindRetroPost() {
 // a retro resolution is on, else linear.
 func (w *World) setPostFilter() {
 	f := int32(gl.LINEAR)
-	if w.retro.lowW > 0 {
+	if w.retroScr.lowW > 0 {
 		f = gl.NEAREST
 	}
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, f)
@@ -217,7 +217,7 @@ func (w *World) setPostFilter() {
 }
 
 func (w *World) retroCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error)) map[string]cmd {
-	r := &w.retro
+	r := &w.retroScr
 	return map[string]cmd{
 		// SetRetroResolution w [, h, pixelPerfect]: render the scene at
 		// w x h and upscale with sharp pixels. h 0 follows the window's shape.

@@ -270,7 +270,7 @@ type World struct {
 	tileClock                        float64 // seconds, for animated tiles
 	lit2                             *lighting2D
 	prof                             profiler
-	retro                            retroPost
+	retroScr                         retroPost
 	nextCam2                         int
 	fonts                            map[int]*fontSlot
 	nextFont                         int
@@ -1263,7 +1263,7 @@ func (w *World) render(rend *renderer.Renderer) {
 	vw, vh := w.drawableSize(ww, hh)
 	if usedOffscreen {
 		vw, vh = pw, ph
-		if w.retro.lowW > 0 && w.cam != nil {
+		if w.retroScr.lowW > 0 && w.cam != nil {
 			w.cam.SetAspect(w.retroAspect(ww, hh, pw, ph))
 		}
 	}
