@@ -3,7 +3,7 @@
   import { editorStore, isSceneFile, baseName, samePath } from '../stores/editorState.svelte';
 
   // One entity row, nested under its parent.
-  type Row = { id: number; kind: string; name: string; pos: string; depth: number };
+  type Row = { id: string; kind: string; name: string; pos: string; depth: number };
 
   // The active tab when it is JSON, else the scene last shown or edited.
   let source = $derived.by(() => {
@@ -30,9 +30,9 @@
     return Number.isFinite(n) ? String(Math.round(n * 100) / 100) : '';
   }
 
-  // position: [x,y,z] (v2), transform.position, or flat x/y/z (SaveScene).
+  // pos: [x,y,z] (v2), position, transform.position, or flat x/y/z (old SaveScene).
   function posOf(item: any): string {
-    const p = Array.isArray(item.position) ? item.position : Array.isArray(item.transform?.position) ? item.transform.position : null;
+    const p = Array.isArray(item.pos) ? item.pos : Array.isArray(item.position) ? item.position : Array.isArray(item.transform?.position) ? item.transform.position : null;
     if (p) return p.map(num).join(', ');
     return [item.x, item.y, item.z].filter((n) => n !== undefined).map(num).join(', ');
   }
@@ -43,32 +43,35 @@
       const data = JSON.parse(content);
       const list: any[] = Array.isArray(data) ? data : Array.isArray(data?.entities) ? data.entities : [];
       const version = Number(data?.version) || 1;
-      const ids = new Set(list.map((it) => Number(it?.id)).filter((n) => n));
-      const children = new Map<number, any[]>();
+      // v2 rows have string uids and parents; old dumps use numeric ids.
+      const keyOf = (v: any): string => (v === undefined || v === null || v === 0 || v === '' ? '' : String(v));
+      const idOf = (it: any): string => keyOf(it?.uid ?? it?.id);
+      const ids = new Set(list.map(idOf).filter((k) => k));
+      const children = new Map<string, any[]>();
       for (const item of list) {
-        const parent = Number(item?.parent) || 0;
-        const key = ids.has(parent) ? parent : 0;
+        const parent = keyOf(item?.parent);
+        const key = ids.has(parent) ? parent : '';
         if (!children.has(key)) children.set(key, []);
         children.get(key)!.push(item);
       }
       const rows: Row[] = [];
       const seen = new Set<any>();
-      const walk = (parent: number, depth: number) => {
+      const walk = (parent: string, depth: number) => {
         for (const item of children.get(parent) ?? []) {
           if (seen.has(item)) continue;
           seen.add(item);
           rows.push({
-            id: Number(item.id) || 0,
+            id: idOf(item),
             kind: String(item.kind || item.type || 'entity'),
             name: String(item.name || item.src || ''),
             pos: posOf(item),
             depth
           });
-          const id = Number(item.id) || 0;
+          const id = idOf(item);
           if (id && depth < 32) walk(id, depth + 1);
         }
       };
-      walk(0, 0);
+      walk('', 0);
       return { version, rows, error: '' };
     } catch (err: any) {
       return { version: 0, rows: [], error: err.message || String(err) };

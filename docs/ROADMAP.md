@@ -48,7 +48,7 @@ Coverage counts a partial item as half.
 | [15. Rendering and graphics quality](#15-rendering-and-graphics-quality) | 20 | 7 | 18 | 52% |
 | [16. Assets and import pipeline](#16-assets-and-import-pipeline) | 20 | 10 | 27 | 44% |
 | [17. Scenes and prefabs](#17-scenes-and-prefabs) | 16 | 7 | 8 | 63% |
-| [18. Moon Studio (IDE / editor)](#18-moon-studio-ide--editor) | 21 | 13 | 47 | 34% |
+| [18. Moon Studio (IDE / editor)](#18-moon-studio-ide--editor) | 34 | 12 | 35 | 49% |
 | [19. Shaders and visual programming](#19-shaders-and-visual-programming) | 7 | 3 | 3 | 65% |
 | [20. Development and debugging tools](#20-development-and-debugging-tools) | 33 | 8 | 5 | 80% |
 | [21. Optimization and performance](#21-optimization-and-performance) | 12 | 8 | 18 | 42% |
@@ -57,13 +57,13 @@ Coverage counts a partial item as half.
 | [24. Project management](#24-project-management) | 4 | 3 | 4 | 50% |
 | [25. Documentation and community](#25-documentation-and-community) | 3 | 9 | 4 | 47% |
 | [26. Plugins and extensions](#26-plugins-and-extensions) | 0 | 3 | 12 | 10% |
-| **Total** | **593** | **195** | **289** | **64%** |
+| **Total** | **606** | **194** | **277** | **65%** |
 
-**Strongest:** water and environment, the 2D and 3D engines, terrain, physics, and input. **Weakest:** plugins, project management, Moon Studio's visual editing, optimization tooling, and audio.
+**Strongest:** water and environment, the 2D and 3D engines, terrain, physics, and input. **Weakest:** plugins, optimization tooling, audio, and build/export polish.
 
 ## The MoonBASIC 1.0 checklist
 
-The 32 features the spec will not compromise on for 1.0. **23 of 32 are done.**
+The 32 features the spec will not compromise on for 1.0. **25 of 32 are done.**
 
 ### Language
 - [x] Stable BASIC syntax and compiler/runtime — interpreter, `moon compile` AOT, `moon transpile`; no frozen language spec yet
@@ -95,9 +95,9 @@ The 32 features the spec will not compromise on for 1.0. **23 of 32 are done.**
 - [x] Performance profiling — `ShowProfiler` overlay and `Stats*` CPU, GPU, memory timings
 
 ### Moon Studio
-- [ ] Project manager — **Partial:** open a folder; no create/recent projects
-- [ ] Scene hierarchy and inspector — **Partial:** read-only scene list in the IDE; editable only in the in-game ImGui overlay
-- [ ] 2D and 3D viewports — Missing
+- [x] Project manager — start screen: new project from six templates, open, recent; `moon.json` settings
+- [x] Scene hierarchy and inspector — `moon edit`: hierarchy with reparenting and search, inspector, gizmos, undo/redo
+- [ ] 2D and 3D viewports — **Partial:** 3D scene editor (`moon edit`, its own window); no 2D editor
 - [x] Integrated code editor — Monaco with highlighting, completion, hover docs, diagnostics via `moonsls`
 - [ ] Play-in-editor and debugger — **Partial:** full IDE debugger (stack, variables, watches, F10/F11); the game still runs in a separate window
 - [x] Asset browser — `AssetBrowser.svelte`
@@ -118,7 +118,7 @@ The 32 features the spec will not compromise on for 1.0. **23 of 32 are done.**
 | 0.3 Moon Studio | Project manager, scene editor, inspector, asset browser, code editor, debugger, play-in-editor, undo/redo | **Partial:** code editor and asset browser only |
 | 0.4 Advanced engine | Terrain, water, particles, navigation, advanced materials, post-processing, visual shader editor, prefabs | **Mostly done:** no visual shader editor; prefabs minimal |
 | 0.5 Production pipeline | Asset optimization, export system, build profiles, profilers, platform compatibility, plugins | **Partial:** mesh optimization and export done; no profiles, profilers, or plugins |
-| 1.0 Production release | Stable language and API, complete docs, reliable export, automated tests, compatibility testing, example games, production editor | **Not yet:** 23 of 32 checklist items |
+| 1.0 Production release | Stable language and API, complete docs, reliable export, automated tests, compatibility testing, example games, production editor | **Not yet:** 25 of 32 checklist items |
 
 `moon version` already reports 1.0.0 for the runtime. Against this spec, the product is between 0.4 and 0.5: the engine is ahead, the editor and tooling are behind.
 
@@ -141,11 +141,12 @@ What to build next, in order. Each milestone closes 1.0 checklist items or stren
 - Fixed: HUD `Text` vanished without a shadow-casting sun; planes, quads, and disks carried a hidden pitch that `RotateEntity` and `ScaleEntity` fought. The suspected post-pass sRGB problem was not one: the content is tuned for the current output, and encoding it washed scenes out.
 - Left for later: per-function script profiling, a profiler panel in the IDE, per-asset memory diagnostics, multi-file positions in the debugger.
 
-### Milestone C: Moon Studio scene editing
-The largest gap, and the core of the "proper integrated editor" goal.
-- A 3D (then 2D) viewport inside the IDE, driven by the runtime in an editor mode
-- Editable hierarchy and inspector over the scene format; transform gizmos; snapping; undo/redo
-- Play-in-editor; project create/open/recent; project settings file
+### Milestone C: Moon Studio scene editing — done 2026-11-01
+- `moon edit`: the engine renders the scene with ImGui panels — viewport and orbit camera, click selection, hierarchy, inspector, ImGuizmo move/rotate/scale with snapping, undo/redo, add/duplicate/delete/reparent, assets, Play. The IDE opens it by double-clicking a `.scene.json`; Play goes back to the IDE
+- Scene format v2 (`docs/SCENES.md`): every editable property round-trips; nested prefabs, overrides, variants; `FindEntity`, tags, uids
+- Projects: start screen, six templates (3D ones load their scene with `LoadScene`), recent projects, `moon.json`
+- Chosen design: the editor is its own engine window beside the IDE, not embedded in it. It renders exactly what the game does; embedding would mean streaming frames or a second (WebGL) renderer
+- Left for later: a 2D editor (sprites, tilemaps), editing physics bodies and prefab overrides in the inspector, multi-object gizmos, surface/vertex snapping, playing inside the editor window, dockable panels
 
 ### Milestone D: retro rendering pack
 A selling point no mainstream engine leads with.
@@ -1153,42 +1154,42 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] Project manager — ProjectManager.svelte start screen: New Project from templates, Open Project, Recent Projects (kept in .ide_settings.json); `moon.json` per project (ide/project.go, docs/STUDIO.md)
 - [x] Main menu — TitleBar.svelte File/Run/View menus
 - [x] Toolbar — ToolBar.svelte
-- [ ] Scene hierarchy — **Partial:** ScenePanel.svelte read-only list of SaveScene JSON; `examples/editor.mb` ImGui list
-- [ ] Inspector — **Partial:** only in-game ImGui sliders in `examples/editor.mb`
+- [x] Scene hierarchy — `moon edit` Hierarchy panel (tree, search, reparent); IDE Scene panel reads v2 files
+- [x] Inspector — `moon edit` Inspector: name, visibility, transform, colour, PBR/shading, lights, area lights, camera
 - [x] Asset browser — AssetBrowser.svelte
 - [ ] 2D viewport — Missing
-- [ ] 3D viewport — Missing
-- [ ] Game viewport — **Partial:** F5 runs game in separate window
+- [x] 3D viewport — `moon edit` (the engine renderer, orbit camera, click selection)
+- [ ] Game viewport — **Partial:** Play (F5) in the editor or IDE runs the game in its own window
 - [x] Code editor — Monaco in editor/Editor.svelte
 - [x] Console — OutputPanel.svelte (Output + Problems tabs)
-- [ ] Debugger — **Partial:** gutter breakpoints + continue/step/quit buttons; no watch/stack panes
+- [x] Debugger — IDE Debug sidebar: call stack, variables, watches, F10/F11/Shift+F11
 - [ ] Profiler — **Partial:** in-game `ShowProfiler` overlay; no IDE panel
 - [ ] Animation timeline — Missing
 - [ ] Material editor — Missing
 
 #### 18.2 Scene editor
-- [ ] Select / move / rotate / scale objects — **Partial:** editor.mb select + position sliders only
-- [ ] Duplicate / delete objects — Missing
-- [ ] Group / parent objects — Missing
+- [x] Select / move / rotate / scale objects — `moon edit` click selection and ImGuizmo W/E/R
+- [x] Duplicate / delete objects — Ctrl+D, Del, context menu, with undo
+- [x] Group / parent objects — Hierarchy "Parent to" / "Unparent" keeping world position
 - [ ] Align objects — Missing
-- [ ] Snap to grid / surface / vertex / angle — Missing
-- [ ] Multi-select — Missing
-- [ ] Transform gizmos — Missing
-- [ ] Local/world coordinates — Missing
+- [ ] Snap to grid / surface / vertex / angle — **Partial:** move/rotate/scale step snapping; no surface or vertex snap
+- [ ] Multi-select — **Partial:** Ctrl/Shift + click selects several for delete/duplicate; the gizmo moves one
+- [x] Transform gizmos — ImGuizmo move/rotate/scale
+- [x] Local/world coordinates — toolbar Local toggle
 - [ ] Pivot controls — Missing
-- [ ] Object locking / hiding — Missing
+- [ ] Object locking / hiding — **Partial:** Visible checkbox; no locking
 - [ ] Layer visibility — Missing
-- [ ] Object search — Missing
+- [x] Object search — Hierarchy search box
 
 #### 18.3 Viewport controls
-- [ ] Blender/Godot-style mouse and W/E/R/F/Delete/Ctrl+D/Ctrl+Z/Ctrl+Y bindings — Missing (no editor viewport)
+- [x] Blender/Godot-style mouse and W/E/R/F/Delete/Ctrl+D/Ctrl+Z/Ctrl+Y bindings — `moon edit`
 - [ ] Customizable bindings — Missing in IDE (game-side `LoadBinds`/`SaveBinds` exist)
 
 #### 18.4 Viewport display modes
-- [ ] Lit / unlit / wireframe / solid — Missing in editor (runtime `Wireframe` only)
+- [ ] Lit / unlit / wireframe / solid — **Partial:** lit with optional editor light; no mode switch
 - [ ] Material preview / textured — Missing
 - [ ] Normals / UV checker — Missing
-- [ ] Collision / physics debug view — Missing in editor (runtime `EnablePhysicsDebug`)
+- [x] Collision / physics debug view — View menu: physics shapes, light ranges, bounds, entity IDs
 - [ ] Lighting only / shadow view — Missing
 - [ ] Overdraw visualization — Missing
 
@@ -1204,7 +1205,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [ ] Onion skinning / frame timeline — Missing
 
 #### 18.6 Inspector
-- [ ] Transform, material, physics, animation, entity properties — **Partial:** editor.mb position/colour/shininess sliders only
+- [ ] Transform, material, physics, animation, entity properties — **Partial:** transform, material, light, camera in `moon edit`; physics bodies and animation only in the scene file
 - [ ] Custom component / script properties — Missing
 - [ ] Resource references — Missing
 - [ ] Component management — Missing
@@ -1240,9 +1241,9 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [ ] Dockable panels / custom layouts — **Partial:** resizable sidebar/output; no docking
 - [ ] Multiple monitors — Missing
 - [ ] Command palette — **Partial:** Monaco's built-in F1 palette only
-- [ ] Context menus — **Partial:** Monaco editor context menu only
+- [ ] Context menus — **Partial:** Monaco, and the scene editor hierarchy (focus, duplicate, delete, parent)
 - [x] Keyboard shortcuts — F5/Shift+F5/F7/F9/Ctrl+S/O/N/W (App.svelte, Editor.svelte)
-- [ ] Undo/redo history — **Partial:** Monaco text undo only
+- [x] Undo/redo history — Monaco for code; `moon edit` 200-step undo/redo for scene edits
 - [ ] Autosave — Missing
 - [ ] Crash recovery — Missing
 - [ ] Project backups — Missing

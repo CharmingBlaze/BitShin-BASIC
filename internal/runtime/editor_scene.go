@@ -10,14 +10,24 @@ import (
 )
 
 // The editor's view of entity state for undo, and of scene files. Undo
-// keeps the node's own transform (G3N space) rather than going through
-// Blitz conversions, so restoring is exact.
+// snapshots are scene v2 rows (entityJSON), so restoring brings back the
+// material, body, light, tags, and script too. The node's own transform is
+// kept alongside, so restored positions are exact, and kinds the scene
+// format cannot hold (terrain, water) still undo their transform.
 
 func (w *World) editorState(id int) map[string]any {
 	e := w.ents[id]
 	if e == nil {
 		return nil
 	}
+	st := w.editorRaw(id, e)
+	if row := w.entityJSON(id); row != nil {
+		st["v2"] = row
+	}
+	return st
+}
+
+func (w *World) editorRaw(id int, e *Entity) map[string]any {
 	n := e.node.GetNode()
 	p, q, s := n.Position(), n.Quaternion(), n.Scale()
 	st := map[string]any{
@@ -41,6 +51,18 @@ func (w *World) applyEditorState(id int, st map[string]any) {
 	e := w.ents[id]
 	if e == nil || st == nil {
 		return
+	}
+	if row, ok := st["v2"].(map[string]any); ok {
+		if e.meta != nil && e.meta.uid != "" {
+			w.setEntityUID(id, e.meta.uid) // a soft delete may have dropped it from the index
+		}
+		if nid, err := w.applyEntityJSON(row, true); err == nil && nid != id {
+			return // rebuilt under a new id (kind change): its row is complete
+		}
+		e = w.ents[id]
+		if e == nil {
+			return
+		}
 	}
 	n := e.node.GetNode()
 	if pid, ok := st["parent"].(int); ok && pid != e.parent {
@@ -140,12 +162,15 @@ func (w *World) editorLoadScene(path string) error {
 	if err != nil {
 		return err
 	}
-	w.applySceneJSON(root)
-	return nil
+	m, ok := root.(map[string]any)
+	if !ok {
+		return fmt.Errorf("%s is not a scene object", filepath.Base(path))
+	}
+	return w.loadSceneV2(m, false)
 }
 
 func (w *World) editorSaveScene(path string) error {
-	b, err := json.MarshalIndent(w.sceneJSON(), "", "  ")
+	b, err := json.MarshalIndent(w.sceneV2(), "", "  ")
 	if err != nil {
 		return err
 	}

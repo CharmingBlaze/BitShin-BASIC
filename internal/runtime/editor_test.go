@@ -168,3 +168,29 @@ func TestEditorSaveAndReload(t *testing.T) {
 		t.Fatalf("reloaded %d entities", n)
 	}
 }
+
+func TestEditorUndoRestoresMaterialAndUID(t *testing.T) {
+	ed := newTestEditor(t)
+	w := ed.w
+	id := ed.create("Cube", "createcube")
+	w.Call("setmaterialpbr", edNums([]float64{float64(id), 1}))
+	uid := w.entityUID(id)
+	before := ed.snapshot([]int{id})
+	pm := w.ents[id].pbrWrap
+	pm.metallic, pm.roughness = 0.9, 0.1
+	pm.applyFactors()
+	ed.record("metallic", before, ed.snapshot([]int{id}))
+	ed.undoStep()
+	if pm := w.ents[id].pbrWrap; pm == nil || pm.metallic != 0 || pm.roughness != 0.5 {
+		t.Fatalf("material after undo %+v", pm)
+	}
+
+	// Delete then undo: the same entity and uid come back, no duplicate.
+	n := len(w.ents)
+	ed.sel = []int{id}
+	ed.deleteSelected()
+	ed.undoStep()
+	if len(w.ents) != n || w.entityByUID(uid) != id {
+		t.Fatalf("after undo delete: %d entities (want %d), uid -> %d", len(w.ents), n, w.entityByUID(uid))
+	}
+}

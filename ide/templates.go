@@ -18,48 +18,39 @@ type ProjectTemplate struct {
 	scene       []sceneEntity
 }
 
-// sceneEntity is one entity of a version-2 scene file.
+// sceneEntity is one row of a scene v2 file (docs/SCENES.md).
 type sceneEntity struct {
-	ID       int        `json:"id"`
-	Name     string     `json:"name"`
-	Kind     string     `json:"kind"`
-	Parent   int        `json:"parent"`
-	Position [3]float64 `json:"position"`
-	Rotation [3]float64 `json:"rotation"`
-	Scale    [3]float64 `json:"scale"`
-	Color    [3]int     `json:"color"`
-	Light    string     `json:"light,omitempty"`
-	Body     string     `json:"body,omitempty"`
+	UID   string         `json:"uid"`
+	Name  string         `json:"name"`
+	Kind  string         `json:"kind"`
+	Pos   [3]float64     `json:"pos"`
+	Rot   [3]float64     `json:"rot"`
+	Scale [3]float64     `json:"scale"`
+	Color [4]int         `json:"color"`
+	Light map[string]any `json:"light,omitempty"`
+	Body  map[string]any `json:"body,omitempty"`
 }
 
+var staticBody = map[string]any{"type": "static", "shape": "auto"}
+
 // starterScene is the ground, sun, and two props every 3D template's
-// scenes/main.scene.json holds. main.mb builds the same objects in code.
+// scenes/main.scene.json holds; main.mb loads it with LoadScene.
 var starterScene = []sceneEntity{
-	{ID: 1, Name: "Ground", Kind: "cube", Position: [3]float64{0, 0, 0}, Scale: [3]float64{40, 0.25, 40}, Color: [3]int{45, 80, 60}, Body: "static"},
-	{ID: 2, Name: "Sun", Kind: "light", Light: "directional", Position: [3]float64{0, 20, 0}, Rotation: [3]float64{45, 35, 0}, Scale: [3]float64{1, 1, 1}, Color: [3]int{255, 240, 210}},
-	{ID: 3, Name: "Crate", Kind: "cube", Position: [3]float64{3, 1.25, 4}, Scale: [3]float64{1, 1, 1}, Color: [3]int{180, 120, 70}, Body: "static"},
-	{ID: 4, Name: "Pillar", Kind: "cylinder", Position: [3]float64{-4, 2, 6}, Scale: [3]float64{1, 2, 1}, Color: [3]int{150, 160, 180}, Body: "static"},
+	{UID: "ground", Name: "Ground", Kind: "cube", Scale: [3]float64{20, 0.125, 20}, Color: [4]int{45, 80, 60, 255}, Body: staticBody},
+	{UID: "sun", Name: "Sun", Kind: "light", Pos: [3]float64{0, 20, 0}, Rot: [3]float64{45, 35, 0}, Scale: [3]float64{1, 1, 1}, Color: [4]int{255, 255, 255, 255},
+		Light: map[string]any{"type": "directional", "color": []int{255, 240, 210}, "intensity": 1, "shadows": true}},
+	{UID: "crate", Name: "Crate", Kind: "cube", Pos: [3]float64{3, 1.25, 4}, Scale: [3]float64{1, 1, 1}, Color: [4]int{180, 120, 70, 255}, Body: staticBody},
+	{UID: "pillar", Name: "Pillar", Kind: "cylinder", Pos: [3]float64{-4, 2, 6}, Scale: [3]float64{1, 2, 1}, Color: [4]int{150, 160, 180, 255}, Body: staticBody},
 }
 
 // sceneComment is shared by the 3D templates.
-const sceneComment = `; The ground, sun, crate, and pillar below are also in scenes/main.scene.json.
-; Double-click that file in the Explorer to edit it in the scene editor.
-; When your moon.exe's LoadScene reads version-2 scene files, you can replace
-; this block with:  LoadScene("scenes/main.scene.json")
+const sceneComment = `; The ground, sun, crate, and pillar come from scenes/main.scene.json.
+; Double-click it in the Explorer to edit it in the scene editor; the game
+; picks up your changes the next time it runs.
 `
 
-const worldBlock = `sun = CreateDirectionalLight()
-SetLightDirection(sun, 45, 35, 0)
-SetLightColor(sun, 255, 240, 210)
-
-ground = CreateCube().Scale(40, 0.25, 40).Position([0, 0, 0]).Color(45, 80, 60)
-CreateRigidBodyBox(ground, 40, 0.25, 40, 0)
-
-crate = CreateCube().Scale(1, 1, 1).Position([3, 1.25, 4]).Color(180, 120, 70)
-CreateRigidBodyBox(crate, 1, 1, 1, 0)
-
-pillar = CreateCylinder(12).Scale(1, 2, 1).Position([-4, 2, 6]).Color(150, 160, 180)
-CreateRigidBodyBox(pillar, 1, 2, 1, 0)
+const worldBlock = `LoadScene("scenes/main.scene.json")
+crate = FindEntity("Crate")
 `
 
 var projectTemplates = []ProjectTemplate{
@@ -391,7 +382,7 @@ func writeTemplate(root string, p Project, t ProjectTemplate) error {
 // file stays readable and diffs well.
 func sceneFileJSON(ents []sceneEntity) ([]byte, error) {
 	var b strings.Builder
-	b.WriteString("{\n  \"version\": 2,\n  \"environment\": {\"ambient\": [70, 75, 90], \"clearColor\": [40, 50, 70]},\n  \"entities\": [\n")
+	b.WriteString("{\n  \"version\": 2,\n  \"environment\": {\"ambient\": [70, 75, 90], \"clear\": [40, 50, 70]},\n  \"entities\": [\n")
 	for i, e := range ents {
 		line, err := json.Marshal(e)
 		if err != nil {

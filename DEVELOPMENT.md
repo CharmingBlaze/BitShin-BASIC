@@ -56,6 +56,8 @@ Under the hood it sets environment switches you can use yourself, for example fo
 | Variable | Effect |
 | --- | --- |
 | `MOON_SMOKE_FRAMES=n` | Stop after `n` frames. Exit 0 clean, 3 if any GL error was seen |
+| `MOON_SHOT=n:path` | Save frame `n` as a PNG (2D, 3D, and the scene editor) |
+| `MOON_EDITOR_SELECT=name` | `moon edit` selects that entity at start |
 | `MOON_HIDDEN=1` | Create the 3D window hidden and unfocused |
 | `MOON_NO_GRAB=1` | `HidePointer`, `MoveMouse`, `SetCursorMode`, free look, and `FocusWindow` leave the pointer and focus alone |
 | `MOON_DEBUG=1` | `DebugLog` prints without `-debug` (the IDE sets it for every run) |
