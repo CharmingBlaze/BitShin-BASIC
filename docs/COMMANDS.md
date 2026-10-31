@@ -202,6 +202,25 @@ Source must be `.gltf` / `.glb` **with clips**.
 
 Clips advance with `DeltaTime` each frame (Flip), not twice if you also `UpdateWorld`.
 
+### Blend trees and crossfades
+
+Weighted clip mixing by a parameter, plus timed state changes. Layers from `SetAnimLayer` / `SetAnimAdditive` still apply on top. See [ANIMATION.md](ANIMATION.md) and `examples/anim_blend.mb`.
+
+| Command | Meaning | Example |
+| --- | --- | --- |
+| `CreateBlendTree(e [, kind])` | New tree for an animated entity. `kind` 1 = 1D thresholds (default), 2 = 2D points (gradient band). Returns a handle | `loco = CreateBlendTree(hero, 1)` |
+| `AddBlendClip(tree, seq\|name$, x# [, y#])` | Add a clip at threshold `x` (1D) or point `x,y` (2D). Returns its index from 0 | `AddBlendClip(loco, "run", 4.0)` |
+| `SetBlendParam tree, x# [, y#]` | Drive the tree. 1D clamps to the end clips; 2D weights always sum to 1. Alias `SetBlendParameter` | `SetBlendParam(loco, speed)` |
+| `BlendParam(tree [, axis])` | Current x (axis 0) or y (axis 1) | `v# = BlendParam(strafe, 1)` |
+| `BlendWeight(tree, index)` | Weight 0–1 of the clip at `index`. Alias `GetBlendWeight` | `w# = BlendWeight(loco, 1)` |
+| `BlendClipCount(tree)` | Clips in the tree | `n = BlendClipCount(loco)` |
+| `SetBlendTreeSpeed tree, speed# [, sync]` | Playback rate. `sync` 1 (default) phase-locks clips by normalized time so walk and run feet land together; 0 runs each clip on its own clock | `SetBlendTreeSpeed(loco, 1.2, 1)` |
+| `BlendTreePhase(tree)` | Shared normalized cycle 0–1 (synced trees), e.g. for footsteps | `If BlendTreePhase(loco) < 0.05 Then ...` |
+| `PlayBlendTree e, tree [, fade#]` | Make the tree the base pose, fading in over `fade` seconds (default 0) | `PlayBlendTree(hero, loco, 0.3)` |
+| `CrossfadeAnim e, seq\|name$, seconds# [, mode]` | Ease from whatever plays (clip, tree, or a fade in progress) into a clip. `mode` as `Animate` (default 1 loop). Aliases `CrossfadeAnimation`, `Crossfade` | `CrossfadeAnim(hero, "wave", 0.35)` |
+| `CrossfadeProgress(e)` | 0–1 into the current fade, 1 when none | `p# = CrossfadeProgress(hero)` |
+| `FreeBlendTree tree` | Delete the tree; the entity keeps its last clip. Alias `DeleteBlendTree` | `FreeBlendTree(loco)` |
+
 ## Picking
 
 | Command | Meaning |

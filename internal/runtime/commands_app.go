@@ -302,6 +302,7 @@ func (w *World) appCommands(n func(func([]value.Value) (value.Value, error)) cmd
 				return value.Num(0), nil
 			}
 			e.anim.seq = seq
+			e.anim.tree, e.anim.fade = nil, nil
 			e.anim.mode = 1
 			e.anim.speed = 1
 			e.anim.dir = 1

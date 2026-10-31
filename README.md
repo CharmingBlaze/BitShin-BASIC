@@ -169,6 +169,7 @@ Do not mix `Graphics3D` and `Graphics2D` in one program.
 | `examples/net_host.mb` | `CreateNetworkHost` / `PollNetwork` |
 | `examples/net_physics.mb` | Handle API plus a physics kick |
 | `examples/anim.mb` | `LoadAnimation` (needs `hero.glb`) |
+| `examples/anim_blend.mb` | Blend trees: idle/walk/run by speed, 2D strafe, `CrossfadeAnim` (`docs/ANIMATION.md`) |
 | `examples/tiles.mb` | Tilemap |
 | `examples/particles.mb` | 3D particles: `SetEmitterShape` `"soft"` or `"cube"` |
 | `examples/particles2d.mb` | 2D `CreateEmitter2D` |
@@ -220,6 +221,7 @@ This workspace maps `*.mb` → language id `moonbasic` (`.vscode/settings.json`)
 - [docs/LANGUAGE.md](docs/LANGUAGE.md) — syntax
 - [docs/NETWORK.md](docs/NETWORK.md) — host a game, find a room, wait, play
 - [docs/PHYSICS.md](docs/PHYSICS.md) — Jolt bodies, joints, grab, cloth, CharacterVirtual
+- [docs/ANIMATION.md](docs/ANIMATION.md) — blend trees, phase sync, crossfades
 - [docs/MODERN_GAME_HELPERS.md](docs/MODERN_GAME_HELPERS.md) — FPS/TPS, tweens, grab / beam / projectile
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — packages and Flip
 - [docs/STATUS.md](docs/STATUS.md) — Real / Partial / not in product (**1.0.0**)

@@ -31,6 +31,8 @@ type animState struct {
 	layers []animLayer
 	bind   []localXF
 	bindOK bool
+	tree   *blendTree // PlayBlendTree: replaces seq/time as the base pose
+	fade   *animFade  // CrossfadeAnim / PlayBlendTree fade-in
 }
 
 // animLayer is an extra clip on top of the base pose.
@@ -45,7 +47,7 @@ type animLayer struct {
 }
 
 func (w *World) animCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error), need func(func([]value.Value) (value.Value, error)) cmd) map[string]cmd {
-	return map[string]cmd{
+	m := map[string]cmd{
 		"loadanimmesh": need(func(a []value.Value) (value.Value, error) {
 			id, err := w.loadAnimMesh(argS(a, 0), argI(a, 1, 0))
 			return value.Num(float64(id)), err
@@ -71,6 +73,7 @@ func (w *World) animCommands(n func(func([]value.Value) (value.Value, error)) cm
 				return value.Value{}, fmt.Errorf("Animate: seq %d out of range (0..%d)", st.seq, len(st.clips)-1)
 			}
 			st.dir = 1
+			st.tree, st.fade = nil, nil
 			st.time = st.first[st.seq]
 			st.clips[st.seq].Reset()
 			st.clips[st.seq].SetPaused(st.mode == 0)
@@ -226,6 +229,10 @@ func (w *World) animCommands(n func(func([]value.Value) (value.Value, error)) cm
 			return value.Str(e.anim.names[e.anim.seq]), nil
 		}),
 	}
+	for k, v := range w.blendTreeCommands(need) {
+		m[k] = v
+	}
+	return m
 }
 
 func (st *animState) setName(name string) error {
@@ -248,12 +255,26 @@ func (st *animState) span() float32 {
 }
 
 func (st *animState) applyPose(root core.INode) {
+	if st.tree != nil || st.fade != nil {
+		st.applyBlendPose(root)
+		st.applyLayers(root)
+		return
+	}
+	if st.seq < 0 || st.seq >= len(st.clips) {
+		return
+	}
+	st.applyClipPose(root)
+	st.applyLayers(root)
+}
+
+// applyClipPose poses the current clip, mixed with the previous one by
+// SetAnimBlend. Layers are not applied.
+func (st *animState) applyClipPose(root core.INode) {
 	if st.seq < 0 || st.seq >= len(st.clips) {
 		return
 	}
 	st.evalClip(st.seq, st.time)
 	if root == nil || st.prev < 0 || st.prev == st.seq || st.blend >= 0.999 {
-		st.applyLayers(root)
 		return
 	}
 	cur := snapshotLocal(root)
@@ -261,7 +282,6 @@ func (st *animState) applyPose(root core.INode) {
 	prev := snapshotLocal(root)
 	if len(cur) != len(prev) {
 		st.evalClip(st.seq, st.time)
-		st.applyLayers(root)
 		return
 	}
 	t := st.blend
@@ -276,7 +296,6 @@ func (st *animState) applyPose(root core.INode) {
 		q := nlerpQuat(prev[i].q, cur[i].q, t)
 		n.SetQuaternion(q.X, q.Y, q.Z, q.W)
 	}
-	st.applyLayers(root)
 }
 
 func (w *World) setAnimLayer(a []value.Value, additive bool) (value.Value, error) {
@@ -594,10 +613,11 @@ func (w *World) tickAnims(dt float32) {
 				}
 			}
 		}
-		if st.mode == 0 && !layerOn {
+		blendOn := st.tickBlend(dt)
+		if st.mode == 0 && !layerOn && !blendOn {
 			continue
 		}
-		if st.mode == 0 {
+		if st.mode == 0 || st.tree != nil {
 			st.applyPose(e.node)
 			posed = true
 			continue
@@ -657,11 +677,13 @@ func (w *World) loadAnimMesh(file string, parent int) (int, error) {
 	if ext != ".gltf" && ext != ".glb" {
 		return 0, fmt.Errorf("LoadAnimMesh: need a .gltf or .glb with clips (got %s)", ext)
 	}
-	id, err := w.loadGLTF(file, parent, ext == ".glb")
+	// One parse for the scene and the clips: G3N caches nodes per GLTF, so
+	// clips loaded from a second parse would drive nodes not in the scene.
+	g, err := parseGLTF(path, ext == ".glb")
 	if err != nil {
 		return 0, err
 	}
-	g, err := parseGLTF(path, ext == ".glb")
+	id, err := w.loadGLTFScene(g, path, parent)
 	if err != nil {
 		return 0, err
 	}
@@ -690,6 +712,32 @@ func (w *World) loadAnimMesh(file string, parent int) (int, error) {
 	if len(st.clips) == 0 {
 		return 0, fmt.Errorf("LoadAnimMesh: %s has no animation clips", file)
 	}
+	return id, nil
+}
+
+// loadGLTFScene builds an entity from an already parsed glTF, like
+// loadGLTFAt, so the caller can load clips from the same parse.
+func (w *World) loadGLTFScene(g *gltf.GLTF, path string, parent int) (int, error) {
+	var (
+		node core.INode
+		err  error
+	)
+	if len(g.Scenes) > 0 {
+		idx := 0
+		if g.Scene != nil {
+			idx = *g.Scene
+		}
+		node, err = g.LoadScene(idx)
+	} else if len(g.Meshes) > 0 {
+		node, err = g.LoadMesh(0)
+	} else {
+		return 0, fmt.Errorf("LoadAnimMesh: no scene or mesh in %s", path)
+	}
+	if err != nil {
+		return 0, fmt.Errorf("LoadAnimMesh: %w", err)
+	}
+	id := w.addEntity(&Entity{node: node, radius: 1}, parent)
+	w.attachLoadedPBR(w.ents[id])
 	return id, nil
 }
 

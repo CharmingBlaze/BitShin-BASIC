@@ -175,6 +175,8 @@ type World struct {
 	vehCtrls                         map[int]*vehCtrl
 	ropes                            map[int]*ropeSystem
 	nextRope                         int
+	blendTrees                       map[int]*blendTree
+	nextBlendTree                    int
 	phys2                            *phys2d.Space
 	net                              netenet.Host
 	nets                             map[int]netenet.Host
