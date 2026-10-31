@@ -6290,6 +6290,29 @@
       ]
     },
     {
+      "name": "Debugging",
+      "commands": [
+        {
+          "syntax": "DebugLog msg$ [, level$]",
+          "name": "DebugLog",
+          "description": "Prints `[debug] file.mb:12: msg` (stdout). `level$` `\"warn\"` / `\"error\"` prints `[debug:warn]` / `[debug:error]` on stderr. Silent unless `-debug`, `MOON_DEBUG=1`, or the IDE runs the game",
+          "category": "Debugging"
+        },
+        {
+          "syntax": "Assert cond [, msg$]",
+          "name": "Assert",
+          "description": "When `cond` is false, stops with `file.mb:12: Assert failed: msg`. Also stops after `Flip`. `Try` / `Catch` catches it. Under `-debug` it pauses at that line first",
+          "category": "Debugging"
+        },
+        {
+          "syntax": "DebugBreak",
+          "name": "DebugBreak",
+          "description": "Pauses in the debugger at this line. Does nothing without `-debug`",
+          "category": "Debugging"
+        }
+      ]
+    },
+    {
       "name": "Menu / level",
       "commands": [
         {
@@ -16129,6 +16152,24 @@
       "name": "FrontBuffer",
       "description": "classic no-ops (`SetBuffer BackBuffer()`)",
       "category": "Language builtins"
+    },
+    {
+      "syntax": "DebugLog msg$ [, level$]",
+      "name": "DebugLog",
+      "description": "Prints `[debug] file.mb:12: msg` (stdout). `level$` `\"warn\"` / `\"error\"` prints `[debug:warn]` / `[debug:error]` on stderr. Silent unless `-debug`, `MOON_DEBUG=1`, or the IDE runs the game",
+      "category": "Debugging"
+    },
+    {
+      "syntax": "Assert cond [, msg$]",
+      "name": "Assert",
+      "description": "When `cond` is false, stops with `file.mb:12: Assert failed: msg`. Also stops after `Flip`. `Try` / `Catch` catches it. Under `-debug` it pauses at that line first",
+      "category": "Debugging"
+    },
+    {
+      "syntax": "DebugBreak",
+      "name": "DebugBreak",
+      "description": "Pauses in the debugger at this line. Does nothing without `-debug`",
+      "category": "Debugging"
     },
     {
       "syntax": "WindowWidth",

@@ -204,7 +204,8 @@ func (a *App) SetBreakpoints(lines string) {
 	a.cmdMutex.Unlock()
 }
 
-// DebugCommand sends c, s, p name, or q to a paused debug session.
+// DebugCommand sends a debugger command (c, s, n, o, bt, p expr, b line, d line, q)
+// to a paused debug session. Pauses come back on stderr as "@debug {json}" lines.
 func (a *App) DebugCommand(line string) error {
 	a.cmdMutex.Lock()
 	w := a.debugIn
@@ -257,7 +258,7 @@ func (a *App) RunProgram(code string, filePath string, debug bool) error {
 
 	runArgs := []string{runPath}
 	if debug {
-		runArgs = append(runArgs, "-debug")
+		runArgs = append(runArgs, "-debug", "-debugjson")
 		a.cmdMutex.Lock()
 		br := strings.TrimSpace(a.breaks)
 		a.cmdMutex.Unlock()
@@ -267,6 +268,8 @@ func (a *App) RunProgram(code string, filePath string, debug bool) error {
 	}
 	cmd := exec.Command(moonExe, runArgs...)
 	cmd.Dir = workDir
+	// DebugLog shows in the Output panel for every IDE run; errors name the tab, not the temp file.
+	cmd.Env = append(os.Environ(), "MOON_DEBUG=1", "MOON_SCRIPT_NAME="+scriptName(filePath, runPath))
 	if debug {
 		stdin, err := cmd.StdinPipe()
 		if err != nil {
@@ -520,4 +523,16 @@ func (a *App) SaveSettings(s UserSettings) error {
 		return err
 	}
 	return os.WriteFile(settingsFile, data, 0o644)
+}
+
+// scriptName is the name DebugLog, Assert, and the call stack report for an IDE run.
+func scriptName(filePath, runPath string) string {
+	name := filePath
+	for _, prefix := range []string{"temp://", "example://"} {
+		name = strings.TrimPrefix(name, prefix)
+	}
+	if name == "" {
+		return filepath.Base(runPath)
+	}
+	return filepath.Base(name)
 }

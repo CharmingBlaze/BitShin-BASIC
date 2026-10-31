@@ -21,8 +21,12 @@ func main() {
 		fmt.Print(`moonBASIC — Blitz3D-style BASIC (G3N 3D, Ebiten 2D)
 
 Usage:
-  moon <program.mb> [-debug] [-break 10,20]
-                                 Run a program. -debug pauses on -break lines (c, s, p name, q)
+  moon <program.mb> [-debug] [-break 10,20] [-debugjson]
+                                 Run a program. -debug pauses on -break lines and DebugBreak,
+                                 shows DebugLog output (also MOON_DEBUG=1). At the debug> prompt:
+                                 c continue, s step into, n step over, o step out, bt call stack,
+                                 locals, globals, p expr, b line, d line, q quit.
+                                 -debugjson prints each pause as one @debug JSON line (the IDE uses it)
   moon run <program.mb>          Same
   moon compile <program.mb> [-o app.exe] [-os windows|linux|darwin] [-arch amd64|arm64] [-tags tags]
                                  Compile to a standalone game binary (Flip presents frames)
@@ -93,26 +97,36 @@ Examples live in the examples/ folder.
 		}
 		args = args[1:]
 	}
-	path, debug, breaks := splitRunArgs(args)
-	if path == "" {
+	opt := splitRunArgs(args)
+	if opt.path == "" {
 		fmt.Fprintln(os.Stderr, "moon: missing file")
 		os.Exit(2)
 	}
-	if err := runFile(path, debug, breaks); err != nil {
+	if err := runFile(opt); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 }
 
-func splitRunArgs(args []string) (path string, debug bool, breaks []int) {
+type runOpts struct {
+	path      string
+	debug     bool
+	debugJSON bool
+	breaks    []int
+}
+
+func splitRunArgs(args []string) runOpts {
+	var o runOpts
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "-debug":
-			debug = true
+			o.debug = true
+		case "-debugjson":
+			o.debug, o.debugJSON = true, true
 		case "-break":
 			if i+1 < len(args) {
 				i++
-				debug = true
+				o.debug = true
 				for _, part := range strings.Split(args[i], ",") {
 					part = strings.TrimSpace(part)
 					if part == "" {
@@ -121,20 +135,21 @@ func splitRunArgs(args []string) (path string, debug bool, breaks []int) {
 					n := 0
 					fmt.Sscanf(part, "%d", &n)
 					if n > 0 {
-						breaks = append(breaks, n)
+						o.breaks = append(o.breaks, n)
 					}
 				}
 			}
 		default:
-			if path == "" && !strings.HasPrefix(args[i], "-") {
-				path = args[i]
+			if o.path == "" && !strings.HasPrefix(args[i], "-") {
+				o.path = args[i]
 			}
 		}
 	}
-	return path, debug, breaks
+	return o
 }
 
-func runFile(path string, debug bool, breaks []int) error {
+func runFile(opt runOpts) error {
+	path := opt.path
 	prog, err := parse.ParseFile(path)
 	if err != nil {
 		return err
@@ -146,8 +161,15 @@ func runFile(path string, debug bool, breaks []int) error {
 	world := runtime.New(filepath.Dir(path))
 	world.SetScript(path)
 	in := interp.New(prog, world)
-	if debug {
-		in.SetDebug(breaks, os.Stdin, os.Stderr)
+	// MOON_SCRIPT_NAME lets the IDE report the tab's name instead of its temp run file.
+	name := os.Getenv("MOON_SCRIPT_NAME")
+	if name == "" {
+		name = filepath.Base(path)
+	}
+	in.SetScript(name)
+	if opt.debug {
+		in.SetDebug(opt.breaks, os.Stdin, os.Stderr)
+		in.SetDebugJSON(opt.debugJSON)
 	}
 	world.Bind(in)
 	if err := in.Run(); err != nil {

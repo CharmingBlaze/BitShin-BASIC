@@ -48,16 +48,16 @@ Coverage counts a partial item as half.
 | [15. Rendering and graphics quality](#15-rendering-and-graphics-quality) | 20 | 7 | 18 | 52% |
 | [16. Assets and import pipeline](#16-assets-and-import-pipeline) | 20 | 10 | 27 | 44% |
 | [17. Scenes and prefabs](#17-scenes-and-prefabs) | 10 | 7 | 14 | 44% |
-| [18. Moon Studio (IDE / editor)](#18-moon-studio-ide--editor) | 18 | 15 | 48 | 31% |
+| [18. Moon Studio (IDE / editor)](#18-moon-studio-ide--editor) | 20 | 14 | 47 | 33% |
 | [19. Shaders and visual programming](#19-shaders-and-visual-programming) | 7 | 3 | 3 | 65% |
-| [20. Development and debugging tools](#20-development-and-debugging-tools) | 12 | 11 | 23 | 38% |
+| [20. Development and debugging tools](#20-development-and-debugging-tools) | 18 | 8 | 20 | 48% |
 | [21. Optimization and performance](#21-optimization-and-performance) | 12 | 7 | 19 | 41% |
 | [22. Graphics API and platform](#22-graphics-api-and-platform) | 11 | 3 | 4 | 69% |
 | [23. Build system and export](#23-build-system-and-export) | 11 | 8 | 13 | 47% |
 | [24. Project management](#24-project-management) | 1 | 4 | 6 | 27% |
 | [25. Documentation and community](#25-documentation-and-community) | 3 | 9 | 4 | 47% |
 | [26. Plugins and extensions](#26-plugins-and-extensions) | 0 | 3 | 12 | 10% |
-| **Total** | **552** | **202** | **323** | **61%** |
+| **Total** | **560** | **198** | **319** | **61%** |
 
 **Strongest:** water and environment, the 2D and 3D engines, terrain, physics, and input. **Weakest:** plugins, project management, Moon Studio's visual editing, debugging and profiling tools, and audio.
 
@@ -1223,9 +1223,9 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] Search and replace — Monaco built-in find/replace
 - [x] Snippets — completions.ts game-loop snippets
 - [ ] Code formatting — Missing
-- [x] Breakpoints — F9 glyph-margin breakpoints → `moon -debug -break`
-- [ ] Variable inspection — **Partial:** `p name` in `moon -debug` console; no IDE watch UI
-- [ ] Call stack — Missing
+- [x] Breakpoints — F9 / gutter click → `moon -debug -debugjson -break`; toggles while paused send `b` / `d`; paused line highlighted
+- [x] Variable inspection — DebugPanel.svelte Locals / Globals from `@debug` JSON, plus a Watch list re-evaluated with `p expr` at every pause
+- [x] Call stack — DebugPanel.svelte Call Stack pane (click a frame to jump); F10 / F11 / Shift+F11 step over / into / out
 - [ ] Integrated terminal — Missing
 - Also: LSP rename + document symbols (SymbolOutline.svelte), ExamplesGallery, BuildModal.
 
@@ -1275,17 +1275,17 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 
 #### Debugging
 - [x] Print — `Print`, `HudPrint`
-- [ ] DebugLog — Missing (`Print` substitute)
-- [ ] Assertions — Missing
+- [x] DebugLog — `DebugLog msg$ [, level$]` → `[debug] file.mb:12: msg` under `-debug` / `MOON_DEBUG=1` / IDE (interp/debug.go)
+- [x] Assertions — `Assert cond [, msg$]` stops with `file.mb:12: Assert failed: msg` (also after `Flip`; `Try` catches it); `DebugBreak`
 - [x] Breakpoints — `moon prog.mb -debug -break 10,20`; IDE gutter
-- [ ] Step over / into / out — **Partial:** single `s` step; no over/into/out distinction
-- [ ] Variable inspection — **Partial:** `p name` debug command (interp/debug.go)
-- [ ] Call stack — Missing
+- [x] Step over / into / out — `moon -debug` commands `n` / `s` / `o` by call depth through Functions and Methods; IDE F10 / F11 / Shift+F11
+- [x] Variable inspection — `locals` / `globals` / `p expr` (any expression) in `moon -debug`; IDE Variables + Watch panes
+- [x] Call stack — `bt` → `#0 Sq game.mb:6` per frame; `@debug` JSON `stack`; IDE Call Stack pane
 - [x] Exception reporting — runtime errors as `line N:col`, shown in IDE Problems
 - [ ] Runtime object inspection — **Partial:** `EntityCount`/`EntityByIndex`/`EntityName` queries
 - [ ] Live entity inspection — **Partial:** `examples/editor.mb` ImGui scene list + inspector
 - [ ] Scene debugging — Missing
-- [ ] Script debugging — **Partial:** line breakpoints + step via `moon -debug`
+- [x] Script debugging — `moon -debug` breakpoints, `DebugBreak`, step over/into/out, call stack, variables, watches; IDE Debug sidebar (docs/LANGUAGE.md#debugging)
 
 #### Profiling
 - [x] FPS counter — `StatsFPS`

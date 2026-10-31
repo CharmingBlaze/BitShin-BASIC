@@ -1,4 +1,4 @@
-import type { EditorTab, FileNode, ConsoleMessage, UserSettings, SymbolItem } from '../types';
+import type { EditorTab, FileNode, ConsoleMessage, UserSettings, SymbolItem, DebugState, WatchItem } from '../types';
 import { AppAPI } from '../wailsBridge';
 import examplesData from '../data/examples.json';
 
@@ -62,9 +62,13 @@ class EditorStore {
   isRunning = $state<boolean>(false);
   executionTime = $state<number>(0);
   exitCode = $state<number | null>(null);
-  activeSidebarTab = $state<'files' | 'commands' | 'outline' | 'examples' | 'assets' | 'scene'>('files');
+  activeSidebarTab = $state<'files' | 'commands' | 'outline' | 'examples' | 'assets' | 'scene' | 'debug'>('files');
   breakpoints = $state<number[]>([]);
   debugPaused = $state(false);
+  debugSession = $state(false);
+  debugState = $state<DebugState | null>(null);
+  watches = $state<WatchItem[]>([]);
+  pausedLine = $derived(this.debugPaused && this.debugState ? this.debugState.line : 0);
   sidebarCollapsed = $state<boolean>(false);
   cursorPos = $state<{ line: number; col: number }>({ line: 1, col: 1 });
   lspConnected = $state<boolean>(false);
@@ -197,6 +201,8 @@ class EditorStore {
       window.runtime.EventsOn('run:start', (data: any) => {
         this.isRunning = true;
         this.exitCode = null;
+        this.debugPaused = false;
+        this.debugState = null;
         this.addLog({
           id: Math.random().toString(36).substring(7),
           type: 'system',
@@ -206,26 +212,19 @@ class EditorStore {
       });
 
       window.runtime.EventsOn('run:stdout', (line: string) => {
+        // DebugLog prints "[debug] file.mb:12: message"
+        const dbg = line.match(/^\[debug[^\]]*\] .*?:(\d+): /);
         this.addLog({
           id: Math.random().toString(36).substring(7),
           type: 'stdout',
           text: line,
-          time: new Date().toLocaleTimeString()
+          time: new Date().toLocaleTimeString(),
+          line: dbg ? parseInt(dbg[1], 10) : undefined
         });
       });
 
       window.runtime.EventsOn('run:stderr', (line: string) => {
-        if (line.startsWith('break ')) {
-          this.debugPaused = true;
-          const n = parseInt(line.slice(6), 10);
-          if (n > 0) {
-            const editor = (window as any).__monacoEditor;
-            if (editor) {
-              editor.revealLineInCenter(n);
-              editor.setPosition({ lineNumber: n, column: 1 });
-            }
-          }
-        }
+        if (this.handleDebugLine(line)) return;
         // Try parsing file and line info from error
         const lineMatch = line.match(/(?:at\s+|line\s+|:)(\d+)(?::(\d+))?/i);
         const lineNum = lineMatch ? parseInt(lineMatch[1]) : undefined;
@@ -243,7 +242,7 @@ class EditorStore {
 
       window.runtime.EventsOn('run:exit', (data: any) => {
         this.isRunning = false;
-        this.debugPaused = false;
+        this.endDebugSession();
         this.exitCode = data.code;
         this.executionTime = data.elapsed;
         this.addLog({
@@ -256,6 +255,7 @@ class EditorStore {
 
       window.runtime.EventsOn('run:stopped', (msg: string) => {
         this.isRunning = false;
+        this.endDebugSession();
         this.addLog({
           id: Math.random().toString(36).substring(7),
           type: 'system',
@@ -395,19 +395,114 @@ class EditorStore {
 
   toggleBreakpoint(line: number) {
     if (line < 1) return;
-    if (this.breakpoints.includes(line)) {
-      this.breakpoints = this.breakpoints.filter((n) => n !== line);
-    } else {
+    const on = !this.breakpoints.includes(line);
+    if (on) {
       this.breakpoints = [...this.breakpoints, line].sort((a, b) => a - b);
+    } else {
+      this.breakpoints = this.breakpoints.filter((n) => n !== line);
+    }
+    // The debugger reads commands only while paused; new breakpoints apply from there on.
+    if (this.debugPaused) {
+      void this.sendDebug(`${on ? 'b' : 'd'} ${line}`);
     }
   }
 
+  // handleDebugLine consumes the "@debug" / "@eval" lines of moon -debugjson.
+  handleDebugLine(line: string): boolean {
+    const at = line.indexOf('@');
+    if (at < 0) return false;
+    const body = line.slice(at);
+    if (body.startsWith('@debug ')) {
+      let st: DebugState;
+      try {
+        st = JSON.parse(body.slice(7));
+      } catch {
+        return false;
+      }
+      this.debugState = st;
+      this.debugPaused = true;
+      this.debugSession = true;
+      if (this.activeSidebarTab !== 'debug' || this.sidebarCollapsed) {
+        this.activeSidebarTab = 'debug';
+        this.sidebarCollapsed = false;
+      }
+      this.revealLine(st.line, false);
+      const why = st.reason === 'assert' ? 'Assert failed' : st.reason === 'debugbreak' ? 'DebugBreak' : st.reason === 'step' ? 'Step' : 'Breakpoint';
+      this.addLog({
+        id: Math.random().toString(36).substring(7),
+        type: st.reason === 'assert' ? 'error' : 'system',
+        text: `${why}: paused at ${st.file}:${st.line}${st.stack?.[0] ? ` in ${st.stack[0].name}` : ''}${st.message ? ` — ${st.message}` : ''}`,
+        time: new Date().toLocaleTimeString(),
+        line: st.line
+      });
+      this.refreshWatches();
+      return true;
+    }
+    if (body.startsWith('@eval ')) {
+      try {
+        const res = JSON.parse(body.slice(6));
+        for (const w of this.watches) {
+          if (w.expr === res.expr) {
+            w.value = res.value;
+            w.error = res.error;
+          }
+        }
+      } catch {}
+      return true;
+    }
+    return body.startsWith('@stack ');
+  }
+
+  revealLine(line: number, focus = true) {
+    if (!line || line < 1) return;
+    const editor = (window as any).__monacoEditor;
+    if (editor) {
+      editor.revealLineInCenter(line);
+      editor.setPosition({ lineNumber: line, column: 1 });
+      if (focus) editor.focus();
+    }
+  }
+
+  endDebugSession() {
+    this.debugPaused = false;
+    this.debugSession = false;
+    this.debugState = null;
+  }
+
+  // Continue, step, and quit resume the program, so the panes go stale until the next pause.
+  debugContinue() { return this.sendDebug('c'); }
+  debugStepOver() { return this.sendDebug('n'); }
+  debugStepInto() { return this.sendDebug('s'); }
+  debugStepOut() { return this.sendDebug('o'); }
+  debugQuit() { return this.sendDebug('q'); }
+
+  refreshWatches() {
+    if (!this.debugPaused) return;
+    for (const w of this.watches) {
+      void AppAPI.debugCommand(`p ${w.expr}`).catch(() => {});
+    }
+  }
+
+  addWatch(expr: string) {
+    expr = expr.trim().replace(/[\r\n]+/g, ' ');
+    if (!expr || this.watches.some((w) => w.expr === expr)) return;
+    this.watches = [...this.watches, { expr }];
+    if (this.debugPaused) {
+      void AppAPI.debugCommand(`p ${expr}`).catch(() => {});
+    }
+  }
+
+  removeWatch(expr: string) {
+    this.watches = this.watches.filter((w) => w.expr !== expr);
+  }
+
   async sendDebug(cmd: string) {
+    // Resume before sending: the next "@debug" pause can arrive before the request returns.
+    if (['c', 's', 'n', 'o', 'q'].includes(cmd)) {
+      this.debugPaused = false;
+    }
     try {
       await AppAPI.debugCommand(cmd);
-      if (cmd === 'c' || cmd === 's' || cmd === 'q') {
-        this.debugPaused = false;
-      }
     } catch (err: any) {
       this.addLog({
         id: Math.random().toString(36).substring(7),
@@ -448,6 +543,7 @@ class EditorStore {
       if (debug) {
         await AppAPI.setBreakpoints(this.breakpoints.join(','));
       }
+      this.debugSession = debug;
       await AppAPI.runProgram(this.activeTab.content, this.activeTab.path, debug);
     } catch (err: any) {
       this.addLog({
@@ -461,7 +557,7 @@ class EditorStore {
 
   async stopProgram() {
     this.isRunning = false;
-    this.debugPaused = false;
+    this.endDebugSession();
     try {
       await AppAPI.stopProgram();
     } catch (err) {

@@ -1125,3 +1125,91 @@ header.ide-titlebar input {
   border: 1px solid var(--border);
   background: var(--bg-input);
 }
+
+/* Debugger: gutter breakpoints, the paused line, and the Debug sidebar */
+.moonbasic-bp {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+.moonbasic-bp::before {
+  content: '';
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--err);
+}
+.moonbasic-paused-line {
+  background: rgba(201, 162, 39, 0.18);
+  border-left: 2px solid var(--accent);
+}
+.moonbasic-paused-glyph {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.moonbasic-paused-glyph::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-top: 5px solid transparent;
+  border-bottom: 5px solid transparent;
+  border-left: 8px solid var(--accent-bright);
+}
+
+.ide-dbg-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.ide-dbg-tools .ide-iconbtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.ide-dbg-tools .ide-iconbtn:disabled {
+  opacity: 0.35;
+  pointer-events: none;
+}
+.ide-dbg-section {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  height: 24px;
+  padding: 0 6px;
+  color: var(--text-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  border-top: 1px solid var(--border-subtle);
+}
+.ide-dbg-section:hover { color: var(--text-primary); }
+.ide-dbg-var {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 20px;
+  padding: 1px 8px 1px 22px;
+  text-align: left;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.ide-dbg-var:hover { background: var(--bg-hover); }
+.ide-dbg-name { color: var(--info); flex-shrink: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ide-dbg-val { color: var(--text-primary); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ide-dbg-err { color: var(--err-text); }
+.ide-dbg-x { flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
+.ide-dbg-empty { padding: 2px 8px 4px 22px; font-size: 11px; color: var(--text-dim); }
+.ide-dbg-stale { opacity: 0.55; }
+.ide-dbg-watch-add {
+  display: flex;
+  gap: 4px;
+  padding: 4px 8px 4px 22px;
+}
+.ide-dbg-watch-add .ide-field { height: 22px; font-size: 11px; }

@@ -39,6 +39,31 @@
     if (!breakDecos) breakDecos = ed.createDecorationsCollection(marks);
     else breakDecos.set(marks);
   });
+
+  let pausedDecos: monaco.editor.IEditorDecorationsCollection | null = null;
+
+  // Highlight the line the debugger is paused on.
+  $effect(() => {
+    const line = editorStore.pausedLine;
+    const ed = editor;
+    if (!ed) return;
+    const marks = line > 0
+      ? [{
+          range: new monaco.Range(line, 1, line, 1),
+          options: {
+            isWholeLine: true,
+            className: 'moonbasic-paused-line',
+            glyphMarginClassName: 'moonbasic-paused-glyph',
+            overviewRuler: {
+              color: 'rgba(232, 197, 71, 0.95)',
+              position: monaco.editor.OverviewRulerLane.Full
+            }
+          }
+        }]
+      : [];
+    if (!pausedDecos) pausedDecos = ed.createDecorationsCollection(marks);
+    else pausedDecos.set(marks);
+  });
   const models = new Map<string, monaco.editor.ITextModel>();
   const modelUris = new Map<string, string>();
   let repoRoot = '';
@@ -107,7 +132,31 @@
 
     // Keyboard Shortcuts
     editor.addCommand(monaco.KeyCode.F5, () => {
-      editorStore.runActiveProgram(false);
+      if (editorStore.debugPaused) editorStore.debugContinue();
+      else editorStore.runActiveProgram(false);
+    });
+
+    editor.addCommand(monaco.KeyCode.F10, () => {
+      if (editorStore.debugPaused) editorStore.debugStepOver();
+    });
+
+    editor.addCommand(monaco.KeyCode.F11, () => {
+      if (editorStore.debugPaused) editorStore.debugStepInto();
+    });
+
+    editor.addCommand(monaco.KeyMod.Shift | monaco.KeyCode.F11, () => {
+      if (editorStore.debugPaused) editorStore.debugStepOut();
+    });
+
+    // Click the gutter to toggle a breakpoint.
+    editor.onMouseDown((e) => {
+      const t = e.target;
+      if (
+        t.type === monaco.editor.MouseTargetType.GUTTER_GLYPH_MARGIN ||
+        t.type === monaco.editor.MouseTargetType.GUTTER_LINE_NUMBERS
+      ) {
+        if (t.position) editorStore.toggleBreakpoint(t.position.lineNumber);
+      }
     });
 
     editor.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.F5, () => {
@@ -297,6 +346,7 @@
           <span><kbd>F5</kbd> Run</span>
           <span><kbd>Ctrl+F5</kbd> Debug</span>
           <span><kbd>F9</kbd> Breakpoint</span>
+          <span><kbd>F10</kbd> / <kbd>F11</kbd> Step</span>
         </div>
       </div>
     {/if}
