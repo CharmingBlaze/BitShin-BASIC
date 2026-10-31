@@ -185,6 +185,18 @@ SetIBL(True)
 
 `LoadMesh` glTF/GLB Physical materials already use `mbphysical` (shadows, fog, these commands). IBL is an analytic hemisphere, a UE4 EnvBRDF split-sum, and a prefiltered sky cubemap (`textureLod` by roughness). The nearest light probe replaces that cubemap after its six faces have been drawn. `SetEnvMap` is still an optional 2D lat-long.
 
+### Retro geometry (PS1 look)
+
+World-wide switches in the lit shaders (Phong, PBR, terrain; snap and fog steps on water too). All off by default. See `docs/GRAPHICS.md`, "Retro geometry".
+
+| Command | Meaning | Example |
+| --- | --- | --- |
+| `SetRetroSnap w, h` | Snap every vertex to the pixel grid of a `w` × `h` screen (the PS1 wobble). `0, 0` turns it off | `SetRetroSnap(320, 240)` |
+| `SetRetroSnap n` | `n` columns, rows from the window's aspect (`320` on 16:9 is 320 × 180), kept on resize | `SetRetroSnap(320)` |
+| `SetRetroAffine amount` | 0–1 blend from perspective-correct to affine (screen-linear) texture coordinates, the PS1 texture warp. No argument is 1 | `SetRetroAffine(1)` |
+| `SetRetroFlat on` | Face normals instead of smooth ones: low-poly flat shading | `SetRetroFlat(True)` |
+| `SetRetroFogSteps n` | Fog in `n` hard bands instead of a smooth fade (0 smooth, up to 256) | `SetRetroFogSteps(6)` |
+
 ## Mesh animation (glTF)
 
 Source must be `.gltf` / `.glb` **with clips**.

@@ -11,6 +11,8 @@ in vec4 Position;
 in vec3 Normal;
 in vec2 FragTexcoord;
 in vec3 WorldPos;
+noperspective in vec2 FragTexcoordAffine;
+noperspective in vec3 WorldPosAffine;
 in vec3 WorldNormal;
 in vec4 LightSpacePos[4];
 #include <lights>
@@ -97,6 +99,13 @@ uniform vec3 TerrainSunColor;
 uniform vec3 CamWorldPos;
 uniform vec4 WaterClipPlane;
 out vec4 FragColor;
+` + retroFragGLSL + `
+// Splat texture lookups use this position: WorldPos, or its screen-linear
+// copy as RetroAffine rises (the PS1 warp on the ground textures).
+vec3 retroTexPos() {
+    if (RetroAffine <= 0.0) { return WorldPos; }
+    return mix(WorldPos, WorldPosAffine, clamp(RetroAffine, 0.0, 1.0));
+}
 `
 
 const mbterrainFragmentTail = shadeLightGLSL + `
@@ -185,6 +194,7 @@ vec3 heightBlend(vec3 c0, vec3 c1, vec3 c2, vec3 c3, vec3 c4, float w0, float w1
 
 vec4 terrainSplat(inout vec3 n) {
     float h = WorldPos.y;
+    vec3 tp = retroTexPos();
     float ny = clamp(n.y, 0.0, 1.0);
     float cover = clamp(TerrainGrassCover, 0.0, 1.0);
     float grassLo = mix(0.55, 0.32, cover);
@@ -199,17 +209,17 @@ vec4 terrainSplat(inout vec3 n) {
     vec3 dirt = vec3(0.34, 0.24, 0.14);
     vec3 sand = vec3(0.64, 0.55, 0.34);
     vec3 snow = vec3(0.90, 0.92, 0.94);
-    grass = mix(grass, triplanarRGB(TerrainGrass, TerrainHasGrass, grass, WorldPos, n, 0.09), 0.86);
-    grass = mix(grass, triplanarRGB(TerrainGrass2, TerrainHasGrass2, grass, WorldPos, n, 0.13), 0.42);
-    rock = mix(rock, triplanarRGB(TerrainRock, TerrainHasRock, rock, WorldPos, n, 0.055), 0.88);
+    grass = mix(grass, triplanarRGB(TerrainGrass, TerrainHasGrass, grass, tp, n, 0.09), 0.86);
+    grass = mix(grass, triplanarRGB(TerrainGrass2, TerrainHasGrass2, grass, tp, n, 0.13), 0.42);
+    rock = mix(rock, triplanarRGB(TerrainRock, TerrainHasRock, rock, tp, n, 0.055), 0.88);
     // Cliffs read as one flat stain from afar: add horizontal strata and
     // darker crevices so a face has layers, plus a slow tone drift.
     float strata = terrainNoise(vec2(WorldPos.y * 0.55, (WorldPos.x + WorldPos.z) * 0.02));
     float crev = smoothstep(0.62, 0.92, terrainNoise(WorldPos.xz * 0.21 + WorldPos.y * 0.13));
     rock *= (0.84 + 0.30 * strata) * (1.0 - 0.32 * crev);
     rock *= 0.9 + 0.2 * terrainNoise(WorldPos.xz * 0.004 + 3.7);
-    sand = mix(sand, triplanarRGB(TerrainSand, TerrainHasSand, sand, WorldPos, n, 0.10), 0.72);
-    snow = mix(snow, triplanarRGB(TerrainSnow, TerrainHasSnow, snow, WorldPos, n, 0.07), 0.55);
+    sand = mix(sand, triplanarRGB(TerrainSand, TerrainHasSand, sand, tp, n, 0.10), 0.72);
+    snow = mix(snow, triplanarRGB(TerrainSnow, TerrainHasSnow, snow, tp, n, 0.07), 0.55);
     // Large dry and lush patches, then a meadow-scale mottle. The fine
     // layer fades with distance before it can shimmer.
     float camD = length(Position.xyz); // view space: distance to the camera
@@ -280,14 +290,14 @@ void main() {
             discard;
         }
     }
-    vec3 n = normalize(WorldNormal);
+    vec3 n = retroFlatNormal(WorldPos, normalize(WorldNormal));
     vec4 texMixed = vec4(0.22, 0.30, 0.16, 1.0);
     if (TerrainSplatOn != 0) {
         texMixed = terrainSplat(n);
     } else {
 #if MAT_TEXTURES > 0
         if (MatTexVisible(0)) {
-            texMixed = texture(MatTexture[0], FragTexcoord * MatTexRepeat(0) + MatTexOffset(0));
+            texMixed = texture(MatTexture[0], retroUV() * MatTexRepeat(0) + MatTexOffset(0));
         }
 #endif
     }
@@ -321,7 +331,7 @@ void main() {
     float spec = pow(max(dot(reflect(-L, n), V), 0.0), mix(18.0, 48.0, gloss)) * ndl * sh * gloss;
     vec3 shadowTint = ShadowColor * (1.0 - sh) * albedo;
     vec3 local = vec3(0.0);
-    vec3 nView = normalize(Normal);
+    vec3 nView = retroFlatNormal(Position.xyz, normalize(Normal));
     vec3 viewL = normalize(-Position.xyz);
 #if POINT_LIGHTS>0
     for (int i = 0; i < POINT_LIGHTS; ++i) {
@@ -396,7 +406,7 @@ void main() {
             float hFac = exp(-max(WorldPos.y - FogHeight, 0.0) * FogHeightFalloff);
             f = 1.0 - (1.0 - f) * clamp(hFac, 0.0, 1.0);
         }
-        FragColor.rgb = mix(fogTint(FogColor, WorldPos), FragColor.rgb, clamp(f, 0.0, 1.0));
+        FragColor.rgb = mix(fogTint(FogColor, WorldPos), FragColor.rgb, retroFog(clamp(f, 0.0, 1.0)));
     }
 }
 `

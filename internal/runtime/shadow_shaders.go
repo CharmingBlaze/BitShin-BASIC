@@ -24,6 +24,9 @@ uniform int MeshWind;
 uniform vec3 WindDir;
 uniform float WindAmp;
 uniform float WindTime;
+noperspective out vec2 FragTexcoordAffine;
+noperspective out vec3 WorldPosAffine;
+` + retroSnapGLSL + `
 void main() {
     VColor = VertexColor;
     Position = ModelViewMatrix * vec4(VertexPosition, 1.0);
@@ -33,6 +36,7 @@ void main() {
     if (MatTexFlipY(0)) { texcoord.y = 1.0 - texcoord.y; }
 #endif
     FragTexcoord = texcoord;
+    FragTexcoordAffine = texcoord;
     vec3 vPosition = VertexPosition;
     // Tree batches: texcoord x is how far up the tree (squared), y a phase
     // per tree. A slow lean plus a quicker flutter, so stands do not move as one.
@@ -48,6 +52,7 @@ void main() {
     #include <bones_vertex>
     vec4 world = ModelMatrix * finalWorld * vec4(vPosition, 1.0);
     WorldPos = world.xyz;
+    WorldPosAffine = world.xyz;
     vec3 wn = mat3(ModelMatrix) * mat3(finalWorld) * VertexNormal;
     if (dot(wn, wn) < 1e-10) { wn = vec3(0.0, 1.0, 0.0); }
     WorldNormal = normalize(wn);
@@ -56,7 +61,7 @@ void main() {
     LightSpacePos[1] = LightVP[1] * vec4(wpShadow, 1.0);
     LightSpacePos[2] = LightVP[2] * vec4(wpShadow, 1.0);
     LightSpacePos[3] = LightVP[3] * vec4(wpShadow, 1.0);
-    gl_Position = MVP * finalWorld * vec4(vPosition, 1.0);
+    gl_Position = retroSnapClip(MVP * finalWorld * vec4(vPosition, 1.0));
 }
 `
 
@@ -64,6 +69,7 @@ const mbshadowFragmentHead = `precision highp float;
 in vec4 Position;
 in vec3 Normal;
 in vec2 FragTexcoord;
+noperspective in vec2 FragTexcoordAffine;
 in vec3 WorldPos;
 in vec3 WorldNormal;
 in vec4 LightSpacePos[4];
@@ -137,13 +143,14 @@ uniform vec3 PointAmb[8];
 uniform vec3 SpotSpec[8];
 uniform vec3 SpotAmb[8];
 out vec4 FragColor;
+` + retroFragGLSL + `
 `
 
 const mbshadowFragmentTail = shadeLightGLSL + areaLightGLSL + `
 vec2 shadeMapUV() {
-    vec2 uv = FragTexcoord;
+    vec2 uv = retroUV();
 #if MAT_TEXTURES > 0
-    uv = FragTexcoord * MatTexRepeat(0) + MatTexOffset(0);
+    uv = uv * MatTexRepeat(0) + MatTexOffset(0);
 #endif
     return uv;
 }
@@ -179,6 +186,7 @@ vec3 shadeMappedNormal(vec3 n) {
 }
 
 void main() {
+    vec2 baseUV = retroUV();
     if (dot(WaterClipPlane.xyz, WaterClipPlane.xyz) > 1e-8) {
         if (dot(WorldPos, WaterClipPlane.xyz) + WaterClipPlane.w < 0.0) {
             discard;
@@ -188,18 +196,18 @@ void main() {
     #if MAT_TEXTURES > 0
         bool firstTex = true;
         if (MatTexVisible(0)) {
-            vec4 texColor = texture(MatTexture[0], FragTexcoord * MatTexRepeat(0) + MatTexOffset(0));
+            vec4 texColor = texture(MatTexture[0], baseUV * MatTexRepeat(0) + MatTexOffset(0));
             texMixed = texColor;
             firstTex = false;
         }
         #if MAT_TEXTURES > 1
             if (MatTexVisible(1)) {
-                vec4 texColor = texture(MatTexture[1], FragTexcoord * MatTexRepeat(1) + MatTexOffset(1));
+                vec4 texColor = texture(MatTexture[1], baseUV * MatTexRepeat(1) + MatTexOffset(1));
                 if (firstTex) { texMixed = texColor; firstTex = false; } else { texMixed = Blend(texMixed, texColor); }
             }
             #if MAT_TEXTURES > 2
                 if (MatTexVisible(2)) {
-                    vec4 texColor = texture(MatTexture[2], FragTexcoord * MatTexRepeat(2) + MatTexOffset(2));
+                    vec4 texColor = texture(MatTexture[2], baseUV * MatTexRepeat(2) + MatTexOffset(2));
                     if (firstTex) { texMixed = texColor; } else { texMixed = Blend(texMixed, texColor); }
                 }
             #endif
@@ -213,8 +221,8 @@ void main() {
             // Each mip averages alpha down, so a far card thinned to specks.
             // Boost by the mip level to keep its silhouette (Castano 2010).
             vec2 ts = vec2(textureSize(MatTexture[0], 0));
-            vec2 du = dFdx(FragTexcoord * ts);
-            vec2 dv = dFdy(FragTexcoord * ts);
+            vec2 du = dFdx(baseUV * ts);
+            vec2 dv = dFdy(baseUV * ts);
             float lod = 0.5 * log2(max(max(dot(du, du), dot(dv, dv)), 1e-8));
             float a = texMixed.a * (1.0 + max(lod, 0.0) * 0.25);
             if (MeshCutout == 3) {
@@ -241,6 +249,7 @@ void main() {
     }
     vec3 fragNormal = normalize(Normal);
     if (!gl_FrontFacing) { fragNormal = -fragNormal; }
+    fragNormal = retroFlatNormal(Position.xyz, fragNormal);
     fragNormal = shadeMappedNormal(fragNormal);
     vec3 camDir = normalize(-Position.xyz);
     vec3 totalDiffuse = vec3(0.0);
@@ -254,7 +263,7 @@ void main() {
     }
 #endif
 
-    vec3 wN = normalize(WorldNormal);
+    vec3 wN = retroFlatNormal(WorldPos, normalize(WorldNormal));
     float sunSh = sunShadowFactor(WorldPos, wN, ShadowSunDir);
 
 #if DIR_LIGHTS>0
@@ -392,7 +401,7 @@ void main() {
             float hFac = exp(-max(WorldPos.y - FogHeight, 0.0) * FogHeightFalloff);
             f = 1.0 - (1.0 - f) * clamp(hFac, 0.0, 1.0);
         }
-        FragColor.rgb = mix(fogTint(FogColor, WorldPos), FragColor.rgb, clamp(f, 0.0, 1.0));
+        FragColor.rgb = mix(fogTint(FogColor, WorldPos), FragColor.rgb, retroFog(clamp(f, 0.0, 1.0)));
     }
 }
 `

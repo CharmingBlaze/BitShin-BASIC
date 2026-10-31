@@ -1524,6 +1524,7 @@ func (w *World) bindFogUniforms(gs *gls.GLS) {
 	setUni1f(gs, "Wetness", w.wetness)
 	w.bindFogSun(gs)
 	w.bindWaterExtras(gs)
+	w.bindRetroGeom(gs)
 }
 
 // bindFogSun feeds fogTint: the sun's direction and the halo color the sky

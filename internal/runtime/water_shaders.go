@@ -7,6 +7,7 @@ import "github.com/g3n/engine/renderer"
 // (G3N shaman prepends "#version 330 core").
 
 const mbwaterVertex = `#include <attributes>
+` + retroSnapGLSL + `
 uniform mat4 ModelViewMatrix;
 uniform mat3 NormalMatrix;
 uniform mat4 MVP;
@@ -102,12 +103,13 @@ void main() {
     Normal = normalize(NormalMatrix * n);
     FragTexcoord = VertexTexcoord;
     ClipSpace = MVP * vec4(p, 1.0);
-    gl_Position = ClipSpace;
+    gl_Position = retroSnapClip(ClipSpace);
 }
 `
 
 const mbwaterFragment = `precision highp float;
 out vec4 FragColor;
+` + retroFogGLSL + `
 uniform sampler2D WaterFFT;
 uniform int WaterFFTOn;
 uniform float WaterFFTSize;
@@ -432,7 +434,7 @@ void main() {
             float hFac = exp(-max(WorldPos.y - FogHeight, 0.0) * FogHeightFalloff);
             f = 1.0 - (1.0 - f) * clamp(hFac, 0.0, 1.0);
         }
-        FragColor.rgb = mix(fogTint(FogColor, WorldPos), FragColor.rgb, clamp(f, 0.0, 1.0));
+        FragColor.rgb = mix(fogTint(FogColor, WorldPos), FragColor.rgb, retroFog(clamp(f, 0.0, 1.0)));
     }
 }
 `
