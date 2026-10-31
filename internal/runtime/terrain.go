@@ -35,6 +35,7 @@ type heightField struct {
 	// 4096² is 32 MB this way, 64 MB as floats.
 	q            []uint16
 	qmin, qstep  float32
+	edit         *sculptOverlay // sculpt deltas over noise / 16-bit maps (terrain_sculpt.go)
 }
 
 // compactSamples is the size above which a height field goes 16-bit.
@@ -164,6 +165,7 @@ type terrain struct {
 	cardW, cardH float32
 	cardCross    bool
 	cardFace     bool
+	sculpt       terrainSculptState // runtime sculpt / paint (terrain_sculpt.go)
 }
 
 func (hf *heightField) sample(x, z float32) float32 {
@@ -224,6 +226,14 @@ func (hf *heightField) at(x, z int) float32 {
 }
 
 func (hf *heightField) atWorld(x, z float32) float32 {
+	if hf.edit != nil {
+		return hf.baseAt(x, z) + hf.edit.sample(x, z)
+	}
+	return hf.baseAt(x, z)
+}
+
+// baseAt is the loaded / procedural height without sculpt edits.
+func (hf *heightField) baseAt(x, z float32) float32 {
 	if hf.style == 1 {
 		return float32(terrainGLHeight(float64(x), float64(z), hf.octaves, float64(hf.freq), float64(hf.disp), float64(hf.power), float64(hf.seedX), float64(hf.seedZ)))
 	}
@@ -577,6 +587,7 @@ func (w *World) sampleHeight(hf *heightField, x, z float32) float32 {
 }
 
 func (w *World) tickTerrain() {
+	w.flushTerrainSculpt()
 	t := w.terrains[w.curTerrain]
 	if t == nil || t.radius < 0 {
 		return
@@ -1476,7 +1487,7 @@ func (w *World) terrainCommands(n func(func([]value.Value) (value.Value, error))
 				return value.Num(0), nil
 			}
 			var nx, ny, nz float64
-			if t.hf.style == 1 {
+			if t.hf.style == 1 && t.hf.edit == nil {
 				nx, ny, nz = terrainGLNormal(float64(x), float64(z), 0.4, t.hf.octaves, float64(t.hf.freq), float64(t.hf.disp), float64(t.hf.power), float64(t.hf.seedX), float64(t.hf.seedZ))
 			} else {
 				eps := 0.4
@@ -1497,7 +1508,7 @@ func (w *World) terrainCommands(n func(func([]value.Value) (value.Value, error))
 			}
 			_ = nx
 			_ = nz
-			return value.Num(ny), nil
+			return value.Num(math.Abs(ny)), nil // t×b points down for this winding; up-dot is |ny|
 		}),
 		"baketerrainnav": n(func(a []value.Value) (value.Value, error) {
 			t := w.ensureTerrain(argI(a, 0, w.curTerrain))
@@ -1797,8 +1808,10 @@ func (m *terrainMat) RenderSetup(gs *gls.GLS) {
 	bind(t.snowTex, unitTerrainSnow, "TerrainSnow", "TerrainHasSnow")
 	bind(t.rockNrm, unitTerrainRockN, "TerrainRockN", "TerrainHasRockN")
 	bind(t.blendTex, unitTerrainBlend, "TerrainBlendMap", "TerrainHasBlend")
-	setUni1f(gs, "TerrainWorldW", t.hf.worldW)
-	setUni1f(gs, "TerrainWorldD", t.hf.worldD)
-	setUni1f(gs, "TerrainOriginX", t.hf.ox)
-	setUni1f(gs, "TerrainOriginZ", t.hf.oz)
+	m.w.uploadTerrainPaint(t) // PaintTerrain texels; the blend map is still bound
+	bx, bz, bw, bd := t.blendRect()
+	setUni1f(gs, "TerrainWorldW", bw)
+	setUni1f(gs, "TerrainWorldD", bd)
+	setUni1f(gs, "TerrainOriginX", bx)
+	setUni1f(gs, "TerrainOriginZ", bz)
 }

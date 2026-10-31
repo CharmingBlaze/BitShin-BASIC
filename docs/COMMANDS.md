@@ -891,6 +891,16 @@ See `docs/TERRAIN.md`. OpenGL **3.3** grids: central-difference normals, far chu
 | `SetTerrainLOD(t, on)` / `GetTerrainLOD([t])` | Distant chunks skip verts | `SetTerrainLOD(t, 1)` |
 | `TerrainChunkCount()` / `GetTerrainChunkCount()` | Resident terrain tiles | `n = TerrainChunkCount()` |
 | `BakeTerrainNav([terrain])` | Detour from loaded chunk triangles. Scatter is not included | `nav = BakeTerrainNav(t)` |
+| `SculptTerrain(t, x, z, radius, amount [, falloff])` | Raise (negative lowers) at world x/z. Mesh, collision, `TerrainHeight` update live. Any terrain kind | `SculptTerrain(t, PickedX(), PickedZ(), 6, 3 * dt)` |
+| `FlattenTerrain(t, x, z, radius, height [, strength, falloff])` | Pull toward `height` (`strength` 1 = set) | `FlattenTerrain(t, x, z, 8, 4, 0.2)` |
+| `SmoothTerrain(t, x, z, radius [, strength, falloff])` | Pull toward the 3×3 average | `SmoothTerrain(t, x, z, 5, 0.5)` |
+| `SetTerrainHeight(t, gridX, gridZ, height)` | One lattice node (heightmap pixel, or `TerrainCellSize` node on proc terrain) | `SetTerrainHeight(t, 10, 12, 3.5)` |
+| `TerrainGridHeight(t, gridX, gridZ)` | Read one lattice node | `h# = TerrainGridHeight(t, 10, 12)` |
+| `TerrainCellSize(t)` | Lattice spacing in world units | `c# = TerrainCellSize(t)` |
+| `PaintTerrain(t, x, z, radius, layer [, strength, falloff])` | Paint the blend map: `0` sand `1` grass `2` rock `3` snow `-1` erase. Uploads only touched texels | `PaintTerrain(t, x, z, 4, 2, 0.3)` |
+| `SetTerrainPaintArea(t, x0, z0, width, depth [, res])` | Rectangle and resolution of the paint map (clears it) | `SetTerrainPaintArea(t, -200, -200, 400, 400, 1024)` |
+| `ResetTerrainEdits(t)` | Undo all sculpting and painting | `ResetTerrainEdits(t)` |
+| `PickTerrain(t [, sx, sy])` | Mouse (or pixel) ray onto the heightfield; `1` on hit, point in `PickedX/Y/Z` | `If PickTerrain(t) Then x# = PickedX()` |
 
 ## Outdoor and indoor play
 
