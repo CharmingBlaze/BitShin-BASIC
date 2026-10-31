@@ -124,3 +124,31 @@ func TestPostShaderHasRetro(t *testing.T) {
 		}
 	}
 }
+
+func TestRetroPresets(t *testing.T) {
+	w := New(".")
+	for name := range retroPresets {
+		if err := w.applyRetroPreset(name); err != nil {
+			t.Fatal(name, err)
+		}
+	}
+	if err := w.applyRetroPreset("PS1"); err != nil {
+		t.Fatal(err)
+	}
+	snapW, _, affine, _, fog := w.retroGeomState()
+	if w.retroScr.lowW != 320 || !w.retroScr.nearestTex || snapW != 320 || affine != 1 || fog != 8 || !w.post.on {
+		t.Fatalf("ps1: %+v snap %v affine %v fog %d", w.retroScr, snapW, affine, fog)
+	}
+	w.applyRetroPreset("gameboy")
+	if len(w.retroScr.palette) != 12 || !w.retroScr.pixelPerfect {
+		t.Fatalf("gameboy: %+v", w.retroScr)
+	}
+	w.applyRetroPreset("off")
+	snapW, _, affine, flat, fog := w.retroGeomState()
+	if w.retroOn() || w.retroScr.palette != nil || snapW != 0 || affine != 0 || flat || fog != 0 {
+		t.Fatalf("off left settings on: %+v", w.retroScr)
+	}
+	if err := w.applyRetroPreset("snes"); err == nil {
+		t.Error("unknown preset accepted")
+	}
+}

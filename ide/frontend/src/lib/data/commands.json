@@ -1511,6 +1511,60 @@
           "name": "SetRetroFogSteps",
           "description": "Fog in `n` hard bands instead of a smooth fade (0 smooth, up to 256)",
           "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "SetRetroPreset name$",
+          "name": "SetRetroPreset",
+          "description": "A whole look: `ps1`, `n64`, `gameboy`, `pico8`, `dos`, `cga`, `lowpoly`, or `off`. Sets the screen and geometry effects; change any after",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "SetRetroResolution w [, h, pixelPerfect]",
+          "name": "SetRetroResolution",
+          "description": "Render at `w` × `h` (h 0 follows the window) and upscale with sharp pixels; `pixelPerfect` 1 letterboxes a whole-number scale. 0 turns it off",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "SetRenderScale f",
+          "name": "SetRenderScale",
+          "description": "Render at `f` (0.25–1) of the window, upscaled smoothly, for speed",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "GetRenderScale()",
+          "name": "GetRenderScale",
+          "description": "Render at `f` (0.25–1) of the window, upscaled smoothly, for speed",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "SetRetroColors levels",
+          "name": "SetRetroColors",
+          "description": "Levels per channel (32 = 15-bit, 6 = 216 colours); 0 off",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "SetRetroDither amount",
+          "name": "SetRetroDither",
+          "description": "0–1 ordered 4 × 4 Bayer dither, in scene pixels",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "SetRetroPalette name$",
+          "name": "SetRetroPalette",
+          "description": "Snap to `gameboy`, `pico8`, `cga`, `ega`, `c64`, `grey4`, or a PNG's colours (up to 256); `\"none\"` off",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "SetRetroTextures on",
+          "name": "SetRetroTextures",
+          "description": "Nearest-neighbour filtering on every scene texture",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "SetTextureFilter tex, mode$",
+          "name": "SetTextureFilter",
+          "description": "`\"nearest\"` or `\"linear\"` for one texture",
+          "category": "PBR (opt-in metallic-roughness)"
         }
       ]
     },
@@ -12352,6 +12406,60 @@
       "syntax": "SetRetroFogSteps n",
       "name": "SetRetroFogSteps",
       "description": "Fog in `n` hard bands instead of a smooth fade (0 smooth, up to 256)",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "SetRetroPreset name$",
+      "name": "SetRetroPreset",
+      "description": "A whole look: `ps1`, `n64`, `gameboy`, `pico8`, `dos`, `cga`, `lowpoly`, or `off`. Sets the screen and geometry effects; change any after",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "SetRetroResolution w [, h, pixelPerfect]",
+      "name": "SetRetroResolution",
+      "description": "Render at `w` × `h` (h 0 follows the window) and upscale with sharp pixels; `pixelPerfect` 1 letterboxes a whole-number scale. 0 turns it off",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "SetRenderScale f",
+      "name": "SetRenderScale",
+      "description": "Render at `f` (0.25–1) of the window, upscaled smoothly, for speed",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "GetRenderScale()",
+      "name": "GetRenderScale",
+      "description": "Render at `f` (0.25–1) of the window, upscaled smoothly, for speed",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "SetRetroColors levels",
+      "name": "SetRetroColors",
+      "description": "Levels per channel (32 = 15-bit, 6 = 216 colours); 0 off",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "SetRetroDither amount",
+      "name": "SetRetroDither",
+      "description": "0–1 ordered 4 × 4 Bayer dither, in scene pixels",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "SetRetroPalette name$",
+      "name": "SetRetroPalette",
+      "description": "Snap to `gameboy`, `pico8`, `cga`, `ega`, `c64`, `grey4`, or a PNG's colours (up to 256); `\"none\"` off",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "SetRetroTextures on",
+      "name": "SetRetroTextures",
+      "description": "Nearest-neighbour filtering on every scene texture",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "SetTextureFilter tex, mode$",
+      "name": "SetTextureFilter",
+      "description": "`\"nearest\"` or `\"linear\"` for one texture",
       "category": "PBR (opt-in metallic-roughness)"
     },
     {

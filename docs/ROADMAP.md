@@ -45,19 +45,19 @@ Coverage counts a partial item as half.
 | [12. Navigation and AI](#12-navigation-and-ai) | 9 | 4 | 10 | 48% |
 | [13. Networking and multiplayer](#13-networking-and-multiplayer) | 9 | 4 | 6 | 58% |
 | [14. Input and controller system](#14-input-and-controller-system) | 21 | 5 | 6 | 73% |
-| [15. Rendering and graphics quality](#15-rendering-and-graphics-quality) | 26 | 6 | 13 | 64% |
+| [15. Rendering and graphics quality](#15-rendering-and-graphics-quality) | 33 | 5 | 7 | 79% |
 | [16. Assets and import pipeline](#16-assets-and-import-pipeline) | 20 | 10 | 27 | 44% |
 | [17. Scenes and prefabs](#17-scenes-and-prefabs) | 16 | 7 | 8 | 63% |
 | [18. Moon Studio (IDE / editor)](#18-moon-studio-ide--editor) | 34 | 12 | 35 | 49% |
 | [19. Shaders and visual programming](#19-shaders-and-visual-programming) | 7 | 3 | 3 | 65% |
 | [20. Development and debugging tools](#20-development-and-debugging-tools) | 33 | 8 | 5 | 80% |
-| [21. Optimization and performance](#21-optimization-and-performance) | 12 | 8 | 18 | 42% |
+| [21. Optimization and performance](#21-optimization-and-performance) | 13 | 8 | 17 | 45% |
 | [22. Graphics API and platform](#22-graphics-api-and-platform) | 11 | 3 | 4 | 69% |
 | [23. Build system and export](#23-build-system-and-export) | 11 | 8 | 13 | 47% |
 | [24. Project management](#24-project-management) | 4 | 3 | 4 | 50% |
 | [25. Documentation and community](#25-documentation-and-community) | 3 | 9 | 4 | 47% |
 | [26. Plugins and extensions](#26-plugins-and-extensions) | 0 | 3 | 12 | 10% |
-| **Total** | **612** | **193** | **272** | **66%** |
+| **Total** | **620** | **192** | **265** | **66%** |
 
 **Strongest:** water and environment, the 2D and 3D engines, terrain, physics, and input. **Weakest:** plugins, optimization tooling, audio, and build/export polish.
 
@@ -148,11 +148,8 @@ What to build next, in order. Each milestone closes 1.0 checklist items or stren
 - Chosen design: the editor is its own engine window beside the IDE, not embedded in it. It renders exactly what the game does; embedding would mean streaming frames or a second (WebGL) renderer
 - Left for later: a 2D editor (sprites, tilemaps), editing physics bodies and prefab overrides in the inspector, multi-object gizmos, surface/vertex snapping, playing inside the editor window, dockable panels
 
-### Milestone D: retro rendering pack
-A selling point no mainstream engine leads with.
-- Low-resolution render target with nearest upscale, pixel-perfect mode
-- Vertex snapping, affine texture toggle, nearest filtering per texture
-- Ordered dithering, fixed palettes, colour banding as post passes; retro fog presets
+### Milestone D: retro rendering pack — done 2026-11-01
+Shipped: `SetRetroPreset` (ps1, n64, gameboy, pico8, dos, cga, lowpoly), low-res and pixel-perfect rendering, render scale, colour banding, Bayer dither, palettes, nearest textures, vertex snapping, affine textures, flat shading, stepped fog. `docs/RETRO.md`, `examples/retro.mb`. Left: per-vertex (Gouraud) lighting, 8 × 8 dither, palette-aware lighting.
 
 ### Milestone E: content and export pipeline
 - Script mesh API: `CreateMesh`, `AddVertex`, `AddTriangle`, `UpdateMesh`, vertex colours, second UV set
@@ -1020,18 +1017,18 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - Also: `SetOutline` depth-edge ink, `SetSharpen`, `SetAutoExposure`.
 
 #### Retro rendering
-- [ ] Low-resolution rendering — Missing
-- [ ] Pixel-perfect rendering — Missing (3D)
+- [x] Low-resolution rendering — `SetRetroResolution` (scene renders small, nearest upscale, HUD stays sharp)
+- [x] Pixel-perfect rendering — `SetRetroResolution w, h, 1` (whole-number scale, letterboxed)
 - [x] Vertex snapping — `SetRetroSnap w, h` (clip-space grid snap in bsshadow / mbphysical / mbterrain / mbwater; retro_geom.go, retro_geom_test.go)
 - [x] Affine texture mapping — `SetRetroAffine amount` (`noperspective` UV blended per fragment in bsshadow / mbphysical / mbterrain splats)
 - [x] Perspective-correct toggle — `SetRetroAffine 0` / `1` (or any blend between)
 - [x] Low-poly / flat shading — `SetRetroFlat on` (face normals from `dFdx`/`dFdy` in bsshadow / mbphysical / mbterrain)
-- [ ] Fixed colour palettes — Missing (near: `SetLUT` with a custom .cube)
-- [ ] Dithering — Missing
-- [ ] Colour banding — **Partial:** `SetToon` light bands / no posterize pass
-- [ ] Ordered dithering — Missing
+- [x] Fixed colour palettes — `SetRetroPalette` (gameboy, pico8, cga, ega, c64, grey4, or a PNG)
+- [x] Dithering — `SetRetroDither`
+- [x] Colour banding — `SetRetroColors levels`
+- [x] Ordered dithering — 4 × 4 Bayer in scene pixels (`SetRetroDither`)
 - [x] Texture warping — `SetRetroAffine` (affine warp on large triangles)
-- [ ] Nearest-neighbour filtering — Missing for 3D textures
+- [x] Nearest-neighbour filtering — `SetRetroTextures` (sampler on all scene textures), `SetTextureFilter`
 - [x] Retro fog — `CameraFogMode`, `CameraFogRange` linear fog; `SetRetroFogSteps n` banded fog in every lit and water shader
 - [ ] Retro lighting — **Partial:** Phong, `SetUnlit`, `SetToon` / no per-vertex Gouraud mode
 - [x] Configurable vertex precision — `SetRetroSnap w, h` / `SetRetroSnap n` sets the snap grid (any virtual resolution)
@@ -1356,7 +1353,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [ ] Mipmap streaming — Missing
 - [x] Shadow optimization (caching) — `SetShadowCache`/`EnableShadowCache`
 - [ ] Shader variant management — Missing
-- [ ] Resolution scaling — Missing (tiers size water targets only)
+- [x] Resolution scaling — `SetRenderScale` (0.25–1, smooth upscale)
 - [ ] Render target pooling — Missing
 
 #### Memory

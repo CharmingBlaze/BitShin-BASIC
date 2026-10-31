@@ -197,6 +197,21 @@ World-wide switches in the lit shaders (Phong, PBR, terrain; snap and fog steps 
 | `SetRetroFlat on` | Face normals instead of smooth ones: low-poly flat shading | `SetRetroFlat(True)` |
 | `SetRetroFogSteps n` | Fog in `n` hard bands instead of a smooth fade (0 smooth, up to 256) | `SetRetroFogSteps(6)` |
 
+### Retro screen (low resolution, palettes, dither)
+
+Post-pass effects; HUD text and ImGui stay at full resolution. See `docs/RETRO.md`.
+
+| Command | Meaning | Example |
+| --- | --- | --- |
+| `SetRetroPreset name$` | A whole look: `ps1`, `n64`, `gameboy`, `pico8`, `dos`, `cga`, `lowpoly`, or `off`. Sets the screen and geometry effects; change any after | `SetRetroPreset("ps1")` |
+| `SetRetroResolution w [, h, pixelPerfect]` | Render at `w` × `h` (h 0 follows the window) and upscale with sharp pixels; `pixelPerfect` 1 letterboxes a whole-number scale. 0 turns it off | `SetRetroResolution(320, 240, 1)` |
+| `SetRenderScale f` / `GetRenderScale()` | Render at `f` (0.25–1) of the window, upscaled smoothly, for speed | `SetRenderScale(0.75)` |
+| `SetRetroColors levels` | Levels per channel (32 = 15-bit, 6 = 216 colours); 0 off | `SetRetroColors(32)` |
+| `SetRetroDither amount` | 0–1 ordered 4 × 4 Bayer dither, in scene pixels | `SetRetroDither(0.5)` |
+| `SetRetroPalette name$` | Snap to `gameboy`, `pico8`, `cga`, `ega`, `c64`, `grey4`, or a PNG's colours (up to 256); `"none"` off | `SetRetroPalette("pico8")` |
+| `SetRetroTextures on` | Nearest-neighbour filtering on every scene texture | `SetRetroTextures(True)` |
+| `SetTextureFilter tex, mode$` | `"nearest"` or `"linear"` for one texture | `SetTextureFilter(tex, "nearest")` |
+
 ## Mesh animation (glTF)
 
 Source must be `.gltf` / `.glb` **with clips**.

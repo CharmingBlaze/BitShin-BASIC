@@ -1,0 +1,91 @@
+; Retro looks — one scene, eight presets. 1 PS1, 2 N64, 3 Game Boy,
+; 4 PICO-8, 5 DOS, 6 CGA, 7 low-poly, 0 off. Arrows orbit. Esc quits.
+; Every effect is also its own command; see docs/RETRO.md.
+
+Graphics3D(960, 600)
+SetWindowTitle("moonBASIC — retro")
+SetCameraClsColor(34, 30, 52)
+SetAmbientLight(60, 56, 80)
+SetFog(1, 120, 110, 150, 6, 40)
+
+cam = CreateCamera()
+
+sun = CreateDirectionalLight()
+SetLightDirection(sun, 50, 30, 0)
+SetLightColor(sun, 255, 236, 205)
+SetLightShadow(sun, True)
+
+grass = LoadTexture("assets/grass.png")
+stone = LoadTexture("assets/stone.png")
+
+; A floor of 4 m tiles: vertex snapping keeps small polygons steady
+For x = -5 To 5
+    For z = -5 To 5
+        tile = CreateCube().Scale(2, 0.1, 2).Position([x * 4, -0.1, z * 4])
+        EntityTexture(tile, grass)
+    Next
+Next
+
+; A ring of stone pillars, a crate pile, and a spinning centrepiece
+For i = 0 To 7
+    a# = i * 45
+    p = CreateCylinder(10).Scale(0.6, 2.5, 0.6).Position([Cos(a#) * 9, 2.5, Sin(a#) * 9])
+    EntityTexture(p, stone)
+Next
+For i = 0 To 4
+    c = CreateCube().Position([-3 + i * 1.5, 1, 4 + (i Mod 2) * 1.2])
+    EntityTexture(c, stone)
+    TurnEntity(c, 0, i * 17, 0)
+Next
+gem = CreateSphere(12).Scale(1.4, 1.4, 1.4).Position([0, 2.2, 0])
+EntityColor(gem, 230, 120, 200)
+ring = CreateTorus().Scale(2.2, 2.2, 2.2).Position([0, 2.2, 0])
+EntityColor(ring, 255, 200, 90)
+
+names$ = "off"
+preset = 1
+SetRetroPreset("ps1")
+yaw# = 30
+frame = 0
+While Not Input.KeyDown(KEY_ESCAPE)
+    dt# = Time.Delta()
+    frame = frame + 1
+    k = 0
+    If Input.KeyHit(KEY_1) Then k = 1
+    If Input.KeyHit(KEY_2) Then k = 2
+    If Input.KeyHit(KEY_3) Then k = 3
+    If Input.KeyHit(KEY_4) Then k = 4
+    If Input.KeyHit(KEY_5) Then k = 5
+    If Input.KeyHit(KEY_6) Then k = 6
+    If Input.KeyHit(KEY_7) Then k = 7
+    If Input.KeyHit(KEY_0) Then k = 8
+    ; A hidden test run tours every preset by itself
+    If frame Mod 25 = 0 And frame <= 200 Then k = (preset Mod 8) + 1
+    If k > 0 Then
+        preset = k
+        SetRetroPreset(PresetName$(k))
+    EndIf
+
+    yaw = yaw + GetAxis(KEY_LEFT, KEY_RIGHT) * 60 * dt# + 8 * dt#
+    PositionEntity(cam, Sin(yaw) * 16, 7, -Cos(yaw) * 16)
+    PointEntity(cam, gem)
+    TurnEntity(gem, 0, 40 * dt#, 0)
+    TurnEntity(ring, 30 * dt#, 0, 20 * dt#)
+
+    UpdateWorld
+    RenderWorld
+    Text(16, 14, "RETRO  preset: " + PresetName$(preset) + "   1 ps1  2 n64  3 gameboy  4 pico8  5 dos  6 cga  7 lowpoly  0 off")
+    Flip
+Wend
+End
+
+Function PresetName$(k)
+    If k = 1 Then Return "ps1"
+    If k = 2 Then Return "n64"
+    If k = 3 Then Return "gameboy"
+    If k = 4 Then Return "pico8"
+    If k = 5 Then Return "dos"
+    If k = 6 Then Return "cga"
+    If k = 7 Then Return "lowpoly"
+    Return "off"
+End Function

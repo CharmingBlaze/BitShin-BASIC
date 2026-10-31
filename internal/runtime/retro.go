@@ -216,9 +216,65 @@ func (w *World) setPostFilter() {
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, f)
 }
 
+// retroPreset is one look: screen settings plus geometry settings.
+type retroPreset struct {
+	lowW, lowH   int
+	pixelPerfect bool
+	levels       float32
+	dither       float32
+	palette      string
+	nearestTex   bool
+	snapW        float32 // vertex snap columns; rows follow the window
+	affine       float32
+	flat         bool
+	fogSteps     int
+}
+
+var retroPresets = map[string]retroPreset{
+	"off":     {},
+	"ps1":     {lowW: 320, levels: 32, dither: 0.5, nearestTex: true, snapW: 320, affine: 1, fogSteps: 8},
+	"n64":     {lowW: 320, levels: 32, dither: 0.25},
+	"gameboy": {lowW: 160, lowH: 144, pixelPerfect: true, palette: "gameboy", dither: 0.8, nearestTex: true, flat: true},
+	"pico8":   {lowW: 128, lowH: 128, pixelPerfect: true, palette: "pico8", dither: 0.5, nearestTex: true},
+	"dos":     {lowW: 320, lowH: 200, levels: 6, dither: 0.35, nearestTex: true},
+	"cga":     {lowW: 320, lowH: 200, palette: "cga", dither: 1, nearestTex: true},
+	"lowpoly": {flat: true},
+}
+
+func (w *World) applyRetroPreset(name string) error {
+	p, ok := retroPresets[strings.ToLower(strings.TrimSpace(name))]
+	if !ok {
+		return fmt.Errorf("SetRetroPreset: want off, ps1, n64, gameboy, pico8, dos, cga, or lowpoly, got %q", name)
+	}
+	r := &w.retroScr
+	r.lowW, r.lowH, r.pixelPerfect = p.lowW, p.lowH, p.pixelPerfect
+	r.levels, r.dither, r.nearestTex = p.levels, p.dither, p.nearestTex
+	r.palette, r.paletteName = nil, ""
+	if p.palette != "" {
+		r.palette, r.paletteName, r.palDirty = hexPalette(retroPalettes[p.palette]), p.palette, true
+	}
+	w.setRetroGeom(p.snapW, 0, p.affine, p.flat, p.fogSteps)
+	if w.retroOn() || r.levels > 0 || r.palette != nil {
+		w.post.on = true
+	}
+	if r.lowW == 0 && w.cam != nil {
+		sw, sh := w.screenSize2D()
+		w.cam.SetAspect(float32(sw) / float32(max(sh, 1)))
+	}
+	return nil
+}
+
 func (w *World) retroCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error)) map[string]cmd {
 	r := &w.retroScr
 	return map[string]cmd{
+		// SetRetroPreset name$: a whole look in one call — ps1, n64, gameboy,
+		// pico8, dos, cga, lowpoly — or "off". Change single settings after.
+		"setretropreset": n(func(a []value.Value) (value.Value, error) {
+			if err := w.applyRetroPreset(argS(a, 0)); err != nil {
+				return value.Value{}, err
+			}
+			return z()
+		}),
 		// SetRetroResolution w [, h, pixelPerfect]: render the scene at
 		// w x h and upscale with sharp pixels. h 0 follows the window's shape.
 		// SetRetroResolution 0 turns it off.
