@@ -19,6 +19,7 @@ require (
 	github.com/klauspost/compress v1.18.0
 	github.com/mewkiz/flac v1.0.14
 	github.com/quasilyte/pathing v0.0.0-20260809105344-7aa8f8ce2b02
+	github.com/tc-hib/winres v0.3.1
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 	golang.org/x/image v0.31.0
 	golang.org/x/sys v0.36.0
@@ -44,6 +45,7 @@ require (
 	github.com/jfreymuth/vorbis v1.0.2 // indirect
 	github.com/mewkiz/pkg v0.0.0-20250417130911-3f050ff8c56d // indirect
 	github.com/mewpkg/term v0.0.0-20241026122259-37a80af23985 // indirect
+	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646 // indirect
 	github.com/rivo/uniseg v0.4.7 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	golang.org/x/sync v0.17.0 // indirect

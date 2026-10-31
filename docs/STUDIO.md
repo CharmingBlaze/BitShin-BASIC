@@ -56,9 +56,10 @@ Every field is optional. A missing field gets its default; an invalid one is rep
 | `scenes` | `scenes` | Where **New scene** puts `.scene.json` files |
 | `assets` | `assets` | Models, textures, sounds; load them as `"assets/…"` |
 | `build.outputDir` | `dist` | The Build dialog's default output folder |
-| `build.icon`, `version`, `company` | `""`, `1.0.0`, `""` | Kept for packaging; `moon build` does not stamp them into the binary yet |
+| `build.icon`, `version`, `company` | `""`, `1.0.0`, `""` | `moon build` stamps them into the Windows binary (icon, Properties → Details) |
+| `build.profile`, `profiles` | `dev`, none | `moon build`'s default profile and custom profiles; see [RELEASE.md](RELEASE.md#profiles) |
 
-The engine does not read `moon.json`. Changing the window or quality fields changes what new templates write, not an existing `main.mb`.
+The engine does not read `moon.json` when a game runs; `moon build` reads its name, folders, and `build` fields. Changing the window or quality fields changes what new templates write, not an existing `main.mb`.
 
 When F5 runs the project, an open tab of the main script with unsaved edits runs as it is in the editor; otherwise the file on disk runs. Breakpoints apply when the active tab is the main script. The program's working folder is the main script's folder.
 

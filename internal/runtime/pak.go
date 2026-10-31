@@ -66,3 +66,35 @@ func (p *pakFS) extract(rel string) (string, error) {
 	_ = dst.Close()
 	return out, err
 }
+
+// autoPak opens the pak `moon build` writes, so a packed game finds its
+// assets with no OpenPak call. It looks for <exe name>.pak, then data.pak,
+// beside the executable and then in the script folder. Loose files still
+// win: openPath checks the disk before the pak.
+func (w *World) autoPak() {
+	var dirs []string
+	names := []string{"data.pak"}
+	if exe, err := os.Executable(); err == nil {
+		dirs = append(dirs, filepath.Dir(exe))
+		stem := strings.TrimSuffix(filepath.Base(exe), filepath.Ext(exe))
+		names = append([]string{stem + ".pak"}, names...)
+	}
+	if w.base != "" {
+		dirs = append(dirs, w.base)
+	}
+	for _, dir := range dirs {
+		for _, name := range names {
+			path := filepath.Join(dir, name)
+			if st, err := os.Stat(path); err != nil || st.IsDir() {
+				continue
+			}
+			p, err := openPakFile(path)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "moon: %v\n", err)
+				continue
+			}
+			w.pak = p
+			return
+		}
+	}
+}

@@ -115,7 +115,7 @@ moonBASIC includes its own native compiler. You can compile any `.mb` script dir
 .\moon.exe transpile examples\hud_demo.mb -o game.go
 ```
 
-You can also package a portable folder using `moon build examples\scenes.mb -o dist`. That writes the binary, assets, and natives from `third_party/windows|linux|darwin` next to it. Run from that folder.
+You can also package a portable folder using `moon build examples\scenes.mb -o dist`. That writes the binary, assets, and natives from `third_party/windows|linux|darwin` next to it. Run from that folder. `-profile dev|debug|release` picks loose files or one `.pak`, a stripped binary, and (on Windows) no console; `-name`, `-version`, `-company`, and `-icon` stamp the Windows exe; `-headless` builds a windowless server (`moon run -headless` runs any script that way); `-strict` fails on a missing asset. Defaults come from `moon.json`. See [docs/RELEASE.md](docs/RELEASE.md).
 
 The built game keeps its window until the script ends, you press Escape (after the first frames; a focus ghost does not quit on frame 0), or you close the window. `Flip` presents the frame. Shaders, water, shadows, particles, and physics live in this runtime, so an exe you already compiled does not pick up a newer `moon.exe` until you compile that game again.
 

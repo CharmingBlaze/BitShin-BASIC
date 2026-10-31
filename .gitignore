@@ -45,3 +45,6 @@ imgui.ini
 /_ocean_*.txt
 /terrain_run.log
 /physics_joints_run.log*
+
+# moon build writes this into cmd/moon for one go build (icon, version info)
+cmd/moon/zz_moonbuild_*.syso

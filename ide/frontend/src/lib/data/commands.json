@@ -120,7 +120,7 @@
         {
           "syntax": "OpenPak file$",
           "name": "OpenPak",
-          "description": "Zip archive; later `Load*` look here if the disk file is missing",
+          "description": "Zip archive; later `Load*` look here if the disk file is missing. `\u003cexe name\u003e.pak` or `data.pak` beside the binary or the script opens by itself",
           "category": "Display / loop"
         },
         {
@@ -11307,7 +11307,7 @@
     {
       "syntax": "OpenPak file$",
       "name": "OpenPak",
-      "description": "Zip archive; later `Load*` look here if the disk file is missing",
+      "description": "Zip archive; later `Load*` look here if the disk file is missing. `\u003cexe name\u003e.pak` or `data.pak` beside the binary or the script opens by itself",
       "category": "Display / loop"
     },
     {

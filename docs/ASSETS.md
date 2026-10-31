@@ -29,7 +29,7 @@ PNG, JPEG, BMP, TGA, WebP, and (static) GIF via `LoadTexture` / `LoadImage`, and
 
 ## Packaging
 
-`moon build game.mb -o dist` copies the interpreter, the `.mb`, quoted asset paths, `assets/`, and natives from `third_party/$GOOS`. Zip `dist` and run from that folder. Details: [RELEASE.md](RELEASE.md).
+`moon build game.mb -o dist` copies the interpreter, the `.mb` files, quoted asset paths, `assets/` and `scenes/`, and natives from `third_party/$GOOS`. It warns about quoted paths that do not exist (`-strict` fails the build). `-pak` or `-profile release` puts the assets in one `<name>.pak` zip that the game opens at startup; loose files still win over it. Zip `dist` and run from that folder. Details: [RELEASE.md](RELEASE.md).
 
 ## Scene files
 

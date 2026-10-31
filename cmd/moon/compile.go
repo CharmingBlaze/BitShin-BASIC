@@ -149,8 +149,14 @@ func runCompile(args []string) error {
 	}
 
 	// 7. Copy referenced assets next to executable
-	seen := map[string]bool{}
-	_ = collectAssets(absSrc, filepath.Dir(absSrc), destDir, seen)
+	if scan, err := scanAssets(absSrc); err == nil {
+		for _, m := range scan.missing {
+			fmt.Fprintf(os.Stderr, "moon compile: warning: %s:%d: missing asset %q\n", m.file, m.line, m.path)
+		}
+		for _, rel := range scan.assets {
+			_ = copyFile(filepath.Join(filepath.Dir(absSrc), filepath.FromSlash(rel)), filepath.Join(destDir, filepath.FromSlash(rel)))
+		}
+	}
 	assetsDir := filepath.Join(filepath.Dir(absSrc), "assets")
 	if st, err := os.Stat(assetsDir); err == nil && st.IsDir() {
 		_ = copyDir(assetsDir, filepath.Join(destDir, "assets"))

@@ -68,6 +68,10 @@ func (w *World) tickSmoke() {
 	if w.smokeLeft > 0 {
 		return
 	}
+	if w.headless {
+		fmt.Printf("SMOKE frames=%d headless\n", smokeFrames())
+		os.Exit(0)
+	}
 	if w.app != nil {
 		drainGL("smoke")
 	}

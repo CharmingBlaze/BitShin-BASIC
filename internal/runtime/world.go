@@ -277,6 +277,7 @@ type World struct {
 	nextFont                         int
 	curFont                          int
 	pak                              *pakFS
+	headless                         bool // no window or GL; see headless.go
 	runner                           *interp.Interp
 	gpDead                           float64
 	onResize                         string
@@ -455,7 +456,7 @@ type sndSlot struct {
 }
 
 func New(base string) *World {
-	return &World{
+	w := &World{
 		smokeLeft:             smokeFrames(),
 		ents:                  map[int]*Entity{},
 		texs:                  map[int]*texSlot{},
@@ -557,7 +558,10 @@ func New(base string) *World {
 		tpsControllers:        map[int]*tpsCtrl{},
 		topDownControllers:    map[int]*topDownCtrl{},
 		platformerControllers: map[int]*platformerCtrl{},
+		headless:              headlessEnv(),
 	}
+	w.autoPak()
+	return w
 }
 
 func (w *World) Bind(in *interp.Interp) { w.runner = in }
@@ -592,7 +596,15 @@ func (w *World) Call(name string, args []value.Value) (value.Value, error) {
 	return w.callDirect(name, args)
 }
 
-func (w *World) callDirect(name string, args []value.Value) (value.Value, error) {
+func (w *World) callDirect(name string, args []value.Value) (v value.Value, err error) {
+	if w.headless {
+		defer func() {
+			if r := recover(); r != nil {
+				headlessSkip(name, r)
+				v, err = value.Num(0), nil
+			}
+		}()
+	}
 	if w.cmdMap == nil {
 		w.cmdMap = w.commandTable()
 	}
@@ -601,7 +613,7 @@ func (w *World) callDirect(name string, args []value.Value) (value.Value, error)
 		return value.Value{}, fmt.Errorf("unknown command %s", name)
 	}
 	args = syntax.ExpandCommandArgs(name, args)
-	v, err := fn(args)
+	v, err = fn(args)
 	if err != nil {
 		return v, err
 	}
