@@ -177,6 +177,7 @@ Do not mix `Graphics3D` and `Graphics2D` in one program.
 | `examples/camera2d.mb` | 2D cameras: smooth follow, zoom, rotation, shake, split screen |
 | `examples/lighting2d.mb` | 2D lights, flashlight cone, sun, tile and sprite shadows |
 | `examples/retro.mb` | Retro presets: PS1, N64, Game Boy, PICO-8, DOS, CGA, low-poly (`docs/RETRO.md`) |
+| `examples/meshbuild.mb` | A mesh built and rippled from script: `CreateMesh`, `AddVertex`, `VertexColor` (`docs/MESHES.md`) |
 | `examples/particles.mb` | 3D particles: `SetEmitterShape` `"soft"` or `"cube"` |
 | `examples/particles2d.mb` | 2D `CreateEmitter2D` |
 | `examples/gpu_particles.mb` | `CreateGPUEmitter`: 100k particles, five presets (`docs/PARTICLES.md`) |
@@ -248,6 +249,7 @@ This workspace maps `*.mb` → language id `moonbasic` (`.vscode/settings.json`)
 - [docs/STREAM.md](docs/STREAM.md) — old chunk stream, and the `SetPlayer` bubble
 - [docs/POSTFX.md](docs/POSTFX.md) — fullscreen blit stack: tonemap, bloom, AO, LUT grading, outlines
 - [docs/RETRO.md](docs/RETRO.md) — retro looks: PS1 / Game Boy / PICO-8 presets, low resolution, palettes, dither, vertex snapping
+- [docs/MESHES.md](docs/MESHES.md) — building and editing meshes from a script: vertices, triangles, colours, UVs
 - [docs/PARTICLES.md](docs/PARTICLES.md) — CPU and GPU (transform feedback) emitters
 - [docs/SHADERS.md](docs/SHADERS.md) — GLSL 330 programs + PBR
 - [docs/ASSETS.md](docs/ASSETS.md) — formats (`LoadMesh`: glTF, OBJ, DAE, FBX, STL, PLY meshes; PNG/JPEG/BMP/TGA/WebP images; WAV/OGG/MP3/FLAC audio)

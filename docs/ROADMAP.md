@@ -31,7 +31,7 @@ Coverage counts a partial item as half.
 
 | Area | Done | Partial | Missing | Coverage |
 | --- | --- | --- | --- | --- |
-| [1. Core engine architecture](#1-core-engine-architecture) | 11 | 15 | 1 | 69% |
+| [1. Core engine architecture](#1-core-engine-architecture) | 12 | 14 | 1 | 70% |
 | [2. MoonBASIC programming language](#2-moonbasic-programming-language) | 46 | 20 | 14 | 70% |
 | [3. 2D graphics engine](#3-2d-graphics-engine) | 74 | 4 | 12 | 84% |
 | [4. 3D graphics engine](#4-3d-graphics-engine) | 109 | 15 | 14 | 84% |
@@ -46,18 +46,18 @@ Coverage counts a partial item as half.
 | [13. Networking and multiplayer](#13-networking-and-multiplayer) | 9 | 4 | 6 | 58% |
 | [14. Input and controller system](#14-input-and-controller-system) | 21 | 5 | 6 | 73% |
 | [15. Rendering and graphics quality](#15-rendering-and-graphics-quality) | 33 | 5 | 7 | 79% |
-| [16. Assets and import pipeline](#16-assets-and-import-pipeline) | 29 | 8 | 20 | 58% |
+| [16. Assets and import pipeline](#16-assets-and-import-pipeline) | 31 | 6 | 20 | 60% |
 | [17. Scenes and prefabs](#17-scenes-and-prefabs) | 16 | 7 | 8 | 63% |
 | [18. Moon Studio (IDE / editor)](#18-moon-studio-ide--editor) | 34 | 12 | 35 | 49% |
 | [19. Shaders and visual programming](#19-shaders-and-visual-programming) | 8 | 3 | 2 | 73% |
 | [20. Development and debugging tools](#20-development-and-debugging-tools) | 33 | 8 | 5 | 80% |
 | [21. Optimization and performance](#21-optimization-and-performance) | 14 | 8 | 16 | 47% |
 | [22. Graphics API and platform](#22-graphics-api-and-platform) | 11 | 3 | 4 | 69% |
-| [23. Build system and export](#23-build-system-and-export) | 11 | 8 | 13 | 47% |
+| [23. Build system and export](#23-build-system-and-export) | 20 | 6 | 6 | 72% |
 | [24. Project management](#24-project-management) | 4 | 3 | 4 | 50% |
 | [25. Documentation and community](#25-documentation-and-community) | 3 | 9 | 4 | 47% |
 | [26. Plugins and extensions](#26-plugins-and-extensions) | 0 | 3 | 12 | 10% |
-| **Total** | **635** | **189** | **253** | **68%** |
+| **Total** | **647** | **184** | **246** | **69%** |
 
 **Strongest:** water and environment, the 2D and 3D engines, terrain, physics, and input. **Weakest:** plugins, optimization tooling, audio, and build/export polish.
 
@@ -104,7 +104,7 @@ The 32 features the spec will not compromise on for 1.0. **25 of 32 are done.**
 
 ### Deployment
 - [x] Windows game exporting — `moon build`, `moon compile`
-- [ ] Release and debug builds — **Partial:** interpreter bundle vs native compile; no build profiles
+- [x] Release and debug builds — `moon build -profile dev|debug|release`, custom profiles in `moon.json`
 - [x] Asset packaging — `moon build` copies referenced assets and natives
 - [x] Runtime independent of editor — `moon.exe` runs games without the IDE
 - [ ] Hardware compatibility testing — **Partial:** auto quality tiers; measured on a Radeon 780M only
@@ -151,11 +151,12 @@ What to build next, in order. Each milestone closes 1.0 checklist items or stren
 ### Milestone D: retro rendering pack — done 2026-11-01
 Shipped: `SetRetroPreset` (ps1, n64, gameboy, pico8, dos, cga, lowpoly), low-res and pixel-perfect rendering, render scale, colour banding, Bayer dither, palettes, nearest textures, vertex snapping, affine textures, flat shading, stepped fog. `docs/RETRO.md`, `examples/retro.mb`. Left: per-vertex (Gouraud) lighting, 8 × 8 dither, palette-aware lighting.
 
-### Milestone E: content and export pipeline
-- Script mesh API: `CreateMesh`, `AddVertex`, `AddTriangle`, `UpdateMesh`, vertex colours, second UV set
-- `moon build`: pak files, icon and version metadata, build profiles, headless/server builds
-- More formats: BMP, TGA, WebP, MP3, FLAC, STL, PLY; streaming music
-- Asset hot reload during development
+### Milestone E: content and export pipeline — done 2026-11-01
+- Script mesh API: `CreateMesh`, `AddVertex`, `AddTriangle`, `VertexCoords`, `VertexColor`, a second UV set, `UpdateMesh`, on any mesh (`docs/MESHES.md`, `examples/meshbuild.mb`)
+- `moon build`: `-profile dev|debug|release`, pak files the runtime opens at startup, Windows icon and version metadata, `-headless`/`-server` builds, missing-asset warnings (`docs/RELEASE.md`)
+- Formats: BMP, TGA, WebP, MP3, FLAC, STL, PLY; `LoadMusic` streams
+- Hot reload: textures, meshes, images, shaders, and scripts reload when saved (`moon run -watch`, on in the IDE)
+- Left for later: built-in materials sampling the second UV set, vertex colours under PBR, hot reload of sounds, fonts, and animated meshes, scene-file dependency scanning, patch paks
 
 ### Milestone F: audio and language polish
 - Audio channels: pause/resume, fade, pan, seek, buses, reverb, streaming
@@ -186,7 +187,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [ ] Time system — delta time, fixed time, timers — **Partial:** `deltatime`, `createtimer`, `settimescale`; no fixed-step API
 - [ ] Input system — keyboard, mouse, controller, touch — **Partial:** keyboard/mouse/gamepad via GLFW; no touch
 - [x] Platform layer — OS and hardware abstraction — GLFW + build-tagged g3napp_windows.go / g3napp_other.go
-- [ ] Configuration — engine and project settings — **Partial:** `setgraphicsquality`, `moon build` flags; no project config file
+- [ ] Configuration — engine and project settings — **Partial:** `moon.json` drives builds; the runtime doesn't read it yet
 - [ ] Logging — runtime and editor — **Partial:** stdout println, `shaderlog`/`computelog`; no log levels/files
 - [x] Error handling — engine errors and recovery — `Try`/`Catch`, `throw`, panic recover in world.go Flip/RenderWorld
 - [x] Serialization — save and load engine data — `scenesave`/`sceneload`, `saveslot`, `packsave`, `jsonsave`, `saveprefab`
@@ -200,7 +201,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [ ] G3N objects kept out of the public BASIC API — **Partial:** handles are ints, but `g3nbutton` command leaks G3N name
 - [x] Editor code separate from runtime code — ide/ is a separate Go module (Wails app)
 - [x] 2D and 3D rendering separate — `graphics2d` vs `graphics3d`, commands_2d.go / graphics2d.go
-- [ ] Headless execution for tests and servers — **Partial:** `moon smoke` uses hidden GL window; no true headless runtime
+- [x] Headless execution for tests and servers — `moon run -headless` / `MOON_HEADLESS=1`: no window or GL, logic, physics, and networking run
 - [ ] Low per-frame allocation — **Partial:** pools and interp fast-path cache exist; not measured/enforced
 - [ ] Unused subsystems can be disabled — **Partial:** build tags `nojolt`, `enet`; nothing else switchable
 
@@ -1082,7 +1083,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] Mesh optimization — `OptimizeMesh` (vertex cache/overdraw)
 - [ ] Mesh LOD generation — **Partial:** `SimplifyMesh` quadric reduction; no LOD chain
 - [ ] Texture atlasing — Missing
-- [ ] Dependency tracking — **Partial:** `moon build` scans quoted paths + included .mb recursively
+- [ ] Dependency tracking — **Partial:** `moon build` scans quoted paths + included .mb recursively; not references inside scene JSON
 - [ ] Asset metadata — Missing
 - [ ] Import presets — Missing
 - [ ] Asset versioning — Missing
@@ -1091,7 +1092,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] Hot reloading — file watcher (`SetHotReload`, `moon run -watch`, on in the IDE): textures, meshes, images, shaders, scripts; `OnAssetReloaded`. Not sounds, fonts, or animated meshes
 - [ ] Asset preview — **Partial:** IDE AssetBrowser.svelte lists by type with load snippet; no thumbnails
 - [ ] Duplicate detection — Missing
-- [ ] Missing asset detection — **Partial:** load errors at runtime; `moon build` silently skips missing
+- [x] Missing asset detection — `moon build` warns with file:line; `-strict` fails the build
 - [ ] Reference tracking — Missing
 
 #### 16.5 Runtime formats
@@ -1102,7 +1103,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] Serialized scene format — scene format v2 `.scene.json` (`SaveScene`/`LoadScene`, scene_v2.go, docs/SCENES.md): stable uids, tags, materials, bodies, lights, cameras, environment, prefab references with overrides; `SceneSave` runtime dumps still load
 - [ ] Compiled materials — Missing
 - [ ] Cached compiled shaders — Missing
-- [ ] Pack files for release builds — **Partial:** `OpenPak`/`SetPak` read zip paks; `moon build` doesn't create one
+- [x] Pack files for release builds — `moon build -pak` (release default) writes `<name>.pak`; the runtime opens it at startup, loose files override
 
 ### 17. Scenes and prefabs
 
@@ -1403,17 +1404,17 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 
 #### Build
 - [x] Build project — `moon build prog.mb -o dist`
-- [ ] Debug / release / development builds — **Partial:** `moon build` (interpreter) vs `moon compile` (AOT); no profiles
+- [x] Debug / release / development builds — `-profile dev|debug|release`
 - [x] Standalone build — `moon compile` native executable via transpile
-- [ ] Headless build — Missing (`moon smoke` only hides window)
-- [ ] Server build — Missing (`-tags nojolt/enet` only)
-- [ ] Optimized build — **Partial:** `moon compile` AOT; no strip/optimization flags
+- [x] Headless build — `moon build -headless`
+- [x] Server build — `moon build -server` (headless, paced at `MOON_HEADLESS_HZ`)
+- [ ] Optimized build — **Partial:** release strips (`-s -w -trimpath`); `moon compile` AOT; no further optimisation
 - [ ] Incremental compilation — Missing (Go build cache only)
 - [x] Asset packaging — `moon build` copies quoted assets + assets/ + natives
-- [ ] Dependency checking — **Partial:** follows included .mb for assets; missing files skipped silently
+- [x] Dependency checking — follows included .mb files; missing files warn, `-strict` fails
 - [ ] Build caching — Missing
 - [ ] Build logs — **Partial:** stdout/IDE Output only
-- [ ] Build profiles — Missing
+- [x] Build profiles — built-in dev/debug/release plus `moon.json` `build.profiles`
 
 #### Targets
 - [x] Windows 10/11 — dev platform; `moon build`/`moon compile` -os windows
@@ -1427,16 +1428,16 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] Executable generation — `moon compile -o app.exe`
 - [x] Runtime packaging — `moon build` bundles interpreter + natives (libc++.dll etc.)
 - [x] Asset bundling — `moon build` copies referenced assets into dist/
-- [ ] Asset compression — **Partial:** runtime reads zip via `OpenPak`; build doesn't produce it
-- [ ] Icon configuration — Missing
-- [ ] Application metadata — Missing
-- [ ] Version information — Missing
+- [x] Asset compression — release builds zip assets into a pak
+- [x] Icon configuration — `-icon` (PNG/ICO) or `moon.json`; Windows
+- [x] Application metadata — `-name`, `-company` embedded in the Windows exe
+- [x] Version information — `-version` embedded in the Windows exe
 - [ ] Startup configuration — Missing (set in script)
 - [ ] Resolution configuration — Missing (set in script via `Graphics3D`)
 - [x] Graphics quality presets — `SetGraphicsQuality("low|medium|high|ultra|auto")`
-- [ ] Debug symbols — Missing (no flag control)
-- [ ] Crash logging — **Partial:** panics recovered and printed to stdout; no log file
-- [ ] Update-friendly resource packaging — **Partial:** loose files in dist/ folder
+- [ ] Debug symbols — **Partial:** kept in dev/debug, stripped in release; no separate symbol files
+- [ ] Crash logging — **Partial:** panics recovered and printed; release writes startup failures to `<name>.log`
+- [ ] Update-friendly resource packaging — **Partial:** pak plus loose-file override; no patch paks
 - [x] Runtime separate from the editor — moon.exe vs moonBASICIDE.exe
 
 ### 24. Project management
