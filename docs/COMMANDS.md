@@ -609,7 +609,7 @@ Math is in the **Math** section above. See [LANGUAGE.md](LANGUAGE.md) for `Selec
 moon build game.mb -o dist
 ```
 
-Writes `dist/` with the `bs` binary, the `.mb`, copied `Load*` files, `assets/` if present, and natives from `third_party/$GOOS` (on Windows: `libc++.dll` + `libunwind.dll`). Audio is Oto — OpenAL DLLs are not copied. Zip `dist` and run from that folder.
+Writes `dist/` with the `moon` binary, the `.mb`, copied `Load*` files, `assets/` if present, and natives from `third_party/$GOOS` (on Windows: `libc++.dll` + `libunwind.dll`). Audio is Oto — OpenAL DLLs are not copied. Zip `dist` and run from that folder.
 
 ## Menu / level
 

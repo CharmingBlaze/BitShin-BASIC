@@ -222,9 +222,9 @@ func (a *App) DebugCommand(line string) error {
 func (a *App) RunProgram(code string, filePath string, debug bool) error {
 	a.StopProgram()
 
-	bsExe := a.findBsExecutable()
-	if bsExe == "" {
-		return fmt.Errorf("moon.exe not found. Build it with go build -o moon.exe ./cmd/bs")
+	moonExe := a.findMoonExecutable()
+	if moonExe == "" {
+		return fmt.Errorf("moon.exe not found. Build it with go build -o moon.exe ./cmd/moon")
 	}
 
 	var runPath string
@@ -265,7 +265,7 @@ func (a *App) RunProgram(code string, filePath string, debug bool) error {
 			runArgs = append(runArgs, "-break", br)
 		}
 	}
-	cmd := exec.Command(bsExe, runArgs...)
+	cmd := exec.Command(moonExe, runArgs...)
 	cmd.Dir = workDir
 	if debug {
 		stdin, err := cmd.StdinPipe()
@@ -407,8 +407,8 @@ func (a *App) StopProgram() error {
 
 // BuildExecutable runs bs compile or bs build
 func (a *App) BuildExecutable(filePath string, outputDir string, targetOS string) (string, error) {
-	bsExe := a.findBsExecutable()
-	if bsExe == "" {
+	moonExe := a.findMoonExecutable()
+	if moonExe == "" {
 		return "", fmt.Errorf("moon.exe not found")
 	}
 	if outputDir == "" {
@@ -440,7 +440,7 @@ func (a *App) BuildExecutable(filePath string, outputDir string, targetOS string
 		}
 	}
 
-	cmd := exec.Command(bsExe, args...)
+	cmd := exec.Command(moonExe, args...)
 	cmd.Dir = filepath.Dir(filePath)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
@@ -449,12 +449,12 @@ func (a *App) BuildExecutable(filePath string, outputDir string, targetOS string
 	return string(out), nil
 }
 
-func (a *App) findBsExecutable() string {
+func (a *App) findMoonExecutable() string {
 	candidates := []string{
 		filepath.Join(a.repoRoot, "moon.exe"),
 		filepath.Join(a.repoRoot, "moon"),
-		filepath.Join(a.repoRoot, "cmd", "bs", "moon.exe"),
-		filepath.Join(a.repoRoot, "cmd", "bs", "moon"),
+		filepath.Join(a.repoRoot, "cmd", "moon", "moon.exe"),
+		filepath.Join(a.repoRoot, "cmd", "moon", "moon"),
 		filepath.Join(".", "moon.exe"),
 		filepath.Join(".", "moon"),
 		filepath.Join("..", "moon.exe"),

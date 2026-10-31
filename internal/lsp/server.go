@@ -136,7 +136,7 @@ func (s *server) handle(body []byte) error {
 				DocumentSymbolProvider: true,
 				RenameProvider:         true,
 			},
-			ServerInfo: serverInfo{Name: "bsls", Version: version},
+			ServerInfo: serverInfo{Name: "moonsls", Version: version},
 		})
 	case "initialized", "textDocument/didSave":
 		return nil

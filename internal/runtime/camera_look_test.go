@@ -174,13 +174,13 @@ func walkShowcaseStmts(t *testing.T, stmts []ast.Stmt, known map[string]bool) {
 		case *ast.CallStmt:
 			name := lex.IdentKey(n.Name)
 			if !known[name] {
-				t.Errorf("showcase.bb unknown command %s", n.Name)
+				t.Errorf("showcase.mb unknown command %s", n.Name)
 			}
 		case *ast.AssignStmt:
 			if c, ok := n.Value.(*ast.CallExpr); ok {
 				name := lex.IdentKey(c.Name)
 				if !known[name] {
-					t.Errorf("showcase.bb unknown command %s", c.Name)
+					t.Errorf("showcase.mb unknown command %s", c.Name)
 				}
 			}
 		case *ast.WhileStmt:

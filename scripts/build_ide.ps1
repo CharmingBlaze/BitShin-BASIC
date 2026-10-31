@@ -6,9 +6,9 @@ $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
 Write-Host "1. Building moon.exe and moonsls.exe..."
-go build -o moon.exe ./cmd/bs
+go build -o moon.exe ./cmd/moon
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-go build -o moonsls.exe ./cmd/bsls
+go build -o moonsls.exe ./cmd/moonsls
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $dllDir = Join-Path $root "third_party\windows"

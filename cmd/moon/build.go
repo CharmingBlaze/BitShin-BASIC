@@ -69,16 +69,16 @@ func runBuild(args []string) error {
 			return fmt.Errorf("moon build: %w", err)
 		}
 	}
-	binName := "bs"
+	binName := "moon"
 	if targetOS == "windows" {
-		binName = "bs.exe"
+		binName = "moon.exe"
 	}
 	binPath := filepath.Join(outDir, binName)
 	gocmd := []string{"build", "-o", binPath}
 	if buildTags != "" {
 		gocmd = append(gocmd, "-tags", buildTags)
 	}
-	gocmd = append(gocmd, "./cmd/bs")
+	gocmd = append(gocmd, "./cmd/moon")
 	cmd := exec.Command("go", gocmd...)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr

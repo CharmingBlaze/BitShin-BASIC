@@ -30,6 +30,6 @@ func TestHudPrintDoesNotTouchTextSlice(t *testing.T) {
 	w := New(".")
 	w.hudPrint("hello")
 	if len(w.texts) != 0 {
-		t.Fatal("Print must not share Text() labels (claw.bb)")
+		t.Fatal("Print must not share Text() labels (claw.mb)")
 	}
 }

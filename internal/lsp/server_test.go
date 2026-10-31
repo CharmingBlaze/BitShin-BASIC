@@ -58,7 +58,7 @@ func TestServeInitializeDiagnosticsShutdown(t *testing.T) {
 	}
 
 	writeRPC(t, clientW, `{"jsonrpc":"2.0","method":"initialized","params":{}}`)
-	writeRPC(t, clientW, `{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///t.bb","languageId":"moonbasic","version":1,"text":"Function\n"}}}`)
+	writeRPC(t, clientW, `{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file:///t.mb","languageId":"moonbasic","version":1,"text":"Function\n"}}}`)
 
 	diag := map[string]any{}
 	deadline := time.Now().Add(2 * time.Second)
@@ -111,7 +111,7 @@ func TestParseDiagnosticsAndSymbols(t *testing.T) {
 	}
 
 	src := "Function Add(a, b)\n    Return a + b\nEndFunction\nPrint Add(1, 2)\n"
-	doc := &document{uri: "file:///x.bb", text: src}
+	doc := &document{uri: "file:///x.mb", text: src}
 	syms := documentSymbols(doc)
 	if len(syms) != 1 || strings.ToLower(syms[0].Name) != "add" {
 		t.Fatalf("symbols: %#v", syms)

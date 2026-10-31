@@ -28,7 +28,7 @@ End
 
 func TestParseStructMethodImport(t *testing.T) {
 	src := `
-Import "lib.bb" As Math
+Import "lib.mb" As Math
 Struct Vec
     Field x
     Field y

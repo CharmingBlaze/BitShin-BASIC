@@ -87,7 +87,7 @@ func TestCrowdExampleBakeAndAgentsMove(t *testing.T) {
 
 	nm := &navMesh{meshID: fid}
 	if err := w.bakeNav(nm); err != nil {
-		t.Fatalf("crowd.bb BakeNavMesh: %v", err)
+		t.Fatalf("crowd.mb BakeNavMesh: %v", err)
 	}
 	nid := 1
 	w.navs[nid] = nm

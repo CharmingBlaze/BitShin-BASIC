@@ -15,4 +15,4 @@ labels: bug
 **Environment**
 - OS:
 - Go version (`go version`):
-- Command: `bs …`
+- Command: `moon …`

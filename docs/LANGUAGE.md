@@ -299,8 +299,8 @@ Weather: `WEATHER_CLEAR` `WEATHER_RAIN` `WEATHER_SNOW` `WEATHER_FOG` `WEATHER_ST
 `moonsls` (also `moon lsp`) is a stdio LSP for `*.mb` files (language id `moonbasic`). The IDE looks for `moonsls.exe` beside the project, and runs games with `moon.exe`.
 
 ```powershell
-go build -o moon.exe ./cmd/bs
-go build -o moonsls.exe ./cmd/bsls
+go build -o moon.exe ./cmd/moon
+go build -o moonsls.exe ./cmd/moonsls
 .\moonsls.exe
 ```
 

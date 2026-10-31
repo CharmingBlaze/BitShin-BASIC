@@ -14,7 +14,7 @@ moon build game.mb -o dist
 
 That writes:
 
-- `bs` / `moon.exe` — interpreter (CGO: G3N, ImGui, Flecs, Jolt)
+- `moon` / `moon.exe` — interpreter (CGO: G3N, ImGui, Flecs, Jolt)
 - `game.mb` plus quoted `Load*` files and `assets/` if present
 - Windows: `libc++.dll`, `libunwind.dll`
 - Linux/macOS: optional `.so` / `.dylib` from `third_party/linux` or `third_party/darwin`
@@ -26,8 +26,8 @@ Optional flags: `-os`, `-arch`, `-tags` (`enet`, `nojolt`). Cross-compiling CGO 
 ## Engine / IDE
 
 ```text
-go build -o moon.exe ./cmd/bs
-go build -o moonsls.exe ./cmd/bsls
+go build -o moon.exe ./cmd/moon
+go build -o moonsls.exe ./cmd/moonsls
 ```
 
 IDE: `scripts/build_ide.ps1` (Windows). That script builds the frontend and `moonbasic.exe`. The window is Neutralino (`neutralino-win_x64.exe` beside the config). Preferences are `.ide_settings.json` next to the repo or portable folder and are created on first save.

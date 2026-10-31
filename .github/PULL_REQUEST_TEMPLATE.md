@@ -12,4 +12,4 @@
 ## Test
 
 - [ ] `go test ./internal/lex ./internal/parse ./internal/interp ./internal/phys2d`
-- [ ] `go build ./cmd/bs`
+- [ ] `go build ./cmd/moon`

@@ -1,11 +1,11 @@
 # Development
 
-Public name: **moonBASIC**. Module path: `moonbasic`. CLI binary: `moon.exe`, built from `./cmd/bs`. Language server: `moonsls.exe`, built from `./cmd/bsls`. Go 1.25+ (see `go.mod`).
+Public name: **moonBASIC**. Module path: `moonbasic`. CLI binary: `moon.exe`, built from `./cmd/moon`. Language server: `moonsls.exe`, built from `./cmd/moonsls`. Go 1.25+ (see `go.mod`).
 
 ## Prerequisites
 
 - Go toolchain
-- For `go build ./cmd/bs`: a C compiler (MinGW-w64 `gcc` on Windows) and an OpenGL driver. G3N, Ebiten, cimgui-go, and Flecs use CGO.
+- For `go build ./cmd/moon`: a C compiler (MinGW-w64 `gcc` on Windows) and an OpenGL driver. G3N, Ebiten, cimgui-go, and Flecs use CGO.
 - Optional: `golangci-lint` for the config in `.golangci.yml`
 
 ### Windows
@@ -24,7 +24,7 @@ Xcode command-line tools. Audio is Oto — no `brew install openal-soft`.
 
 ## Test (no window)
 
-`go test ./internal/...` does not open a display. `internal/runtime` tests need CGO (same as `go build ./cmd/bs`). Language packages do not.
+`go test ./internal/...` does not open a display. `internal/runtime` tests need CGO (same as `go build ./cmd/moon`). Language packages do not.
 
 ```powershell
 go test ./internal/...
@@ -46,7 +46,7 @@ Or:
 `moon smoke` runs every program in `examples/` (or the folder or file you name) for 180 frames each. The 3D window is hidden and never takes focus. It reports GL errors, crashes, and programs still running at the time limit, and exits 1 if any did. "ended" means a program finished on its own first. CI has no GPU, so run it locally after a rendering change.
 
 ```powershell
-go build -o moon.exe ./cmd/bs
+go build -o moon.exe ./cmd/moon
 .\moon.exe smoke
 .\moon.exe smoke -run water -frames 300
 ```
@@ -64,7 +64,7 @@ Texture units for the hand-bound samplers live in `internal/runtime/texunits.go`
 ## Build the CLI
 
 ```powershell
-go build -o moon.exe ./cmd/bs
+go build -o moon.exe ./cmd/moon
 Copy-Item third_party\windows\*.dll .
 .\moon.exe examples\hello_console.mb
 .\moon.exe examples\spinning_cube.mb
@@ -103,14 +103,14 @@ The IDE window is [Neutralino](https://neutralino.js.org/). The Go process in `i
 | `enet` | Link [go-enet](https://github.com/codecat/go-enet). On Windows this needs `libenet` (the module ships `enet.lib` for MSVC, not MinGW). |
 
 ```powershell
-go build -tags enet -o moon.exe ./cmd/bs
+go build -tags enet -o moon.exe ./cmd/moon
 ```
 
 ## Layout
 
 ```
-cmd/bs              CLI source. Binary is moon.exe (`moon lsp` = language server)
-cmd/bsls            Language server only (stdio, no CGO)
+cmd/moon              CLI source. Binary is moon.exe (`moon lsp` = language server)
+cmd/moonsls            Language server only (stdio, no CGO)
 internal/lsp        JSON-RPC LSP (diagnostics, hover, completion, symbols)
 internal/lex        lexer
 internal/parse      parser

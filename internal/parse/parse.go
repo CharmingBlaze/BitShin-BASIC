@@ -1783,12 +1783,6 @@ func ExpandIncludes(prog *ast.Program, base string) (*ast.Program, error) {
 			file = filepath.Join(base, file)
 		}
 		inner, err := ParseFile(file)
-		if err != nil && os.IsNotExist(err) {
-			alt := scriptAlt(file)
-			if alt != "" {
-				inner, err = ParseFile(alt)
-			}
-		}
 		if err != nil {
 			return nil, err
 		}
@@ -1803,19 +1797,6 @@ func ExpandIncludes(prog *ast.Program, base string) (*ast.Program, error) {
 		out = append(out, stmts...)
 	}
 	return &ast.Program{Stmts: out}, nil
-}
-
-func scriptAlt(file string) string {
-	ext := strings.ToLower(filepath.Ext(file))
-	base := strings.TrimSuffix(file, filepath.Ext(file))
-	switch ext {
-	case ".mb":
-		return base + ".bb"
-	case ".bb":
-		return base + ".mb"
-	default:
-		return ""
-	}
 }
 
 func importPath(s ast.Stmt) (path, as string, ok bool) {

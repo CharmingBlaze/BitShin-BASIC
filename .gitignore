@@ -1,5 +1,5 @@
-/bs.exe
-/bsls.exe
+/moon.exe
+/moonsls.exe
 /mb
 *.exe
 .idea/
@@ -15,7 +15,7 @@ third_party/jolt/linux_amd64/
 third_party/jolt/linux_arm64/
 third_party/jolt/darwin_arm64/
 
-# Local-only. Portable zips come from `bs build … -o dist`, not the repo tree.
+# Local-only. Portable zips come from `moon build … -o dist`, not the repo tree.
 scratch/
 
 # Memory Keeper SQLite (config in .cursor/mcp.json is committed)

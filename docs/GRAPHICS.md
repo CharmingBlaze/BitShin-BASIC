@@ -92,7 +92,7 @@ Package `internal/glslang`:
 - SPIR-V: only if `glslangValidator` or `glslang` is on `PATH`. **Vulkan is not required.** Native Khronos C++ is **not** shipped (Windows CGO pain). `-tags glslang` is reserved for a future binding.
 
 ```
-bs shader myshader.vert vert
+moon shader myshader.vert vert
 CompileShader(src$, "vert")
 ```
 

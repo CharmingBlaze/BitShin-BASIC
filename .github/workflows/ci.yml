@@ -33,8 +33,8 @@ jobs:
       - name: Jolt on this platform
         run: go test -v -run 'TestJoltOnThisPlatform|TestDefaultBackend' ./internal/phys3d
       - name: Test (no window)
-        run: go test ./internal/lex ./internal/parse ./internal/interp ./internal/value ./internal/phys2d ./internal/phys3d ./internal/runtime ./internal/mathx ./cmd/bs
+        run: go test ./internal/lex ./internal/parse ./internal/interp ./internal/value ./internal/phys2d ./internal/phys3d ./internal/runtime ./internal/mathx ./cmd/moon
       - name: Build CLI
-        run: go build -o bs ./cmd/bs
+        run: go build -o moon ./cmd/moon
       - name: Version
-        run: ./bs version
+        run: ./moon version

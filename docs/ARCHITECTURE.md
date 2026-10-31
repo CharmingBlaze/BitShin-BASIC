@@ -26,7 +26,7 @@
 
 ## Flip
 
-`cmd/bs` runs the program until the first `Flip` (or `End`). Setup (`Graphics3D` / `Graphics2D`, cameras, sprites) happens on that first pass.
+`cmd/moon` runs the program until the first `Flip` (or `End`). Setup (`Graphics3D` / `Graphics2D`, cameras, sprites) happens on that first pass.
 
 Then:
 
@@ -52,8 +52,8 @@ A normal `While Not Input.KeyDown(1) … Flip Wend` **is** the game loop. Escape
 | `internal/jolt` | CGO Jolt on Windows, Linux amd64/arm64, and macOS ARM. Extra `.cpp` covers cloth, vehicles, 6DOF grab, cylinder, buoyancy, mesh/heightfield |
 | `internal/phys2d` | `jakecoffman/cp/v2` space |
 | `internal/netenet` | `Host` interface; UDP default, `enet` tag. Session lobby, LAN beacons, and replication live in `internal/runtime` |
-| `cmd/bs` | Parse file, expand includes, run. The binary is `moon.exe` (`moon build`, `moon lsp`) |
-| `cmd/bsls` / `internal/lsp` | Stdio language server for `.mb` (no window) |
+| `cmd/moon` | Parse file, expand includes, run. The binary is `moon.exe` (`moon build`, `moon lsp`) |
+| `cmd/moonsls` / `internal/lsp` | Stdio language server for `.mb` (no window) |
 
 ## 2D vs 3D
 

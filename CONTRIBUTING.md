@@ -27,8 +27,8 @@
 | Animation / particles / scenes | `commands_anim.go`, `commands_fx.go` |
 | Tiles / fonts | `commands_tiles.go` |
 | Zip pak | `pak.go` |
-| `moon build` | `cmd/bs/build.go` |
-| CLI | `cmd/bs` |
+| `moon build` | `cmd/moon/build.go` |
+| CLI | `cmd/moon` |
 | Samples | `examples/*.mb` |
 
 New builtins are registered by name (lowercase) in the relevant `*Commands` map. The interpreter is case-insensitive.

@@ -86,7 +86,7 @@ function startServer(context) {
   const root = folders.length ? folders[0].uri.fsPath : "";
   const exe = resolveServer(cfg.get("serverPath") || "", root);
   if (!exe) {
-    vscode.window.showWarningMessage("moonBASIC: could not find moonsls.exe. Build with go build -o moonsls.exe ./cmd/bsls");
+    vscode.window.showWarningMessage("moonBASIC: could not find moonsls.exe. Build with go build -o moonsls.exe ./cmd/moonsls");
     return;
   }
   const args = path.basename(exe).toLowerCase().startsWith("moon") && !path.basename(exe).toLowerCase().startsWith("moonsls")

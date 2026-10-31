@@ -685,23 +685,6 @@ func (w *World) findSceneFile(rel string) string {
 	if got, ok := try(rel); ok {
 		return got
 	}
-	if alt := scriptAltPath(rel); alt != "" {
-		if got, ok := try(alt); ok {
-			return got
-		}
-	}
 	return w.resolve(rel)
 }
 
-func scriptAltPath(rel string) string {
-	ext := strings.ToLower(filepath.Ext(rel))
-	base := strings.TrimSuffix(rel, filepath.Ext(rel))
-	switch ext {
-	case ".mb":
-		return base + ".bb"
-	case ".bb":
-		return base + ".mb"
-	default:
-		return ""
-	}
-}

@@ -80,11 +80,11 @@ What is wired and what is not. Classic command names still work; 2026 `Set*` / `
 
 ## Build
 
-`go build ./cmd/bs` needs CGO (ImGui + Flecs + G3N/GLFW + Jolt on native targets). Language tests do not.
+`go build ./cmd/moon` needs CGO (ImGui + Flecs + G3N/GLFW + Jolt on native targets). Language tests do not.
 
 ```powershell
 go test ./internal/...
-go build -o moon.exe ./cmd/bs
+go build -o moon.exe ./cmd/moon
 .\moon.exe examples\largeworld.mb
 .\moon.exe examples\water.mb
 .\moon.exe examples\weather.mb

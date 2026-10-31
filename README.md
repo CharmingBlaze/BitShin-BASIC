@@ -37,8 +37,8 @@ Need Go 1.25+ and, to **build the windowed CLI**, a C compiler plus **OpenGL 3.3
 ```powershell
 git clone <this-repo>
 cd <repo-root>
-go build -o moon.exe ./cmd/bs
-go build -o moonsls.exe ./cmd/bsls
+go build -o moon.exe ./cmd/moon
+go build -o moonsls.exe ./cmd/moonsls
 ```
 
 ### moonBASIC IDE (Neutralino + Svelte 5)
@@ -208,7 +208,7 @@ Do not mix `Graphics3D` and `Graphics2D` in one program.
 Stdio JSON-RPC. No G3N window. Diagnostics come from the parser; hover/completion use keywords, builtins, `docs/COMMANDS.md` (when the workspace root is this repo), and same-file functions.
 
 ```powershell
-go build -o moonsls.exe ./cmd/bsls
+go build -o moonsls.exe ./cmd/moonsls
 .\moonsls.exe
 # or: .\moon.exe lsp
 ```

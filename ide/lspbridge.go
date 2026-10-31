@@ -67,7 +67,7 @@ func (a *App) SendLSP(body string) error {
 	a.lspMu.Lock()
 	defer a.lspMu.Unlock()
 	if a.lspStdin == nil {
-		return fmt.Errorf("language server is not running (build moonsls.exe with go build -o moonsls.exe ./cmd/bsls)")
+		return fmt.Errorf("language server is not running (build moonsls.exe with go build -o moonsls.exe ./cmd/moonsls)")
 	}
 	_, err := fmt.Fprintf(a.lspStdin, "Content-Length: %d\r\n\r\n%s", len(body), body)
 	return err
@@ -104,9 +104,9 @@ func (a *App) resolveLanguageServer() (string, []string) {
 	if p, err := exec.LookPath("moonsls.exe"); err == nil {
 		return p, nil
 	}
-	bs := a.findBsExecutable()
-	if bs != "" {
-		return bs, []string{"lsp"}
+	moon := a.findMoonExecutable()
+	if moon != "" {
+		return moon, []string{"lsp"}
 	}
 	return "", nil
 }

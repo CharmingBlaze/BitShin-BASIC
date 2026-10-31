@@ -204,11 +204,11 @@ Function Double(n)
 End Function
 `
 	dir := t.TempDir()
-	if err := os.WriteFile(dir+"/lib.bb", []byte(lib), 0o644); err != nil {
+	if err := os.WriteFile(dir+"/lib.mb", []byte(lib), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	src := `
-Import "lib.bb" As Lib
+Import "lib.mb" As Lib
 Struct Vec
     Field x
     Field y
