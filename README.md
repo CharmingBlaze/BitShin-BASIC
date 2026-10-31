@@ -226,6 +226,7 @@ This workspace maps `*.mb` → language id `moonbasic` (`.vscode/settings.json`)
 - [docs/LANGUAGE.md](docs/LANGUAGE.md) — syntax
 - [docs/NETWORK.md](docs/NETWORK.md) — host a game, find a room, wait, play
 - [docs/PHYSICS.md](docs/PHYSICS.md) — Jolt bodies, joints, grab, cloth, CharacterVirtual
+- [docs/DEBUG.md](docs/DEBUG.md) — debug overlay: collider shapes, contacts, rays, navmesh, light ranges, labels, `DebugLine`
 - [docs/ANIMATION.md](docs/ANIMATION.md) — blend trees, phase sync, crossfades
 - [docs/MODERN_GAME_HELPERS.md](docs/MODERN_GAME_HELPERS.md) — FPS/TPS, tweens, grab / beam / projectile
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) — packages and Flip

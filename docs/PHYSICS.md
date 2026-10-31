@@ -85,7 +85,7 @@ Quit loops: `While Not Input.KeyDown(1)` works after the first-frame Escape fix.
 | `CreateBodyMesh(e)` | Static mesh collider from the entity’s triangles (world space). Windows Jolt also enables enhanced internal-edge removal. Linux/macOS uses jolt-go `CreateMesh`. |
 | `CreateBodyHeightField(e [, n])` | Static height field from the current terrain (`n` samples on a side, power of two, default 64). Linux/macOS cooks that grid as a triangle mesh. |
 | `CreateSensor(e, hx,hy,hz [, motion])` | Trigger volume (no contact force). It still appears in `EntityCollided`. Default motion = kinematic. Linux/macOS Jolt sets the sensor flag at create; `SetBodySensor` rebuilds a sphere of the same radius. Fallback reports the overlap and does not shove. |
-| `EnablePhysicsDebug [on]` | Wire AABB overlay: cyan colliders, green hitboxes. |
+| `EnablePhysicsDebug [on]` | Collider shapes as their real shape (cyan dynamic, blue asleep, orange kinematic, grey static, green sensors), contact points and normals, velocity arrows and joint anchors. `SetPhysicsDebug flags` picks them (1 shapes, 2 contacts, 4 velocity, 8 joints). See [DEBUG.md](DEBUG.md). |
 | `SetCollisionLayer e, layer` | Layer 0–31 (default 0). |
 | `SetLayerCollides a, b, on` | Whether two layers generate contacts (default all collide). Pairwise `DisableBodyCollision` still exists. |
 | `SetBodySensor e, on` | Toggle sensor on an existing body |

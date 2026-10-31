@@ -1,0 +1,184 @@
+; Debug draw — physics shapes, contacts, velocities, joints, rays, navmesh,
+; light ranges, bounds, normals, entity labels, camera frustums and sounds.
+; WASD walks the yellow capsule. Click to CameraPick under the mouse.
+; 1 physics  2 contacts  3 velocity  4 joints  5 rays  6 nav  7 lights
+; 8 bounds  9 normals  0 ids  F frustums  G audio  T depth mode  Space kick
+; Esc quits.
+
+SetWindowTitle("moonBASIC — Debug draw")
+Graphics3D(1280, 720, 0, 2)
+SetCameraClsColor(16, 18, 26)
+SetAmbientLight(70, 74, 90)
+
+; Camera and lights
+cam = CreateCamera().Position([0, 13, -15])
+cam.Point(0, 0, 4)
+sun = CreateLight().Rotate(55, 30, 0)
+
+lamp = CreatePointLight().Position([-6, 2.5, 10])
+SetLightColor(lamp, 255, 200, 140)
+SetLightRange(lamp, 4)
+
+spot = CreateSpotLight().Position([6, 5, 1])
+SetLightDirection(spot, -60, -30, 0)
+SetLightCone(spot, 14, 26)
+SetLightRange(spot, 7)
+SetLightColor(spot, 140, 190, 255)
+
+panel = CreateAreaLight(2.4, 1)
+PositionEntity panel, 0, 4.5, 14
+PointEntity panel, cam
+SetAreaLight(panel, 255, 230, 200, 3)
+
+; A security camera that is not the active view: its frustum is drawn
+watcher = CreateCamera().Position([9, 4, 14])
+watcher.Point(0, 0, 6)
+CameraRange(watcher, 0.5, 12)
+NameEntity watcher, "watcher"
+
+; Ground
+ground = CreateCube().Scale(12, 0.2, 12).Position([0, 0, 6]).Color(46, 52, 64)
+CreateRigidBodyBox(ground, 12, 0.2, 12, 0)
+NameEntity ground, "ground"
+
+; A pile of every collider shape. Motion 0 is static and 1 kinematic, so the
+; last argument is a mass of 2 (a 1 here would make kinematic, orange bodies).
+first = 0
+For i = 0 To 23
+    x# = Rnd(5) - 2.5
+    z# = 6 + Rnd(4) - 2
+    y# = 1 + i * 0.3
+    k = i Mod 4
+    If k = 0
+        b = CreateCube().Scale(0.35, 0.35, 0.35).Position([x, y, z]).Color(220, 120, 80)
+        CreateBodyBox(b, 0.35, 0.35, 0.35, 2)
+    ElseIf k = 1
+        b = CreateSphere(12).Scale(0.35, 0.35, 0.35).Position([x, y, z]).Color(90, 170, 230)
+        CreateBodySphere(b, 0.35, 2)
+    ElseIf k = 2
+        b = CreateCapsule(0.25, 1, 8).Position([x, y, z]).Color(140, 220, 120)
+        CreateBodyCapsule(b, 0.25, 0.25, 1)
+    Else
+        b = CreateCylinder(0.3, 0.6, 12).Position([x, y, z]).Color(230, 200, 90)
+        CreateBodyCylinder(b, 0.3, 0.3, 2)
+    EndIf
+    If i = 0 Then first = b
+Next
+OptimizePhysics()
+
+; A pendulum on a point joint
+bob = CreateSphere(12).Scale(0.4, 0.4, 0.4).Position([-5, 3, 3]).Color(240, 90, 200)
+CreateBodySphere(bob, 0.4, 2)
+NameEntity bob, "pendulum"
+pin = CreatePointJoint(0, bob, -5, 5.5, 3)
+ApplyImpulse(bob, 0, 0, 5)
+
+; The player
+hero = CreateCapsule(0.4, 1.8, 8).Position([3, 1.5, 2]).Color(255, 200, 70)
+CreateCharacterController(hero, 1.8, 0.4, 50, 100)
+NameEntity hero, "hero"
+
+; A nav agent pacing across its own floor
+navFloor = CreateCube().Scale(4, 0.1, 4).Position([-10, 0.1, 13]).Color(50, 76, 60)
+block = CreateCube().Scale(0.8, 0.8, 0.8).Position([-10, 0.9, 13]).Color(160, 60, 50)
+nav = CreateNavMesh(navFloor)
+AddNavObstacle(block)
+BakeNavMesh(nav)
+walker = CreateCube().Scale(0.3, 0.6, 0.3).Position([-13, 0.8, 10]).Color(80, 160, 255)
+NameEntity walker, "walker"
+agent = CreateAgent(walker)
+SetAgentSpeed(agent, 2.5)
+goalX# = -7
+goalZ# = 16
+SetAgentDestination(agent, goalX, 0.8, goalZ)
+
+; A sound source
+ping = LoadSound("assets/coin.wav")
+SetSoundRange(ping, 1, 5)
+
+; Overlays on at start (normals and bounds are busy, so they start off)
+DebugDraw "physics", 1
+DebugDraw "contacts", 1
+DebugDraw "velocity", 1
+DebugDraw "joints", 1
+DebugDraw "rays", 1
+DebugDrawNavMesh nav
+DebugDraw "lights", 1
+DebugDraw "ids", 1
+DebugDraw "frustums", 1
+DebugDraw "audio", 1
+DebugRayTime 1.5
+
+Dim names(10)
+names(1) = "physics"
+names(2) = "contacts"
+names(3) = "velocity"
+names(4) = "joints"
+names(5) = "rays"
+names(6) = "nav"
+names(7) = "lights"
+names(8) = "bounds"
+names(9) = "normals"
+names(10) = "ids"
+mode = 0
+frames = 0
+While 1
+    frames = frames + 1
+    dt# = Time.Delta()
+
+    ; Toggles: keys 1..9 then 0 are scan codes 2..11
+    For k = 1 To 10
+        If Input.KeyHit(k + 1)
+            what$ = names(k)
+            DebugDraw what$, 1 - DebugDrawEnabled(what$)
+        EndIf
+    Next
+    If Input.KeyHit(KEY_F) Then DebugDraw "frustums", 1 - DebugDrawEnabled("frustums")
+    If Input.KeyHit(KEY_G) Then DebugDraw "audio", 1 - DebugDrawEnabled("audio")
+    If Input.KeyHit(KEY_T)
+        mode = (mode + 1) Mod 3
+        DebugDrawOnTop mode
+    EndIf
+    If Input.KeyHit(KEY_SPACE) Then ApplyImpulse(first, 0, 8, 3)
+
+    ; Player
+    vx# = 0
+    vz# = 0
+    If Input.KeyDown(KEY_A) Then vx = -4
+    If Input.KeyDown(KEY_D) Then vx = 4
+    If Input.KeyDown(KEY_W) Then vz = 4
+    If Input.KeyDown(KEY_S) Then vz = -4
+    MoveCharacter(hero, vx, vz)
+    ExtendedUpdate(hero)
+
+    ; Agent ping-pongs between two corners
+    If AgentCountPath(agent) > 0 And frames Mod 240 = 0
+        goalX = -20 - goalX
+        goalZ = 26 - goalZ
+        SetAgentDestination(agent, goalX, 0.8, goalZ)
+    EndIf
+
+    ; Rays: a sweeping turret every 15 frames, and the mouse on click
+    If frames Mod 15 = 0
+        a# = frames * 3
+        LinePick(-8, 1.2, 0, Sin(a) * 14, -0.4, 12)
+    EndIf
+    If frames Mod 60 = 30 Then CameraPick(cam, 640, 360)
+    If Input.MouseHit(1) Then CameraPick(cam, Input.MouseX(), Input.MouseY())
+    If frames Mod 90 = 45 Then EmitSound(ping, 6, 0.5, 11)
+
+    ; The script's own shapes: a marker over the hero and a box round the nav area
+    DebugSphere(EntityX(hero), EntityY(hero) + 1.4, EntityZ(hero), 0.2, 255, 220, 60)
+    DebugBox(-10, 0.6, 13, 4, 0.5, 4, 60, 255, 120)
+    DebugArrow(0, 0.3, 0, 0, 0.3, 2, 255, 80, 80)
+
+    UpdateWorld
+    RenderWorld
+    Text(16, 16, "Debug draw  |  1-9,0 overlays  F frustums  G audio  T depth mode " + Str(mode) + "  |  click to pick  |  Esc quit")
+    Text(16, 36, "lines " + Str(DebugDrawLines()) + "  physics mask " + Str(GetPhysicsDebug()))
+    Flip
+    If frames > 8
+        If Input.KeyHit(KEY_ESCAPE) Then End
+    EndIf
+Wend
+End

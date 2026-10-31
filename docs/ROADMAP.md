@@ -35,7 +35,7 @@ Coverage counts a partial item as half.
 | [2. MoonBASIC programming language](#2-moonbasic-programming-language) | 46 | 20 | 14 | 70% |
 | [3. 2D graphics engine](#3-2d-graphics-engine) | 74 | 4 | 12 | 84% |
 | [4. 3D graphics engine](#4-3d-graphics-engine) | 106 | 16 | 16 | 83% |
-| [5. Physics (Jolt)](#5-physics-jolt) | 38 | 9 | 9 | 76% |
+| [5. Physics (Jolt)](#5-physics-jolt) | 45 | 8 | 3 | 88% |
 | [6. Terrain and world building](#6-terrain-and-world-building) | 36 | 9 | 5 | 81% |
 | [7. Water and environment](#7-water-and-environment) | 26 | 4 | 1 | 90% |
 | [8. Particles and visual effects](#8-particles-and-visual-effects) | 17 | 10 | 6 | 67% |
@@ -50,14 +50,14 @@ Coverage counts a partial item as half.
 | [17. Scenes and prefabs](#17-scenes-and-prefabs) | 10 | 7 | 14 | 44% |
 | [18. Moon Studio (IDE / editor)](#18-moon-studio-ide--editor) | 20 | 14 | 47 | 33% |
 | [19. Shaders and visual programming](#19-shaders-and-visual-programming) | 7 | 3 | 3 | 65% |
-| [20. Development and debugging tools](#20-development-and-debugging-tools) | 24 | 9 | 13 | 62% |
+| [20. Development and debugging tools](#20-development-and-debugging-tools) | 33 | 8 | 5 | 80% |
 | [21. Optimization and performance](#21-optimization-and-performance) | 12 | 8 | 18 | 42% |
 | [22. Graphics API and platform](#22-graphics-api-and-platform) | 11 | 3 | 4 | 69% |
 | [23. Build system and export](#23-build-system-and-export) | 11 | 8 | 13 | 47% |
 | [24. Project management](#24-project-management) | 1 | 4 | 6 | 27% |
 | [25. Documentation and community](#25-documentation-and-community) | 3 | 9 | 4 | 47% |
 | [26. Plugins and extensions](#26-plugins-and-extensions) | 0 | 3 | 12 | 10% |
-| **Total** | **567** | **199** | **311** | **62%** |
+| **Total** | **583** | **197** | **297** | **63%** |
 
 **Strongest:** water and environment, the 2D and 3D engines, terrain, physics, and input. **Weakest:** plugins, project management, Moon Studio's visual editing, debugging and profiling tools, and audio.
 
@@ -622,13 +622,13 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - Also: plane, jet, heli, boat, sub, hovercraft, mech controllers (force-based).
 
 #### 5.4 Physics debugging
-- [ ] Show collision shapes — **Partial:** `EnablePhysicsDebug` draws AABB wire boxes only
-- [ ] Show contact points — Missing
-- [ ] Show collision normals — Missing
-- [ ] Show body velocity — Missing
-- [ ] Show sleeping bodies — Missing
-- [ ] Show raycasts — Missing
-- [ ] Show joints — Missing
+- [x] Show collision shapes — `EnablePhysicsDebug`, `DebugDraw "physics"` (box, sphere, capsule, cylinder, mesh wireframe)
+- [x] Show contact points — `DebugDraw "contacts"`
+- [x] Show collision normals — `DebugDraw "contacts"` (contact normals), `DebugDraw "rays"` (hit normals)
+- [x] Show body velocity — `DebugDraw "velocity"`
+- [x] Show sleeping bodies — `DebugDraw "physics"` (blue when asleep)
+- [x] Show raycasts — `DebugDraw "rays"`, `DebugRayTime`
+- [x] Show joints — `DebugDraw "joints"`
 - [ ] Physics performance statistics — Missing (only general `StatsFPS`/`StatsDraws`)
 
 #### 5.5 2D physics
@@ -1305,17 +1305,17 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - Also: `StatsChunks`, `StatsJobs`, `GPUParticleCount`.
 
 #### Visual debugging
-- [ ] Bounding boxes — **Partial:** `EnablePhysicsDebug` draws body/hitbox boxes
+- [x] Bounding boxes — `DebugDraw "bounds"`, `DebugBox`
 - [x] Wireframes — `Wireframe`/`SetWireframe`
-- [ ] Normals / tangents — Missing
-- [ ] Collision shapes — **Partial:** `EnablePhysicsDebug` box extents only
-- [ ] Raycasts — Missing
-- [ ] Physics contacts — Missing
-- [ ] Camera frustums — Missing
-- [ ] Navigation meshes — Missing
-- [ ] Light ranges — Missing (`ShowAreaLightPanel` is a tuning UI)
-- [ ] Audio sources — Missing
-- [ ] Entity IDs — Missing
+- [ ] Normals / tangents — **Partial:** `DebugDraw "normals"` draws vertex normals / no tangents
+- [x] Collision shapes — `DebugDraw "physics"`, `SetPhysicsDebug`
+- [x] Raycasts — `DebugDraw "rays"`
+- [x] Physics contacts — `DebugDraw "contacts"`
+- [x] Camera frustums — `DebugDraw "frustums"`
+- [x] Navigation meshes — `DebugDrawNavMesh`
+- [x] Light ranges — `DebugDraw "lights"`
+- [x] Audio sources — `DebugDraw "audio"`
+- [x] Entity IDs — `DebugDraw "ids"`
 
 #### Automated testing
 - [x] Unit tests — go test across internal/* (`*_test.go`)

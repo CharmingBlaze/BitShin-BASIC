@@ -66,6 +66,9 @@ void JoltRemoveAndDestroyBody(JoltBodyInterface bodyInterface, JoltBodyID bodyID
 // Packed BodyID index+sequence (stable across heap copies of the same ID)
 unsigned int JoltGetBodyIDValue(JoltBodyID bodyID);
 
+// 1 while the body is awake in the simulation, 0 when asleep or static.
+int JoltIsBodyActive(const JoltBodyInterface bodyInterface, const JoltBodyID bodyID);
+
 // Rotation (Jolt Quat, xyzw)
 void JoltGetBodyRotation(const JoltBodyInterface bodyInterface,
                         const JoltBodyID bodyID,

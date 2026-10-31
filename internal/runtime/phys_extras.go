@@ -3,12 +3,6 @@ package runtime
 import (
 	"math"
 
-	"github.com/g3n/engine/geometry"
-	"github.com/g3n/engine/gls"
-	"github.com/g3n/engine/graphic"
-	"github.com/g3n/engine/material"
-	"github.com/g3n/engine/math32"
-
 	"moonbasic/internal/phys3d"
 	"moonbasic/internal/value"
 )
@@ -199,80 +193,9 @@ func (w *World) updatePathFollows(dt float32) {
 	}
 }
 
-func appendBoxEdges(dst *math32.ArrayF32, c math32.Vector3, hx, hy, hz float32) {
-	corners := [8]math32.Vector3{
-		{c.X - hx, c.Y - hy, c.Z - hz}, {c.X + hx, c.Y - hy, c.Z - hz}, {c.X + hx, c.Y + hy, c.Z - hz}, {c.X - hx, c.Y + hy, c.Z - hz},
-		{c.X - hx, c.Y - hy, c.Z + hz}, {c.X + hx, c.Y - hy, c.Z + hz}, {c.X + hx, c.Y + hy, c.Z + hz}, {c.X - hx, c.Y + hy, c.Z + hz},
-	}
-	edges := [12][2]int{{0, 1}, {1, 2}, {2, 3}, {3, 0}, {4, 5}, {5, 6}, {6, 7}, {7, 4}, {0, 4}, {1, 5}, {2, 6}, {3, 7}}
-	for _, e := range edges {
-		a, b := corners[e[0]], corners[e[1]]
-		dst.Append(a.X, a.Y, a.Z, b.X, b.Y, b.Z)
-	}
-}
-
-func (w *World) replaceDebugMesh(cur **graphic.Mesh, verts math32.ArrayF32, r, g, b float32) {
-	if *cur != nil {
-		if p := (*cur).GetNode().Parent(); p != nil {
-			p.GetNode().Remove(*cur)
-		}
-		*cur = nil
-	}
-	if len(verts) < 6 || w.scene == nil {
-		return
-	}
-	geom := geometry.NewGeometry()
-	geom.AddVBO(gls.NewVBO(verts).AddAttrib(gls.VertexPosition))
-	geom.AddGroup(gls.LINES, 0, len(verts)/3)
-	mat := material.NewStandard(&math32.Color{R: r, G: g, B: b})
-	mat.SetWireframe(true)
-	mesh := graphic.NewMesh(geom, mat)
-	w.scene.Add(mesh)
-	*cur = mesh
-}
-
-func (w *World) drawPhysicsDebug() {
-	if !w.physDebug {
-		w.replaceDebugMesh(&w.physDebugMesh, nil, 0, 0, 0)
-		w.replaceDebugMesh(&w.physHitDebugMesh, nil, 0, 0, 0)
-		return
-	}
-	col := math32.NewArrayF32(0, 0)
-	hit := math32.NewArrayF32(0, 0)
-	w.refreshWorldMatrices()
-	for _, e := range w.ents {
-		if e == nil || e.node == nil || (e.bodyType == 0 && !e.hitbox) {
-			continue
-		}
-		p := worldPos(e.node.GetNode())
-		hx, hy, hz := e.boxX, e.boxY, e.boxZ
-		if hx < 0.05 {
-			hx = e.radius
-		}
-		if hy < 0.05 {
-			hy = e.radius
-		}
-		if hz < 0.05 {
-			hz = e.radius
-		}
-		if hx < 0.05 {
-			hx = 0.5
-		}
-		if hy < 0.05 {
-			hy = 0.5
-		}
-		if hz < 0.05 {
-			hz = 0.5
-		}
-		if e.hitbox || e.collKind == 5 {
-			appendBoxEdges(&hit, p, hx, hy, hz)
-		} else {
-			appendBoxEdges(&col, p, hx, hy, hz)
-		}
-	}
-	w.replaceDebugMesh(&w.physDebugMesh, col, 0.2, 0.85, 1)
-	w.replaceDebugMesh(&w.physHitDebugMesh, hit, 0.2, 1, 0.25)
-}
+// drawPhysicsDebug is the old per-step hook. The physics view is now part
+// of the debug overlay (debug_draw.go), drawn once per frame in render.
+func (w *World) drawPhysicsDebug() {}
 
 func parsePathArgs(a []value.Value) (speed float32, loop bool, pts [][3]float32) {
 	speed = float32(argN(a, 1, 4))

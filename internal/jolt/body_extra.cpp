@@ -47,6 +47,21 @@ unsigned int JoltGetBodyIDValue(JoltBodyID bodyID)
 	return asID(bodyID)->GetIndexAndSequenceNumber();
 }
 
+int JoltIsBodyActive(const JoltBodyInterface bodyInterface, const JoltBodyID bodyID)
+{
+	if (bodyInterface == nullptr || bodyID == nullptr)
+	{
+		return 0;
+	}
+	const BodyInterface *bi = static_cast<const BodyInterface *>(bodyInterface);
+	const BodyID *id = asID(bodyID);
+	if (id->IsInvalid())
+	{
+		return 0;
+	}
+	return bi->IsActive(*id) ? 1 : 0;
+}
+
 void JoltGetBodyRotation(const JoltBodyInterface bodyInterface,
 						const JoltBodyID bodyID,
 						float *x, float *y, float *z, float *w)

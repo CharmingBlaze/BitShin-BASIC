@@ -207,10 +207,11 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 			return value.Num(float64(id)), nil
 		}),
 		"enablephysicsdebug": n(func(a []value.Value) (value.Value, error) {
-			w.physDebug = argI(a, 0, 1) != 0
-			if !w.physDebug {
-				w.drawPhysicsDebug()
+			mask := uint32(0)
+			if argI(a, 0, 1) != 0 {
+				mask = dbgPhysicsMask
 			}
+			w.setPhysicsDebugMask(mask)
 			return z()
 		}),
 		"setcollisionlayer": n(func(a []value.Value) (value.Value, error) {
@@ -678,15 +679,16 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 		}),
 		"raycast": need(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys3()
-			h, ok := w.phys3.RaycastDetail(
-				float32(argN(a, 0, 0)), float32(argN(a, 1, 0)), float32(argN(a, 2, 0)),
-				float32(argN(a, 3, 0)), float32(argN(a, 4, 0)), float32(argN(a, 5, 0)),
-			)
+			ox, oy, oz := float32(argN(a, 0, 0)), float32(argN(a, 1, 0)), float32(argN(a, 2, 0))
+			dx, dy, dz := float32(argN(a, 3, 0)), float32(argN(a, 4, 0)), float32(argN(a, 5, 0))
+			h, ok := w.phys3.RaycastDetail(ox, oy, oz, dx, dy, dz)
 			if !ok {
 				w.clearPick()
+				w.debugNotePick(ox, oy, oz, dx, dy, dz, 0, 0, 0, 0, 0, 0, 0, false)
 				return value.Num(0), nil
 			}
 			w.notePick(h)
+			w.debugNotePick(ox, oy, oz, dx, dy, dz, h.ID, h.X, h.Y, h.Z, h.NX, h.NY, h.NZ, true)
 			return value.Num(float64(h.ID)), nil
 		}),
 		"shapecast": need(func(a []value.Value) (value.Value, error) {
@@ -1161,6 +1163,10 @@ func (w *World) linePick(x, y, z, dx, dy, dz, rng float64) (value.Value, error) 
 	if rng > 0 {
 		maxT = rng
 	}
+	defer func() {
+		w.debugNotePick(float32(x), float32(y), float32(z), float32(ndx*maxT), float32(ndy*maxT), float32(ndz*maxT),
+			w.pickID, w.pickX, w.pickY, w.pickZ, 0, 0, 0, false)
+	}()
 	if w.phys3 != nil {
 		if id, px, py, pz, ok := w.phys3.Raycast(float32(x), float32(y), float32(z), float32(ndx*maxT), float32(ndy*maxT), float32(ndz*maxT)); ok {
 			w.pickID, w.pickX, w.pickY, w.pickZ = id, px, py, pz

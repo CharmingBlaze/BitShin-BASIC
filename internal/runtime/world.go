@@ -357,6 +357,7 @@ type World struct {
 	projectiles                      map[int]*projFly
 	pathFollows                      map[int]*pathFollow
 	physDebug                        bool
+	dbg                              *debugDrawState
 	physDebugMesh                    *graphic.Mesh
 	physHitDebugMesh                 *graphic.Mesh
 	beams                            map[int]*beamLink
@@ -1202,6 +1203,7 @@ func (w *World) tickFX() {
 	w.tickCrowds()
 	w.tickClouds(dt)
 	w.ecsProgress(float64(dt))
+	w.tickDebugDraw(dt)
 }
 
 func (w *World) render(rend *renderer.Renderer) {
@@ -1264,6 +1266,7 @@ func (w *World) render(rend *renderer.Renderer) {
 		hud = w.liftPanels()
 	}
 	w.renderSceneCams(rend, vw, vh)
+	w.drawDebugOverlay(vw, vh)
 	fbw, fbh := w.drawableSize(ww, hh)
 	if usedOffscreen {
 		w.endPostTarget(w.app.Gls(), ww, hh)
@@ -1350,6 +1353,7 @@ func (w *World) processPhysicsContacts() {
 		return
 	}
 	evs := w.phys3.PollContacts(512)
+	w.debugNoteContacts(evs)
 	for i := 0; i < len(evs); i++ {
 		ev := evs[i]
 		if ev.Kind == phys3d.ContactRemoved {
