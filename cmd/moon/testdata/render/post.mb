@@ -1,0 +1,31 @@
+; Reference scene: HDR bloom, depth of field, a grade, and a vignette together.
+Graphics3D(1280, 720)
+SetGraphicsQuality("high")
+cam = CreateCamera()
+SetCameraRange(cam, 0.25, 400)
+SetLook "modern"
+SetAutoExposure(0)
+SetExposure(0.8)
+SetBloom(0.5)
+SetDepthOfField(9, 10, 12)
+SetColorGrade(1.08, 1.1, 255, 242, 225)
+SetVignette(0.4)
+
+ground = CreatePlane().Scale(60, 1, 60).Position([0, -1, 12]).Color(92, 104, 88)
+For i = 0 To 7
+    b = CreateSphere().Position([(i - 3.5) * 1.5, 0, 4 + i * 2.5]).Color(50 + i * 26, 90, 220 - i * 18)
+    SetRoughness(b, 0.35)
+Next
+For i = 0 To 3
+    g = CreateSphere().Scale(0.3, 0.3, 0.3).Position([(i - 1.5) * 3, 2.2, 7 + i * 3])
+    SetAlbedo(g, 20, 20, 20)
+    SetEmissive(g, 1800, 1000, 400)
+Next
+
+PositionEntity(cam, 0, 2.2, -7)
+CameraLookAt(cam, 0, 0.5, 8)
+
+While 1
+    RenderWorld
+    Flip
+Wend

@@ -170,6 +170,14 @@ Three things keep it cheap. Oak crowns are several lobes, each a dark core insid
 
 `SetStyle` picks a game's look, and `examples/styles.mb` shows them on one scene: `realistic`, `lowpoly`, `toon`, `cel`, `painted`, `flat`, and `unlit` change how surfaces shade, and `ps1`, `n64`, `pixel`, `gameboy`, `pico8`, and `dos` change the whole screen. `SetMaterialShading` sets the first group per object. Scenes can mix them. Terrain, water, and scattered trees and grass keep their own shaders, so a style reaches a game's objects and not its landscape.
 
+## Post stack
+
+Each effect has its own switch and works alone: `SetVignette(0.4)` by itself gives a vignette and leaves the rest of the picture as it was, with no tone curve, bloom, or FXAA. What a script turns off stays off through `SetLook` and `SetGraphicsQuality`, although a tier can still take away what it can't afford. `examples/post_stack.mb` has a key for each.
+
+The order: the scene in HDR, with MSAA resolved; depth of field; motion blur; bloom; ambient occlusion; exposure and tone map; grade and LUT; outlines; sharpen; vignette; FXAA; grain; FSR when scaling. Occlusion is applied after the lens effects, so its contact shadows are not blurred with what they fall on. Added cost on a Radeon 780M at 1280x720, on the island: depth of field 0.5 to 1 ms, also at a large blur, and motion blur about 0.3 ms.
+
+Not built, on purpose: general screen-space reflections, which the report found cost about 5 ms on this class of GPU (water has its own reflection); and a depth prepass, which sources disagree on and which has not been tested here.
+
 ## Staying smooth
 
 Every game, run or compiled, has two steps of protection, in this order:

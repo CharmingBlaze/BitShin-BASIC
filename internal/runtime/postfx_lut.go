@@ -353,7 +353,7 @@ func (w *World) lutCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			}
 			w.post.lut.data, w.post.lut.size, w.post.lut.name = data, size, name
 			w.post.lut.amount = clamp01n(amount)
-			w.post.on = true
+			w.wantPost()
 			return z()
 		}),
 		"setlutamount": n(func(a []value.Value) (value.Value, error) {

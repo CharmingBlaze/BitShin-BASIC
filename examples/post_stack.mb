@@ -1,0 +1,79 @@
+; Post Stack — every effect on its own switch, on a row of spheres and lights.
+; 1 bloom  2 FXAA  3 MSAA  4 AO  5 depth of field  6 motion blur  7 vignette
+; 8 grain  9 grade. The camera drifts so motion blur has something to show.
+
+Graphics3D(1280, 720)
+SetWindowTitle("moonBASIC — Post Stack")
+cam = CreateCamera()
+SetCameraRange(cam, 0.25, 400)
+SetLook "modern"
+SetAutoExposure(0)
+SetExposure(0.8)
+
+ground = CreatePlane().Scale(60, 1, 60).Position([0, -1, 12]).Color(92, 104, 88)
+For i = 0 To 7
+    b = CreateSphere().Position([(i - 3.5) * 1.5, 0, 4 + i * 2.5]).Color(50 + i * 26, 90, 220 - i * 18)
+    SetRoughness(b, 0.35)
+Next
+For i = 0 To 3
+    g = CreateSphere().Scale(0.3, 0.3, 0.3).Position([(i - 1.5) * 3, 2.2, 7 + i * 3])
+    SetAlbedo(g, 20, 20, 20)
+    SetEmissive(g, 1800, 1000, 400)
+Next
+
+bloom = 1
+fxaa = 1
+msaa = 0
+ao = 1
+dof = 0
+blur = 0
+vig = 0
+grain = 0
+grade = 0
+
+Function OnOff$(v)
+    If v Then Return "on"
+    Return "off"
+EndFunction
+
+t# = 0
+frames = 0
+While 1
+    frames = frames + 1
+    t = t + Time.Delta()
+    PositionEntity(cam, Math.Sin(t * 20) * 3, 2.2, -7)
+    CameraLookAt(cam, 0, 0.5, 8)
+
+    If Input.KeyHit(KEY_1) Then bloom = 1 - bloom
+    If Input.KeyHit(KEY_2) Then fxaa = 1 - fxaa
+    If Input.KeyHit(KEY_3) Then msaa = 1 - msaa
+    If Input.KeyHit(KEY_4) Then ao = 1 - ao
+    If Input.KeyHit(KEY_5) Then dof = 1 - dof
+    If Input.KeyHit(KEY_6) Then blur = 1 - blur
+    If Input.KeyHit(KEY_7) Then vig = 1 - vig
+    If Input.KeyHit(KEY_8) Then grain = 1 - grain
+    If Input.KeyHit(KEY_9) Then grade = 1 - grade
+
+    SetBloom(bloom * 0.5)
+    SetFXAA(fxaa)
+    SetMSAA(msaa * 4)
+    EnableSSAO(ao)
+    SetDepthOfField(10, dof * 10, 12)
+    SetMotionBlur(blur * 2)
+    SetVignette(vig * 0.5)
+    SetFilmGrain(grain * 0.08)
+    If grade Then
+        SetColorGrade(1.1, 1.15, 255, 238, 215)
+    Else
+        SetColorGrade(1, 1, 255, 255, 255)
+    EndIf
+
+    RenderWorld
+    Text(12, 12, "1 bloom " + OnOff(bloom) + "  2 FXAA " + OnOff(fxaa) + "  3 MSAA " + OnOff(msaa) + "  4 AO " + OnOff(ao))
+    Text(12, 30, "5 depth of field " + OnOff(dof) + "  6 motion blur " + OnOff(blur) + "  7 vignette " + OnOff(vig) + "  8 grain " + OnOff(grain) + "  9 grade " + OnOff(grade))
+    Flip
+    If frames > 8
+        If Input.KeyHit(KEY_ESCAPE) Then End
+    EndIf
+Wend
+End

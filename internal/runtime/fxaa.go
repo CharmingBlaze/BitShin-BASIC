@@ -13,6 +13,8 @@ in vec2 vUV;
 out vec4 frag;
 uniform sampler2D uTex;
 uniform vec2 uTexel;
+uniform float uGrain;
+uniform float uTime;
 
 const int STEPS = 10;
 const float EDGE_MIN = 0.0312;   // darks: below this contrast there is no edge
@@ -22,6 +24,19 @@ float stepSize(int i) { return i < 2 ? 1.0 : (i < 5 ? 1.5 : (i < 8 ? 2.0 : 4.0))
 
 float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
 float lumaAt(vec2 uv) { return luma(textureLod(uTex, uv, 0.0).rgb); }
+float hash12(vec2 p) {
+	vec3 p3 = fract(vec3(p.xyx) * 0.1031);
+	p3 += dot(p3, p3.yzx + 33.33);
+	return fract((p3.x + p3.y) * p3.z);
+}
+// Grain goes on after the edges are found. Before, FXAA took every speck for an edge
+// and smoothed the grain away, and the picture with it.
+vec4 grained(vec3 c) {
+	if (uGrain > 0.001) {
+		c += (hash12(vUV * vec2(1920.0, 1080.0) + uTime * 13.0) - 0.5) * uGrain;
+	}
+	return vec4(c, 1.0);
+}
 
 void main() {
 	vec2 px = uTexel;
@@ -35,7 +50,7 @@ void main() {
 	float lo = min(m, min(min(n, s), min(e, w)));
 	float range = hi - lo;
 	if (range < max(EDGE_MIN, hi * EDGE_REL)) {
-		frag = vec4(centre, 1.0);
+		frag = grained(centre);
 		return;
 	}
 	float ne = lumaAt(vUV + px);
@@ -105,7 +120,7 @@ void main() {
 	float blend = max(edgeBlend, subBlend);
 	vec2 uv = vUV;
 	if (isHoriz) { uv.y += across * blend; } else { uv.x += across * blend; }
-	frag = vec4(textureLod(uTex, uv, 0.0).rgb, 1.0);
+	frag = grained(textureLod(uTex, uv, 0.0).rgb);
 }
 `
 
@@ -140,6 +155,8 @@ func (w *World) drawFXAA(src uint32, pw, ph int) {
 	gl.UseProgram(f.fxaa)
 	gl.Uniform1i(gl.GetUniformLocation(f.fxaa, gl.Str("uTex\x00")), 0)
 	gl.Uniform2f(gl.GetUniformLocation(f.fxaa, gl.Str("uTexel\x00")), 1/float32(pw), 1/float32(ph))
+	gl.Uniform1f(gl.GetUniformLocation(f.fxaa, gl.Str("uGrain\x00")), w.post.grain)
+	gl.Uniform1f(gl.GetUniformLocation(f.fxaa, gl.Str("uTime\x00")), float32(w.wx.time))
 	gl.BindVertexArray(w.post.vao)
 	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
 	gl.BindVertexArray(0)

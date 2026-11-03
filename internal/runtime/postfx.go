@@ -74,6 +74,52 @@ type postFX struct {
 	lumFBO         uint32
 	lut            lutState
 	outline        outlineState
+	lens           lensState
+	bloomUpProg    uint32
+	// on for one effect, not the whole look: the picture is otherwise untouched.
+	plain bool
+	// the script turned these off; a tier or a look does not turn them back on.
+	noBloom, noFXAA, noSSAO, noMSAA bool
+}
+
+// wantPost turns the stack on for an effect a script asked for, so each works alone.
+// With nothing else asked for, no curve is applied: the old default, Reinhard, turned
+// a scene grey because it wanted a vignette.
+func (w *World) wantPost() {
+	if !w.post.on {
+		w.post.on = true
+		w.post.plain = true
+	}
+	w.post.userOn = true
+}
+
+// postTonemap is the curve this frame uses.
+func (w *World) postTonemap() int {
+	if w.post.plain {
+		return 3
+	}
+	return w.post.tonemap
+}
+
+// setPostDefaults is what a whole look starts from, leaving what the script chose.
+func (w *World) setPostDefaults() {
+	p := &w.post
+	p.plain = false
+	if p.contrast <= 0 {
+		p.contrast = 1
+	}
+	if p.sat <= 0 {
+		p.sat = 1
+	}
+	if p.tint.R+p.tint.G+p.tint.B == 0 {
+		p.tint = math32.Color{R: 1, G: 1, B: 1}
+	}
+	if p.bloom == 0 && !p.noBloom {
+		p.bloom = 0.22
+	}
+	if !p.noFXAA {
+		p.fxaa = true
+	}
 }
 
 // enableGrade turns on the Khronos neutral curve and a small bloom.
@@ -88,9 +134,7 @@ func (w *World) enableGrade() {
 	if w.post.exposure <= 0 {
 		w.post.exposure = 1.05
 	}
-	if w.post.bloom == 0 {
-		w.post.bloom = 0.22
-	}
+	w.setPostDefaults()
 	w.post.auto = true
 	if w.post.autoKey <= 0 {
 		w.post.autoKey = 0.5
@@ -98,16 +142,6 @@ func (w *World) enableGrade() {
 	if w.post.autoSpeed <= 0 {
 		w.post.autoSpeed = 1.6
 	}
-	if w.post.contrast <= 0 {
-		w.post.contrast = 1
-	}
-	if w.post.sat <= 0 {
-		w.post.sat = 1
-	}
-	if w.post.tint.R+w.post.tint.G+w.post.tint.B == 0 {
-		w.post.tint = math32.Color{1, 1, 1}
-	}
-	w.post.fxaa = true
 }
 
 func clamp01n(v float32) float32 {
@@ -148,19 +182,7 @@ func (w *World) postCommands(n func(func([]value.Value) (value.Value, error)) cm
 				if w.post.exposure <= 0 {
 					w.post.exposure = 1
 				}
-				if w.post.contrast <= 0 {
-					w.post.contrast = 1
-				}
-				if w.post.sat <= 0 {
-					w.post.sat = 1
-				}
-				if w.post.tint.R+w.post.tint.G+w.post.tint.B == 0 {
-					w.post.tint = math32.Color{1, 1, 1}
-				}
-				if w.post.bloom == 0 {
-					w.post.bloom = 0.22
-				}
-				w.post.fxaa = true
+				w.setPostDefaults()
 			}
 			return value.Num(float64(b01(w.post.on))), nil
 		}),
@@ -169,6 +191,8 @@ func (w *World) postCommands(n func(func([]value.Value) (value.Value, error)) cm
 		}),
 		"settonemap": n(func(a []value.Value) (value.Value, error) {
 			w.post.tonemap = tonemapMode(argS(a, 0), argI(a, 0, 0))
+			w.wantPost()
+			w.post.plain = false
 			return value.Num(float64(w.post.tonemap)), nil
 		}),
 		"setexposure": n(func(a []value.Value) (value.Value, error) {
@@ -179,6 +203,7 @@ func (w *World) postCommands(n func(func([]value.Value) (value.Value, error)) cm
 			if w.post.exposure > 8 {
 				w.post.exposure = 8
 			}
+			w.wantPost()
 			return value.Num(float64(w.post.exposure)), nil
 		}),
 		"getexposure": n(func(a []value.Value) (value.Value, error) {
@@ -212,6 +237,10 @@ func (w *World) postCommands(n func(func([]value.Value) (value.Value, error)) cm
 			if w.post.bloom > 2 {
 				w.post.bloom = 2
 			}
+			w.post.noBloom = w.post.bloom == 0
+			if !w.post.noBloom {
+				w.wantPost()
+			}
 			return value.Num(float64(w.post.bloom)), nil
 		}),
 		"getbloom": n(func(a []value.Value) (value.Value, error) {
@@ -219,21 +248,31 @@ func (w *World) postCommands(n func(func([]value.Value) (value.Value, error)) cm
 		}),
 		"setfxaa": n(func(a []value.Value) (value.Value, error) {
 			w.post.fxaa = argI(a, 0, 1) != 0
+			w.post.noFXAA = !w.post.fxaa
+			if w.post.fxaa {
+				w.wantPost()
+			}
 			return value.Num(float64(b01(w.post.fxaa))), nil
 		}),
 		"setfilmgrain": n(func(a []value.Value) (value.Value, error) {
 			w.post.grain = clamp01n(float32(argN(a, 0, 0)))
-			w.post.on = true
+			if w.post.grain > 0 {
+				w.wantPost()
+			}
 			return value.Num(float64(w.post.grain)), nil
 		}),
 		"setvignette": n(func(a []value.Value) (value.Value, error) {
 			w.post.vignette = clamp01n(float32(argN(a, 0, 0)))
-			w.post.on = true
+			if w.post.vignette > 0 {
+				w.wantPost()
+			}
 			return value.Num(float64(w.post.vignette)), nil
 		}),
 		"setchromaticaberration": n(func(a []value.Value) (value.Value, error) {
 			w.post.chroma = clamp01n(float32(argN(a, 0, 0)))
-			w.post.on = true
+			if w.post.chroma > 0 {
+				w.wantPost()
+			}
 			return value.Num(float64(w.post.chroma)), nil
 		}),
 		"setsharpen": n(func(a []value.Value) (value.Value, error) {
@@ -244,7 +283,9 @@ func (w *World) postCommands(n func(func([]value.Value) (value.Value, error)) cm
 			if w.post.sharpen > 2 {
 				w.post.sharpen = 2
 			}
-			w.post.on = true
+			if w.post.sharpen > 0 {
+				w.wantPost()
+			}
 			return value.Num(float64(w.post.sharpen)), nil
 		}),
 		"setcolorgrade": n(func(a []value.Value) (value.Value, error) {
@@ -254,10 +295,11 @@ func (w *World) postCommands(n func(func([]value.Value) (value.Value, error)) cm
 				c := rgb(argN(a, 2, 255), argN(a, 3, 255), argN(a, 4, 255))
 				w.post.tint = *c
 			}
+			w.wantPost()
 			return z()
 		}),
-		// SetMSAA(samples): multisample the scene (2, 4, or 8; 0 off). It
-		// needs post FX on; ultra turns on 4. Smooths thin edges FXAA cannot.
+		// SetMSAA(samples): multisample the scene (2, 4, or 8; 0 off). Ultra turns
+		// on 4. Smooths thin edges FXAA cannot.
 		"setmsaa": n(func(a []value.Value) (value.Value, error) {
 			n := argI(a, 0, 4)
 			switch {
@@ -271,11 +313,16 @@ func (w *World) postCommands(n func(func([]value.Value) (value.Value, error)) cm
 				n = 8
 			}
 			w.post.msaa = n
+			w.post.noMSAA = n == 0
+			if n > 0 {
+				w.wantPost()
+			}
 			return value.Num(float64(n)), nil
 		}),
 		"enablessao": need(func(a []value.Value) (value.Value, error) {
 			on := argI(a, 0, 1) != 0
 			w.post.ssao = on
+			w.post.noSSAO = !on
 			if on {
 				w.post.on = true
 				w.post.userOn = true
@@ -294,6 +341,7 @@ func (w *World) postCommands(n func(func([]value.Value) (value.Value, error)) cm
 		"setssao": need(func(a []value.Value) (value.Value, error) {
 			on := argI(a, 0, 1) != 0
 			w.post.ssao = on
+			w.post.noSSAO = !on
 			if on {
 				w.post.on = true
 				w.post.userOn = true
@@ -486,6 +534,7 @@ func (w *World) ensurePostFX(ww, hh int) error {
 	w.post.w, w.post.h = ww, hh
 	w.disposeBloomChain()
 	w.disposeGTAO()
+	w.disposeLens()
 	return w.ensurePostBlit()
 }
 
@@ -505,6 +554,7 @@ func (w *World) disposePostFBO() {
 	w.disposeMSAA()
 	w.disposeBloomChain()
 	w.disposeGTAO()
+	w.disposeLens()
 }
 
 func (w *World) disposeMSAA() {
@@ -643,23 +693,19 @@ func (w *World) disposeBloomChain() {
 }
 
 func (w *World) ensureBloomProg() error {
-	if w.post.bloomProg != 0 {
+	if w.post.bloomProg != 0 && w.post.bloomUpProg != 0 {
 		return nil
 	}
-	p, err := compileLink(
-		struct {
-			kind uint32
-			src  string
-		}{gl.VERTEX_SHADER, mbpostVertex},
-		struct {
-			kind uint32
-			src  string
-		}{gl.FRAGMENT_SHADER, mbBloomDownFragment},
-	)
+	p, err := postProgram(mbBloomDownFragment)
 	if err != nil {
 		return err
 	}
-	w.post.bloomProg = p
+	up, err := postProgram(mbBloomUpFragment)
+	if err != nil {
+		gl.DeleteProgram(p)
+		return err
+	}
+	w.post.bloomProg, w.post.bloomUpProg = p, up
 	return nil
 }
 
@@ -708,7 +754,11 @@ func (w *World) ensureBloomChain(ww, hh int) error {
 	return nil
 }
 
-func (w *World) fillBloomChain(ww, hh int) bool {
+// bloomLevelGain is how much of each level reaches the one above it. Together they
+// keep the mix the separate levels had: 1, 0.52, 0.28, 0.14, 0.08 of the first.
+var bloomLevelGain = [4]float32{0.52, 0.54, 0.5, 0.57}
+
+func (w *World) fillBloomChain(ww, hh int, picture uint32) bool {
 	if w.post.bloom <= 0.001 || !w.bloomAllowed() || w.post.rainOnly || w.post.color == 0 || w.post.vao == 0 {
 		return false
 	}
@@ -723,9 +773,9 @@ func (w *World) fillBloomChain(ww, hh int) bool {
 	gl.Disable(gl.CULL_FACE)
 	gl.UseProgram(w.post.bloomProg)
 	gl.Uniform1i(gl.GetUniformLocation(w.post.bloomProg, gl.Str("uSrc\x00")), 0)
-	src := w.post.color
+	src := picture
 	sw, sh := ww, hh
-	for i := 0; i < len(w.post.bloomTex); i++ {
+	level := func(i int) (int, int) {
 		dw, dh := ww, hh
 		for k := 0; k <= i; k++ {
 			dw /= 2
@@ -737,6 +787,10 @@ func (w *World) fillBloomChain(ww, hh int) bool {
 				dh = 1
 			}
 		}
+		return dw, dh
+	}
+	for i := 0; i < len(w.post.bloomTex); i++ {
+		dw, dh := level(i)
 		gl.BindFramebuffer(gl.FRAMEBUFFER, w.post.bloomFBO[i])
 		gl.Viewport(0, 0, int32(dw), int32(dh))
 		gl.ActiveTexture(gl.TEXTURE0)
@@ -752,6 +806,21 @@ func (w *World) fillBloomChain(ww, hh int) bool {
 		src = w.post.bloomTex[i]
 		sw, sh = dw, dh
 	}
+	gl.UseProgram(w.post.bloomUpProg)
+	gl.Uniform1i(gl.GetUniformLocation(w.post.bloomUpProg, gl.Str("uSrc\x00")), 0)
+	gl.Enable(gl.BLEND)
+	gl.BlendFunc(gl.ONE, gl.ONE)
+	for i := len(w.post.bloomTex) - 2; i >= 0; i-- {
+		dw, dh := level(i)
+		sw, sh := level(i + 1)
+		gl.BindFramebuffer(gl.FRAMEBUFFER, w.post.bloomFBO[i])
+		gl.Viewport(0, 0, int32(dw), int32(dh))
+		gl.BindTexture(gl.TEXTURE_2D, w.post.bloomTex[i+1])
+		gl.Uniform2f(gl.GetUniformLocation(w.post.bloomUpProg, gl.Str("uTexel\x00")), 1/float32(sw), 1/float32(sh))
+		gl.Uniform1f(gl.GetUniformLocation(w.post.bloomUpProg, gl.Str("uScale\x00")), bloomLevelGain[i])
+		gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
+	}
+	gl.Disable(gl.BLEND)
 	gl.BindVertexArray(0)
 	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
 	gl.UseProgram(0)
@@ -1050,8 +1119,9 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 	}
 	restore := saveModernGL(gs)
 	defer restore()
-	chain := w.fillBloomChain(ww, hh)
 	gtao := w.post.ssao && w.fillGTAO(ww, hh)
+	picture := w.applyLens(ww, hh)
+	chain := w.fillBloomChain(ww, hh, picture)
 	var lum float32
 	lumOK := false
 	if w.post.auto {
@@ -1086,7 +1156,7 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 	gl.Disable(gl.CULL_FACE)
 	gl.UseProgram(w.post.prog)
 	gl.ActiveTexture(gl.TEXTURE0)
-	gl.BindTexture(gl.TEXTURE_2D, w.post.color)
+	gl.BindTexture(gl.TEXTURE_2D, picture)
 	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uTex\x00")), 0)
 
 	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uSSAO\x00")), int32(b01(gtao)))
@@ -1117,7 +1187,7 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 		}
 	}
 	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uLinear\x00")), int32(b01(w.linearActive())))
-	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uTonemap\x00")), int32(w.post.tonemap))
+	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uTonemap\x00")), int32(w.postTonemap()))
 	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uExposure\x00")), exp)
 	bloomAmt := w.post.bloom
 	if !w.bloomAllowed() {
@@ -1127,12 +1197,9 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 	chainOn := int32(0)
 	if chain {
 		chainOn = 1
-		for i := 0; i < len(w.post.bloomTex); i++ {
-			gl.ActiveTexture(gl.TEXTURE2 + uint32(i))
-			gl.BindTexture(gl.TEXTURE_2D, w.post.bloomTex[i])
-			name := fmt.Sprintf("uBloom%d\x00", i)
-			gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str(name)), int32(2+i))
-		}
+		gl.ActiveTexture(gl.TEXTURE2)
+		gl.BindTexture(gl.TEXTURE_2D, w.post.bloomTex[0])
+		gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uBloom0\x00")), 2)
 	}
 	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uBloomChain\x00")), chainOn)
 	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uFXAA\x00")), int32(b01(w.post.fxaa && !fxaa)))
@@ -1156,14 +1223,18 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uTime\x00")), float32(w.wx.time))
 	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uWet\x00")), w.wetness)
 	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uRainOnly\x00")), int32(b01(w.post.rainOnly)))
-	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uGrain\x00")), w.post.grain)
+	grain := w.post.grain
+	if fxaa {
+		grain = 0 // the FXAA pass adds it, after it has found the edges
+	}
+	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uGrain\x00")), grain)
 	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uVignette\x00")), w.post.vignette)
 	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uCA\x00")), w.post.chroma)
 	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uSharpen\x00")), w.post.sharpen)
 	w.bindLUTAndOutline(w.post.prog)
 	w.bindRetroPost(w.post.prog, ww, hh)
 	gl.ActiveTexture(gl.TEXTURE0)
-	gl.BindTexture(gl.TEXTURE_2D, w.post.color)
+	gl.BindTexture(gl.TEXTURE_2D, picture)
 	w.setPostFilter()
 	gl.BindVertexArray(w.post.vao)
 	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
@@ -1183,10 +1254,8 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 	case fsr:
 		w.endFSR(w.fsr.small.tex, ww, hh, fsrW, fsrH)
 	}
-	for i := 0; i < len(w.post.bloomTex); i++ {
-		gl.ActiveTexture(gl.TEXTURE2 + uint32(i))
-		gl.BindTexture(gl.TEXTURE_2D, 0)
-	}
+	gl.ActiveTexture(gl.TEXTURE2)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.ActiveTexture(gl.TEXTURE1)
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.ActiveTexture(gl.TEXTURE0)
@@ -1287,6 +1356,7 @@ func (w *World) renderSceneCams(rend *renderer.Renderer, ww, hh int) {
 		targetFBO = w.post.fbo
 	}
 	w.prepareWaterFFT()
+	w.post.lens.split = split
 	if !split {
 		targetFBO = w.sceneTarget(ww, hh)
 		cam := w.cam

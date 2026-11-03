@@ -115,23 +115,17 @@ func (w *World) setQuality(tier int) {
 			if w.post.exposure <= 0 {
 				w.post.exposure = 1.05
 			}
-			if w.post.bloom == 0 {
-				w.post.bloom = 0.22
-			}
-			if w.post.contrast <= 0 {
-				w.post.contrast = 1
-			}
-			if w.post.sat <= 0 {
-				w.post.sat = 1
-			}
-			if w.post.tint.R+w.post.tint.G+w.post.tint.B == 0 {
-				w.post.tint.R, w.post.tint.G, w.post.tint.B = 1, 1, 1
-			}
-			w.post.fxaa = true
+			w.setPostDefaults()
 		}
 	}
-	w.post.ssao = s.ao && s.post
-	w.post.msaa = s.msaa
+	// A tier can take an effect away, and it can offer one, but what the script turned
+	// off stays off: not every game wants every effect.
+	w.post.ssao = s.ao && s.post && !w.post.noSSAO
+	if w.post.noMSAA {
+		w.post.msaa = 0
+	} else {
+		w.post.msaa = s.msaa
+	}
 	if w.post.ssao {
 		if w.post.ssaoRadius <= 0 {
 			w.post.ssaoRadius = 0.8
@@ -282,7 +276,7 @@ func (w *World) applyLook(name string) error {
 		w.linearLight = true
 		w.post.tonemap = 2 // ACES: the film curve linear light was made for
 		w.post.exposure = 0.8
-		if !w.quality.set || tiers[w.quality.tier].ao {
+		if (!w.quality.set || tiers[w.quality.tier].ao) && !w.post.noSSAO {
 			if _, err := w.Call("enablessao", []value.Value{value.Num(1)}); err != nil {
 				return err
 			}

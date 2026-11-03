@@ -95,7 +95,7 @@ How to light a scene, from one sun through falloff, materials, indoor / outdoor,
 | `SetAreaLightIntensity light, n` / `SetAreaLightSize light, w, h` | |
 | `SetAreaLightRange light, m` | Smooth cut-off distance; 0 (default) is unlimited |
 | `SetAreaLightTwoSided light [, on]` / `ShowAreaLightPanel light, on` | Emit from both faces / hide the glowing rectangle |
-| `SetTonemap mode$` | `reinhard` (default), `neutral`, `aces`, `none`. Needs `EnablePostFX`. Pair with `SetExposure`. |
+| `SetTonemap mode$` | `reinhard` (default with `EnablePostFX`), `neutral`, `aces`, `none`. Turns the stack on. Pair with `SetExposure`. |
 | `SetGammaCorrection 0\|1` | Phong sRGB encode when post FX is off. Leave off if `EnablePostFX` is on. |  
 `CameraRange cam, near, far`, `CameraZoom cam, z`, `CameraViewport cam, x, y, w, h`  
 `CameraFollow cam, target, dist, height [, damp, yaw, pitch]` — Lakitu-style ease toward an orbit point (yaw/pitch in degrees; damp is follow stiffness)  
@@ -1713,11 +1713,13 @@ Scene renders to a color FBO, then one blit: tonemap (`reinhard`, `neutral`, `ac
 | `SetSSAORadius n` / `GetSSAORadius()` | Sample radius. Floor `0.01`. Getter returns `0.8` until set | `SetSSAORadius(0.6)` |
 | `SetSSAOIntensity n` / `GetSSAOIntensity()` | Darkening. Floor `0`. Getter returns `1.8` until set | `SetSSAOIntensity(1.2)` |
 | `SetSSAOBias n` / `GetSSAOBias()` | Depth bias. Getter returns `0.02` until set | `SetSSAOBias(0.03)` |
-| `SetBloom n` / `GetBloom()` | Bright-extract strength (0 off) | `SetBloom(0.35)` |
-| `SetFXAA [on]` | Simple luma FXAA | `SetFXAA(True)` |
+| `SetBloom n` / `GetBloom()` | Glow around what is bright, in HDR, with a soft threshold and a smooth falloff (0 off). Turns the stack on | `SetBloom(0.35)` |
+| `SetFXAA [on]` | Edge-walking FXAA on the finished picture. Turns the stack on | `SetFXAA(True)` |
 | `SetMSAA n` | Multisampled scene target: `0`, `2`, `4`, or `8` samples (other values round up; no argument is 4). Needs post FX on; resolved before it. Falls back to none if the driver refuses. 4× costs about 2–4 ms at 720p on a mid GPU | `SetMSAA(4)` |
 | `SetColorGrade contrast, sat [, r, g, b]` | Grade + optional RGB tint 0–255 or 0–1 | `SetColorGrade(1.05, 1.1, 255, 240, 230)` |
-| `SetFilmGrain n` | 0–1 grain after the grade. Turns the stack on | `SetFilmGrain(0.15)` |
+| `SetDepthOfField focus, range [, blur]` | Sharp at `focus` meters, fully blurred `range` meters either side of it, up to `blur` pixels at 720p (default 10, at most 32). No arguments or range 0 is off. Not on low tier. Cost grows with blur | `SetDepthOfField(12, 30)` |
+| `SetMotionBlur amount [, maxPixels]` | Blur from the camera's movement. 1 is a 1/60 s shutter at any frame rate; 0 is off. Objects moving on their own are not blurred, and one fixed to the camera is blurred as if it were not. Skipped on a camera cut, in split screen, and on low tier | `SetMotionBlur(1)` |
+| `SetFilmGrain n` | 0–1 grain, after FXAA so it stays sharp. Turns the stack on | `SetFilmGrain(0.15)` |
 | `SetVignette n` | 0–1 darkening toward the corners | `SetVignette(0.35)` |
 | `SetChromaticAberration n` | 0–1 red/blue split from the center | `SetChromaticAberration(0.2)` |
 | `SetSharpen n` | 0–2 unsharp amount | `SetSharpen(0.4)` |

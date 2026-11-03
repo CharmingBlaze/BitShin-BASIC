@@ -869,7 +869,7 @@
         {
           "syntax": "SetTonemap mode$",
           "name": "SetTonemap",
-          "description": "`reinhard` (default), `neutral`, `aces`, `none`. Needs `EnablePostFX`. Pair with `SetExposure`.",
+          "description": "`reinhard` (default with `EnablePostFX`), `neutral`, `aces`, `none`. Turns the stack on. Pair with `SetExposure`.",
           "category": "3D scene (G3N)"
         },
         {
@@ -12216,19 +12216,19 @@
         {
           "syntax": "SetBloom n",
           "name": "SetBloom",
-          "description": "Bright-extract strength (0 off)",
+          "description": "Glow around what is bright, in HDR, with a soft threshold and a smooth falloff (0 off). Turns the stack on",
           "category": "Post-processing (GL 3.3 fullscreen blit)"
         },
         {
           "syntax": "GetBloom()",
           "name": "GetBloom",
-          "description": "Bright-extract strength (0 off)",
+          "description": "Glow around what is bright, in HDR, with a soft threshold and a smooth falloff (0 off). Turns the stack on",
           "category": "Post-processing (GL 3.3 fullscreen blit)"
         },
         {
           "syntax": "SetFXAA [on]",
           "name": "SetFXAA",
-          "description": "Simple luma FXAA",
+          "description": "Edge-walking FXAA on the finished picture. Turns the stack on",
           "category": "Post-processing (GL 3.3 fullscreen blit)"
         },
         {
@@ -12244,9 +12244,21 @@
           "category": "Post-processing (GL 3.3 fullscreen blit)"
         },
         {
+          "syntax": "SetDepthOfField focus, range [, blur]",
+          "name": "SetDepthOfField",
+          "description": "Sharp at `focus` meters, fully blurred `range` meters either side of it, up to `blur` pixels at 720p (default 10, at most 32). No arguments or range 0 is off. Not on low tier. Cost grows with blur",
+          "category": "Post-processing (GL 3.3 fullscreen blit)"
+        },
+        {
+          "syntax": "SetMotionBlur amount [, maxPixels]",
+          "name": "SetMotionBlur",
+          "description": "Blur from the camera's movement. 1 is a 1/60 s shutter at any frame rate; 0 is off. Objects moving on their own are not blurred, and one fixed to the camera is blurred as if it were not. Skipped on a camera cut, in split screen, and on low tier",
+          "category": "Post-processing (GL 3.3 fullscreen blit)"
+        },
+        {
           "syntax": "SetFilmGrain n",
           "name": "SetFilmGrain",
-          "description": "0–1 grain after the grade. Turns the stack on",
+          "description": "0–1 grain, after FXAA so it stays sharp. Turns the stack on",
           "category": "Post-processing (GL 3.3 fullscreen blit)"
         },
         {
@@ -13459,7 +13471,7 @@
     {
       "syntax": "SetTonemap mode$",
       "name": "SetTonemap",
-      "description": "`reinhard` (default), `neutral`, `aces`, `none`. Needs `EnablePostFX`. Pair with `SetExposure`.",
+      "description": "`reinhard` (default with `EnablePostFX`), `neutral`, `aces`, `none`. Turns the stack on. Pair with `SetExposure`.",
       "category": "3D scene (G3N)"
     },
     {
@@ -22597,19 +22609,19 @@
     {
       "syntax": "SetBloom n",
       "name": "SetBloom",
-      "description": "Bright-extract strength (0 off)",
+      "description": "Glow around what is bright, in HDR, with a soft threshold and a smooth falloff (0 off). Turns the stack on",
       "category": "Post-processing (GL 3.3 fullscreen blit)"
     },
     {
       "syntax": "GetBloom()",
       "name": "GetBloom",
-      "description": "Bright-extract strength (0 off)",
+      "description": "Glow around what is bright, in HDR, with a soft threshold and a smooth falloff (0 off). Turns the stack on",
       "category": "Post-processing (GL 3.3 fullscreen blit)"
     },
     {
       "syntax": "SetFXAA [on]",
       "name": "SetFXAA",
-      "description": "Simple luma FXAA",
+      "description": "Edge-walking FXAA on the finished picture. Turns the stack on",
       "category": "Post-processing (GL 3.3 fullscreen blit)"
     },
     {
@@ -22625,9 +22637,21 @@
       "category": "Post-processing (GL 3.3 fullscreen blit)"
     },
     {
+      "syntax": "SetDepthOfField focus, range [, blur]",
+      "name": "SetDepthOfField",
+      "description": "Sharp at `focus` meters, fully blurred `range` meters either side of it, up to `blur` pixels at 720p (default 10, at most 32). No arguments or range 0 is off. Not on low tier. Cost grows with blur",
+      "category": "Post-processing (GL 3.3 fullscreen blit)"
+    },
+    {
+      "syntax": "SetMotionBlur amount [, maxPixels]",
+      "name": "SetMotionBlur",
+      "description": "Blur from the camera's movement. 1 is a 1/60 s shutter at any frame rate; 0 is off. Objects moving on their own are not blurred, and one fixed to the camera is blurred as if it were not. Skipped on a camera cut, in split screen, and on low tier",
+      "category": "Post-processing (GL 3.3 fullscreen blit)"
+    },
+    {
       "syntax": "SetFilmGrain n",
       "name": "SetFilmGrain",
-      "description": "0–1 grain after the grade. Turns the stack on",
+      "description": "0–1 grain, after FXAA so it stays sharp. Turns the stack on",
       "category": "Post-processing (GL 3.3 fullscreen blit)"
     },
     {

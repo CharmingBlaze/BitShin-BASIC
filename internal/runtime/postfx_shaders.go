@@ -52,10 +52,6 @@ uniform int uSSAO;
 uniform sampler2D uAOTex;
 uniform int uBloomChain;
 uniform sampler2D uBloom0;
-uniform sampler2D uBloom1;
-uniform sampler2D uBloom2;
-uniform sampler2D uBloom3;
-uniform sampler2D uBloom4;
 uniform int uLinear;
 
 float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
@@ -247,12 +243,7 @@ void main() {
 	vec3 bloom = vec3(0.0);
 	if (uBloom > 0.001) {
 		if (uBloomChain != 0) {
-			bloom = texture(uBloom0, vUV).rgb * 0.50;
-			bloom += texture(uBloom1, vUV).rgb * 0.26;
-			bloom += texture(uBloom2, vUV).rgb * 0.14;
-			bloom += texture(uBloom3, vUV).rgb * 0.07;
-			bloom += texture(uBloom4, vUV).rgb * 0.04;
-			bloom *= uBloom * 1.8;
+			bloom = texture(uBloom0, vUV).rgb * 0.50 * uBloom * 1.8;
 		} else {
 			vec2 px = uTexel * 2.2;
 			vec3 acc = vec3(0.0);
@@ -341,7 +332,10 @@ void main() {
 }
 `
 
-// Half-resolution bloom downsample. The first pass keeps pixels above uThreshold.
+// Bloom, after Jimenez's "Next Generation Post Processing in Call of Duty". Each level
+// is half the last, taken with 13 taps so that it does not flicker as things move. The
+// first keeps what is above uThreshold, with a soft knee, and averages by brightness
+// so a single very bright pixel cannot flash a whole blur.
 const mbBloomDownFragment = `#version 330 core
 in vec2 vUV;
 out vec4 frag;
@@ -350,21 +344,61 @@ uniform vec2 uTexel;
 uniform float uThreshold;
 
 float luma(vec3 c) { return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
-// finite drops NaN and Inf: in a half-float target one bad pixel would
-// otherwise spread through the bloom chain into a block.
-vec3 finite(vec3 c) { return (any(isnan(c)) || any(isinf(c))) ? vec3(0.0) : c; }
+// Drops NaN and Inf: in a half-float target one bad pixel would otherwise spread
+// through the bloom chain into a block.
+vec3 tap(float x, float y) {
+	vec3 c = texture(uSrc, vUV + uTexel * vec2(x, y)).rgb;
+	return (any(isnan(c)) || any(isinf(c))) ? vec3(0.0) : c;
+}
+vec3 box(vec3 a, vec3 b, vec3 c, vec3 d, float weight, inout float total) {
+	vec3 m = (a + b + c + d) * 0.25;
+	float k = weight / (1.0 + luma(m));
+	total += k;
+	return m * k;
+}
 
 void main() {
-	vec3 c = finite(texture(uSrc, vUV + uTexel * vec2(-1.0, -1.0)).rgb);
-	c += finite(texture(uSrc, vUV + uTexel * vec2(1.0, -1.0)).rgb);
-	c += finite(texture(uSrc, vUV + uTexel * vec2(-1.0, 1.0)).rgb);
-	c += finite(texture(uSrc, vUV + uTexel * vec2(1.0, 1.0)).rgb);
-	c *= 0.25;
+	vec3 a = tap(-2.0, 2.0), b = tap(0.0, 2.0), c = tap(2.0, 2.0);
+	vec3 d = tap(-2.0, 0.0), e = tap(0.0, 0.0), f = tap(2.0, 0.0);
+	vec3 g = tap(-2.0, -2.0), h = tap(0.0, -2.0), i = tap(2.0, -2.0);
+	vec3 j = tap(-1.0, 1.0), k = tap(1.0, 1.0), l = tap(-1.0, -1.0), m = tap(1.0, -1.0);
+	vec3 col;
 	if (uThreshold > 0.0) {
-		float l = luma(c);
-		c *= clamp(l - uThreshold, 0.0, 1.0) / max(l, 0.0001);
+		float total = 0.0;
+		col = box(j, k, l, m, 0.5, total);
+		col += box(a, b, d, e, 0.125, total);
+		col += box(b, c, e, f, 0.125, total);
+		col += box(d, e, g, h, 0.125, total);
+		col += box(e, f, h, i, 0.125, total);
+		col /= max(total, 0.0001);
+		float y = luma(col);
+		float knee = uThreshold * 0.5;
+		float soft = clamp(y - uThreshold + knee, 0.0, 2.0 * knee);
+		soft = soft * soft / (4.0 * knee + 0.0001);
+		col *= max(soft, y - uThreshold) / max(y, 0.0001);
+	} else {
+		col = e * 0.125 + (a + c + g + i) * 0.03125 + (b + d + f + h) * 0.0625 + (j + k + l + m) * 0.125;
 	}
-	frag = vec4(c, 1.0);
+	frag = vec4(col, 1.0);
+}
+`
+
+// Bloom on the way back up: each level gets the one below it, spread by a tent, which
+// is what turns a stack of blocky mips into one smooth falloff.
+const mbBloomUpFragment = `#version 330 core
+in vec2 vUV;
+out vec4 frag;
+uniform sampler2D uSrc;
+uniform vec2 uTexel;
+uniform float uScale;
+
+void main() {
+	vec3 c = texture(uSrc, vUV).rgb * 4.0;
+	c += (texture(uSrc, vUV + uTexel * vec2(1.0, 0.0)).rgb + texture(uSrc, vUV - uTexel * vec2(1.0, 0.0)).rgb
+		+ texture(uSrc, vUV + uTexel * vec2(0.0, 1.0)).rgb + texture(uSrc, vUV - uTexel * vec2(0.0, 1.0)).rgb) * 2.0;
+	c += texture(uSrc, vUV + uTexel).rgb + texture(uSrc, vUV - uTexel).rgb
+		+ texture(uSrc, vUV + uTexel * vec2(1.0, -1.0)).rgb + texture(uSrc, vUV + uTexel * vec2(-1.0, 1.0)).rgb;
+	frag = vec4(c / 16.0 * uScale, 1.0);
 }
 `
 

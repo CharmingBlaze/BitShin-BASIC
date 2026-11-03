@@ -25,7 +25,7 @@ func TestBloomChainIsGLSL330(t *testing.T) {
 		t.Fatal("post shaders must stay GLSL 330")
 	}
 	src := mbpostFragment + mbBloomDownFragment
-	for _, s := range []string{"uBloomChain", "uBloom0", "uBloom4", "uThreshold", "#version 330 core"} {
+	for _, s := range []string{"uBloomChain", "uBloom0", "uThreshold", "#version 330 core"} {
 		if !containsStr(src, s) {
 			t.Fatalf("missing %s", s)
 		}
