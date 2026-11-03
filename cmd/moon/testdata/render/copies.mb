@@ -1,0 +1,69 @@
+; Reference scene: many copies that batching groups into a few draws. Colors,
+; turns, stretches, a mirror, a parent, a hidden copy and PBR copies must all
+; look as they do when each is drawn alone.
+Graphics3D(1100, 650)
+SetGraphicsQuality("high")
+SetCameraClsColor(130, 160, 200)
+cam = CreateCamera().Position([0, 13, -24])
+cam.Point(0, 1, 2)
+CreateSkyBox("default")
+sun = CreateDirectionalLight()
+SetLightDirection(sun, 50, 35, 0)
+SetLightColor(sun, 255, 236, 205)
+SetLightShadow(sun, True)
+EnableShadows True
+
+ground = CreatePlane().Scale(4, 1, 4)
+ground.Color(70, 86, 78)
+
+; Lit cubes in three colors, each turned and stretched differently.
+base = CreateCube()
+base.Color(205, 90, 70)
+For z = 0 To 7
+    For x = 0 To 11
+        c = CopyEntity(base)
+        If (x + z) Mod 3 = 1 Then EntityColor(c, 80, 150, 210)
+        If (x + z) Mod 3 = 2 Then EntityColor(c, 225, 190, 90)
+        PositionEntity(c, x * 2.4 - 13, 1 + (x Mod 2) * 0.6, z * 2.4 - 4)
+        RotateEntity(c, x * 9, z * 17, 0)
+        ScaleEntity(c, 0.6 + (x Mod 3) * 0.25, 0.7 + (z Mod 3) * 0.3, 0.6)
+    Next
+Next
+
+; A mirrored copy: its normals must still face out.
+m = CopyEntity(base)
+PositionEntity(m, -9, 2, -7)
+RotateEntity(m, 20, 30, 0)
+ScaleEntity(m, -1, 1, 1)
+
+; A hidden copy casts and draws nothing.
+h = CopyEntity(base)
+PositionEntity(h, -4, 2, -7)
+HideEntity(h)
+
+; Copies under a turned, moved parent.
+pivot = CreatePivot()
+PositionEntity(pivot, 4, 1.5, -7)
+RotateEntity(pivot, 0, 40, 0)
+For i = 0 To 3
+    k = CopyEntity(base)
+    EntityParent(k, pivot)
+    PositionEntity(k, i * 1.8 - 2.7, 0, 0)
+    ScaleEntity(k, 0.6, 0.6, 0.6)
+Next
+
+; PBR copies, metal and rough.
+ball = CreateSphere(12).Position([-13, 3, 16])
+SetMaterialPBR(ball, 1)
+SetAlbedo(ball, 232, 196, 96)
+SetMetallic(ball, 1)
+SetRoughness(ball, 0.2)
+For i = 1 To 9
+    b = CopyEntity(ball)
+    PositionEntity(b, i * 3 - 13, 3, 16)
+Next
+
+While 1
+    RenderWorld
+    Flip
+Wend

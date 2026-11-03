@@ -91,12 +91,14 @@ func (c *Clip) play(loop bool, vol, pitch, pan float64) (*Voice, error) {
 		p.Play()
 		return &Voice{p: p, src: src, stream: src, vol: vol, pitch: pitch}, nil
 	}
-	pcm := c.PCM
-	if pan != 0 || vol != 1 {
-		pcm = mixPan(pcm, vol, pan)
+	src := &rateReader{pcm: c.PCM, rate: pitch, loop: loop}
+	src.setPan(pan)
+	if vol < 0 {
+		vol = 0
+	}
+	if vol > 1 {
 		vol = 1
 	}
-	src := &rateReader{pcm: pcm, rate: pitch, loop: loop}
 	p := ctx.NewPlayer(src)
 	p.SetVolume(vol)
 	p.Play()
@@ -253,6 +255,61 @@ func (v *Voice) SetPitch(pitch float64) {
 	}
 }
 
+// SetPan moves stereo balance while the voice plays. -1 is left, 1 is right.
+func (v *Voice) SetPan(pan float64) bool {
+	if v == nil || v.src == nil {
+		return false
+	}
+	switch s := v.src.(type) {
+	case *rateReader:
+		s.setPan(pan)
+	case *streamReader:
+		s.mu.Lock()
+		s.setPan(pan)
+		s.mu.Unlock()
+	default:
+		return false
+	}
+	return true
+}
+
+// Seek jumps a decoded clip to seconds from the start. Streams stay put.
+func (v *Voice) Seek(seconds float64) bool {
+	rr, ok := v.srcRate()
+	if !ok {
+		return false
+	}
+	rr.setPos(seconds * float64(SampleRate))
+	return true
+}
+
+// Seconds is how far a decoded clip has played. A stream returns -1.
+func (v *Voice) Seconds() float64 {
+	rr, ok := v.srcRate()
+	if !ok {
+		return -1
+	}
+	return rr.position() / float64(SampleRate)
+}
+
+// SetEcho mixes a short slapback. wet is 0 (dry) to 1. Streams ignore it.
+func (v *Voice) SetEcho(wet float64) bool {
+	rr, ok := v.srcRate()
+	if !ok {
+		return false
+	}
+	rr.setEcho(wet)
+	return true
+}
+
+func (v *Voice) srcRate() (*rateReader, bool) {
+	if v == nil {
+		return nil, false
+	}
+	rr, ok := v.src.(*rateReader)
+	return rr, ok
+}
+
 func (v *Voice) SetVolume(vol float64) {
 	if v == nil || v.p == nil {
 		return
@@ -279,11 +336,17 @@ func (v *Voice) Close() {
 }
 
 type rateReader struct {
-	mu   sync.Mutex
-	pcm  []byte
-	pos  float64
-	rate float64
-	loop bool
+	mu      sync.Mutex
+	pcm     []byte
+	pos     float64
+	rate    float64
+	loop    bool
+	left    float64
+	right   float64
+	panned  bool
+	wet     float64
+	echo    []float64
+	echoPos int
 }
 
 func (r *rateReader) setRate(v float64) {
@@ -298,13 +361,73 @@ func (r *rateReader) setRate(v float64) {
 	r.mu.Unlock()
 }
 
+func (r *rateReader) setPan(pan float64) {
+	if r == nil {
+		return
+	}
+	if pan < -1 {
+		pan = -1
+	}
+	if pan > 1 {
+		pan = 1
+	}
+	r.mu.Lock()
+	r.left = math.Min(1, 1-pan)
+	r.right = math.Min(1, 1+pan)
+	r.panned = pan != 0
+	r.mu.Unlock()
+}
+
+func (r *rateReader) setPos(samples float64) {
+	if r == nil {
+		return
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if samples < 0 {
+		samples = 0
+	}
+	max := float64(len(r.pcm) / FrameBytes)
+	if samples > max {
+		samples = max
+	}
+	r.pos = samples
+}
+
+func (r *rateReader) position() float64 {
+	if r == nil {
+		return 0
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.pos
+}
+
+func (r *rateReader) setEcho(wet float64) {
+	if r == nil {
+		return
+	}
+	if wet < 0 {
+		wet = 0
+	}
+	if wet > 1 {
+		wet = 1
+	}
+	r.mu.Lock()
+	r.wet = wet
+	if wet > 0 && r.echo == nil {
+		r.echo = make([]float64, 3528*2) // 80 ms slapback
+	}
+	r.mu.Unlock()
+}
+
 func (r *rateReader) Read(p []byte) (int, error) {
-	if len(r.pcm) < FrameBytes {
+	if r == nil || len(r.pcm) < FrameBytes {
 		return 0, io.EOF
 	}
 	r.mu.Lock()
+	defer r.mu.Unlock()
 	rate := r.rate
-	r.mu.Unlock()
 	if rate <= 0 {
 		rate = 1
 	}
@@ -322,6 +445,27 @@ func (r *rateReader) Read(p []byte) (int, error) {
 			i = 0
 		}
 		copy(p[n:n+FrameBytes], r.pcm[i:i+FrameBytes])
+		if r.panned || r.wet > 0 {
+			l := float64(int16(p[n]) | int16(p[n+1])<<8)
+			rv := float64(int16(p[n+2]) | int16(p[n+3])<<8)
+			if r.panned {
+				l *= r.left
+				rv *= r.right
+			}
+			if r.wet > 0 && len(r.echo) >= 2 {
+				dl, dr := r.echo[r.echoPos], r.echo[r.echoPos+1]
+				r.echo[r.echoPos] = l + dl*0.35*r.wet
+				r.echo[r.echoPos+1] = rv + dr*0.35*r.wet
+				r.echoPos += 2
+				if r.echoPos >= len(r.echo) {
+					r.echoPos = 0
+				}
+				l = l*(1-r.wet) + dl*r.wet
+				rv = rv*(1-r.wet) + dr*r.wet
+			}
+			ls, rs := int16(clamp16(l)), int16(clamp16(rv))
+			p[n], p[n+1], p[n+2], p[n+3] = byte(ls), byte(ls>>8), byte(rs), byte(rs>>8)
+		}
 		r.pos += rate
 		n += FrameBytes
 	}

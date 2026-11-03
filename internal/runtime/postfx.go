@@ -709,7 +709,7 @@ func (w *World) ensureBloomChain(ww, hh int) error {
 }
 
 func (w *World) fillBloomChain(ww, hh int) bool {
-	if w.post.bloom <= 0.001 || w.post.rainOnly || w.post.color == 0 || w.post.vao == 0 {
+	if w.post.bloom <= 0.001 || !w.bloomAllowed() || w.post.rainOnly || w.post.color == 0 || w.post.vao == 0 {
 		return false
 	}
 	if err := w.ensureBloomProg(); err != nil {
@@ -1056,6 +1056,10 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 	lumOK := false
 	if w.post.auto {
 		lum, lumOK = w.measureLuma(ww, hh)
+		if lumOK && w.linearActive() {
+			// The key is a display brightness; this is linear light.
+			lum = math32.Sqrt(lum)
+		}
 	}
 	gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
 	if dw, dh := w.drawableSize(ww, hh); dw > 0 && dh > 0 {
@@ -1067,6 +1071,15 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 			gl.Clear(gl.COLOR_BUFFER_BIT)
 		}
 		gl.Viewport(int32(x), int32(y), int32(vw), int32(vh))
+	}
+	fsrW, fsrH := w.drawableSize(ww, hh)
+	fsr := w.retroOn() && w.beginFSR(ww, hh, fsrW, fsrH)
+	// Real FXAA takes the finished picture, so the post pass draws to a target
+	// first. When neither applies it goes straight to the window, as before.
+	fxaa := w.fxaaWanted() && w.fsr.small.ensure(ww, hh)
+	if fxaa && !fsr {
+		gl.BindFramebuffer(gl.FRAMEBUFFER, w.fsr.small.fbo)
+		gl.Viewport(0, 0, int32(ww), int32(hh))
 	}
 	gl.Disable(gl.DEPTH_TEST)
 	gl.Disable(gl.BLEND)
@@ -1103,9 +1116,14 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 			exp *= w.post.adapted
 		}
 	}
+	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uLinear\x00")), int32(b01(w.linearActive())))
 	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uTonemap\x00")), int32(w.post.tonemap))
 	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uExposure\x00")), exp)
-	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uBloom\x00")), w.post.bloom)
+	bloomAmt := w.post.bloom
+	if !w.bloomAllowed() {
+		bloomAmt = 0
+	}
+	gl.Uniform1f(gl.GetUniformLocation(w.post.prog, gl.Str("uBloom\x00")), bloomAmt)
 	chainOn := int32(0)
 	if chain {
 		chainOn = 1
@@ -1117,7 +1135,7 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 		}
 	}
 	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uBloomChain\x00")), chainOn)
-	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uFXAA\x00")), int32(b01(w.post.fxaa)))
+	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uFXAA\x00")), int32(b01(w.post.fxaa && !fxaa)))
 	con := w.post.contrast
 	if con <= 0 {
 		con = 1
@@ -1152,6 +1170,19 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 	gl.BindVertexArray(0)
 	w.unbindLUTAndOutline()
 	w.unbindRetroPost()
+	switch {
+	case fxaa && fsr && w.fsr.mid.ensure(ww, hh):
+		gl.BindFramebuffer(gl.FRAMEBUFFER, w.fsr.mid.fbo)
+		gl.Viewport(0, 0, int32(ww), int32(hh))
+		w.drawFXAA(w.fsr.small.tex, ww, hh)
+		w.endFSR(w.fsr.mid.tex, ww, hh, fsrW, fsrH)
+	case fxaa && !fsr:
+		gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
+		gl.Viewport(0, 0, int32(fsrW), int32(fsrH))
+		w.drawFXAA(w.fsr.small.tex, ww, hh)
+	case fsr:
+		w.endFSR(w.fsr.small.tex, ww, hh, fsrW, fsrH)
+	}
 	for i := 0; i < len(w.post.bloomTex); i++ {
 		gl.ActiveTexture(gl.TEXTURE2 + uint32(i))
 		gl.BindTexture(gl.TEXTURE_2D, 0)
@@ -1263,7 +1294,9 @@ func (w *World) renderSceneCams(rend *renderer.Renderer, ww, hh int) {
 			cam = list[0].cam
 		}
 		if cam != nil {
+			w.passBegin()
 			w.renderShadows(rend, cam)
+			w.passEnd(gpuShadow)
 			bindColorTarget(targetFBO)
 			drainGL("pre-water")
 			w.renderWaterReflection(rend, cam)
@@ -1276,12 +1309,13 @@ func (w *World) renderSceneCams(rend *renderer.Renderer, ww, hh int) {
 			gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT)
 			drainGL("scene")
 			rearmSceneProgram(rend)
-			if err := rend.Render(w.scene, cam); err != nil {
+			if err := rend.Render(w.renderRoot(), cam); err != nil {
 				fmt.Println("RenderWorld:", err)
 			} else {
 				w.markShadowPrimed()
 			}
 			w.drawModernPass(cam)
+			w.passEnd(gpuScene)
 			if targetFBO != 0 && targetFBO == w.post.msaaFBO {
 				w.resolveMSAA(ww, hh)
 			}
@@ -1297,6 +1331,7 @@ func (w *World) renderSceneCams(rend *renderer.Renderer, ww, hh int) {
 		if glY < 0 {
 			glY = 0
 		}
+		w.shadow.turnFull = 2 // views share the tiles, so nothing may rest
 		w.renderShadows(rend, c.cam)
 		bindColorTarget(targetFBO)
 		drainGL("pre-water")
@@ -1312,7 +1347,7 @@ func (w *World) renderSceneCams(rend *renderer.Renderer, ww, hh int) {
 		}
 		drainGL("scene")
 		rearmSceneProgram(rend)
-		if err := rend.Render(w.scene, c.cam); err != nil {
+		if err := rend.Render(w.renderRoot(), c.cam); err != nil {
 			fmt.Println("RenderWorld:", err)
 		} else {
 			w.markShadowPrimed()

@@ -39,6 +39,9 @@ uniform vec4 Turb;       // strength, scale, speed, on
 uniform vec4 Ground;     // on, y, bounce, friction
 uniform vec3 Shift;      // world shift since the last step
 uniform int Style;       // 0 soft, 1 streak, 2 flake
+uniform int CollideN;
+uniform vec4 CollideC[4];
+uniform vec4 CollideH[4];
 
 uint pcg(uint v) {
     uint s = v * 747796405u + 2891336453u;
@@ -147,6 +150,30 @@ void main() {
         }
         v *= max(0.0, 1.0 - Drag * Dt);
         p += v * Dt;
+        for (int i = 0; i < 4; i++) {
+            if (i >= CollideN) {
+                break;
+            }
+            vec3 d = p - CollideC[i].xyz;
+            vec3 h = max(CollideH[i].xyz, vec3(0.05));
+            vec3 ad = abs(d);
+            if (ad.x < h.x && ad.y < h.y && ad.z < h.z) {
+                vec3 pen = h - ad;
+                if (pen.x <= pen.y && pen.x <= pen.z) {
+                    float s = d.x < 0.0 ? -1.0 : 1.0;
+                    p.x += s * pen.x;
+                    v.x = abs(v.x) * s * 0.4;
+                } else if (pen.y <= pen.z) {
+                    float s = d.y < 0.0 ? -1.0 : 1.0;
+                    p.y += s * pen.y;
+                    v.y = abs(v.y) * s * 0.4;
+                } else {
+                    float s = d.z < 0.0 ? -1.0 : 1.0;
+                    p.z += s * pen.z;
+                    v.z = abs(v.z) * s * 0.4;
+                }
+            }
+        }
         if (Style == 2) {
             p.x += sin(pa.w * 1.7 + mi.y) * 0.62 * Dt;
             p.z += cos(pa.w * 1.25) * 0.48 * Dt;
@@ -246,12 +273,16 @@ uniform sampler2D PartTex;
 uniform int UseTex;
 uniform int Additive;
 uniform int Style;
+uniform int Soft;
+uniform sampler2D SceneDepth;
+uniform vec2 Screen;
 uniform int FogMode;
 uniform vec3 FogColor;
 uniform float FogNear;
 uniform float FogFar;
 uniform float FogDensity;
 out vec4 FragColor;
+` + linearGLSL + `
 void main() {
     vec4 c = vCol;
     if (UseTex == 1) {
@@ -267,6 +298,12 @@ void main() {
         }
         float a = 1.0 - r2;
         c.a *= a * a;
+    }
+    if (Soft == 1 && Screen.x > 0.0) {
+        vec2 uv = gl_FragCoord.xy / Screen;
+        float sceneZ = texture(SceneDepth, uv).r;
+        float fade = clamp((sceneZ - gl_FragCoord.z) * 24.0, 0.0, 1.0);
+        c.a *= fade;
     }
     if (c.a < 0.002) {
         discard;
@@ -284,9 +321,9 @@ void main() {
     f = clamp(f, 0.0, 1.0);
     // Premultiplied out, blended ONE / ONE_MINUS_SRC_ALPHA: alpha 0 adds.
     if (Additive == 1) {
-        FragColor = vec4(c.rgb * c.a * f, 0.0);
+        FragColor = vec4(toLin(c.rgb) * c.a * f, 0.0);
     } else {
-        FragColor = vec4(mix(FogColor, c.rgb, f) * c.a, c.a);
+        FragColor = vec4(toLin(mix(FogColor, c.rgb, f)) * c.a, c.a);
     }
 }
 `

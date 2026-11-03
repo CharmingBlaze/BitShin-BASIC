@@ -94,7 +94,8 @@ func (w *World) createBoxMesh(a []value.Value) int {
 }
 
 func parseSphereArgs(a []value.Value, known func(int) bool) (radius float64, segs, parent int) {
-	radius, segs, parent = 1, 8, 0
+	// 16 with no arguments: at 8 a default sphere's outline shows its corners.
+	radius, segs, parent = 1, 16, 0
 	switch {
 	case len(a) >= 3:
 		radius = argN(a, 0, 1)

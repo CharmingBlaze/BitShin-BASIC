@@ -49,6 +49,7 @@ Demo of the aircraft: `examples/plane.mb`.
 | `CreateSpaceshipController(e)` (`CreateSpaceship`) | `UpdateSpaceship e, throttle, pitch, roll, yaw` | `examples/spaceship.mb` |
 | `CreateBoatController(e)` (`CreateBoat`) | `UpdateBoat e, throttle, steer` | `examples/boat.mb` |
 | `CreateJetSkiController(e)` (`CreateJetSki`) | `UpdateJetSki e, throttle, steer` | `examples/jetski.mb` |
+| `CreateWaterSkiController(e)` (`CreateWaterSki`) | `UpdateWaterSki e, throttle, steer [, tow]` | tow rope: [PHYSICS.md](PHYSICS.md) |
 | `CreateHelicopterController(e)` (`CreateHeli`) | `UpdateHelicopter e, collective, cyclicP, cyclicR, yaw` | `examples/helicopter.mb` |
 | `CreateHovercraftController(e)` (`CreateHover`) | `UpdateHovercraft e, throttle, steer` | `examples/hovercraft.mb` |
 | `CreateSubmarineController(e)` (`CreateSub`) | `UpdateSubmarine e, throttle, steer, dive` | `examples/submarine.mb` |
@@ -170,7 +171,7 @@ UpdateSubmarine(sub, throttle, steer, dive)
 ## Honest limits
 
 - No wheel meshes or gear UI — a cube + a constraint / forces.
-- Native Jolt vehicles are wired on **Windows**. Other Jolt platforms may get the force fallback.
+- Native Jolt vehicles run on Windows, Linux amd64/arm64, and macOS ARM. `-tags joltgo` and `-tags nojolt` use the force fallback.
 - Boat / sub use **CPU** `WaterHeight`, not a separate fluid sim.
 - `CreateBuoy(ent)` (splash / wake) is a different water helper — [WATER.md](WATER.md).
 - `CreateRopeAnchored` supplies real Jolt tow-rope physics. `UpdateWaterSki` automatically skips its legacy spring pull when the skier and tow boat already share a physical rope.

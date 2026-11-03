@@ -47,6 +47,12 @@ type ebiSprite struct {
 	ux, uy, uw, uh      int     // source rectangle; uw 0 uses the frame
 	occluder            bool    // blocks 2D light
 	unlit               bool    // drawn after 2D lighting, at full brightness
+	marks               []spriteMark
+}
+
+type spriteMark struct {
+	frame int
+	fn    string
 }
 
 type drawOp struct {
@@ -121,6 +127,7 @@ func (g *ebiGame) Update() error {
 		g.w.prof.scriptBegin()
 		err := g.in.Run()
 		g.w.prof.scriptEnd()
+		g.w.emitProf()
 		if err != nil {
 			return err
 		}
@@ -394,10 +401,25 @@ func (w *World) tickSpriteAnims() {
 		step := 1 / s.animFPS
 		for s.animT >= step {
 			s.animT -= step
+			prev := s.frame
 			s.frame++
 			if s.frame < s.animFrom || s.frame >= s.animFrom+s.animCount {
 				s.frame = s.animFrom
 			}
+			if s.frame != prev {
+				w.fireSpriteMarks(s)
+			}
+		}
+	}
+}
+
+func (w *World) fireSpriteMarks(s *ebiSprite) {
+	if s == nil || w.runner == nil {
+		return
+	}
+	for _, m := range s.marks {
+		if m.frame == s.frame && m.fn != "" {
+			_, _ = w.runner.CallNamed(m.fn, []value.Value{value.Num(float64(s.frame))})
 		}
 	}
 }

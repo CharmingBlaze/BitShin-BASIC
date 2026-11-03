@@ -16,6 +16,11 @@ const (
 	unitNorm      = 14
 	unitCaustic   = 15
 	unitEnvCube   = 10 // PBR has no SpecMap
+	// Linear lighting's sky map, where 10 is taken. A samplerCube and a
+	// sampler2D on one unit is a GL error. G3N's lit shader samples three
+	// textures at most, and terrain has no NormMap.
+	unitEnvCubeLit     = 7
+	unitEnvCubeTerrain = 14
 
 	// Terrain splat. G3N takes 0 and 1: EntityTexture, then a lightmap.
 	unitTerrainSand   = 2
@@ -39,7 +44,8 @@ const (
 	unitAtmo = 5
 
 	// GPU emitter sprites (raw GL program, no G3N textures).
-	unitParticle = 1
+	unitParticle      = 1
+	unitParticleDepth = 2
 )
 
 // programUnits is each program's hand-bound samplers. g3nUnits is how many
@@ -48,7 +54,8 @@ var programUnits = map[string]struct {
 	g3nUnits int
 	samplers map[string]int
 }{
-	"bsshadow": {8, map[string]int{
+	"bsshadow": {7, map[string]int{
+		"uEnvCube":  unitEnvCubeLit,
 		"ShadowMap": unitShadow, "ShadowMapDyn": unitShadowDyn, "SpecMap": unitSpec, "EmitMap": unitEmit,
 		"SpotCookie0": unitCookie0, "SpotCookie1": unitCookie1, "NormMap": unitNorm, "WaterCaustic": unitCaustic,
 	}},
@@ -61,6 +68,7 @@ var programUnits = map[string]struct {
 		"TerrainSand": unitTerrainSand, "TerrainGrass": unitTerrainGrass, "TerrainGrass2": unitTerrainGrass2,
 		"TerrainRock": unitTerrainRock, "TerrainSnow": unitTerrainSnow, "TerrainRockN": unitTerrainRockN,
 		"TerrainBlendMap": unitTerrainBlend, "ShadowMap": unitShadow, "ShadowMapDyn": unitShadowDyn,
+		"uEnvCube":    unitEnvCubeTerrain,
 		"SpotCookie0": unitCookie0, "SpotCookie1": unitCookie1, "WaterCaustic": unitCaustic,
 	}},
 	"mbwater": {0, map[string]int{
@@ -68,8 +76,8 @@ var programUnits = map[string]struct {
 		"WaterDuDv": unitWaterDuDv, "WaterNormal": unitWaterNormal, "WaterRefractDepth": unitWaterRefractDepth,
 		"ShadowMap": unitWaterShadow, "WaterFFT": unitWaterFFT, "SpotCookie0": unitCookie0, "SpotCookie1": unitCookie1,
 	}},
-	"mbatmo": {0, map[string]int{"AtmoT": unitAtmo}},
-	"mbgpupart": {0, map[string]int{"PartTex": unitParticle}},
+	"mbatmo":    {0, map[string]int{"AtmoT": unitAtmo}},
+	"mbgpupart": {0, map[string]int{"PartTex": unitParticle, "SceneDepth": unitParticleDepth}},
 }
 
 // g3nSamplers are bound by G3N from the material's own textures.

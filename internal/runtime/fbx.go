@@ -18,7 +18,7 @@ import (
 )
 
 // fbxMesh is one triangulated mesh from an FBX file.
-// Clusters carry skin indexes and weights. Cameras and animation clips are not read.
+// Clusters carry skin indexes and weights. Binary translation curves are read when the file has them.
 type fbxMesh struct {
 	verts     []float64
 	polys     []int32
@@ -30,7 +30,12 @@ type fbxMesh struct {
 	gotUnit   bool
 	clusters  []fbxCluster
 	limbs     []fbxLimb
-	pendingIx []int32
+	clips       []fbxClip
+	pendingIx   []int32
+	curveOpen   bool
+	curveN      int
+	curveTimes  []float64
+	curveVals   []float64
 }
 
 func (w *World) loadFBXAt(path string, parent int) (int, error) {
@@ -48,6 +53,9 @@ func (w *World) loadFBXAt(path string, parent int) (int, error) {
 	}
 	id := w.meshEnt(geom, parent)
 	if e := w.ents[id]; e != nil && e.mesh != nil {
+		if len(mesh.clips) > 0 {
+			e.anim = &animState{fbx: mesh.clips, speed: 1, dir: 1}
+		}
 		if len(mesh.clusters) > 0 {
 			w.attachFBXSkin(e, mesh)
 		} else {
@@ -102,6 +110,7 @@ func parseFBXASCII(src string) (fbxMesh, error) {
 		m.gotUnit = true
 	}
 	m.clusters, m.limbs = parseFBXSkinASCII(src)
+	m.clips = parseFBXClips(src)
 	return m, nil
 }
 
@@ -260,6 +269,9 @@ func readFBXNode(b []byte, pos int, ver uint32, m *fbxMesh) (int, error) {
 		}
 		p = next
 	}
+	if name == "AnimationCurve" {
+		m.flushCurve()
+	}
 	return int(end), nil
 }
 
@@ -400,8 +412,11 @@ func decodeFBXArray(kind byte, count int, raw []byte) (fbxProp, error) {
 			return pr, fmt.Errorf("fbx: short long array")
 		}
 		pr.ii = make([]int32, count)
+		pr.df = make([]float64, count)
 		for i := 0; i < count; i++ {
-			pr.ii[i] = int32(binary.LittleEndian.Uint64(raw[i*8:]))
+			v := int64(binary.LittleEndian.Uint64(raw[i*8:]))
+			pr.df[i] = float64(v)
+			pr.ii[i] = int32(v)
 		}
 	case 'b':
 		if len(raw) < count {
@@ -446,6 +461,20 @@ func noteFBXNode(name string, props []fbxProp, m *fbxMesh) {
 			m.clusters = append(m.clusters, c)
 			m.pendingIx = nil
 		}
+	case "AnimationCurve":
+		m.curveOpen = true
+		m.curveTimes = nil
+		m.curveVals = nil
+	case "KeyTime":
+		if m.curveOpen && len(props) > 0 {
+			m.curveTimes = fbxFloats(props[0])
+		}
+	case "KeyValueFloat":
+		if m.curveOpen && len(props) > 0 {
+			m.curveVals = fbxFloats(props[0])
+		}
+	case "Model":
+		m.noteLimb(props)
 	case "P":
 		if len(props) == 0 {
 			return
@@ -469,6 +498,75 @@ func noteFBXNode(name string, props []fbxProp, m *fbxMesh) {
 			}
 		}
 	}
+}
+
+func fbxFloats(p fbxProp) []float64 {
+	if len(p.df) > 0 {
+		return append([]float64(nil), p.df...)
+	}
+	out := make([]float64, len(p.ii))
+	for i, v := range p.ii {
+		out[i] = float64(v)
+	}
+	return out
+}
+
+func (m *fbxMesh) noteLimb(props []fbxProp) {
+	var modelName, kind string
+	for _, p := range props {
+		if p.s == "" {
+			continue
+		}
+		if strings.Contains(p.s, "Limb") {
+			kind = p.s
+			continue
+		}
+		if modelName == "" {
+			modelName = p.s
+		}
+	}
+	if !strings.Contains(kind, "Limb") {
+		return
+	}
+	if j := strings.LastIndex(modelName, "::"); j >= 0 {
+		modelName = modelName[j+2:]
+	}
+	if modelName == "" {
+		modelName = fmt.Sprintf("joint%d", len(m.limbs))
+	}
+	m.limbs = append(m.limbs, fbxLimb{name: modelName})
+}
+
+func (m *fbxMesh) flushCurve() {
+	m.curveOpen = false
+	n := len(m.curveTimes)
+	if len(m.curveVals) < n {
+		n = len(m.curveVals)
+	}
+	if n == 0 {
+		return
+	}
+	bone := ""
+	if len(m.limbs) > 0 {
+		bone = m.limbs[m.curveN/3%len(m.limbs)].name
+	}
+	axis := []string{"x", "y", "z"}[m.curveN%3]
+	m.curveN++
+	cv := fbxCurve{bone: bone, axis: axis, times: make([]float32, n), vals: make([]float32, n)}
+	for i := 0; i < n; i++ {
+		t := m.curveTimes[i]
+		if t > 1000 {
+			t /= fbxTicksPerSecond
+		}
+		cv.times[i] = float32(t)
+		cv.vals[i] = float32(m.curveVals[i])
+	}
+	if len(m.clips) == 0 {
+		m.clips = []fbxClip{{name: "fbx"}}
+	}
+	m.clips[0].curves = append(m.clips[0].curves, cv)
+	m.curveTimes = nil
+	m.curveVals = nil
 }
 
 func (m fbxMesh) geometry() (*geometry.Geometry, error) {

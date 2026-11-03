@@ -1,9 +1,11 @@
 package runtime
 
 import (
+	"encoding/json"
 	"fmt"
 	"image/color"
 	"math"
+	"os"
 	goruntime "runtime"
 	"time"
 
@@ -15,6 +17,7 @@ import (
 	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2/vector"
 
+	"moonbasic/internal/interp"
 	"moonbasic/internal/value"
 )
 
@@ -49,6 +52,7 @@ type profiler struct {
 	labels                []*gui.Label
 	textAt                time.Time
 	lines                 []string
+	sent                  time.Time
 }
 
 // smooth eases a timing toward its newest value so the readout is legible.
@@ -131,7 +135,8 @@ func (p *profiler) gpuEnd() {
 			var t0, t1 uint64
 			gl.GetQueryObjectui64v(prev[0], gl.QUERY_RESULT, &t0)
 			gl.GetQueryObjectui64v(prev[1], gl.QUERY_RESULT, &t1)
-			if t1 > t0 {
+			// Over a second is a driver timestamp glitch, not a frame.
+				if t1 > t0 && t1-t0 < 1e9 {
 				p.gpu = smooth(p.gpu, float64(t1-t0)/1e6)
 			}
 		}
@@ -322,5 +327,117 @@ func (w *World) profilerCommands(n func(func([]value.Value) (value.Value, error)
 		}),
 		"statsgcpausems": num(func() float64 { return p.gcPause }),
 		"statsallockb":   num(func() float64 { return p.allocKB }),
+		"statsfuncms": n(func(a []value.Value) (value.Value, error) {
+			return value.Num(w.funcMs(argS(a, 0))), nil
+		}),
+		"statsfunccalls": n(func(a []value.Value) (value.Value, error) {
+			name := argS(a, 0)
+			for _, s := range w.funcList() {
+				if s.Name == name {
+					return value.Num(float64(s.Calls)), nil
+				}
+			}
+			return value.Num(0), nil
+		}),
+		"statstopfunc": n(func(a []value.Value) (value.Value, error) {
+			list := w.funcList()
+			if len(list) == 0 {
+				return value.Str(""), nil
+			}
+			return value.Str(list[0].Name), nil
+		}),
+		"statsassetkb": n(func(a []value.Value) (value.Value, error) {
+			if w.assetBytes == nil {
+				return value.Num(0), nil
+			}
+			return value.Num(float64(w.assetBytes[argS(a, 0)]) / 1024), nil
+		}),
+		"statsvrammb": num(func() float64 { return float64(w.vramBytes) / (1 << 20) }),
+		"statsassetmb": n(func(a []value.Value) (value.Value, error) {
+			var n int64
+			for _, b := range w.assetBytes {
+				n += b
+			}
+			return value.Num(float64(n) / (1 << 20)), nil
+		}),
 	}
+}
+
+func (w *World) noteVRAM(width, height, compressed int) {
+	var n int64
+	if compressed > 0 {
+		n = int64(compressed)
+	} else if width > 0 && height > 0 {
+		n = int64(width) * int64(height) * 4
+	}
+	if n > 0 {
+		w.vramBytes += n
+	}
+}
+
+func (w *World) trackAsset(key string, n int64) {
+	if key == "" || n < 0 {
+		return
+	}
+	if w.assetBytes == nil {
+		w.assetBytes = map[string]int64{}
+	}
+	w.assetBytes[key] = n
+}
+
+func (w *World) funcList() []interp.FuncStat {
+	if w.runner == nil {
+		return nil
+	}
+	return w.runner.FuncStats()
+}
+
+func (w *World) funcMs(name string) float64 {
+	for _, s := range w.funcList() {
+		if s.Name == name {
+			return s.SelfMs
+		}
+	}
+	return 0
+}
+
+func (w *World) emitProf() {
+	if os.Getenv("MOON_IDE") != "1" {
+		return
+	}
+	if time.Since(w.prof.sent) < time.Second {
+		return
+	}
+	w.prof.sent = time.Now()
+	type fn struct {
+		Name   string  `json:"name"`
+		SelfMs float64 `json:"selfMs"`
+		Calls  int     `json:"calls"`
+	}
+	type asset struct {
+		Name string  `json:"name"`
+		KB   float64 `json:"kb"`
+	}
+	body := struct {
+		Lines  []string `json:"lines"`
+		Funcs  []fn     `json:"funcs"`
+		Assets []asset  `json:"assets"`
+	}{Lines: w.profileLines()}
+	for _, s := range w.funcList() {
+		if len(body.Funcs) >= 8 {
+			break
+		}
+		body.Funcs = append(body.Funcs, fn{Name: s.Name, SelfMs: s.SelfMs, Calls: s.Calls})
+	}
+	for name, b := range w.assetBytes {
+		if len(body.Assets) >= 8 {
+			break
+		}
+		body.Assets = append(body.Assets, asset{Name: name, KB: float64(b) / 1024})
+	}
+	raw, err := json.Marshal(body)
+	if err != nil {
+		return
+	}
+	fmt.Fprintf(os.Stderr, "@prof %s\n", raw)
 }

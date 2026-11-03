@@ -89,6 +89,7 @@ type FuncDecl struct {
 	Ret        string
 	Body       []Stmt
 	Coroutine  bool
+	Doc        string
 }
 
 type DimStmt struct {
@@ -103,13 +104,26 @@ type LocalStmt struct {
 	Src
 	Names  []string
 	Values []Expr // nil entry means 0
+	Types  []string
 	Static bool
+}
+
+type LabelStmt struct {
+	Src
+	Name string
+}
+
+type GotoStmt struct {
+	Src
+	Name  string
+	Gosub bool
 }
 
 type GlobalStmt struct {
 	Src
 	Names  []string
 	Values []Expr
+	Types  []string
 }
 
 type ConstStmt struct {
@@ -268,6 +282,8 @@ func (RestoreStmt) stmt()   {}
 func (EnumStmt) stmt()      {}
 func (StrictStmt) stmt()    {}
 func (TryStmt) stmt()       {}
+func (LabelStmt) stmt()     {}
+func (GotoStmt) stmt()      {}
 
 type BinaryExpr struct {
 	Src

@@ -35,6 +35,7 @@ const (
 	Ge
 	Dot
 	Hex
+	Doc
 )
 
 type Token struct {
@@ -50,7 +51,7 @@ func (k Kind) String() string {
 		String: "string", Comma: ",", Colon: ":", LParen: "(", RParen: ")",
 		LBracket: "[", RBracket: "]", Plus: "+", Minus: "-", Star: "*",
 		Slash: "/", Caret: "^", Eq: "=", Neq: "<>", Lt: "<", Gt: ">",
-		Le: "<=", Ge: ">=", Dot: ".", Hex: "hex",
+		Le: "<=", Ge: ">=", Dot: ".", Hex: "hex", Doc: "doc",
 	}
 	if s, ok := names[k]; ok {
 		return s
@@ -101,12 +102,27 @@ func (l *Lexer) next() Token {
 		case '\n':
 			l.adv()
 			return Token{Kind: Newline, Lit: "\n", Line: line, Col: col}
-		case ';', '\'':
+		case ';':
+			l.skipLine()
+			continue
+		case '\'':
+			if l.lookahead() == '\'' && l.lookaheadAt(2) == '\'' {
+				l.adv()
+				l.adv()
+				l.adv()
+				return Token{Kind: Doc, Lit: l.restOfLine(), Line: line, Col: col}
+			}
 			l.skipLine()
 			continue
 		case '/':
 			if l.lookahead() == '/' {
 				l.skipLine()
+				continue
+			}
+			if l.lookahead() == '*' {
+				l.adv()
+				l.adv()
+				l.skipBlock()
 				continue
 			}
 			l.adv()
@@ -301,6 +317,41 @@ func (l *Lexer) skipLine() {
 	for l.pos < len(l.src) {
 		r, _ := l.rune()
 		if r == '\n' {
+			return
+		}
+		l.adv()
+	}
+}
+
+func (l *Lexer) restOfLine() string {
+	start := l.pos
+	l.skipLine()
+	return strings.TrimSpace(l.src[start:l.pos])
+}
+
+// lookaheadAt returns the rune n runes ahead of the current one. n = 0 is current.
+func (l *Lexer) lookaheadAt(n int) rune {
+	pos := l.pos
+	for i := 0; i < n; i++ {
+		if pos >= len(l.src) {
+			return 0
+		}
+		_, sz := utf8.DecodeRuneInString(l.src[pos:])
+		pos += sz
+	}
+	if pos >= len(l.src) {
+		return 0
+	}
+	r, _ := utf8.DecodeRuneInString(l.src[pos:])
+	return r
+}
+
+func (l *Lexer) skipBlock() {
+	for l.pos < len(l.src) {
+		r, _ := l.rune()
+		if r == '*' && l.lookahead() == '/' {
+			l.adv()
+			l.adv()
 			return
 		}
 		l.adv()

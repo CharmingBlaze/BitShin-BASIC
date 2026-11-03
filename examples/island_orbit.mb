@@ -1,0 +1,73 @@
+; Island Orbit — a generated island: beaches, forests, a snowy peak, and sea.
+; The camera circles the island. Esc quits.
+
+Graphics3D(1280, 720)
+SetWindowTitle("moonBASIC — Island Orbit")
+cam = CreateCamera()
+SetCameraRange(cam, 1, 1800)
+sun = CreateDirectionalLight()
+SetLightDirection(sun, 42, 30, 0)
+SetLightColor(sun, 255, 240, 214)
+SetLook "modern"
+SetShadowDistance(1100)
+SetBloom 0.06
+; A little haze: the sky's low band and the fog share one color, so the sea
+; melts into the sky with no horizon line.
+SetSkyGradient(128, 178, 222, 196, 218, 236)
+SetFog(196, 218, 236, 300, 1400)
+SetClouds(0.32, 0.7, 0.12)
+
+; 800 m across, peaks up to 160 m, sea at 30% of that.
+sea# = 48
+hm = GenerateHeightmapPreset("mountain-island", 128, 128, 2026)
+HydraulicErodeHeightmap(hm, 800, 24)
+ground = CreateTerrainFromHeightmap(hm, 800, 800, 160)
+ApplyTerrainSplat(ground)
+SetTerrainGrassCoverage(ground, 0.2)
+SetTerrainWaterHeight(ground, sea + 0.8)
+SetTerrainBlend(ground, 2.2)
+SetTerrainRockColor(ground, 122, 116, 106)
+SetTerrainSnow(True, 122)
+SetTerrainStreamRadius(ground, 5)
+SetStreamOrigin(0, 0, 0)
+
+water = CreateWater(4096, 4096, 96)
+SetWaterLevel(sea)
+SetWaterStyle("ocean")
+SetWaterColor(30, 54, 96)
+SetWaterShallow(36, 150, 165, 6)
+SetWaterClarity(6)
+SetWaterWaves(0)
+EnableWaterReflection(True)
+EnableWaterRefraction(True)
+
+; Trees are planted as real meshes, each part with its own color. Hide() keeps
+; the templates themselves out of the scene.
+pine = CreateCylinder(0.7, 6, 6, 0).Color(62, 44, 28).Hide()
+tier1 = CreateCone(7.5, 10, 9, 1, pine).Position(0, 8, 0).Color(26, 58, 24)
+tier2 = CreateCone(5.7, 9.5, 9, 1, pine).Position(0, 12.5, 0).Color(30, 66, 26)
+tier3 = CreateCone(4, 9, 9, 1, pine).Position(0, 17, 0).Color(36, 74, 30)
+
+oak = CreateCylinder(0.9, 8, 6, 0).Color(68, 48, 30).Hide()
+crown1 = CreateSphere(5, oak).Scale(6, 5.2, 6).Position(0, 12, 0).Color(52, 84, 28)
+crown2 = CreateSphere(5, oak).Scale(4.4, 3.8, 4.4).Position(3.2, 10.4, 1.4).Color(46, 76, 26)
+crown3 = CreateSphere(5, oak).Scale(4.6, 4, 4.6).Position(-2.8, 10.8, -1.6).Color(48, 80, 26)
+crown4 = CreateSphere(5, oak).Scale(4, 3.4, 4).Position(0.4, 15.4, -0.6).Color(60, 94, 32)
+
+TerrainTrees(ground, pine, 0.26)
+TerrainTrees(ground, oak, 0.1)
+
+a# = 0
+frames = 0
+While 1
+    frames = frames + 1
+    a = a + 9 * Time.Delta()
+    cam.Position(Math.Sin(a) * 520, 210, Math.Cos(a) * 520)
+    CameraLookAt(cam, 0, 40, 0)
+    RenderWorld
+    Flip
+    If frames > 8
+        If Input.KeyHit(KEY_ESCAPE) Then End
+    EndIf
+Wend
+End

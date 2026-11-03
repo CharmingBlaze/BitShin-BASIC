@@ -24,7 +24,7 @@ type fbxLimb struct {
 }
 
 // meshSkin deforms a mesh from joint translation deltas. Up to four
-// influences per vertex. Animation clips from the FBX file are not read.
+// influences per vertex. ASCII FBX translation curves are read in fbx_clip.go.
 type meshSkin struct {
 	joints []skinJoint
 	bind   []float32
@@ -214,8 +214,9 @@ func (w *World) attachFBXSkin(e *Entity, mesh fbxMesh) {
 }
 
 func (w *World) applySkins() {
-	for _, e := range w.ents {
-		if e == nil || e.skin == nil || e.mesh == nil {
+	for _, m := range w.entityOrder() {
+		e := m.e
+		if e.skin == nil || e.mesh == nil {
 			continue
 		}
 		sk := e.skin

@@ -53,6 +53,11 @@ type waterBody struct {
 	waveStr      float32
 	shine        float32
 	reflectivity float32
+	clarity      float32 // metres the bottom stays visible through; 0 is the default 70
+	shallow      math32.Color
+	shallowTo    float32 // metres of water before it turns deep; 0 is no custom shallows
+	refractCopy  bool    // refraction copies the scene instead of redrawing it
+	copyFrame    int     // renderSerial of the last copy
 	normalTex    int
 	dudvTex      int
 	buoys        map[int]bool
@@ -800,7 +805,7 @@ func ensureWaterFBO(t *waterFBO, ww, hh int) {
 	gl.GenFramebuffers(1, &fbo)
 	gl.GenTextures(1, &tex)
 	gl.BindTexture(gl.TEXTURE_2D, tex)
-	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA, int32(ww), int32(hh), 0, gl.RGBA, gl.UNSIGNED_BYTE, nil)
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.RGBA16F, int32(ww), int32(hh), 0, gl.RGBA, gl.FLOAT, nil) // holds linear light
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
@@ -987,6 +992,7 @@ func (w *World) hideForWaterPass(wb *waterBody, keepAbove bool) func() {
 		vis bool
 	}
 	var saved []rec
+	w.batch.passHides++
 	hide := func(n core.INode) {
 		if n == nil {
 			return
@@ -1005,6 +1011,15 @@ func (w *World) hideForWaterPass(wb *waterBody, keepAbove bool) func() {
 			continue
 		}
 		if w.isTerrainEntity(id) {
+			// The clip plane discards every fragment of a chunk wholly on its
+			// far side, after the vertices and rasterizer have paid for it.
+			if !w.batch.off && e.mesh != nil && e.mesh.GetGeometry() != nil {
+				bb := e.mesh.GetGeometry().BoundingBox()
+				mw := e.node.GetNode().MatrixWorld()
+				if keepAbove && bb.Max.Y+mw[13] < wb.y-0.2 || !keepAbove && bb.Min.Y+mw[13] > wb.y+0.2 {
+					hide(e.node)
+				}
+			}
 			continue
 		}
 		p := worldPos(e.node.GetNode())
@@ -1024,6 +1039,7 @@ func (w *World) hideForWaterPass(wb *waterBody, keepAbove bool) func() {
 		}
 	}
 	return func() {
+		w.batch.passHides--
 		for i := range saved {
 			saved[i].n.GetNode().SetVisible(saved[i].vis)
 		}
@@ -1040,6 +1056,7 @@ func (w *World) renderWaterFBO(rend *renderer.Renderer, cam *camera.Camera, t *w
 	gl.GetIntegerv(gl.VIEWPORT, &prevVP[0])
 	gl.BindFramebuffer(gl.FRAMEBUFFER, t.fbo)
 	gl.Viewport(0, 0, t.w, t.h)
+	clear = w.linearClear(clear)
 	gl.ClearColor(clear.R, clear.G, clear.B, 1)
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 	// Text() labels live in the scene as GUI panels. In a water pass they
@@ -1049,7 +1066,7 @@ func (w *World) renderWaterFBO(rend *renderer.Renderer, cam *camera.Camera, t *w
 		shown[i] = lab.Visible()
 		lab.SetVisible(false)
 	}
-	_ = rend.Render(w.scene, cam)
+	_ = rend.Render(w.renderRoot(), cam)
 	for i, lab := range w.texts {
 		lab.SetVisible(shown[i])
 	}
@@ -1075,6 +1092,28 @@ func (w *World) reflectionCamera(cam *camera.Camera, waterY float32) *camera.Cam
 	return mirror
 }
 
+// copySceneForWater copies the scene's color and depth for the water to read,
+// once a frame, when the first water mesh is about to draw. Water is the last
+// thing in the transparent list, so everything under it is there. Only the main
+// view qualifies: a probe or extra window draws into another target.
+func (w *World) copySceneForWater(wb *waterBody) {
+	if !wb.refractCopy || wb.refract.fbo == 0 || wb.copyFrame == w.renderSerial {
+		return
+	}
+	var cur int32
+	gl.GetIntegerv(gl.DRAW_FRAMEBUFFER_BINDING, &cur)
+	src := uint32(cur)
+	if src == 0 || (src != w.post.fbo && src != w.post.msaaFBO) {
+		return
+	}
+	wb.copyFrame = w.renderSerial
+	gw, gh := wb.refract.w, wb.refract.h
+	gl.BindFramebuffer(gl.READ_FRAMEBUFFER, src)
+	gl.BindFramebuffer(gl.DRAW_FRAMEBUFFER, wb.refract.fbo)
+	gl.BlitFramebuffer(0, 0, gw, gh, 0, 0, gw, gh, gl.COLOR_BUFFER_BIT|gl.DEPTH_BUFFER_BIT, gl.NEAREST)
+	gl.BindFramebuffer(gl.FRAMEBUFFER, src)
+}
+
 func (w *World) renderWaterReflection(rend *renderer.Renderer, cam *camera.Camera) {
 	wb := w.currentWater()
 	if wb == nil || cam == nil || rend == nil || w.app == nil {
@@ -1097,7 +1136,14 @@ func (w *World) renderWaterReflection(rend *renderer.Renderer, cam *camera.Camer
 	} else if wb.reflect.fbo != 0 {
 		disposeWaterFBO(&wb.reflect)
 	}
-	if wb.refractOn && fsz > 0 {
+	// With a scene target, refraction is a copy of what is already drawn, made
+	// when the water is reached (copySceneForWater), at the same size. Drawing
+	// the world a second time for it cost 28% of the frame on the island.
+	copied := fsz > 0 && w.post.on && w.post.fbo != 0
+	wb.refractCopy = wb.refractOn && copied
+	if wb.refractCopy {
+		ensureWaterFBO(&wb.refract, w.post.w, w.post.h)
+	} else if wb.refractOn && fsz > 0 {
 		ensureWaterFBO(&wb.refract, fsz, fsz)
 	} else if wb.refract.fbo != 0 {
 		disposeWaterFBO(&wb.refract)
@@ -1110,13 +1156,15 @@ func (w *World) renderWaterReflection(rend *renderer.Renderer, cam *camera.Camer
 		w.renderWaterFBO(rend, mirror, &wb.reflect, sky)
 		w.waterClip = [4]float32{}
 		restore()
+		w.passEnd(gpuReflect)
 	}
-	if wb.refractOn && wb.refract.fbo != 0 {
+	if wb.refractOn && wb.refract.fbo != 0 && !wb.refractCopy {
 		restore := w.hideForWaterPass(wb, false)
 		w.waterClip = [4]float32{0, -1, 0, wb.y + 0.2}
 		w.renderWaterFBO(rend, cam, &wb.refract, math32.Color{wb.color.R * 0.25, wb.color.G * 0.45, wb.color.B * 0.55})
 		w.waterClip = [4]float32{}
 		restore()
+		w.passEnd(gpuRefract)
 	}
 }
 
@@ -1240,6 +1288,26 @@ func (w *World) waterCommands(n func(func([]value.Value) (value.Value, error)) c
 				return value.Num(float64(wb.mat.WaveSpeed)), nil
 			}
 			return value.Num(1), nil
+		}),
+		// SetWaterClarity metres: how deep the bottom stays visible. 0 is the
+		// default, 70. A small value keeps a sea blue right up to its shallows.
+		"setwaterclarity": n(func(a []value.Value) (value.Value, error) {
+			if wb := w.currentWater(); wb != nil {
+				wb.clarity = float32(argN(a, 0, 0))
+				if wb.clarity < 0 {
+					wb.clarity = 0
+				}
+			}
+			return z()
+		}),
+		// SetWaterShallow r, g, b [, metres]: the color over shallow ground, out
+		// to that much water seen through (default 14). Use with SetWaterClarity.
+		"setwatershallow": n(func(a []value.Value) (value.Value, error) {
+			if wb := w.currentWater(); wb != nil {
+				wb.shallow = *rgb(argN(a, 0, 40), argN(a, 1, 170), argN(a, 2, 175))
+				wb.shallowTo = float32(argN(a, 3, 14))
+			}
+			return z()
 		}),
 		"setwaterwavestrength": n(func(a []value.Value) (value.Value, error) {
 			if wb := w.currentWater(); wb != nil {

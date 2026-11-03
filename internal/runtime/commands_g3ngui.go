@@ -1,11 +1,20 @@
 package runtime
 
 import (
+	"fmt"
+
 	"github.com/g3n/engine/core"
 	"github.com/g3n/engine/gui"
 
 	"moonbasic/internal/value"
 )
+
+type uiTween struct {
+	id       int
+	sx, sy   float32
+	x, y     float32
+	t, dur   float64
+}
 
 // Scene-graph UI (G3N gui package). Names do not clash with Dear ImGui:
 // ImGui keeps GuiBegin / GuiButton / GuiSlider; these are CreatePanel,
@@ -126,6 +135,41 @@ func (w *World) g3nGuiCommands(n func(func([]value.Value) (value.Value, error)) 
 			}
 			return w.widgetValue(e), nil
 		}),
+		"tweenwidget": n(func(a []value.Value) (value.Value, error) {
+			id := argI(a, 0, 0)
+			e, err := w.ent(id)
+			if err != nil {
+				return value.Value{}, err
+			}
+			s, ok := e.node.(sizedWidget)
+			if !ok {
+				return value.Num(0), fmt.Errorf("TweenWidget: not a widget")
+			}
+			tw := uiTween{
+				id: id, x: float32(argN(a, 1, 0)), y: float32(argN(a, 2, 0)),
+				dur: argN(a, 3, 0),
+			}
+			p := e.node.GetNode().Position()
+			tw.sx, tw.sy = p.X, p.Y
+			if tw.dur <= 0 {
+				s.SetPosition(tw.x, tw.y)
+				return value.Num(1), nil
+			}
+			w.widgetTweens = append(w.widgetTweens, tw)
+			return value.Num(1), nil
+		}),
+		"setwidgetanchor": n(func(a []value.Value) (value.Value, error) {
+			id := argI(a, 0, 0)
+			if _, err := w.ent(id); err != nil {
+				return value.Value{}, err
+			}
+			if w.anchors == nil {
+				w.anchors = map[int][2]float64{}
+			}
+			w.anchors[id] = [2]float64{argN(a, 1, 0), argN(a, 2, 0)}
+			w.applyWidgetAnchors()
+			return z()
+		}),
 		"setwidgetpos": need(func(a []value.Value) (value.Value, error) {
 			e, err := w.ent(argI(a, 0, 0))
 			if err != nil {
@@ -139,6 +183,66 @@ func (w *World) g3nGuiCommands(n func(func([]value.Value) (value.Value, error)) 
 		"g3nbutton": need(func(a []value.Value) (value.Value, error) {
 			return w.g3nGuiCommands(n, z, need)["createbutton"](a)
 		}),
+	}
+}
+
+type sizedWidget interface {
+	SetPosition(x, y float32)
+	Width() float32
+	Height() float32
+}
+
+func (w *World) tickUITweens() {
+	if len(w.widgetTweens) == 0 {
+		return
+	}
+	dt := w.delta
+	if dt <= 0 {
+		dt = 1.0 / 60
+	}
+	cur := append([]uiTween(nil), w.widgetTweens...)
+	left := make([]uiTween, 0, len(cur))
+	for _, tw := range cur {
+		e := w.ents[tw.id]
+		if e == nil || e.node == nil {
+			continue
+		}
+		widget, ok := e.node.(sizedWidget)
+		if !ok {
+			continue
+		}
+		tw.t += dt
+		u := tw.t / tw.dur
+		if u > 1 {
+			u = 1
+		}
+		widget.SetPosition(tw.sx+float32(u)*(tw.x-tw.sx), tw.sy+float32(u)*(tw.y-tw.sy))
+		if u < 1 {
+			left = append(left, tw)
+		}
+	}
+	w.widgetTweens = left
+}
+
+func (w *World) applyWidgetAnchors() {
+	pw, ph := float32(800), float32(600)
+	if w.app != nil {
+		ww, hh := w.app.GetSize()
+		if ww > 0 && hh > 0 {
+			pw, ph = float32(ww), float32(hh)
+		}
+	}
+	for id, a := range w.anchors {
+		e := w.ents[id]
+		if e == nil || e.node == nil {
+			continue
+		}
+		s, ok := e.node.(sizedWidget)
+		if !ok {
+			continue
+		}
+		ax, ay := float32(a[0]), float32(a[1])
+		s.SetPosition(ax*(pw-s.Width()), ay*(ph-s.Height()))
 	}
 }
 

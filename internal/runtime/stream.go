@@ -297,13 +297,14 @@ func (w *World) visibleMeshCount() int {
 	defer func() { w.drawsAt = w.renderSerial }()
 	n := 0
 	for _, e := range w.ents {
-		if e == nil || e.mesh == nil || e.node == nil {
+		if e == nil || e.mesh == nil || e.node == nil || batchDrawn(e) {
 			continue
 		}
 		if e.node.GetNode().Visible() {
 			n++
 		}
 	}
+	n += len(w.batch.active) + w.mergedDrawCount()
 	w.drawsN = n
 	return n
 }

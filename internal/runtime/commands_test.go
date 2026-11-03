@@ -12,7 +12,7 @@ func TestCommandTablePillars(t *testing.T) {
 	need := []string{
 		"graphics3d", "createcube", "createcamera", "renderworld", "flip",
 		"graphics2d", "graphics", "rect", "oval", "drawimage", "createsprite",
-		"loadsound", "playsound", "stopsound", "setsoundvolume", "setsoundpitch",
+		"loadsound", "playsound", "stopsound", "pausesound", "resumesound", "setsoundvolume", "setsoundpitch", "setsoundpan", "fadesound", "seeksound",
 		"loadmusic", "playmusic", "emitsound",
 		"createbodysphere", "createcircle2d", "setgravity",
 		"raycast", "raycasthit", "raycastall", "collide", "setphysicsmaterial", "getphysicsmaterial",

@@ -8,6 +8,7 @@ import (
 
 	"github.com/g3n/engine/animation"
 	"github.com/g3n/engine/core"
+	"github.com/g3n/engine/geometry"
 	"github.com/g3n/engine/loader/gltf"
 	"github.com/g3n/engine/math32"
 
@@ -31,8 +32,30 @@ type animState struct {
 	layers []animLayer
 	bind   []localXF
 	bindOK bool
-	tree   *blendTree // PlayBlendTree: replaces seq/time as the base pose
-	fade   *animFade  // CrossfadeAnim / PlayBlendTree fade-in
+	tree     *blendTree // PlayBlendTree: replaces seq/time as the base pose
+	fade     *animFade  // CrossfadeAnim / PlayBlendTree fade-in
+	rootOn   bool
+	rootY    bool
+	rootBone string
+	rootHave bool
+	rootLast math32.Vector3
+	rootPlant math32.Vector3
+	fbx      []fbxClip
+	fbxSeq   int
+	marks    []animMark
+	rec      *animRec
+}
+
+type animRec struct {
+	on    bool
+	t     float32
+	order []string
+	bones map[string][][4]float32
+}
+
+type animMark struct {
+	at float32
+	fn string
 }
 
 // animLayer is an extra clip on top of the base pose.
@@ -44,6 +67,7 @@ type animLayer struct {
 	additive bool
 	speed    float32
 	mode     int // 0 off, 1 loop
+	mask     map[string]float32
 }
 
 func (w *World) animCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error), need func(func([]value.Value) (value.Value, error)) cmd) map[string]cmd {
@@ -57,8 +81,19 @@ func (w *World) animCommands(n func(func([]value.Value) (value.Value, error)) cm
 			if err != nil {
 				return value.Value{}, err
 			}
-			if e.anim == nil || len(e.anim.clips) == 0 {
-				return value.Value{}, fmt.Errorf("Animate: entity has no clips (LoadAnimMesh a .gltf/.glb with animations)")
+			if e.anim == nil || (len(e.anim.clips) == 0 && len(e.anim.fbx) == 0) {
+				return value.Value{}, fmt.Errorf("Animate: entity has no clips (LoadAnimMesh a .gltf/.glb, or an FBX with curves)")
+			}
+			if len(e.anim.clips) == 0 {
+				st := e.anim
+				st.mode = argI(a, 1, 1)
+				st.speed = float32(argN(a, 2, 1))
+				if st.speed == 0 {
+					st.speed = 1
+				}
+				st.dir = 1
+				st.time = 0
+				return z()
 			}
 			st := e.anim
 			st.mode = argI(a, 1, 1)
@@ -228,6 +263,139 @@ func (w *World) animCommands(n func(func([]value.Value) (value.Value, error)) cm
 			}
 			return value.Str(e.anim.names[e.anim.seq]), nil
 		}),
+		"setrootmotion": need(func(a []value.Value) (value.Value, error) {
+			return w.setRootMotion(a)
+		}),
+		"setbonemask": need(func(a []value.Value) (value.Value, error) {
+			return w.setBoneMask(a)
+		}),
+		"exportanimclip": need(func(a []value.Value) (value.Value, error) {
+			return w.exportAnimClip(a)
+		}),
+		"animevent": n(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			if e.anim == nil {
+				e.anim = &animState{}
+			}
+			name := argS(a, 2)
+			if name == "" {
+				return value.Num(0), fmt.Errorf("AnimEvent: function name")
+			}
+			e.anim.marks = append(e.anim.marks, animMark{at: float32(argN(a, 1, 0)), fn: name})
+			return value.Num(float64(len(e.anim.marks))), nil
+		}),
+		"getbonex": n(func(a []value.Value) (value.Value, error) {
+			return w.boneAxis(a, 0)
+		}),
+		"getboney": n(func(a []value.Value) (value.Value, error) {
+			return w.boneAxis(a, 1)
+		}),
+		"getbonez": n(func(a []value.Value) (value.Value, error) {
+			return w.boneAxis(a, 2)
+		}),
+		"setbonepos": n(func(a []value.Value) (value.Value, error) {
+			bone, err := w.boneNode(argI(a, 0, 0), argS(a, 1))
+			if err != nil {
+				return value.Value{}, err
+			}
+			gx, gy, gz := toG3N(float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0)))
+			bone.SetPosition(gx, gy, gz)
+			return value.Num(0), nil
+		}),
+		"bonelookat": n(func(a []value.Value) (value.Value, error) {
+			bone, err := w.boneNode(argI(a, 0, 0), argS(a, 1))
+			if err != nil {
+				return value.Value{}, err
+			}
+			gx, gy, gz := toG3N(float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0)))
+			up := &math32.Vector3{Y: 1}
+			bone.LookAt(&math32.Vector3{X: gx, Y: gy, Z: gz}, up)
+			return z()
+		}),
+		"setmorph": n(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			return value.Num(float64(w.setMorph(e, argI(a, 1, 0), float32(argN(a, 2, 0))))), nil
+		}),
+		"getmorph": n(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			i := argI(a, 1, 0)
+			if e == nil || i < 0 || i >= len(e.morphW) {
+				return value.Num(0), nil
+			}
+			return value.Num(float64(e.morphW[i])), nil
+		}),
+		"morphcount": n(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			n := len(e.morphW)
+			if mg := e.morphGeom(); mg != nil && len(mg.Weights()) > n {
+				n = len(mg.Weights())
+			}
+			return value.Num(float64(n)), nil
+		}),
+		"setviseme": n(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			idx, ok := visemeIndex(argS(a, 1))
+			if !ok {
+				return value.Num(0), fmt.Errorf("SetViseme: unknown shape %q", argS(a, 1))
+			}
+			return value.Num(float64(w.setMorph(e, idx, float32(argN(a, 2, 1))))), nil
+		}),
+		"animretarget": n(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			if e.anim == nil {
+				return value.Num(0), nil
+			}
+			return value.Num(float64(e.anim.retarget(argS(a, 1)))), nil
+		}),
+		"animrecord": n(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			if e.anim == nil {
+				e.anim = &animState{}
+			}
+			if argI(a, 1, 1) == 0 {
+				n := e.anim.finishRecord()
+				return value.Num(float64(n)), nil
+			}
+			if e.anim.rec == nil {
+				e.anim.rec = &animRec{bones: map[string][][4]float32{}}
+			}
+			e.anim.rec.on = true
+			e.anim.rec.t = 0
+			e.anim.rec.order = nil
+			e.anim.rec.bones = map[string][][4]float32{}
+			return value.Num(1), nil
+		}),
+		"clearanimevents": n(func(a []value.Value) (value.Value, error) {
+			e, err := w.ent(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			if e.anim != nil {
+				e.anim.marks = nil
+			}
+			return z()
+		}),
 	}
 	for k, v := range w.blendTreeCommands(need) {
 		m[k] = v
@@ -390,11 +558,15 @@ func (st *animState) applyLayers(root core.INode) {
 			if n == nil {
 				continue
 			}
+			wt := L.weight * L.boneWeight(n.Name())
+			if wt <= 0 {
+				continue
+			}
 			if L.additive {
-				applyAdditive(n, base[k], bindAt(st.bind, k), layer[k], L.weight)
+				applyAdditive(n, base[k], bindAt(st.bind, k), layer[k], wt)
 			} else {
-				u := 1 - L.weight
-				t := L.weight
+				u := 1 - wt
+				t := wt
 				n.SetPosition(base[k].p.X*u+layer[k].p.X*t, base[k].p.Y*u+layer[k].p.Y*t, base[k].p.Z*u+layer[k].p.Z*t)
 				n.SetScale(base[k].s.X*u+layer[k].s.X*t, base[k].s.Y*u+layer[k].s.Y*t, base[k].s.Z*u+layer[k].s.Z*t)
 				q := nlerpQuat(base[k].q, layer[k].q, t)
@@ -584,11 +756,230 @@ func clipNamed(names []string, keys ...string) int {
 	return -1
 }
 
+func visemeIndex(name string) (int, bool) {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "aa", "a":
+		return 0, true
+	case "ee", "e", "ih":
+		return 1, true
+	case "oh", "o":
+		return 2, true
+	case "mm", "m", "bmp":
+		return 3, true
+	case "fv":
+		return 4, true
+	default:
+		return 0, false
+	}
+}
+
+func (e *Entity) morphGeom() *geometry.MorphGeometry {
+	if e == nil || e.mesh == nil {
+		return nil
+	}
+	mg, _ := e.mesh.IGeometry().(*geometry.MorphGeometry)
+	return mg
+}
+
+func (w *World) setMorph(e *Entity, index int, weight float32) int {
+	if e == nil || index < 0 || index > 16 {
+		return 0
+	}
+	if weight < 0 {
+		weight = 0
+	}
+	if weight > 1 {
+		weight = 1
+	}
+	for len(e.morphW) <= index {
+		e.morphW = append(e.morphW, 0)
+	}
+	e.morphW[index] = weight
+	if mg := e.morphGeom(); mg != nil {
+		ws := append([]float32(nil), mg.Weights()...)
+		if index < len(ws) {
+			ws[index] = weight
+			mg.SetWeights(ws)
+		}
+	}
+	return len(e.morphW)
+}
+
+func (st *animState) retarget(spec string) int {
+	if st == nil {
+		return 0
+	}
+	repl := map[string]string{}
+	for _, part := range strings.Split(spec, ",") {
+		a, b, ok := strings.Cut(strings.TrimSpace(part), "=")
+		if !ok || a == "" || b == "" {
+			continue
+		}
+		repl[strings.ToLower(a)] = strings.TrimSpace(b)
+	}
+	n := 0
+	for ci := range st.fbx {
+		for i := range st.fbx[ci].curves {
+			if name, ok := repl[strings.ToLower(st.fbx[ci].curves[i].bone)]; ok {
+				st.fbx[ci].curves[i].bone = name
+				n++
+			}
+		}
+	}
+	return n
+}
+
+func (w *World) boneNode(id int, name string) (*core.Node, error) {
+	e, err := w.ent(id)
+	if err != nil {
+		return nil, err
+	}
+	bone := findBone(e.node, name)
+	if bone == nil {
+		return nil, fmt.Errorf("bone %q", name)
+	}
+	return bone, nil
+}
+
+func (w *World) boneAxis(a []value.Value, axis int) (value.Value, error) {
+	bone, err := w.boneNode(argI(a, 0, 0), argS(a, 1))
+	if err != nil {
+		return value.Value{}, err
+	}
+	p := bone.Position()
+	x, y, z := fromG3N(p.X, p.Y, p.Z)
+	switch axis {
+	case 1:
+		return value.Num(float64(y)), nil
+	case 2:
+		return value.Num(float64(z)), nil
+	default:
+		return value.Num(float64(x)), nil
+	}
+}
+
+func (w *World) sampleAnim(e *Entity) {
+	if e == nil || e.anim == nil || e.anim.rec == nil || !e.anim.rec.on || e.node == nil {
+		return
+	}
+	rec := e.anim.rec
+	dt := float32(w.delta)
+	if dt <= 0 {
+		dt = 1.0 / 60
+	}
+	rec.t += dt
+	var walk func(core.INode)
+	walk = func(n core.INode) {
+		if n == nil {
+			return
+		}
+		nd := n.GetNode()
+		if nd != nil && nd != e.node.GetNode() && nd.Name() != "" {
+			p := nd.Position()
+			key := nd.Name()
+			if _, ok := rec.bones[key]; !ok {
+				rec.order = append(rec.order, key)
+			}
+			row := rec.bones[key]
+			if len(row) < 240 {
+				rec.bones[key] = append(row, [4]float32{rec.t, p.X, p.Y, p.Z})
+			}
+		}
+		if nd == nil {
+			return
+		}
+		for _, c := range nd.Children() {
+			walk(c)
+		}
+	}
+	walk(e.node)
+}
+
+func (st *animState) finishRecord() int {
+	if st == nil || st.rec == nil || !st.rec.on {
+		return 0
+	}
+	rec := st.rec
+	rec.on = false
+	clip := fbxClip{name: "record"}
+	axes := []string{"x", "y", "z"}
+	for _, bone := range rec.order {
+		rows := rec.bones[bone]
+		if len(rows) == 0 {
+			continue
+		}
+		for axis := 0; axis < 3; axis++ {
+			cv := fbxCurve{bone: bone, axis: axes[axis]}
+			for _, row := range rows {
+				cv.times = append(cv.times, row[0])
+				cv.vals = append(cv.vals, row[1+axis])
+			}
+			clip.curves = append(clip.curves, cv)
+		}
+	}
+	if len(clip.curves) == 0 {
+		return 0
+	}
+	st.fbx = append(st.fbx, clip)
+	st.fbxSeq = len(st.fbx) - 1
+	st.mode = 1
+	st.time = 0
+	return len(clip.curves)
+}
+
+func markHit(prev, now, at float32, wrapped bool) bool {
+	if wrapped {
+		return at > prev || at <= now
+	}
+	if now >= prev {
+		return prev < at && at <= now
+	}
+	return now <= at && at < prev
+}
+
+func (w *World) fireAnimMarks(st *animState, prev, now float32, wrapped bool) {
+	if st == nil || w.runner == nil || len(st.marks) == 0 {
+		return
+	}
+	for _, m := range st.marks {
+		if m.fn == "" || !markHit(prev, now, m.at, wrapped) {
+			continue
+		}
+		_, _ = w.runner.CallNamed(m.fn, []value.Value{value.Num(float64(m.at))})
+	}
+}
+
 func (w *World) tickAnims(dt float32) {
 	posed := false
-	for _, e := range w.ents {
+	for _, m := range w.entityOrder() {
+		e := m.e
 		st := e.anim
-		if st == nil || len(st.clips) == 0 {
+		if st == nil || (len(st.clips) == 0 && len(st.fbx) == 0) {
+			continue
+		}
+		if w.ents[m.id] != e {
+			continue // freed by an animation event earlier in this walk
+		}
+		if len(st.fbx) > 0 && len(st.clips) == 0 {
+			prev := st.time
+			if st.mode != 0 {
+				st.time += dt * st.speed * st.dir
+				if st.time < 0 {
+					st.time = 0
+				}
+				dur := st.fbxDuration()
+				if st.mode == 1 && dur > 0 && st.time > dur {
+					st.time = float32(math.Mod(float64(st.time), float64(dur)))
+				}
+				if st.mode == 3 && dur > 0 && st.time >= dur {
+					st.time = dur
+					st.mode = 0
+				}
+				w.fireAnimMarks(st, prev, st.time, st.mode == 1 && st.time < prev)
+			}
+			st.applyFBX(e)
+			st.applyRootMotion(e)
+			posed = true
 			continue
 		}
 		layerOn := false
@@ -619,6 +1010,7 @@ func (w *World) tickAnims(dt float32) {
 		}
 		if st.mode == 0 || st.tree != nil {
 			st.applyPose(e.node)
+			st.applyRootMotion(e)
 			posed = true
 			continue
 		}
@@ -626,6 +1018,7 @@ func (w *World) tickAnims(dt float32) {
 		if t1 <= t0 {
 			t1 = t0 + st.length[st.seq]
 		}
+		prev := st.time
 		st.time += dt * st.speed * st.dir
 		switch st.mode {
 		case 1:
@@ -654,7 +1047,12 @@ func (w *World) tickAnims(dt float32) {
 			}
 		}
 		st.applyPose(e.node)
+		st.applyRootMotion(e)
+		w.fireAnimMarks(st, prev, st.time, st.mode == 1 && st.time < prev)
 		posed = true
+	}
+	for _, e := range w.ents {
+		w.sampleAnim(e)
 	}
 	for _, e := range w.ents {
 		if e != nil && e.ik != nil {

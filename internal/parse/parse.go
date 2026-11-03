@@ -16,6 +16,7 @@ type Parser struct {
 	lx   *lex.Lexer
 	tok  lex.Token
 	base string
+	doc  string
 }
 
 func ParseFile(path string) (*ast.Program, error) {
@@ -138,13 +139,41 @@ func (p *Parser) statement() (ast.Stmt, error) {
 	if p.tok.Kind == lex.EOF {
 		return nil, nil
 	}
+	for p.tok.Kind == lex.Doc {
+		if p.doc != "" {
+			p.doc += "\n"
+		}
+		p.doc += p.tok.Lit
+		p.next()
+		p.acceptNL()
+	}
+	if p.tok.Kind == lex.EOF {
+		return nil, nil
+	}
 	if p.tok.Kind != lex.Ident {
 		return nil, p.errorf("expected statement, got %s", p.tok.Kind)
 	}
 	pos := astPos(p.tok)
 	key := identKey(p.tok)
+	if key != "function" {
+		p.doc = ""
+	}
 
 	switch key {
+	case "rem":
+		for p.tok.Kind != lex.Newline && p.tok.Kind != lex.EOF && p.tok.Kind != lex.Colon {
+			p.next()
+		}
+		return nil, nil
+	case "goto", "gosub":
+		gosub := key == "gosub"
+		p.next()
+		if p.tok.Kind != lex.Ident {
+			return nil, p.errorf("%s expects a label", key)
+		}
+		name := p.tok.Lit
+		p.next()
+		return &ast.GotoStmt{Src: pos, Name: name, Gosub: gosub}, nil
 	case "if":
 		return p.parseIf()
 	case "while":
@@ -249,6 +278,11 @@ func (p *Parser) statement() (ast.Stmt, error) {
 
 	name := p.tok.Lit
 	p.next()
+
+	if p.tok.Kind == lex.Colon {
+		p.next()
+		return &ast.LabelStmt{Src: pos, Name: name}, nil
+	}
 
 	if p.tok.Kind == lex.Comma {
 		names := []string{name}
@@ -627,6 +661,8 @@ func (p *Parser) parseFunc() (ast.Stmt, error) {
 	}
 	name := p.tok.Lit
 	p.next()
+	doc := p.doc
+	p.doc = ""
 	params, defaults, types, err := p.parseParamList()
 	if err != nil {
 		return nil, err
@@ -650,12 +686,12 @@ func (p *Parser) parseFunc() (ast.Stmt, error) {
 		return nil, err
 	}
 	if p.eatIdent("endfunction") {
-		return &ast.FuncDecl{Src: pos, Name: name, Params: params, Defaults: defaults, ParamTypes: types, Ret: ret, Body: body}, nil
+		return &ast.FuncDecl{Src: pos, Name: name, Params: params, Defaults: defaults, ParamTypes: types, Ret: ret, Body: body, Doc: doc}, nil
 	}
 	if p.is("end") && lex.IdentKey(p.lx.Peek().Lit) == "function" {
 		p.next()
 		p.next()
-		return &ast.FuncDecl{Src: pos, Name: name, Params: params, Defaults: defaults, ParamTypes: types, Ret: ret, Body: body}, nil
+		return &ast.FuncDecl{Src: pos, Name: name, Params: params, Defaults: defaults, ParamTypes: types, Ret: ret, Body: body, Doc: doc}, nil
 	}
 	return nil, p.errorf("expected End Function")
 }
@@ -822,9 +858,19 @@ func (p *Parser) parseDeclNames(global, static bool) (ast.Stmt, error) {
 	p.next()
 	var names []string
 	var values []ast.Expr
+	var types []string
 	for p.tok.Kind == lex.Ident {
 		names = append(names, p.tok.Lit)
 		p.next()
+		typ := ""
+		if p.eatIdent("as") {
+			if p.tok.Kind != lex.Ident {
+				return nil, p.errorf("As expects a type")
+			}
+			typ = p.tok.Lit
+			p.next()
+		}
+		types = append(types, typ)
 		var val ast.Expr
 		if p.tok.Kind == lex.Eq {
 			p.next()
@@ -842,9 +888,9 @@ func (p *Parser) parseDeclNames(global, static bool) (ast.Stmt, error) {
 		break
 	}
 	if global {
-		return &ast.GlobalStmt{Src: pos, Names: names, Values: values}, nil
+		return &ast.GlobalStmt{Src: pos, Names: names, Values: values, Types: types}, nil
 	}
-	return &ast.LocalStmt{Src: pos, Names: names, Values: values, Static: static}, nil
+	return &ast.LocalStmt{Src: pos, Names: names, Values: values, Types: types, Static: static}, nil
 }
 
 func (p *Parser) parseTry() (ast.Stmt, error) {

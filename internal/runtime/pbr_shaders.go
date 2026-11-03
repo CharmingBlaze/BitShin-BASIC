@@ -148,6 +148,7 @@ noperspective in vec2 FragTexcoordAffine;
 out vec4 FragColor;
 ` + retroFragGLSL + `
 
+` + linearGLSL + `
 const float M_PI = 3.141592653589793;
 const float c_MinRoughness = 0.04;
 
@@ -277,10 +278,10 @@ vec2 dirToEquirect(vec3 d) {
 
 vec3 iblTerm(PBRInfo pbrInputs, vec3 n, vec3 v) {
     float sky = clamp(n.y * 0.5 + 0.5, 0.0, 1.0);
-    vec3 irr = mix(IBLGround, IBLSky, sky);
+    vec3 irr = toLin(mix(IBLGround, IBLSky, sky));
     vec3 r = reflect(-v, n);
     float rsky = clamp(r.y * 0.5 + 0.5, 0.0, 1.0);
-    vec3 specEnv = mix(IBLGround, IBLSky, rsky);
+    vec3 specEnv = toLin(mix(IBLGround, IBLSky, rsky));
 #ifdef HAS_ENVMAP
     float lod = pbrInputs.perceptualRoughness * 7.0;
     vec3 envN = SRGBtoLINEAR(textureLod(uEnvSampler, dirToEquirect(n), lod + 3.0)).rgb;
@@ -295,6 +296,19 @@ vec3 iblTerm(PBRInfo pbrInputs, vec3 n, vec3 v) {
         float cubeLod = pbrInputs.perceptualRoughness * 5.0;
         vec3 cubeN = textureLod(uEnvCube, wn, 5.0).rgb;
         vec3 cubeR = textureLod(uEnvCube, wr, cubeLod).rgb;
+        if (HasEnvCube == 1) {
+            cubeN = toLin(cubeN);
+            cubeR = toLin(cubeR);
+        }
+        if (HasEnvCube == 1) {
+            // A sky picture knows nothing of the ground below it. Without
+            // this a polished ball mirrors a bright false horizon.
+            // The edge blurs with roughness, as the reflection itself does.
+            float soft = mix(0.04, 0.9, pbrInputs.perceptualRoughness);
+            float below = 1.0 - smoothstep(-0.12 - soft, soft * 0.4, wr.y);
+            vec3 floorCol = mix(toLin(IBLGround), cubeN, 0.45);
+            cubeR = mix(cubeR, floorCol, below);
+        }
         irr = mix(irr, cubeN, 0.85);
         specEnv = mix(specEnv, cubeR, 0.85);
     }
@@ -302,14 +316,15 @@ vec3 iblTerm(PBRInfo pbrInputs, vec3 n, vec3 v) {
     // negative base is NaN in GLSL. That was the black dot in the middle of
     // every polished sphere, and a float post buffer smeared it into a block.
     float nv = min(abs(dot(n, v)) + 0.001, 1.0);
-    vec3 Fs = pbrInputs.reflectance0 + (vec3(1.0) - pbrInputs.reflectance0) * pow(1.0 - nv, 5.0);
     vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
     vec4 c1 = vec4(1.0, 0.0425, 1.04, -0.04);
     vec4 ruf = pbrInputs.perceptualRoughness * c0 + c1;
     float a004 = min(ruf.x * ruf.x, exp2(-9.28 * nv)) * ruf.x + ruf.y;
     vec2 dfg = vec2(-1.04, 1.04) * a004 + ruf.zw;
     vec3 diff = irr * pbrInputs.diffuseColor;
-    vec3 spec = specEnv * (Fs * dfg.x + dfg.y);
+    // F0, not a Schlick term: dfg already holds the rise toward grazing, and
+    // counting it twice ringed every polished sphere in white.
+    vec3 spec = specEnv * (pbrInputs.reflectance0 * dfg.x + dfg.y);
     return (diff + spec) * IBLIntensity;
 }
 `
@@ -335,9 +350,9 @@ void main() {
     float alphaRoughness = perceptualRoughness * perceptualRoughness;
 
 #ifdef HAS_BASECOLORMAP
-    vec4 baseColor = SRGBtoLINEAR(texture(uBaseColorSampler, baseUV)) * uBaseColor;
+    vec4 baseColor = SRGBtoLINEAR(texture(uBaseColorSampler, baseUV)) * vec4(toLin(uBaseColor.rgb), uBaseColor.a);
 #else
-    vec4 baseColor = uBaseColor;
+    vec4 baseColor = vec4(toLin(uBaseColor.rgb), uBaseColor.a);
 #endif
 
     vec3 f0 = vec3(0.04);
@@ -369,7 +384,7 @@ void main() {
 
 #if AMB_LIGHTS>0
     for (int i = 0; i < AMB_LIGHTS; i++) {
-        ambient += AmbientLightColor[i] * pbrInputs.diffuseColor;
+        ambient += toLin(AmbientLightColor[i]) * pbrInputs.diffuseColor;
     }
 #endif
 
@@ -378,7 +393,7 @@ void main() {
         ambient += iblTerm(pbrInputs, n, v);
     } else {
         float skyH = clamp(wN.y * 0.5 + 0.5, 0.0, 1.0);
-        ambient += mix(IBLGround, IBLSky, skyH) * pbrInputs.diffuseColor * 0.55;
+        ambient += toLin(mix(IBLGround, IBLSky, skyH)) * pbrInputs.diffuseColor * 0.55;
     }
 
     float sunOcc = 1.0;
@@ -390,7 +405,7 @@ void main() {
             sh = sunShadowFactor(WorldPos, wN, ShadowSunDir);
             sunOcc = sh;
         }
-        direct += pbrDirect(pbrInputs, n, v, DirLightColor(i), lightDirection) * sh;
+        direct += pbrDirect(pbrInputs, n, v, toLin(DirLightColor(i)), lightDirection) * sh;
     }
 #endif
 
@@ -401,7 +416,7 @@ void main() {
         lightDirection = lightDirection / max(lightDistance, 0.0001);
         float attenuation = shadeAttenuation(lightDistance, PointLightLinearDecay(i), PointLightQuadraticDecay(i), PointLightConstant(i));
         float psh = pointShadowFactor(i, WorldPos, n);
-        direct += pbrDirect(pbrInputs, n, v, PointLightColor(i) * attenuation, lightDirection) * psh;
+        direct += pbrDirect(pbrInputs, n, v, toLin(PointLightColor(i)) * attenuation, lightDirection) * psh;
     }
 #endif
 
@@ -415,7 +430,7 @@ void main() {
         attenuation *= shadeCookie(i, -lightDirection * lightDistance, SpotLightDirection(i), SpotLightCutoffAngle(i));
         if (attenuation > 0.001) {
             float ssh = spotShadowFactor(i, WorldPos, n);
-            direct += pbrDirect(pbrInputs, n, v, SpotLightColor(i) * attenuation, lightDirection) * ssh;
+            direct += pbrDirect(pbrInputs, n, v, toLin(SpotLightColor(i)) * attenuation, lightDirection) * ssh;
         }
     }
 #endif
@@ -425,7 +440,7 @@ void main() {
         for (int i = 0; i < AreaCount; i++) {
             float win = areaWindow(i, WorldPos);
             if (win <= 0.0) { continue; }
-            direct += AreaColor[i] * pbrInputs.diffuseColor * (areaFormFactor(i, WorldPos, wN) * win);
+            direct += toLin(AreaColor[i]) * pbrInputs.diffuseColor * (areaFormFactor(i, WorldPos, wN) * win);
             // Representative point: the light seen as a small sphere at
             // the spot the mirror ray reaches, its lobe widened by its size.
             vec3 sp = areaSpecPoint(i, WorldPos, reflect(-wV, wN));
@@ -438,7 +453,7 @@ void main() {
             float norm = (a / a2) * (a / a2);
             float area = 4.0 * length(AreaRight[i]) * length(AreaUp[i]);
             float solid = min(area / (ds * ds), 6.2832);
-            direct += pbrSpecOnly(pbrInputs, wN, wV, AreaColor[i] * (solid * norm * win * areaFacing(i, WorldPos)), Ls);
+            direct += pbrSpecOnly(pbrInputs, wN, wV, toLin(AreaColor[i]) * (solid * norm * win * areaFacing(i, WorldPos)), Ls);
         }
     }
 
@@ -449,9 +464,9 @@ void main() {
 #endif
 
 #ifdef HAS_EMISSIVEMAP
-    vec3 emissive = SRGBtoLINEAR(texture(uEmissiveSampler, baseUV)).rgb * vec3(uEmissiveColor);
+    vec3 emissive = SRGBtoLINEAR(texture(uEmissiveSampler, baseUV)).rgb * toLin(vec3(uEmissiveColor));
 #else
-    vec3 emissive = vec3(uEmissiveColor);
+    vec3 emissive = toLin(vec3(uEmissiveColor));
 #endif
 
     if (uShading == 2) {
@@ -461,7 +476,7 @@ void main() {
         ambient = mix(IBLGround, IBLSky, 0.55 + 0.3 * sky) * pbrInputs.diffuseColor * 1.1;
 #if AMB_LIGHTS>0
         for (int i = 0; i < AMB_LIGHTS; i++) {
-            ambient += AmbientLightColor[i] * pbrInputs.diffuseColor;
+            ambient += toLin(AmbientLightColor[i]) * pbrInputs.diffuseColor;
         }
 #endif
         float rim = 1.0 - max(dot(n, v), 0.0);
@@ -511,7 +526,7 @@ void main() {
             float hFac = exp(-max(WorldPos.y - FogHeight, 0.0) * FogHeightFalloff);
             f = 1.0 - (1.0 - f) * clamp(hFac, 0.0, 1.0);
         }
-        FragColor.rgb = mix(fogTint(FogColor, WorldPos), FragColor.rgb, retroFog(clamp(f, 0.0, 1.0)));
+        FragColor.rgb = fogMix(toLin(fogTint(FogColor, WorldPos)), FragColor.rgb, retroFog(clamp(f, 0.0, 1.0)));
     }
 }
 `

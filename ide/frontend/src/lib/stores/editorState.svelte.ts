@@ -62,7 +62,8 @@ class EditorStore {
   isRunning = $state<boolean>(false);
   executionTime = $state<number>(0);
   exitCode = $state<number | null>(null);
-  activeSidebarTab = $state<'files' | 'commands' | 'outline' | 'examples' | 'assets' | 'scene' | 'debug'>('files');
+  activeSidebarTab = $state<'files' | 'commands' | 'outline' | 'examples' | 'assets' | 'scene' | 'debug' | 'profiler'>('files');
+  profile = $state<{ lines: string[]; funcs: { name: string; selfMs: number; calls: number }[]; assets: { name: string; kb: number }[] } | null>(null);
   breakpoints = $state<number[]>([]);
   debugPaused = $state(false);
   debugSession = $state(false);
@@ -476,6 +477,12 @@ class EditorStore {
         line: st.line
       });
       this.refreshWatches();
+      return true;
+    }
+    if (body.startsWith('@prof ')) {
+      try {
+        this.profile = JSON.parse(body.slice(6));
+      } catch {}
       return true;
     }
     if (body.startsWith('@eval ')) {

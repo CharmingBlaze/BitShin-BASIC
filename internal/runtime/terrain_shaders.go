@@ -99,7 +99,7 @@ uniform vec3 TerrainSunColor;
 uniform vec3 CamWorldPos;
 uniform vec4 WaterClipPlane;
 out vec4 FragColor;
-` + retroFragGLSL + `
+` + retroFragGLSL + linearGLSL + skyAmbientGLSL + `
 // Splat texture lookups use this position: WorldPos, or its screen-linear
 // copy as RetroAffine rises (the PS1 warp on the ground textures).
 vec3 retroTexPos() {
@@ -134,7 +134,7 @@ float terrainLuma(vec3 c) {
 
 // Stochastic tile break (Heitz / Deliot sampling, Booth height blend):
 // four virtual offsets, blended by luminance so the mix does not go grey.
-vec3 stochasticRGB(sampler2D tex, vec2 uv) {
+vec3 stochasticRGB(sampler2D tex, vec2 uv, vec2 dx, vec2 dy) {
     vec2 iuv = floor(uv);
     vec2 fuv = fract(uv);
     fuv = fuv * fuv * (3.0 - 2.0 * fuv);
@@ -142,10 +142,10 @@ vec3 stochasticRGB(sampler2D tex, vec2 uv) {
     vec2 o10 = vec2(terrainHash(iuv + vec2(1.0, 0.0)), terrainHash(iuv + vec2(1.0, 0.0) + 13.7));
     vec2 o01 = vec2(terrainHash(iuv + vec2(0.0, 1.0)), terrainHash(iuv + vec2(0.0, 1.0) + 13.7));
     vec2 o11 = vec2(terrainHash(iuv + vec2(1.0, 1.0)), terrainHash(iuv + vec2(1.0, 1.0) + 13.7));
-    vec3 c00 = texture(tex, uv + o00).rgb;
-    vec3 c10 = texture(tex, uv + o10).rgb;
-    vec3 c01 = texture(tex, uv + o01).rgb;
-    vec3 c11 = texture(tex, uv + o11).rgb;
+    vec3 c00 = textureGrad(tex, uv + o00, dx, dy).rgb;
+    vec3 c10 = textureGrad(tex, uv + o10, dx, dy).rgb;
+    vec3 c01 = textureGrad(tex, uv + o01, dx, dy).rgb;
+    vec3 c11 = textureGrad(tex, uv + o11, dx, dy).rgb;
     float h00 = terrainLuma(c00) + (1.0 - fuv.x) * (1.0 - fuv.y);
     float h10 = terrainLuma(c10) + fuv.x * (1.0 - fuv.y);
     float h01 = terrainLuma(c01) + (1.0 - fuv.x) * fuv.y;
@@ -159,10 +159,16 @@ vec3 stochasticRGB(sampler2D tex, vec2 uv) {
     return (c00 * b00 + c10 * b10 + c01 * b01 + c11 * b11) / s;
 }
 
+// Taken once per pixel, outside any branch: these reads happen only where their
+// material shows, and implicit derivatives are undefined across such a branch,
+// which would leave seams along every material edge.
+vec3 tpDx;
+vec3 tpDy;
+
 vec3 triplanarRGB(sampler2D tex, int has, vec3 fallback, vec3 wp, vec3 n, float sc) {
     // Low tier: one planar read per layer instead of six.
     if (TerrainCheap != 0) {
-        return has == 0 ? fallback : texture(tex, wp.xz * sc).rgb;
+        return has == 0 ? fallback : textureGrad(tex, wp.xz * sc, tpDx.xz * sc, tpDy.xz * sc).rgb;
     }
     vec3 an = abs(n);
     an = pow(max(an, vec3(0.0)), vec3(3.0));
@@ -170,10 +176,13 @@ vec3 triplanarRGB(sampler2D tex, int has, vec3 fallback, vec3 wp, vec3 n, float 
     if (s < 1e-5) { return fallback; }
     an /= s;
     if (has == 0) { return fallback; }
-    vec3 cx = texture(tex, wp.zy * sc).rgb;
-    vec3 cy = stochasticRGB(tex, wp.xz * sc);
-    vec3 cz = texture(tex, wp.xy * sc).rgb;
-    return cx * an.x + cy * an.y + cz * an.z;
+    // A projection that adds under 2% is not worth its reads.
+    vec3 sum = vec3(0.0);
+    float kept = 0.0;
+    if (an.x > 0.02) { sum += textureGrad(tex, wp.zy * sc, tpDx.zy * sc, tpDy.zy * sc).rgb * an.x; kept += an.x; }
+    if (an.y > 0.02) { sum += stochasticRGB(tex, wp.xz * sc, tpDx.xz * sc, tpDy.xz * sc) * an.y; kept += an.y; }
+    if (an.z > 0.02) { sum += textureGrad(tex, wp.xy * sc, tpDx.xy * sc, tpDy.xy * sc).rgb * an.z; kept += an.z; }
+    return sum / max(kept, 1e-5);
 }
 
 vec3 heightBlend(vec3 c0, vec3 c1, vec3 c2, vec3 c3, vec3 c4, float w0, float w1, float w2, float w3, float w4) {
@@ -192,14 +201,35 @@ vec3 heightBlend(vec3 c0, vec3 c1, vec3 c2, vec3 c3, vec3 c4, float w0, float w1
     return (c0 * b0 + c1 * b1 + c2 * b2 + c3 * b3 + c4 * b4) / s;
 }
 
+// terrainSnowMask is the snow cover at this height and flatness. The line
+// wanders with the ground and reaches lower on flat ground than on slopes,
+// since one height cut a ruler-straight band across every mountain. How far
+// it wanders follows TerrainSnowH: fixed metres buried small hills whole.
+// snowLineAt is the same sum on the CPU.
+float terrainSnowMask(float h, float ny) {
+    float s = clamp(TerrainSnowH / 56.0, 0.0, 1.0);
+    float jit = (terrainNoise(WorldPos.xz * 0.012) - 0.5) * 14.0 + (terrainNoise(WorldPos.xz * 0.09) - 0.5) * 4.0;
+    float line = TerrainSnowH + (jit - ny * 6.0 + 3.0) * s;
+    float soft = 2.5 * max(s, 0.25);
+    return smoothstep(line - soft, line + soft, h) * smoothstep(0.36, 0.72, ny);
+}
+
 vec4 terrainSplat(inout vec3 n) {
     float h = WorldPos.y;
     vec3 tp = retroTexPos();
+    tpDx = dFdx(tp);
+    tpDy = dFdy(tp);
     float ny = clamp(n.y, 0.0, 1.0);
     float cover = clamp(TerrainGrassCover, 0.0, 1.0);
     float grassLo = mix(0.55, 0.32, cover);
     // High rockMask is flat ground (grass). Low is a cliff.
     float rockMask = smoothstep(grassLo, grassLo + 0.35, ny);
+    if (TerrainSnowOn != 0) {
+        // Grass gives way to bare rock below the snow, in uneven patches, so
+        // green does not run straight into white.
+        float tree = h + (terrainNoise(WorldPos.xz * 0.05) - 0.5) * TerrainSnowH * 0.3;
+        rockMask *= 1.0 - 0.9 * smoothstep(TerrainSnowH * 0.68, TerrainSnowH * 0.98, tree);
+    }
     float hFac = smoothstep(TerrainWaterY + 1.5, max(TerrainSnowH * 0.7, TerrainWaterY + 8.0), h);
     vec3 valleyGrass = vec3(0.16, 0.30, 0.12);
     vec3 hillGrass = vec3(0.36, 0.38, 0.18);
@@ -207,19 +237,43 @@ vec4 terrainSplat(inout vec3 n) {
     vec3 rock = TerrainRockColor;
     if (rock.x + rock.y + rock.z < 0.05) { rock = vec3(0.42, 0.36, 0.30); }
     vec3 dirt = vec3(0.34, 0.24, 0.14);
-    vec3 sand = vec3(0.64, 0.55, 0.34);
+    vec3 sand = vec3(0.78, 0.72, 0.56);
     vec3 snow = vec3(0.90, 0.92, 0.94);
-    grass = mix(grass, triplanarRGB(TerrainGrass, TerrainHasGrass, grass, tp, n, 0.09), 0.86);
-    grass = mix(grass, triplanarRGB(TerrainGrass2, TerrainHasGrass2, grass, tp, n, 0.13), 0.42);
+    // The beach ends in an uneven line, not a contour of the height map.
+    float sandH = h + (terrainNoise(WorldPos.xz * 0.35) - 0.5) * 1.4;
+    float sandMask = 1.0 - smoothstep(TerrainWaterY, TerrainWaterY + max(TerrainBlend, 1.2) * 2.0, sandH);
+    float snowMask = 0.0;
+    if (TerrainSnowOn != 0) {
+        snowMask = terrainSnowMask(h, ny);
+    }
+    // Only what shows here is sampled: this was about 30 texture reads a pixel,
+    // on the ground that covers most of the screen. A blend map can bring any
+    // material back, so with one everything stays.
+    bool painted = TerrainHasBlend != 0;
+    bool wantRock = painted || (rockMask < 0.998 && sandMask < 0.998 && snowMask < 0.998);
+    bool wantGrass = painted || (rockMask > 0.002 && sandMask < 0.998 && snowMask < 0.998);
+    if (wantGrass) {
+        grass = mix(grass, triplanarRGB(TerrainGrass, TerrainHasGrass, grass, tp, n, 0.09), 0.86);
+        grass = mix(grass, triplanarRGB(TerrainGrass2, TerrainHasGrass2, grass, tp, n, 0.13), 0.42);
+    }
+    if (wantRock) {
     rock = mix(rock, triplanarRGB(TerrainRock, TerrainHasRock, rock, tp, n, 0.055), 0.88);
     // Cliffs read as one flat stain from afar: add horizontal strata and
     // darker crevices so a face has layers, plus a slow tone drift.
     float strata = terrainNoise(vec2(WorldPos.y * 0.55, (WorldPos.x + WorldPos.z) * 0.02));
     float crev = smoothstep(0.62, 0.92, terrainNoise(WorldPos.xz * 0.21 + WorldPos.y * 0.13));
-    rock *= (0.84 + 0.30 * strata) * (1.0 - 0.32 * crev);
+    // Linear light deepens contrast, so the bands that read as layers on the
+    // old path would become hard stripes here.
+    float strataK = LinearLight != 0 ? 0.04 : 0.30;
+    rock *= (1.0 - strataK * 0.53 + strataK * strata) * (1.0 - 0.32 * crev);
     rock *= 0.9 + 0.2 * terrainNoise(WorldPos.xz * 0.004 + 3.7);
-    sand = mix(sand, triplanarRGB(TerrainSand, TerrainHasSand, sand, tp, n, 0.10), 0.72);
-    snow = mix(snow, triplanarRGB(TerrainSnow, TerrainHasSnow, snow, tp, n, 0.07), 0.55);
+    }
+    if (painted || sandMask > 0.002) {
+        sand = mix(sand, triplanarRGB(TerrainSand, TerrainHasSand, sand, tp, n, 0.10), 0.72);
+    }
+    if (painted || snowMask > 0.002) {
+        snow = mix(snow, triplanarRGB(TerrainSnow, TerrainHasSnow, snow, tp, n, 0.07), 0.55);
+    }
     // Large dry and lush patches, then a meadow-scale mottle. The fine
     // layer fades with distance before it can shimmer.
     float camD = length(Position.xyz); // view space: distance to the camera
@@ -233,16 +287,10 @@ vec4 terrainSplat(inout vec3 n) {
     grass *= 0.95 + 0.10 * fine;
     // Pull toward olive: texture greens alone read as plastic.
     float gl = terrainLuma(grass);
-    grass = mix(vec3(gl), grass, 0.78) * vec3(1.04, 1.0, 0.92);
-    float sandMask = 1.0 - smoothstep(TerrainWaterY, TerrainWaterY + max(TerrainBlend, 1.2) * 2.0, h);
-    float snowMask = 0.0;
-    if (TerrainSnowOn != 0) {
-        // A snow line wanders with the ground (big drifts and small
-        // patches) and reaches lower on flat ground than on slopes. A
-        // single height cut a ruler-straight band across every mountain.
-        float jit = (terrainNoise(WorldPos.xz * 0.012) - 0.5) * 14.0 + (terrainNoise(WorldPos.xz * 0.09) - 0.5) * 4.0;
-        float line = TerrainSnowH + jit - ny * 6.0 + 3.0;
-        snowMask = smoothstep(line - 2.5, line + 2.5, h) * smoothstep(0.36, 0.72, ny);
+    grass = mix(vec3(gl), grass, 0.62) * vec3(1.62, 1.34, 0.94);
+    if (LinearLight != 0) {
+        // Decoding deepens color, so this keeps the green a natural meadow.
+        grass = mix(vec3(terrainLuma(grass)), grass, 0.7) * vec3(1.12, 1.0, 1.04);
     }
     if (TerrainHasBlend != 0) {
         float sx = WorldPos.x;
@@ -272,6 +320,15 @@ vec4 terrainSplat(inout vec3 n) {
     // Bump fades out with distance: past ~40 m it only adds shimmer.
     float bump = mix(0.42, 0.10, rockMask) * (1.0 - snowMask) * (1.0 - smoothstep(15.0, 45.0, camD));
     n = normalize(n + vec3(b0 - bx, 0.0, b0 - bz) * bump);
+    if (TerrainCheap == 0) {
+        // Lumps a few metres across catch the sun well past where the fine
+        // bump stops, so mid-distance ground has shape, not a smooth wash.
+        float m0 = terrainNoise(WorldPos.xz * 0.31);
+        float mx = terrainNoise((WorldPos.xz + vec2(0.6, 0.0)) * 0.31);
+        float mz = terrainNoise((WorldPos.xz + vec2(0.0, 0.6)) * 0.31);
+        float lumps = 1.1 * (1.0 - 0.6 * snowMask) * (1.0 - smoothstep(120.0, 420.0, camD));
+        n = normalize(n + vec3(m0 - mx, 0.0, m0 - mz) * lumps);
+    }
     if (TerrainHasRockN != 0 && rockMask < 0.85) {
         vec3 up = vec3(0.0, 0.0, 1.0);
         if (abs(n.y) > 0.92) { up = vec3(1.0, 0.0, 0.0); }
@@ -301,7 +358,7 @@ void main() {
         }
 #endif
     }
-    vec3 albedo = texMixed.rgb * MatDiffuseColor;
+    vec3 albedo = toLin(texMixed.rgb * MatDiffuseColor);
     vec3 nDx = dFdx(n);
     vec3 nDy = dFdy(n);
     float cavity = clamp(dot(normalize(n + nDx + nDy), n), 0.0, 1.0);
@@ -317,16 +374,21 @@ void main() {
     if (dot(sunColor, sunColor) < 1e-6) {
         sunColor = vec3(1.0, 0.92, 0.78);
     }
+    sunColor = toLin(sunColor);
     vec3 sun = sunColor * ndl * sh;
     vec3 hemi = mix(vec3(0.30, 0.22, 0.14), vec3(0.40, 0.50, 0.62), n.y * 0.5 + 0.5);
+    float sunK = 1.15;
+    float hemiK = 0.62;
+    if (LinearLight != 0) {
+        hemi = skyAmbient(n);
+        sunK = 1.0;
+        hemiK = 1.0;
+    }
     vec3 V = normalize(CamWorldPos - WorldPos);
     float groundLevel = smoothstep(mix(0.55, 0.32, clamp(TerrainGrassCover, 0.0, 1.0)), mix(0.90, 0.67, clamp(TerrainGrassCover, 0.0, 1.0)), clamp(n.y, 0.0, 1.0));
     float gloss = mix(0.20, 0.04, groundLevel);
     if (TerrainSnowOn != 0) {
-        float jitG = (terrainNoise(WorldPos.xz * 0.012) - 0.5) * 14.0 + (terrainNoise(WorldPos.xz * 0.09) - 0.5) * 4.0;
-        float lineG = TerrainSnowH + jitG - n.y * 6.0 + 3.0;
-        float snowM = smoothstep(lineG - 2.5, lineG + 2.5, WorldPos.y) * smoothstep(0.36, 0.72, n.y);
-        gloss = mix(gloss, 0.38, snowM);
+        gloss = mix(gloss, 0.38, terrainSnowMask(WorldPos.y, clamp(n.y, 0.0, 1.0)));
     }
     float spec = pow(max(dot(reflect(-L, n), V), 0.0), mix(18.0, 48.0, gloss)) * ndl * sh * gloss;
     vec3 shadowTint = ShadowColor * (1.0 - sh) * albedo;
@@ -344,7 +406,7 @@ void main() {
                 float lndl = max(dot(nView, ld), 0.0);
                 float psh = pointShadowFactor(i, WorldPos, n);
                 float lspec = shadeSpec(max(dot(nView, normalize(ld + viewL)), 0.0), 32.0) * lndl * att * psh * 0.12;
-                local += PointLightColor(i) * (albedo * lndl * att * psh + lspec);
+                local += toLin(PointLightColor(i)) * (albedo * lndl * att * psh + lspec);
             }
         }
     }
@@ -362,13 +424,13 @@ void main() {
                 float lndl = max(dot(nView, ld), 0.0);
                 float ssh = spotShadowFactor(i, WorldPos, n);
                 float lspec = shadeSpec(max(dot(nView, normalize(ld + viewL)), 0.0), 32.0) * lndl * att * ssh * 0.12;
-                local += SpotLightColor(i) * (albedo * lndl * att * ssh + lspec);
+                local += toLin(SpotLightColor(i)) * (albedo * lndl * att * ssh + lspec);
             }
         }
     }
 #endif
-    vec3 col = albedo * (sun * 1.15 + hemi * 0.62) + shadowTint + spec * sunColor + local;
-    FragColor = vec4(shadeKnee(col), texMixed.a * MatOpacity);
+    vec3 col = albedo * (sun * sunK + hemi * hemiK) + shadowTint + spec * sunColor + local;
+    FragColor = vec4(LinearLight != 0 ? col : shadeKnee(col), texMixed.a * MatOpacity);
     float shoreWet = 1.0 - smoothstep(0.06, 1.9, abs(WorldPos.y - WaterCausticLevel));
     float wet = clamp(max(Wetness, shoreWet * 0.82), 0.0, 1.0);
     if (wet > 0.001) {
@@ -406,7 +468,7 @@ void main() {
             float hFac = exp(-max(WorldPos.y - FogHeight, 0.0) * FogHeightFalloff);
             f = 1.0 - (1.0 - f) * clamp(hFac, 0.0, 1.0);
         }
-        FragColor.rgb = mix(fogTint(FogColor, WorldPos), FragColor.rgb, retroFog(clamp(f, 0.0, 1.0)));
+        FragColor.rgb = fogMix(toLin(fogTint(FogColor, WorldPos)), FragColor.rgb, retroFog(clamp(f, 0.0, 1.0)));
     }
 }
 `
@@ -446,6 +508,7 @@ uniform float CloudRadius;
 uniform float CloudNight;
 uniform float CloudCheap; // low tier: fewer octaves, one sun tap
 out vec4 FragColor;
+` + linearGLSL + `
 
 float hash(vec2 p) {
     p = fract(p * vec2(123.34, 456.21));
@@ -533,7 +596,7 @@ void main() {
     // Far clouds melt into the haze, then away
     col = mix(col, CloudHaze, smoothstep(0.15, 0.85, dist) * 0.75);
     float alpha = c * fade * clamp(0.55 + 0.45 * dens, 0.4, 0.97);
-    FragColor = vec4(col, alpha);
+    FragColor = vec4(toLin(col), alpha);
 }
 `
 
@@ -543,4 +606,6 @@ func registerTerrainShaders(r *renderer.Renderer) {
 	r.AddShader("mbclouds_vertex", mbcloudsVertex)
 	r.AddShader("mbclouds_fragment", mbcloudsFragment)
 	r.AddProgram("mbclouds", "mbclouds_vertex", "mbclouds_fragment")
+	r.AddShader("mbsky_fragment", mbskyFragment)
+	r.AddProgram("mbsky", "mbpart_vertex", "mbsky_fragment")
 }

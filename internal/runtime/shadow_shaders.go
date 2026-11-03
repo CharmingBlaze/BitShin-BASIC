@@ -76,6 +76,7 @@ in vec4 LightSpacePos[4];
 in vec3 VColor;
 uniform int MeshVertexColor;
 uniform int MeshCutout;
+uniform int MeshWind;
 #include <lights>
 #include <material>
 #include <phong_model>
@@ -143,7 +144,7 @@ uniform vec3 PointAmb[8];
 uniform vec3 SpotSpec[8];
 uniform vec3 SpotAmb[8];
 out vec4 FragColor;
-` + retroFragGLSL + `
+` + retroFragGLSL + linearGLSL + skyAmbientGLSL + `
 `
 
 const mbshadowFragmentTail = shadeLightGLSL + areaLightGLSL + `
@@ -247,6 +248,8 @@ void main() {
         matDiffuse.rgb *= VColor;
         matAmbient.rgb *= VColor;
     }
+    matDiffuse.rgb = toLin(matDiffuse.rgb);
+    matAmbient.rgb = toLin(matAmbient.rgb);
     vec3 fragNormal = normalize(Normal);
     if (!gl_FrontFacing) { fragNormal = -fragNormal; }
     fragNormal = retroFlatNormal(Position.xyz, fragNormal);
@@ -254,31 +257,40 @@ void main() {
     vec3 camDir = normalize(-Position.xyz);
     vec3 totalDiffuse = vec3(0.0);
     vec3 totalSpec = vec3(0.0);
-    vec3 specTint = shadeSpecMap(MatSpecularColor);
-    vec3 ambientColor = shadeEmission(MatEmissiveColor);
+    vec3 specTint = toLin(shadeSpecMap(MatSpecularColor));
+    vec3 ambientColor = toLin(shadeEmission(MatEmissiveColor));
 
 #if AMB_LIGHTS>0
     for (int i = 0; i < AMB_LIGHTS; ++i) {
-        ambientColor += AmbientLightColor[i] * vec3(matAmbient);
+        ambientColor += toLin(AmbientLightColor[i]) * vec3(matAmbient);
     }
 #endif
 
     vec3 wN = retroFlatNormal(WorldPos, normalize(WorldNormal));
     float sunSh = sunShadowFactor(WorldPos, wN, ShadowSunDir);
+    bool leafy = LinearLight != 0 && MeshWind != 0;
 
 #if DIR_LIGHTS>0
     for (int i = 0; i < DIR_LIGHTS; ++i) {
         vec3 lightDir = normalize(DirLightPosition(i));
         float ndl = max(dot(fragNormal, lightDir), 0.0);
         float sh = (i == 0) ? sunSh : 1.0;
-        totalDiffuse += DirLightColor(i) * vec3(matDiffuse) * (ndl * sh);
-        if (i < 8) { ambientColor += DirAmb[i] * vec3(matAmbient); }
+        if (leafy) {
+            // Foliage is a volume, not a shell: light wraps round it, passes
+            // through it, and a canopy never shades itself fully.
+            ndl = max((dot(fragNormal, lightDir) + 0.45) / 1.45, 0.0);
+            float back = pow(max(dot(-lightDir, camDir), 0.0), 4.0);
+            totalDiffuse += toLin(DirLightColor(i)) * vec3(matDiffuse) * (back * 0.55 * mix(sh, 1.0, 0.5));
+            sh = mix(sh, 1.0, 0.2);
+        }
+        totalDiffuse += toLin(DirLightColor(i)) * vec3(matDiffuse) * (ndl * sh);
+        if (i < 8) { ambientColor += toLin(DirAmb[i]) * vec3(matAmbient); }
         if (ndl > 0.0 && MatShininess > 0.0) {
             vec3 halfV = normalize(lightDir + camDir);
             float ndh = max(dot(fragNormal, halfV), 0.0);
             float fres = pow(1.0 - clamp(dot(fragNormal, camDir), 0.0, 1.0), 5.0);
-            vec3 ls = DirLightColor(i);
-            if (i < 8) { ls = DirSpec[i]; }
+            vec3 ls = toLin(DirLightColor(i));
+            if (i < 8) { ls = toLin(DirSpec[i]); }
             totalSpec += ls * specTint * (shadeSpec(ndh, MatShininess) * mix(1.0, 1.85, fres) * sh);
         }
     }
@@ -294,14 +306,14 @@ void main() {
             if (att > 0.001) {
                 float ndl = max(dot(fragNormal, lightDir), 0.0);
                 float psh = pointShadowFactor(i, WorldPos, wN);
-                totalDiffuse += PointLightColor(i) * vec3(matDiffuse) * (ndl * att * psh);
-                if (i < 8) { ambientColor += PointAmb[i] * vec3(matAmbient) * att; }
+                totalDiffuse += toLin(PointLightColor(i)) * vec3(matDiffuse) * (ndl * att * psh);
+                if (i < 8) { ambientColor += toLin(PointAmb[i]) * vec3(matAmbient) * att; }
                 if (ndl > 0.0 && MatShininess > 0.0) {
                     vec3 halfV = normalize(lightDir + camDir);
                     float ndh = max(dot(fragNormal, halfV), 0.0);
                     float fres = pow(1.0 - clamp(dot(fragNormal, camDir), 0.0, 1.0), 5.0);
-                    vec3 ls = PointLightColor(i);
-                    if (i < 8) { ls = PointSpec[i]; }
+                    vec3 ls = toLin(PointLightColor(i));
+                    if (i < 8) { ls = toLin(PointSpec[i]); }
                     totalSpec += ls * specTint * (shadeSpec(ndh, MatShininess) * mix(1.0, 1.85, fres) * att * psh);
                 }
             }
@@ -321,14 +333,14 @@ void main() {
             if (att > 0.001) {
                 float ndl = max(dot(fragNormal, lightDir), 0.0);
                 float ssh = spotShadowFactor(i, WorldPos, wN);
-                totalDiffuse += SpotLightColor(i) * vec3(matDiffuse) * (ndl * att * ssh);
-                if (i < 8) { ambientColor += SpotAmb[i] * vec3(matAmbient) * att; }
+                totalDiffuse += toLin(SpotLightColor(i)) * vec3(matDiffuse) * (ndl * att * ssh);
+                if (i < 8) { ambientColor += toLin(SpotAmb[i]) * vec3(matAmbient) * att; }
                 if (ndl > 0.0 && MatShininess > 0.0) {
                     vec3 halfV = normalize(lightDir + camDir);
                     float ndh = max(dot(fragNormal, halfV), 0.0);
                     float fres = pow(1.0 - clamp(dot(fragNormal, camDir), 0.0, 1.0), 5.0);
-                    vec3 ls = SpotLightColor(i);
-                    if (i < 8) { ls = SpotSpec[i]; }
+                    vec3 ls = toLin(SpotLightColor(i));
+                    if (i < 8) { ls = toLin(SpotSpec[i]); }
                     totalSpec += ls * specTint * (shadeSpec(ndh, MatShininess) * mix(1.0, 1.85, fres) * att * ssh);
                 }
             }
@@ -342,13 +354,13 @@ void main() {
             float win = areaWindow(i, WorldPos);
             if (win <= 0.0) { continue; }
             float ff = areaFormFactor(i, WorldPos, wN);
-            totalDiffuse += AreaColor[i] * vec3(matDiffuse) * (ff * win);
+            totalDiffuse += toLin(AreaColor[i]) * vec3(matDiffuse) * (ff * win);
             if (MatShininess > 0.0) {
                 vec3 Ls = normalize(areaSpecPoint(i, WorldPos, reflect(-wV, wN)) - WorldPos);
                 float ndl = max(dot(wN, Ls), 0.0);
                 float ndh = max(dot(wN, normalize(Ls + wV)), 0.0);
                 float nearK = clamp(ff * 6.0, 0.0, 1.0);
-                totalSpec += AreaColor[i] * specTint * (shadeSpec(ndh, MatShininess) * ndl * nearK * win * areaFacing(i, WorldPos));
+                totalSpec += toLin(AreaColor[i]) * specTint * (shadeSpec(ndh, MatShininess) * ndl * nearK * win * areaFacing(i, WorldPos));
             }
         }
     }
@@ -361,9 +373,21 @@ void main() {
         hemiHi = ProbeSky;
     }
     vec3 hemi = mix(hemiLo, hemiHi, sky) * vec3(matDiffuse);
-    vec3 finalRGB = ambientColor + hemi * 0.45 + totalDiffuse + totalSpec;
-    FragColor = vec4(shadeKnee(finalRGB), matDiffuse.a);
-    if (GammaOut != 0) {
+    float hemiK = 0.45;
+    if (LinearLight != 0) {
+        hemi = skyAmbient(wN) * vec3(matDiffuse);
+        hemiK = 1.0;
+        if (leafy) {
+            // Sky from above, leaf-green bounce from below, about 2:1 as in
+            // Crysis. More ambient would flatten the shape, so it stays modest.
+            vec3 up = skyAmbient(normalize(wN + vec3(0.0, 0.8, 0.0)));
+            vec3 bounce = vec3(0.09, 0.12, 0.05);
+            hemi = mix(bounce, up, clamp(wN.y * 0.5 + 0.5, 0.0, 1.0)) * vec3(matDiffuse) * 1.35;
+        }
+    }
+    vec3 finalRGB = ambientColor + hemi * hemiK + totalDiffuse + totalSpec;
+    FragColor = vec4(LinearLight != 0 ? finalRGB : shadeKnee(finalRGB), matDiffuse.a);
+    if (GammaOut != 0 && LinearLight == 0) {
         FragColor.rgb = pow(max(FragColor.rgb, vec3(0.0)), vec3(1.0 / 2.2));
     }
     if (Wetness > 0.001) {
@@ -401,7 +425,7 @@ void main() {
             float hFac = exp(-max(WorldPos.y - FogHeight, 0.0) * FogHeightFalloff);
             f = 1.0 - (1.0 - f) * clamp(hFac, 0.0, 1.0);
         }
-        FragColor.rgb = mix(fogTint(FogColor, WorldPos), FragColor.rgb, retroFog(clamp(f, 0.0, 1.0)));
+        FragColor.rgb = fogMix(toLin(fogTint(FogColor, WorldPos)), FragColor.rgb, retroFog(clamp(f, 0.0, 1.0)));
     }
 }
 `
@@ -424,6 +448,7 @@ const mbpartFragment = `precision highp float;
 in vec2 FragTexcoord;
 #include <material>
 out vec4 FragColor;
+` + linearGLSL + `
 void main() {
     vec4 c = vec4(MatDiffuseColor, MatOpacity);
 #if MAT_TEXTURES > 0
@@ -435,7 +460,7 @@ void main() {
     float streak = (1.0 - smoothstep(0.12, 1.0, abs(d.x))) * (1.0 - smoothstep(0.75, 1.0, abs(d.y)));
     c.a *= streak;
     if (c.a < 0.01) { discard; }
-    FragColor = c;
+    FragColor = vec4(toLin(c.rgb), c.a);
 }
 `
 
@@ -443,6 +468,7 @@ const mbsoftFragment = `precision highp float;
 in vec2 FragTexcoord;
 #include <material>
 out vec4 FragColor;
+` + linearGLSL + `
 void main() {
     vec4 c = vec4(MatDiffuseColor, MatOpacity);
 #if MAT_TEXTURES > 0
@@ -454,7 +480,7 @@ void main() {
     float a = 1.0 - smoothstep(0.05, 1.0, dot(d, d));
     c.a *= a;
     if (c.a < 0.01) { discard; }
-    FragColor = c;
+    FragColor = vec4(toLin(c.rgb), c.a);
 }
 `
 
@@ -462,6 +488,7 @@ const mbflakeFragment = `precision highp float;
 in vec2 FragTexcoord;
 #include <material>
 out vec4 FragColor;
+` + linearGLSL + `
 void main() {
     vec4 c = vec4(MatDiffuseColor, MatOpacity);
 #if MAT_TEXTURES > 0
@@ -474,7 +501,7 @@ void main() {
     float flake = (1.0 - smoothstep(0.22, 1.0, r)) * (0.55 + 0.45 * (1.0 - smoothstep(0.0, 0.35, r)));
     c.a *= flake;
     if (c.a < 0.01) { discard; }
-    FragColor = c;
+    FragColor = vec4(toLin(c.rgb), c.a);
 }
 `
 

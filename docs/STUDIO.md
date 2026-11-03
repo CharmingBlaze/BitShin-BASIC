@@ -2,6 +2,10 @@
 
 Moon Studio is the moonBASIC IDE (`ide/`) plus the scene editor built into the engine (`moon edit`). A **project** is a folder with a `moon.json` at its root. With a project open, F5 runs the project's main script instead of the current tab, the Explorer shows the project folder, and Build packages the main script into the project's output folder.
 
+## Profiler
+
+Run with F5 from the IDE and the game prints `@prof` on stderr about once a second. The gauge icon on the activity bar opens the Profiler sidebar: the same lines as `ShowProfiler`, then the slowest functions (`StatsFuncMs`) and the largest loaded files (`StatsAssetKB`). A run from a terminal does not print that line.
+
 ## Start screen
 
 The start screen opens with the IDE, and from **File → New project…** or **File → Open project… / Recent**:

@@ -16,6 +16,10 @@ import (
 	"moonbasic/internal/value"
 )
 
+type navLink struct {
+	a, b [3]float32
+}
+
 type navMesh struct {
 	meshID    int
 	walkExtra []int
@@ -23,6 +27,8 @@ type navMesh struct {
 	nav       *detour.NavMesh
 	query     *detour.NavMeshQuery
 	baked     bool
+	costs     map[int32]float32
+	links     []navLink
 }
 
 type navAgent struct {
@@ -138,6 +144,43 @@ func (w *World) navCommands(n func(func([]value.Value) (value.Value, error)) cmd
 		"updatenav": n(func(a []value.Value) (value.Value, error) {
 			w.updateNav()
 			return z()
+		}),
+		"setnavcost": n(func(a []value.Value) (value.Value, error) {
+			nm, err := w.navOf(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			if nm.costs == nil {
+				nm.costs = map[int32]float32{}
+			}
+			cost := float32(argN(a, 2, 1))
+			if cost < 1 {
+				cost = 1
+			}
+			nm.costs[int32(argI(a, 1, 0))] = cost
+			return value.Num(float64(cost)), nil
+		}),
+		"getnavcost": n(func(a []value.Value) (value.Value, error) {
+			nm := w.navs[argI(a, 0, 0)]
+			if nm == nil || nm.costs == nil {
+				return value.Num(1), nil
+			}
+			if c, ok := nm.costs[int32(argI(a, 1, 0))]; ok {
+				return value.Num(float64(c)), nil
+			}
+			return value.Num(1), nil
+		}),
+		"addnavlink": n(func(a []value.Value) (value.Value, error) {
+			nm, err := w.navOf(argI(a, 0, 0))
+			if err != nil {
+				return value.Value{}, err
+			}
+			L := navLink{
+				a: [3]float32{float32(argN(a, 1, 0)), float32(argN(a, 2, 0)), float32(argN(a, 3, 0))},
+				b: [3]float32{float32(argN(a, 4, 0)), float32(argN(a, 5, 0)), float32(argN(a, 6, 0))},
+			}
+			nm.links = append(nm.links, L)
+			return value.Num(float64(len(nm.links))), nil
 		}),
 	}
 }
@@ -404,9 +447,13 @@ func (w *World) navFindPath(ag *navAgent, tx, ty, tz float32) ([][3]float32, err
 	p := worldPos(e.node.GetNode())
 	sx, sy, sz := fromG3N(p.X, p.Y, p.Z)
 	if nm == nil || !nm.baked || nm.query == nil {
-		return [][3]float32{{sx, sy, sz}, {tx, ty, tz}}, nil
+		path := [][3]float32{{sx, sy, sz}, {tx, ty, tz}}
+		if nm != nil {
+			path = stitchNavLinks(path, nm.links)
+		}
+		return path, nil
 	}
-	filter := detour.NewStandardQueryFilter()
+	filter := nm.queryFilter()
 	ext := d3.NewVec3XYZ(2, 4, 2)
 	org := d3.NewVec3XYZ(sx, sy, sz)
 	dst := d3.NewVec3XYZ(tx, ty, tz)
@@ -438,7 +485,52 @@ func (w *World) navFindPath(ag *navAgent, tx, ty, tz float32) ([][3]float32, err
 		v := straight[i]
 		out = append(out, [3]float32{v[0], v[1], v[2]})
 	}
+	out = stitchNavLinks(out, nm.links)
 	return out, nil
+}
+
+func (nm *navMesh) queryFilter() *detour.StandardQueryFilter {
+	f := detour.NewStandardQueryFilter()
+	if nm == nil {
+		return f
+	}
+	for area, cost := range nm.costs {
+		if cost < 1 {
+			cost = 1
+		}
+		f.SetAreaCost(area, cost)
+	}
+	return f
+}
+
+func stitchNavLinks(path [][3]float32, links []navLink) [][3]float32 {
+	if len(path) == 0 || len(links) == 0 {
+		return path
+	}
+	var out [][3]float32
+	for i, p := range path {
+		out = append(out, p)
+		if i+1 >= len(path) {
+			break
+		}
+		n := path[i+1]
+		for _, L := range links {
+			if near3(p, L.a) && near3(n, L.b) || near3(p, L.b) && near3(n, L.a) {
+				continue
+			}
+			if near3(p, L.a) {
+				out = append(out, L.b)
+			} else if near3(p, L.b) {
+				out = append(out, L.a)
+			}
+		}
+	}
+	return out
+}
+
+func near3(a, b [3]float32) bool {
+	dx, dy, dz := a[0]-b[0], a[1]-b[1], a[2]-b[2]
+	return dx*dx+dy*dy+dz*dz < 2.25
 }
 
 func (w *World) updateNav() {

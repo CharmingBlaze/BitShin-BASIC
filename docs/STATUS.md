@@ -18,7 +18,7 @@ What is wired and what is not. Classic command names still work; 2026 `Set*` / `
 | Water | Real | Gerstner (vertex + wind + `WaterHeight`) and scenic dual-FBO / DuDv / Fresnel / depth tint / texture foam / dual normals; combo `ocean`. Optional `EnableFFT` Phillips tile. `WaterHeight` is the CPU inverse FFT. The water mesh samples a 64×64 half-float texture filled by a two-pass GL 3.3 fragment-shader inverse DFT of the same spectrum; `SetFFTStrength` scales it. Camera-centered LOD grid. Caustics, wakes, shoreline wetness. Auto Jolt buoyancy + `SetWaterFlow`. **SSR Partial** (lite planar-FBO march). Not a GPU FFT ocean. `docs/WATER.md` |
 | Streaming | Real | `SetPlayer` follows terrain, water, and props. Near chunks collide. Shift past 4 km. `SetWorldBubble(0)` leaves it manual. |
 | GPU particles | Real | `CreateGPUEmitter`: transform-feedback step + instanced billboards on GL 3.3, same `Emitter*` setters, turbulence, ground bounce, world shift. No compute path, soft particles, sorting, or mesh collision. `docs/PARTICLES.md` |
-| Instancing | Real | GPU `glDrawElementsInstanced` on 3.3 (`EnableGPUInstances`); CPU-merged mesh fallback. `SetInstanceData` = `SetInstanceTransform` |
+| Instancing | Real | GPU `glDrawElementsInstanced` on 3.3 (`EnableGPUInstances`); CPU-merged mesh fallback. `SetInstanceData` = `SetInstanceTransform`. Automatic batching: copies with equal materials share one draw in the scene and shadow passes, with distance detail for shared meshes, and still meshes merge by area (`SetAutoBatch`, `docs/GRAPHICS.md`) |
 | Modern GL | Partial | **3.3 Real:** UBO, GPU instancing, geometry billboards, caps query. **4.x optional:** compute / SSBO / tess — Real if the driver has them, else return 0 + one skip line. Never crash. `docs/GRAPHICS.md` |
 | glslang | Real (validate) | `internal/glslang` + `CompileShader` / `moon shader`. SPIR-V **optional** (`glslangValidator` on PATH). No Vulkan. Native C++ glslang **not shipped** (`-tags glslang` reserved) |
 | Gonum | Real | `internal/mathx` for FBM, IBL SH, crowd separation, `JobXform`. G3N scene graph stays `math32` |
@@ -50,17 +50,17 @@ What is wired and what is not. Classic command names still work; 2026 `Set*` / `
 | --- | --- | --- |
 | 1 World streaming | Real | `SetPlayer` bubble. `SetWorldBubble(0)` is the manual path |
 | 2 ECS (Flecs) | Real | G3N entities are a separate world |
-| 3 Animation | Real | Clip play/stop/time, `AttachToBone`, `SetAnimBlend`, `SetAnimLayer` / `SetAnimAdditive`, 1D/2D blend trees with phase sync (`CreateBlendTree`), `CrossfadeAnim`, two-bone `SetIK`, chain `SetIKChain` (FABRIK). No root motion or bone masks; not a full animation rig from FBX |
+| 3 Animation | Real | Clips, blend trees, crossfades, layers, `SetBoneMask`, `SetRootMotion`, bone get/set and `BoneLookAt`, `AnimEvent`, `AnimRecord`, `AnimRetarget`, morph weights, ASCII and binary FBX translation curves, `ExportAnimClip`. Binary curves follow limb order, not FBX connections. No facial rig |
 | 4 Input | Real | — |
 | 5 Physics extensions | Real | Sleep/wake, 3D joints (incl. fixed/cone/swing-twist), 6DOF `Grab` at hit/anchor, compound collider, CharacterVirtual + inner body, vehicles, `SetCCD` LinearCast, Chipmunk 2D joints, collision layers, debug overlay. Linux amd64/arm64 and macOS ARM run the same native constraints, grab, cloth, and vehicles. Fallback integrates software rotation. `-tags joltgo` is the older subset. |
-| 6 Navigation + AI | Real | Detour bake + grid A* + Detour-style crowd samples + behavior trees + GOAP (`CreatePlanner`). The DetourCrowd C API is not linked |
+| 6 Navigation + AI | Real | Detour bake, area costs, off-mesh links, grid A*, crowd samples, behavior trees, GOAP, FSM transitions, utility scores, steering, flocking, vision cones, `CreateAI` waypoints. `CanSee` tests entity radii, not triangles. The DetourCrowd C API is not linked |
 | 7 Material / shader graph | Partial | PBR (with unlit and toon modes) + Phong + `CreateShader` Real. No node graph |
 | 8 Post-processing | Real | Half-res bloom chain, tonemap, FXAA, LUT grading, outlines, grain, vignette, chromatic aberration, sharpen. Not deferred |
 | 9 Sky / atmosphere | Real | Cubemap + preset + analytic dome + noise cloud sheet + Bruneton-style 2D LUT / single scatter. Not full 4D inscatter |
-| 10 Audio (Oto) | Real | — |
-| 11 Editor tools | Real | ImGui + G3N widgets + stats |
+| 10 Audio (Oto) | Real | Pause/resume, pan, fade, seek, buses, master volume, slapback echo. Streams do not seek or echo. No room reverb |
+| 11 Editor tools | Real | ImGui (theme, scale, wrap, columns, `GuiHBox`, `GuiRich`, nav) + G3N widgets (`SetWidgetAnchor`, `TweenWidget`) + function profiler, asset sizes, `StatsVRAMMB`, IDE Profiler sidebar |
 | 12 Networking | Real | Hosted room plus a raw socket API. UDP by default; ENet with `-tags enet`. LAN discovery only. See `docs/NETWORK.md` |
-| 13 Asset pipeline | Real | glTF/GLB/OBJ/DAE/FBX/STL/PLY mesh and skin clusters + PNG/JPEG/BMP/TGA/WebP + WAV/OGG/MP3/FLAC (music streamed) + DDS/KTX S3TC + KTX2 Zstd/ZLIB + `OptimizeMesh` + `SimplifyMesh` + `moon build`. No FBX clips, BasisLZ, or meshoptimizer C++ |
+| 13 Asset pipeline | Real | glTF/GLB/OBJ/DAE/FBX/STL/PLY mesh and skin clusters, ASCII and binary FBX translation curves, `ExportAnimClip` + PNG/JPEG/BMP/TGA/WebP + WAV/OGG/MP3/FLAC (music streamed) + DDS/KTX S3TC + KTX2 Zstd/ZLIB + `OptimizeMesh` + `SimplifyMesh` + `moon build`. No BasisLZ or meshoptimizer C++ |
 | 14 Serialization | Real | JSON/YAML/msgpack + tagged scene dump + `ExportGLTF` for every mesh under the entity. Not skin, materials, or a full scene graph |
 
 ## Not in this product

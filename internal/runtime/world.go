@@ -26,9 +26,9 @@ import (
 	"github.com/g3n/engine/renderer"
 	"github.com/g3n/engine/texture"
 	"github.com/g3n/engine/window"
-	"github.com/hajimehoshi/ebiten/v2"
 	"github.com/go-gl/gl/v3.3-core/gl"
 	"github.com/go-gl/glfw/v3.3/glfw"
+	"github.com/hajimehoshi/ebiten/v2"
 
 	bsaudio "moonbasic/internal/audio"
 	"moonbasic/internal/interp"
@@ -40,6 +40,7 @@ import (
 )
 
 type Entity struct {
+	batch                              *batchEntity
 	node                               core.INode
 	mesh                               *graphic.Mesh
 	mat                                *material.Standard
@@ -58,6 +59,7 @@ type Entity struct {
 	parent                             int
 	name                               string
 	kind                               string // cube, sphere, mesh, …
+	morphW                             []float32
 	src                                string // LoadMesh path
 	collided                           []int
 	hitID                              int
@@ -121,6 +123,8 @@ type collideRule struct {
 }
 
 type World struct {
+	batch                            batchState
+	pass                             passBinds
 	app                              *g3nHost
 	scene                            *core.Node
 	cam                              *camera.Camera
@@ -223,6 +227,8 @@ type World struct {
 	play                             *playState
 	tformX, tformY, tformZ           float32
 	sounds                           map[int]*sndSlot
+	buses                            map[string]float64
+	master                           float64
 	nextSnd                          int
 	listenEnt                        int
 	musicID                          int
@@ -299,6 +305,25 @@ type World struct {
 	nextNav                          int
 	curNav                           int
 	agents                           map[int]*navAgent
+	senses                           map[int]*aiSense
+	ais                              map[int]*aiUnit
+	nextAI                           int
+	trails                           map[int]*trail
+	nextTrail                        int
+	anchors                          map[int][2]float64
+	assetBytes                       map[string]int64
+	vramBytes                        int64
+	uiScale                          float64
+	uiTheme                          string
+	uiWrap                           float64
+	uiAlign                          int
+	uiNav                            int
+	uiAx, uiAy                       float64
+	uiAnchor                         bool
+	uiHLeft                          int
+	uiHGap                           float64
+	uiHFirst                         bool
+	widgetTweens                     []uiTween
 	navStepped                       bool
 	grids                            map[int]*gridMap
 	freeGrids                        []int
@@ -339,6 +364,11 @@ type World struct {
 	skyProcID                        int          // the last repainted procedural sky, freed by the next
 	skyBusy, skyAgain                bool         // a repaint on a worker; another wanted
 	skyPaintAt                       int          // renderSerial of the last repaint
+	dyn                              dynRes
+	passes                           gpuPasses
+	fsr                              fsrState
+	linearLight                      bool         // SetLinearLight: light in linear space
+	linearHold                       bool         // a pass with no post step after it (extra windows)
 	smokeLeft                        int          // MOON_SMOKE_FRAMES countdown; 0 is off
 	probeCam                         *camera.Camera
 	capturingProbe                   bool
@@ -445,14 +475,19 @@ type namedTimer struct {
 }
 
 type sndSlot struct {
-	path    string
-	clip    *bsaudio.Clip
-	voice   *bsaudio.Voice
-	vol     float64
-	pitch   float64
-	minDist float64
-	maxDist float64
-	music   bool
+	path                    string
+	clip                    *bsaudio.Clip
+	voice                   *bsaudio.Voice
+	vol                     float64
+	pitch                   float64
+	pan                     float64
+	bus                     string
+	minDist                 float64
+	maxDist                 float64
+	music                   bool
+	fadeFrom, fadeTo, fadeT float64
+	fadeDur                 float64
+	echo                    float64
 }
 
 func New(base string) *World {
@@ -487,6 +522,8 @@ func New(base string) *World {
 		timers:                map[int]*blitzTimer{},
 		namedT:                map[string]*namedTimer{},
 		sounds:                map[int]*sndSlot{},
+		buses:                 map[string]float64{},
+		master:                1,
 		emitters:              map[int]*emitter{},
 		skies:                 map[int]*skySlot{},
 		nextSky:               1,
@@ -516,6 +553,8 @@ func New(base string) *World {
 		navs:                  map[int]*navMesh{},
 		nextNav:               1,
 		agents:                map[int]*navAgent{},
+		uiScale:               1,
+		uiTheme:               "dark",
 		grids:                 map[int]*gridMap{},
 		nextGrid:              1,
 		paths:                 map[int]*gridPath{},
@@ -1085,6 +1124,7 @@ func (w *World) Loop(in *interp.Interp) error {
 			w.prof.scriptBegin()
 			err := in.Run()
 			w.prof.scriptEnd()
+			w.emitProf()
 			if err != nil {
 				fmt.Println(err)
 				if w.presented {
@@ -1140,6 +1180,9 @@ func (w *World) tickDelta(hint time.Duration) {
 	default:
 		w.delta = 1.0 / 60.0
 	}
+	if s := fixedDelta(); s > 0 {
+		w.delta = s
+	}
 	if w.delta < 1e-6 {
 		w.delta = 1e-6
 	}
@@ -1149,6 +1192,7 @@ func (w *World) tickDelta(hint time.Duration) {
 	w.lastFlip = now
 	w.navStepped = false
 	w.ecs.stepped = false
+	w.tickFades()
 }
 
 func (w *World) markFlip() {
@@ -1200,6 +1244,7 @@ func (w *World) tickFX() {
 	if w.jobs != nil {
 		w.jobs.flushGL()
 	}
+	w.tickDynRes()
 	w.tickQuality()
 	w.tickBubble()
 	w.tickStream()
@@ -1212,6 +1257,10 @@ func (w *World) tickFX() {
 	w.tickMeshBuilds()
 	w.applyProbes()
 	w.tickAnims(dt)
+	w.stepAnimGraphs()
+	w.tickTrails()
+	w.tickUITweens()
+	w.applyWidgetAnchors()
 	w.applySkins()
 	w.tickBehaviors()
 	w.tickWeather(dt)
@@ -1229,12 +1278,17 @@ func (w *World) tickFX() {
 func (w *World) render(rend *renderer.Renderer) {
 	w.renderSerial++
 	w.syncSkyboxes()
+	w.syncSkyShaders()
+	w.updateBatches()
 	cr, cg, cb := w.clear.R, w.clear.G, w.clear.B
 	if w.fogMode != 0 && !w.skyVisible() && !w.atmoVisible() {
 		cr, cg, cb = w.fogRGB.R, w.fogRGB.G, w.fogRGB.B
 	}
 	if fr, fg, fb, ok := w.weatherClearMix(); ok {
 		cr, cg, cb = cr+fr, cg+fg, cb+fb
+	}
+	if lc := w.linearClear(math32.Color{R: cr, G: cg, B: cb}); true {
+		cr, cg, cb = lc.R, lc.G, lc.B
 	}
 	ww, hh := w.scrW, w.scrH
 	if w.app != nil {
@@ -1301,6 +1355,7 @@ func (w *World) render(rend *renderer.Renderer) {
 	fbw, fbh := w.drawableSize(ww, hh)
 	if usedOffscreen {
 		w.endPostTarget(w.app.Gls(), pw, ph)
+		w.passEnd(gpuPost)
 		w.drawLiftedPanels(rend, hud, fbw, fbh)
 	}
 	w.drawHUDOverlay3D(fbw, fbh)
@@ -1783,6 +1838,9 @@ func (w *World) loadMeshFile(path string, parent int) (int, error) {
 	if e := w.ents[id]; e != nil {
 		e.kind = "mesh"
 		e.src = path
+	}
+	if st, err := os.Stat(realPath); err == nil {
+		w.trackAsset("mesh "+filepath.Base(path), st.Size())
 	}
 	return id, nil
 }

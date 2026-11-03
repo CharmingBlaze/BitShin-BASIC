@@ -254,7 +254,18 @@ func terrainNoiseGo(x, z float32) float32 {
 func snowLineAt(t *terrain, x, z, flat float32) float32 {
 	gx, gz := x, -z
 	jit := (terrainNoiseGo(gx*0.012, gz*0.012)-0.5)*14 + (terrainNoiseGo(gx*0.09, gz*0.09)-0.5)*4
-	return t.snowH + jit - flat*6 + 3 - 2.5
+	s := t.snowH / 56
+	if s < 0 {
+		s = 0
+	}
+	if s > 1 {
+		s = 1
+	}
+	soft := s
+	if soft < 0.25 {
+		soft = 0.25
+	}
+	return t.snowH + (jit-flat*6+3)*s - 2.5*soft
 }
 
 func scatterFlat(t *terrain, x, z float32) float32 {

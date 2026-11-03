@@ -3,6 +3,7 @@ package runtime
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strings"
 
 	"github.com/g3n/engine/camera"
@@ -63,6 +64,8 @@ type gpuEmitter struct {
 	turb, turbScale      float64
 	turbSpeed            float64
 	ground               bool
+	soft, sort           bool
+	collide              []int
 	groundY, bounce      float64
 	friction             float64
 	duration, elapsed    float64
@@ -114,6 +117,7 @@ func defaultGPUEmitter(max int) *gpuEmitter {
 	return &gpuEmitter{
 		max:       max,
 		rate:      20,
+		soft:      true,
 		life0:     1.2,
 		life1:     1.2,
 		speed:     4,
@@ -302,6 +306,8 @@ type gpuSimParams struct {
 	Turb, Ground              [4]float32
 	Shift                     [3]float32
 	Style                     int32
+	CollideN                  int32
+	CollideC, CollideH        [4][4]float32
 }
 
 type gpuDrawParams struct {
@@ -782,6 +788,7 @@ func (w *World) simulateGPUEmitters() {
 			wx, wy, wz = wwx, wwy, wwz
 		}
 		p := e.simParams(dt, start, count, spread, wx, wy, wz)
+		e.fillCollide(w, &p)
 		w.setSimUniforms(prog, &p)
 		src, dst := e.cur, 1-e.cur
 		gl.BindVertexArray(e.simVAO[src])
@@ -815,6 +822,21 @@ func (w *World) setSimUniforms(prog uint32, p *gpuSimParams) {
 		if l := gp.loc(prog, n); l >= 0 {
 			gl.Uniform3f(l, v[0], v[1], v[2])
 		}
+	}
+	u1i("CollideN", p.CollideN)
+	if l := gp.loc(prog, "CollideC"); l >= 0 {
+		var flat [16]float32
+		for i := 0; i < 4; i++ {
+			copy(flat[i*4:], p.CollideC[i][:])
+		}
+		gl.Uniform4fv(l, 4, &flat[0])
+	}
+	if l := gp.loc(prog, "CollideH"); l >= 0 {
+		var flat [16]float32
+		for i := 0; i < 4; i++ {
+			copy(flat[i*4:], p.CollideH[i][:])
+		}
+		gl.Uniform4fv(l, 4, &flat[0])
 	}
 	u4 := func(n string, v [4]float32) {
 		if l := gp.loc(prog, n); l >= 0 {
@@ -866,6 +888,9 @@ func (w *World) renderGPUEmitters(gs *gls.GLS, cam *camera.Camera, view, viewPro
 	gs.DepthMask(false)
 	gs.Disable(gls.CULL_FACE)
 	gl.UseProgram(prog)
+	if l := gp.loc(prog, "LinearLight"); l >= 0 {
+		gl.Uniform1i(l, int32(bool01(w.linearActive())))
+	}
 	if l := gp.loc(prog, "ViewProj"); l >= 0 {
 		gl.UniformMatrix4fv(l, 1, false, &viewProj[0])
 	}
@@ -934,6 +959,24 @@ func (w *World) renderGPUEmitters(gs *gls.GLS, cam *camera.Camera, view, viewPro
 		}
 		if l := gp.loc(prog, "UseTex"); l >= 0 {
 			gl.Uniform1i(l, d.UseTex)
+		}
+		soft := int32(0)
+		if e.soft && w.post.depth != 0 {
+			soft = 1
+			gs.ActiveTexture(gls.TEXTURE0 + unitParticleDepth)
+			gl.BindTexture(gl.TEXTURE_2D, w.post.depth)
+		}
+		if l := gp.loc(prog, "Soft"); l >= 0 {
+			gl.Uniform1i(l, soft)
+		}
+		if l := gp.loc(prog, "SceneDepth"); l >= 0 {
+			gl.Uniform1i(l, unitParticleDepth)
+		}
+		if l := gp.loc(prog, "Screen"); l >= 0 {
+			gl.Uniform2f(l, float32(w.scrW), float32(w.scrH))
+		}
+		if e.sort {
+			e.sortByCamera(cp)
 		}
 		gl.BindVertexArray(e.drawVAO[e.cur])
 		gl.DrawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, int32(e.glMax))
@@ -1192,6 +1235,29 @@ func (w *World) gpuParticleCommands(n func(func([]value.Value) (value.Value, err
 		"gpuparticlems": n(func(a []value.Value) (value.Value, error) {
 			return value.Num(w.gpuPart.lastMs), nil
 		}),
+		"emittersort": gpu(func(e *gpuEmitter, a []value.Value) (value.Value, error) {
+			e.sort = argI(a, 1, 1) != 0
+			return z()
+		}),
+		"emittersoft": gpu(func(e *gpuEmitter, a []value.Value) (value.Value, error) {
+			e.soft = argI(a, 1, 1) != 0
+			return z()
+		}),
+		"emittercollide": gpu(func(e *gpuEmitter, a []value.Value) (value.Value, error) {
+			id := argI(a, 1, 0)
+			if len(e.collide) >= 4 {
+				e.collide = e.collide[1:]
+			}
+			e.collide = append(e.collide, id)
+			return value.Num(float64(len(e.collide))), nil
+		}),
+		"emitterclearcollide": gpu(func(e *gpuEmitter, a []value.Value) (value.Value, error) {
+			e.collide = nil
+			return z()
+		}),
+		"emitterpreset": n(func(a []value.Value) (value.Value, error) {
+			return w.emitterPreset(a)
+		}),
 		"gpuparticlesok": n(func(a []value.Value) (value.Value, error) {
 			if w.app == nil {
 				return value.Num(0), nil
@@ -1204,3 +1270,121 @@ func (w *World) gpuParticleCommands(n func(func([]value.Value) (value.Value, err
 		}),
 	}
 }
+
+func (e *gpuEmitter) fillCollide(w *World, p *gpuSimParams) {
+	p.CollideN = 0
+	for _, id := range e.collide {
+		if p.CollideN >= 4 {
+			break
+		}
+		ent := w.ents[id]
+		if ent == nil {
+			continue
+		}
+		mn, mx := w.entityAABB(ent)
+		cx, cy, cz := (mn[0]+mx[0])*0.5, (mn[1]+mx[1])*0.5, (mn[2]+mx[2])*0.5
+		gx, gy, gz := toG3N(cx, cy, cz)
+		i := p.CollideN
+		p.CollideC[i] = [4]float32{gx, gy, gz, 0}
+		p.CollideH[i] = [4]float32{(mx[0] - mn[0]) * 0.5, (mx[1] - mn[1]) * 0.5, (mx[2] - mn[2]) * 0.5, 0}
+		p.CollideN++
+	}
+}
+
+func (e *gpuEmitter) sortByCamera(cam math32.Vector3) {
+	if e.glMax <= 0 || e.glMax > 8192 || e.vbo[e.cur] == 0 {
+		return
+	}
+	n := e.glMax * gpuPartFloats
+	buf := make([]float32, n)
+	gl.BindBuffer(gl.ARRAY_BUFFER, e.vbo[e.cur])
+	gl.GetBufferSubData(gl.ARRAY_BUFFER, 0, n*4, gl.Ptr(&buf[0]))
+	order := make([]int, e.glMax)
+	dist := make([]float32, e.glMax)
+	for i := 0; i < e.glMax; i++ {
+		o := i * gpuPartFloats
+		dx, dy, dz := buf[o]-cam.X, buf[o+1]-cam.Y, buf[o+2]-cam.Z
+		order[i] = i
+		dist[i] = dx*dx + dy*dy + dz*dz
+	}
+	sort.SliceStable(order, func(a, b int) bool { return dist[order[a]] > dist[order[b]] })
+	out := make([]float32, n)
+	for ni, src := range order {
+		copy(out[ni*gpuPartFloats:(ni+1)*gpuPartFloats], buf[src*gpuPartFloats:(src+1)*gpuPartFloats])
+	}
+	gl.BufferSubData(gl.ARRAY_BUFFER, 0, n*4, gl.Ptr(&out[0]))
+}
+
+func (w *World) emitterPreset(a []value.Value) (value.Value, error) {
+	name := strings.ToLower(argS(a, 1))
+	if g := w.gpuEmitterOf(argI(a, 0, 0)); g != nil {
+		applyGPUPreset(g, name)
+		return value.Num(1), nil
+	}
+	if e := w.emitterOf(argI(a, 0, 0)); e != nil {
+		applyCPUPreset(e, name)
+		return value.Num(1), nil
+	}
+	return value.Num(0), nil
+}
+
+func applyGPUPreset(e *gpuEmitter, name string) {
+	e.emitting = true
+	e.looping = true
+	switch name {
+	case "fire":
+		e.vy, e.gravY, e.life0, e.life1, e.speed, e.rate = 3, 1.5, 0.4, 0.9, 2, 80
+		e.c0, e.c1 = [4]float64{1, 0.45, 0.05, 1}, [4]float64{0.4, 0.05, 0, 0}
+		e.size0, e.size1, e.style = 0.25, 0.05, 0
+	case "smoke":
+		e.vy, e.gravY, e.life0, e.life1, e.speed, e.rate, e.drag = 1.2, 0.2, 2, 4, 0.6, 24, 0.4
+		e.c0, e.c1 = [4]float64{0.6, 0.6, 0.62, 0.35}, [4]float64{0.4, 0.4, 0.42, 0}
+		e.size0, e.size1 = 0.4, 1.4
+	case "sparks":
+		e.vy, e.gravY, e.life0, e.life1, e.speed, e.rate, e.style = 4, -12, 0.2, 0.5, 6, 40, 1
+		e.c0, e.c1 = [4]float64{1, 0.85, 0.3, 1}, [4]float64{1, 0.2, 0, 0}
+	case "explosion":
+		e.looping, e.speed, e.rate, e.life0, e.life1, e.gravY = false, 8, 400, 0.3, 0.8, -6
+		e.c0, e.c1 = [4]float64{1, 0.6, 0.1, 1}, [4]float64{0.2, 0.05, 0, 0}
+	case "dust":
+		e.vy, e.gravY, e.life0, e.life1, e.speed, e.rate = 0.3, -0.2, 1, 2, 0.4, 16
+		e.c0, e.c1 = [4]float64{0.55, 0.42, 0.28, 0.4}, [4]float64{0.4, 0.32, 0.2, 0}
+	case "magic":
+		e.vy, e.gravY, e.life0, e.life1, e.speed, e.rate, e.additive = 1.5, 0.4, 0.8, 1.4, 1.2, 30, true
+		e.c0, e.c1 = [4]float64{0.4, 0.3, 1, 1}, [4]float64{0.9, 0.4, 1, 0}
+	case "splash":
+		e.vy, e.gravY, e.life0, e.life1, e.speed, e.rate = 4, -9, 0.3, 0.7, 3, 50
+		e.c0, e.c1 = [4]float64{0.6, 0.8, 1, 0.8}, [4]float64{0.7, 0.85, 1, 0}
+	case "debris":
+		e.vy, e.gravY, e.life0, e.life1, e.speed, e.rate, e.style = 2, -9, 0.8, 1.6, 4, 12, 0
+		e.c0, e.c1 = [4]float64{0.45, 0.32, 0.2, 1}, [4]float64{0.3, 0.22, 0.14, 0}
+		e.size0, e.size1 = 0.2, 0.15
+	}
+}
+
+func applyCPUPreset(e *emitter, name string) {
+	e.emitting = true
+	e.looping = true
+	switch name {
+	case "fire":
+		e.vy, e.gravY, e.life, e.speed, e.rate = 3, 1.5, 0.6, 2, 40
+		e.cr0, e.cg0, e.cb0, e.ca0 = 1, 0.45, 0.05, 1
+		e.cr1, e.cg1, e.cb1, e.ca1 = 0.4, 0.05, 0, 0
+	case "smoke":
+		e.vy, e.gravY, e.life, e.speed, e.rate, e.drag = 1, 0.2, 3, 0.5, 16, 0.4
+		e.cr0, e.cg0, e.cb0, e.ca0 = 0.6, 0.6, 0.62, 0.35
+		e.cr1, e.cg1, e.cb1, e.ca1 = 0.4, 0.4, 0.42, 0
+	default:
+		var g gpuEmitter
+		applyGPUPreset(&g, name)
+		e.vy, e.gravY, e.life, e.speed, e.rate, e.drag = g.vy, g.gravY, (g.life0+g.life1)*0.5, g.speed, g.rate, g.drag
+		e.looping = g.looping
+		e.cr0, e.cg0, e.cb0, e.ca0 = g.c0[0], g.c0[1], g.c0[2], g.c0[3]
+		e.cr1, e.cg1, e.cb1, e.ca1 = g.c1[0], g.c1[1], g.c1[2], g.c1[3]
+		if g.size0 != 0 || g.size1 != 0 {
+			e.size0, e.size1 = g.size0, g.size1
+		}
+		e.style = g.style
+	}
+}
+

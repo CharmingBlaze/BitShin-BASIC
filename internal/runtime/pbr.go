@@ -48,6 +48,7 @@ func (m *pbrMat) RenderSetup(gs *gls.GLS) {
 		m.w.applyUserUniforms(gs)
 		m.w.bindShadowUniforms(gs)
 		m.w.bindFogUniforms(gs)
+		m.w.bindLinear(gs)
 		m.w.bindPBRUniforms(gs, m)
 		recv := 1
 		if !m.recvShadow {

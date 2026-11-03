@@ -136,6 +136,10 @@ uniform float WaveTime;
 uniform float WaterWaveStrength;
 uniform float WaterShine;
 uniform float WaterReflectivity;
+` + linearGLSL + `
+uniform float WaterClarity;
+uniform vec3 WaterShallow;
+uniform float WaterShallowTo;
 uniform vec3 WaterSunDir;
 uniform vec3 WaterSunColor;
 uniform vec3 CamWorldPos;
@@ -216,6 +220,13 @@ void main() {
     if (any(isnan(waveNormal)) || dot(waveNormal, waveNormal) < 1e-6) {
         waveNormal = faceN;
     }
+    // The grid can read as back-facing from above, which turned the normal
+    // away from the eye: Fresnel saw a grazing angle everywhere and the sea
+    // mirrored the sky at full strength, with no sun glint. The old path keeps
+    // that look; games were tuned against it.
+    if (LinearLight != 0 && dot(waveNormal, CamWorldPos - WorldPos) < 0.0) {
+        waveNormal = -waveNormal;
+    }
     if (WaterFFTOn != 0) {
         // The wave tile's slope per pixel. Vertices are meters apart and
         // carry only its swell; this is the chop between them. Faded with
@@ -240,9 +251,16 @@ void main() {
         float n = max(CamNear, 0.05);
         float f = max(CamFar, n + 1.0);
         float zWater = (2.0 * n * f) / max(f + n - (2.0 * gl_FragCoord.z - 1.0) * (f - n), 0.001);
-        float sceneD = texture(WaterRefractDepth, clamp(ndc, 0.001, 0.999)).r;
-        float zScene = (2.0 * n * f) / max(f + n - (2.0 * sceneD - 1.0) * (f - n), 0.001);
-        meters = max(zScene - zWater, 0.0);
+        // Four taps: the target is rarely the window's size, and one nearest
+        // read skipped rows of it, so steep shallows came out in stripes.
+        vec2 dTap = 0.75 / vec2(textureSize(WaterRefractDepth, 0));
+        float zScene = 0.0;
+        for (int i = 0; i < 4; ++i) {
+            vec2 tap = ndc + dTap * vec2(i < 2 ? -1.0 : 1.0, (i == 0 || i == 2) ? -1.0 : 1.0);
+            float sceneD = texture(WaterRefractDepth, clamp(tap, 0.001, 0.999)).r;
+            zScene += (2.0 * n * f) / max(f + n - (2.0 * sceneD - 1.0) * (f - n), 0.001);
+        }
+        meters = max(zScene * 0.25 - zWater, 0.0);
     }
     float contact = 1.0 - smoothstep(0.15, 1.2, meters);
     vec2 distort = vec2(0.0);
@@ -281,7 +299,9 @@ void main() {
     refractUV = clamp(refractUV + waveNormal.xz * (0.008 * nearRipple), 0.001, 0.999);
 
     vec3 viewDir = normalize(CamWorldPos - WorldPos);
-    float NdotV = max(dot(waveNormal, viewDir), 0.0);
+    // Detail normals can tilt past the eye at a grazing view; that is not a
+    // mirror angle.
+    float NdotV = LinearLight != 0 ? abs(dot(waveNormal, viewDir)) : max(dot(waveNormal, viewDir), 0.0);
     float fresnel = pow(clamp(1.0 - NdotV, 0.0, 1.0), 5.0);
     float schlick = 0.02 + 0.98 * fresnel;
     float waveHeight = WorldPos.y - WaterLevel;
@@ -291,10 +311,25 @@ void main() {
         deepWaterColor = vec3(0.02, 0.16, 0.28);
     }
     vec3 shallowWaterColor = deepWaterColor * vec3(1.45, 1.75, 1.25) + vec3(0.015, 0.04, 0.03);
+    if (WaterShallowTo > 0.0) {
+        shallowWaterColor = WaterShallow;
+        depthMix = smoothstep(0.2, WaterShallowTo, meters);
+    }
+    deepWaterColor = toLin(deepWaterColor);
+    shallowWaterColor = toLin(shallowWaterColor);
     vec3 refrColor = mix(shallowWaterColor, deepWaterColor, depthMix);
+    if (LinearLight != 0) {
+        // Beer-Lambert over vertical depth, so a shore keeps its color from any
+        // angle. Red dies first, which is what turns shallow water turquoise.
+        float vertical = meters * max(viewDir.y, 0.05);
+        float reach = WaterShallowTo > 0.0 ? WaterShallowTo : 6.0;
+        vec3 through = exp(-vertical * (3.0 / max(reach, 0.1)) * vec3(1.5, 1.0, 0.75));
+        refrColor = mix(deepWaterColor, shallowWaterColor, through);
+    }
     if (WaterRefractOn != 0) {
         vec3 grabbedR = texture(WaterRefract, refractUV).rgb;
-        float bottom = smoothstep(0.25, 3.0, meters) * (1.0 - smoothstep(28.0, 70.0, meters));
+        float clearTo = WaterClarity > 0.0 ? WaterClarity : 70.0;
+        float bottom = smoothstep(0.25, 3.0, meters) * (1.0 - smoothstep(clearTo * 0.4, clearTo, meters));
         // The last half meter shows the sand through, so the water thins
         // out onto the beach instead of ending in a hard colored line.
         // Near the camera only: far away the depth buffer cannot tell half
@@ -302,7 +337,7 @@ void main() {
         float edge = (1.0 - smoothstep(0.0, 0.5, meters)) * (1.0 - smoothstep(60.0, 200.0, camDist));
         refrColor = mix(refrColor, grabbedR, max(bottom * 0.8, edge));
     }
-    vec3 reflectCol = mix(deepWaterColor, vec3(0.65, 0.78, 0.9), 0.35);
+    vec3 reflectCol = mix(deepWaterColor, toLin(vec3(0.65, 0.78, 0.9)), 0.35);
     if (WaterReflectOn != 0) {
         vec3 grabbed = texture(WaterReflect, reflectUV).rgb;
         vec3 planar = grabbed;
@@ -335,6 +370,9 @@ void main() {
     if (refl < 0.15) { refl = 0.45; }
     float shoreFade = smoothstep(0.4, 2.8, meters);
     float facing = mix(schlick * 0.22, schlick, shoreFade) * clamp(refl, 0.35, 1.0);
+    if (LinearLight != 0) {
+        facing = schlick; // plain Fresnel: full mirror at the horizon, little overhead
+    }
     vec3 base = mix(refrColor, reflectCol, facing);
 
     vec3 L = WaterSunDir;
@@ -346,6 +384,7 @@ void main() {
 #if DIR_LIGHTS>0
     sunCol = DirLightColor(0);
 #endif
+    sunCol = toLin(sunCol);
     vec3 H = normalize(L + viewDir);
     float NdotH = max(dot(waveNormal, H), 0.0);
     float NdotL = max(dot(waveNormal, L), 0.0);
@@ -354,6 +393,11 @@ void main() {
     float tight = pow(NdotH, 512.0);
     float broad = pow(NdotH, shine);
     vec3 sunGlint = sunCol * (broad * 3.4 + tight * 6.0) * NdotL;
+    if (LinearLight != 0) {
+        // The old lobe was only ever seen on a flipped normal, which hid it.
+        // Facing the eye it needs to be a narrow path of light, not a blaze.
+        sunGlint = sunCol * (pow(NdotH, shine * 8.0) * 0.35 + tight * 1.2) * NdotL;
+    }
     float maxWavePeak = WaterPeak;
     if (maxWavePeak < 0.2) {
         maxWavePeak = 1.2;
@@ -364,15 +408,20 @@ void main() {
     float foamNoise = texture(WaterNormal, foamUV).r;
     foamMask *= step(0.3, foamNoise);
     foamMask *= 1.0 - contact;
-    vec3 foamColor = vec3(0.82, 0.88, 0.92);
+    vec3 foamColor = toLin(vec3(0.82, 0.88, 0.92));
     // Surf line: a broken band that laps up and back where the bottom is
     // within a meter. Needs the refraction depth, so low tier has none.
     float surf = 0.0;
     if (WaterHasDepth != 0) {
         float lap = 0.5 + 0.5 * sin(meters * 5.0 - WaveTime * 1.7 + foamNoise * 3.0);
-        surf = (1.0 - smoothstep(0.03, 0.9, meters)) * mix(0.3, 1.0, lap);
+        // Far or at a shallow angle, the sine turns over between neighbouring
+        // pixels and aliases into stripes. Settle on its average there.
+        lap = mix(lap, 0.5, smoothstep(0.5, 1.5, fwidth(meters) * 5.0));
+        // Wider with distance, so the coast keeps its white line from afar
+        // instead of the surf thinning to nothing under a pixel.
+        surf = (1.0 - smoothstep(0.03, 0.9 + camDist * 0.004, meters)) * mix(0.3, 1.0, lap);
         surf *= smoothstep(0.2, 0.55, foamNoise + 0.2);
-        surf *= exp(-camDist * 0.004);
+        surf *= exp(-camDist * 0.0012);
     }
     vec3 waterWithFoam = mix(base, foamColor, clamp(foamMask * foamNoise + surf * 0.7, 0.0, 0.7));
 
@@ -393,7 +442,7 @@ void main() {
                 float ndl = max(dot(waterN, ld), 0.0);
                 vec3 h2 = normalize(ld + waterV);
                 float ndh = max(dot(waterN, h2), 0.0);
-                local += PointLightColor(i) * att * (ndl * waterWithFoam * 0.65 + pow(ndh, 180.0) * ndl * 1.6);
+                local += toLin(PointLightColor(i)) * att * (ndl * waterWithFoam * 0.65 + pow(ndh, 180.0) * ndl * 1.6);
             }
         }
     }
@@ -411,7 +460,7 @@ void main() {
                 float ndl = max(dot(waterN, ld), 0.0);
                 vec3 h2 = normalize(ld + waterV);
                 float ndh = max(dot(waterN, h2), 0.0);
-                local += SpotLightColor(i) * att * (ndl * waterWithFoam * 0.65 + pow(ndh, 180.0) * ndl * 1.6);
+                local += toLin(SpotLightColor(i)) * att * (ndl * waterWithFoam * 0.65 + pow(ndh, 180.0) * ndl * 1.6);
             }
         }
     }
@@ -434,7 +483,7 @@ void main() {
             float hFac = exp(-max(WorldPos.y - FogHeight, 0.0) * FogHeightFalloff);
             f = 1.0 - (1.0 - f) * clamp(hFac, 0.0, 1.0);
         }
-        FragColor.rgb = mix(fogTint(FogColor, WorldPos), FragColor.rgb, retroFog(clamp(f, 0.0, 1.0)));
+        FragColor.rgb = fogMix(toLin(fogTint(FogColor, WorldPos)), FragColor.rgb, retroFog(clamp(f, 0.0, 1.0)));
     }
 }
 `

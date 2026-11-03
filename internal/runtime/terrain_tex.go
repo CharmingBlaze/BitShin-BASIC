@@ -60,10 +60,37 @@ func generateProcTerrainRGBA(kind string, n int) *image.RGBA {
 		for x := 0; x < n; x++ {
 			u := float64(x) / float64(n)
 			v := float64(y) / float64(n)
-			img.SetRGBA(x, y, procTexPixel(kind, ns, u, v, x, y, n))
+			img.SetRGBA(x, y, tiledTexPixel(kind, ns, u, v, x, y, n))
 		}
 	}
 	return img
+}
+
+// tiledTexPixel makes a texture repeat with no seam: near an edge it fades into
+// the same noise one tile over. Without this every repeat showed a hard line,
+// and on a cliff those lines are level, so they read as strata.
+func tiledTexPixel(kind string, ns *noise2, u, v float64, x, y, n int) color.RGBA {
+	const band = 0.15
+	wu, wv := smoothstep64(1-band, 1, u), smoothstep64(1-band, 1, v)
+	c := procTexPixel(kind, ns, u, v, x, y, n)
+	if wu <= 0 && wv <= 0 {
+		return c
+	}
+	mix := func(a, b color.RGBA, t float64) color.RGBA {
+		f := func(p, q uint8) uint8 { return uint8(float64(p) + (float64(q)-float64(p))*t + 0.5) }
+		return color.RGBA{f(a.R, b.R), f(a.G, b.G), f(a.B, b.B), f(a.A, b.A)}
+	}
+	if wu > 0 {
+		c = mix(c, procTexPixel(kind, ns, u-1, v, x, y, n), wu)
+	}
+	if wv > 0 {
+		d := procTexPixel(kind, ns, u, v-1, x, y, n)
+		if wu > 0 {
+			d = mix(d, procTexPixel(kind, ns, u-1, v-1, x, y, n), wu)
+		}
+		c = mix(c, d, wv)
+	}
+	return c
 }
 
 func procTexPixel(kind string, ns *noise2, u, v float64, x, y, n int) color.RGBA {
@@ -73,7 +100,7 @@ func procTexPixel(kind string, ns *noise2, u, v float64, x, y, n int) color.RGBA
 	switch procTexKind(kind) {
 	case "sand":
 		g := 0.72 + 0.18*n1 + 0.08*n3
-		return rgb8(g*1.05, g*0.92, g*0.62)
+		return rgb8(g*1.06, g*0.98, g*0.78)
 	case "grass":
 		// Clumps and fine speckle, no direction. The old |sin(u*46)| blades
 		// were 46 parallel stripes a tile, and they read as rows from afar.
@@ -88,9 +115,9 @@ func procTexPixel(kind string, ns *noise2, u, v float64, x, y, n int) color.RGBA
 		return rgb8(0.13+0.10*n2, g, 0.06+0.05*n1)
 	case "rock":
 		g := 0.26 + 0.24*n1 + 0.14*n3
-		strata := 0.07 * math.Sin(v*52+n2*6)
+		// No banding term: a sine here repeated as level lines up every cliff.
 		crack := 1.0 - 0.18*math.Pow(n3, 3)
-		return rgb8((g*1.12+strata)*crack, (g*0.92)*crack, (g*0.70)*crack)
+		return rgb8((g*1.08)*crack, (g*1.02)*crack, (g*0.94)*crack)
 	case "snow":
 		g := 0.86 + 0.12*n1
 		return rgb8(g, g+0.02, g+0.04)

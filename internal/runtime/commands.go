@@ -671,6 +671,9 @@ func (w *World) commandTable() map[string]cmd {
 	for k, v := range w.debugDrawCommands(n, z) {
 		m[k] = v
 	}
+	for k, v := range w.aiCommands(n, z) {
+		m[k] = v
+	}
 	for k, v := range w.navCommands(n, z, need) {
 		m[k] = v
 	}
@@ -723,6 +726,18 @@ func (w *World) commandTable() map[string]cmd {
 		m[k] = v
 	}
 	for k, v := range w.qualityCommands(n, z) {
+		m[k] = v
+	}
+	for k, v := range w.linearCommands(n) {
+		m[k] = v
+	}
+	for k, v := range w.dynResCommands(n) {
+		m[k] = v
+	}
+	for k, v := range w.passCommands(n) {
+		m[k] = v
+	}
+	for k, v := range w.shadowTurnCommands(n) {
 		m[k] = v
 	}
 	for k, v := range w.shadingCommands(n, z) {

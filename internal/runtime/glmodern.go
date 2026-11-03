@@ -24,6 +24,7 @@ type glCaps struct {
 	version, renderer, vendor, glsl    string
 	compute, ssbo, ubo, instance, geom bool
 	tess, imageLoad                    bool
+	maxAniso                           float32 // 0 without the extension
 }
 
 type glCompute struct {
@@ -159,6 +160,9 @@ func (w *World) detectModernGL() {
 	m.caps.compute = ver43 || hasExt(exts, "GL_ARB_compute_shader")
 	m.caps.ssbo = ver43 || hasExt(exts, "GL_ARB_shader_storage_buffer_object")
 	m.caps.imageLoad = ver43 || hasExt(exts, "GL_ARB_shader_image_load_store")
+	if hasExt(exts, "GL_EXT_texture_filter_anisotropic") || hasExt(exts, "GL_ARB_texture_filter_anisotropic") {
+		gl.GetFloatv(glMaxAnisotropy, &m.caps.maxAniso)
+	}
 	m.caps.ready = true
 	m.gpuInst = m.caps.instance
 	if m.caps.compute {

@@ -241,6 +241,16 @@ func (w *World) buildIndexedBatch(im *instancedMesh, pos, nor, uvs *math32.Array
 // buildIndexedBatchArrays is buildIndexedBatch without the World, for workers.
 func buildIndexedBatchArrays(im *instancedMesh, pos, nor, uvs *math32.ArrayF32, idx *math32.ArrayU32, col *math32.ArrayF32) {
 	nv := uint32(len(im.verts))
+	// Tree parts darken toward their own base: the layers of a pine and the
+	// lobes of a crown read as separate masses, shaded underneath.
+	var shadeLo, shadeH float32
+	if im.sway && col != nil && len(im.verts) > 0 {
+		lo, hi := im.verts[0].Y, im.verts[0].Y
+		for _, v := range im.verts {
+			lo, hi = math32.Min(lo, v.Y), math32.Max(hi, v.Y)
+		}
+		shadeLo, shadeH = lo, hi-lo
+	}
 	for i := 0; i < im.count && i < len(im.xforms); i++ {
 		m := instanceMatrix(im.xforms[i])
 		var rot math32.Matrix3
@@ -257,6 +267,10 @@ func buildIndexedBatchArrays(im *instancedMesh, pos, nor, uvs *math32.ArrayF32, 
 				f := (v.Y - im.swayLo) / im.swayH
 				sw = f * f
 			}
+			shade := float32(1)
+			if shadeH > 0 {
+				shade = 0.6 + 0.55*(v.Y-shadeLo)/shadeH
+			}
 			v.ApplyMatrix4(&m)
 			pos.Append(v.X, v.Y, v.Z)
 			n := math32.Vector3{Y: 1}
@@ -272,7 +286,7 @@ func buildIndexedBatchArrays(im *instancedMesh, pos, nor, uvs *math32.ArrayF32, 
 				uvs.Append(0, 0)
 			}
 			if col != nil {
-				col.Append(tc.R, tc.G, tc.B)
+				col.Append(tc.R*shade, tc.G*shade, tc.B*shade)
 			}
 		}
 		for _, ix := range im.vidx {
@@ -291,6 +305,16 @@ func (w *World) tickInstances() {
 
 func (w *World) instanceCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error), need func(func([]value.Value) (value.Value, error)) cmd) map[string]cmd {
 	return map[string]cmd{
+		// SetAutoBatch on: copies of a mesh with equal materials share one
+		// draw call. On by default. StatsBatched is how many are drawn so.
+		"setautobatch": n(func(a []value.Value) (value.Value, error) {
+			w.batch.off = argI(a, 0, 1) == 0
+			w.batch.envRead = true
+			return z()
+		}),
+		"statsbatched": n(func(a []value.Value) (value.Value, error) {
+			return value.Num(float64(w.batchedCount())), nil
+		}),
 		"createinstancedmesh": need(func(a []value.Value) (value.Value, error) {
 			id, err := w.createInstanced(argI(a, 0, 0), argI(a, 1, 1))
 			return value.Num(float64(id)), err

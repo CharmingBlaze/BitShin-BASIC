@@ -32,17 +32,17 @@ Coverage counts a partial item as half.
 | Area | Done | Partial | Missing | Coverage |
 | --- | --- | --- | --- | --- |
 | [1. Core engine architecture](#1-core-engine-architecture) | 12 | 14 | 1 | 70% |
-| [2. MoonBASIC programming language](#2-moonbasic-programming-language) | 46 | 20 | 14 | 70% |
-| [3. 2D graphics engine](#3-2d-graphics-engine) | 74 | 4 | 12 | 84% |
+| [2. MoonBASIC programming language](#2-moonbasic-programming-language) | 50 | 19 | 11 | 74% |
+| [3. 2D graphics engine](#3-2d-graphics-engine) | 75 | 4 | 11 | 86% |
 | [4. 3D graphics engine](#4-3d-graphics-engine) | 109 | 15 | 14 | 84% |
 | [5. Physics (Jolt)](#5-physics-jolt) | 45 | 8 | 3 | 88% |
 | [6. Terrain and world building](#6-terrain-and-world-building) | 36 | 9 | 5 | 81% |
 | [7. Water and environment](#7-water-and-environment) | 26 | 4 | 1 | 90% |
-| [8. Particles and visual effects](#8-particles-and-visual-effects) | 17 | 10 | 6 | 67% |
-| [9. Animation and skeletal systems](#9-animation-and-skeletal-systems) | 7 | 6 | 7 | 50% |
-| [10. Audio engine](#10-audio-engine) | 12 | 4 | 21 | 38% |
-| [11. UI engine](#11-ui-engine) | 17 | 4 | 17 | 50% |
-| [12. Navigation and AI](#12-navigation-and-ai) | 9 | 4 | 10 | 48% |
+| [8. Particles and visual effects](#8-particles-and-visual-effects) | 26 | 3 | 4 | 83% |
+| [9. Animation and skeletal systems](#9-animation-and-skeletal-systems) | 16 | 3 | 1 | 88% |
+| [10. Audio engine](#10-audio-engine) | 18 | 4 | 15 | 54% |
+| [11. UI engine](#11-ui-engine) | 26 | 5 | 7 | 75% |
+| [12. Navigation and AI](#12-navigation-and-ai) | 20 | 3 | 0 | 93% |
 | [13. Networking and multiplayer](#13-networking-and-multiplayer) | 9 | 4 | 6 | 58% |
 | [14. Input and controller system](#14-input-and-controller-system) | 21 | 5 | 6 | 73% |
 | [15. Rendering and graphics quality](#15-rendering-and-graphics-quality) | 33 | 5 | 7 | 79% |
@@ -50,14 +50,14 @@ Coverage counts a partial item as half.
 | [17. Scenes and prefabs](#17-scenes-and-prefabs) | 16 | 7 | 8 | 63% |
 | [18. Moon Studio (IDE / editor)](#18-moon-studio-ide--editor) | 34 | 12 | 35 | 49% |
 | [19. Shaders and visual programming](#19-shaders-and-visual-programming) | 8 | 3 | 2 | 73% |
-| [20. Development and debugging tools](#20-development-and-debugging-tools) | 33 | 8 | 5 | 80% |
+| [20. Development and debugging tools](#20-development-and-debugging-tools) | 36 | 7 | 3 | 86% |
 | [21. Optimization and performance](#21-optimization-and-performance) | 14 | 8 | 16 | 47% |
 | [22. Graphics API and platform](#22-graphics-api-and-platform) | 11 | 3 | 4 | 69% |
 | [23. Build system and export](#23-build-system-and-export) | 20 | 6 | 6 | 72% |
 | [24. Project management](#24-project-management) | 4 | 3 | 4 | 50% |
 | [25. Documentation and community](#25-documentation-and-community) | 3 | 9 | 4 | 47% |
 | [26. Plugins and extensions](#26-plugins-and-extensions) | 0 | 3 | 12 | 10% |
-| **Total** | **647** | **184** | **246** | **69%** |
+| **Total** | **699** | **172** | **206** | **73%** |
 
 **Strongest:** water and environment, the 2D and 3D engines, terrain, physics, and input. **Weakest:** plugins, optimization tooling, audio, and build/export polish.
 
@@ -139,7 +139,7 @@ What to build next, in order. Each milestone closes 1.0 checklist items or stren
 - `ShowProfiler`: frame-time graph, script/physics/render CPU time, GPU time, draws, triangles, memory, GC
 - `DebugDraw`: physics shapes, contacts, velocities, joints, raycasts, nav meshes, light ranges, bounds, normals, entity IDs, frustums, audio; `DebugLine`/`DebugSphere`/`DebugBox` for scripts
 - Fixed: HUD `Text` vanished without a shadow-casting sun; planes, quads, and disks carried a hidden pitch that `RotateEntity` and `ScaleEntity` fought. The suspected post-pass sRGB problem was not one: the content is tuned for the current output, and encoding it washed scenes out.
-- Left for later: per-function script profiling, a profiler panel in the IDE, per-asset memory diagnostics, multi-file positions in the debugger.
+- Left for later: multi-file positions in the debugger. Per-function timing, the IDE Profiler panel, and per-asset file sizes are in.
 
 ### Milestone C: Moon Studio scene editing — done 2026-11-01
 - `moon edit`: the engine renders the scene with ImGui panels — viewport and orbit camera, click selection, hierarchy, inspector, ImGuizmo move/rotate/scale with snapping, undo/redo, add/duplicate/delete/reparent, assets, Play. The IDE opens it by double-clicking a `.scene.json`; Play goes back to the IDE
@@ -159,9 +159,9 @@ Shipped: `SetRetroPreset` (ps1, n64, gameboy, pico8, dos, cga, lowpoly), low-res
 - Left for later: built-in materials sampling the second UV set, vertex colours under PBR, hot reload of sounds, fonts, and animated meshes, scene-file dependency scanning, patch paks
 
 ### Milestone F: audio and language polish
-- Audio channels: pause/resume, fade, pan, seek, buses, reverb, streaming
-- Blitz compatibility: `Goto`/`Gosub`, `Rem`, multiline comments, typed `Local`
-- BASIC-level unit tests and benchmarks; documentation comments
+- Audio channels: pause/resume, fade, pan, seek, buses, and a short slapback (`SetSoundEcho`). Streaming music already plays. No room reverb
+- Blitz compatibility: `Goto`/`Gosub`, `Rem`, multiline comments, typed `Local` / `Global` / `Static`
+- Documentation comments (`'''` above a function). BASIC-level unit tests and benchmarks are still open
 
 ### Milestone G: compatibility testing
 - Measure the low tier on a 2016-class Intel HD 520 and a 2018-class GTX 1050, the high tier on a current discrete GPU
@@ -218,12 +218,12 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] Select / Case — parse `select`/`case`/`default`
 - [x] Function / EndFunction — parse `function`, `End Function`
 - [x] Type / EndType — parse `type`/`struct` with `field`
-- [ ] Goto / Gosub — Missing
-- [ ] Comments with `;` or `Rem` — **Partial:** `;`, `'`, `//` work; no `Rem`
-- [ ] Multiline comments — Missing
+- [x] Goto / Gosub — `Goto label` / `Gosub label` with `name:` and `Return`
+- [x] Comments with `;` or `Rem` — `;`, `'`, `//`, and `Rem` (stops at a colon)
+- [x] Multiline comments — `/* ... */`
 - [x] Constants — `Const`
 - [x] Global and local variables — `Global`, `Local`, `Static`
-- [ ] Strongly defined variable types — **Partial:** `As` on params/returns/Dim, `Strict` mode; locals untyped
+- [ ] Strongly defined variable types — **Partial:** `As` on params, returns, `Dim`, `Local`, `Global`, and `Static`. Values stay float64; `Integer` truncates, `Bool` is 0/1, `String` stringifies
 - [x] Optional type inference — dynamic typing; `As` annotations optional
 - [x] Arrays and multidimensional arrays — `Dim a(x,y)`, `Redim`, `Erase`, `arraysize`
 - [x] Lists and collections — `createlist`/`listadd`, `createmap`/`mapset`, `tablecreate`
@@ -269,7 +269,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] Hot reload — saved scripts and includes reload by themselves under `moon run -watch` and the IDE; `ReloadScripts` by hand
 - [x] Code completion — internal/lsp completion/hover/definition (`moon lsp`)
 - [x] Syntax highlighting — editors/vscode/syntaxes/moonbasic.tmLanguage.json
-- [ ] Documentation comments — Missing
+- [x] Documentation comments — `'''` lines directly above a `Function` are kept on that function
 - [x] Standard library — interp builtins + ~1800 runtime commands
 - [ ] Package manager — Missing
 - [ ] Module dependency management — **Partial:** `Import`/`Include` file paths; no versions/registry
@@ -369,7 +369,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [ ] Animation blending — Missing
 - [ ] Skeletal 2D animation — Missing
 - [ ] Bone hierarchy — Missing
-- [ ] Animation events — Missing
+- [x] Animation events — `SpriteAnimEvent sprite, frame, func$` fires when the sprite frame changes to that frame
 - [ ] Animation states — Missing (`animstate` is 3D only)
 - [ ] Animation transitions — Missing
 
@@ -546,7 +546,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [ ] Multiple material sections — **Partial:** multi-primitive glTF loads / no per-section material command
 - [x] Mesh instancing — `CreateInstancedMesh`, `EnableGPUInstances`, `SetInstanceTransform`
 - [x] Mesh merging — `BatchInstances` (CPU merge), level merge (level.go)
-- [ ] Mesh LOD — **Partial:** `SimplifyMesh`, terrain LOD, tree impostors / no auto mesh LOD switching
+- [ ] Mesh LOD — **Partial:** automatic for shared meshes of 256+ triangles (batch_lod.go), `SimplifyMesh`, terrain LOD, tree impostors / a single mesh with no copies and child meshes of loaded models keep full detail
 - [x] Mesh optimization — `OptimizeMesh`, `SimplifyMesh` (meshopt.go)
 - [x] Mesh collision generation — `CreateBodyMesh`, `CreateBodyConvex`
 - [x] Mesh import and export — `LoadMesh`; `ExportGLTF`, `ExportMesh`
@@ -748,27 +748,27 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] ParticleTexture — `EmitterParticle(e, tex)`
 - [x] ParticleBurst — `EmitterBurst`
 - [x] ParticleRate — `EmitterRate`
-- [ ] ParticleCollision — **Partial:** `EmitterGround` flat plane bounce only (GPU)
+- [ ] ParticleCollision — **Partial:** `EmitterGround` plane plus `EmitterCollide` (up to 4 mesh AABBs on the GPU path); no per-triangle collision
 - [ ] ParticleAttractor — Missing
 - [x] ParticleForce — `EmitterWind`, `EmitterTurbulence` (curl noise), `EmitterDrag`
-- [ ] ParticleTrail — **Partial:** `"streak"` shape stretches along velocity; no true trails
+- [x] ParticleTrail — `CreateTrail ent, points` keeps the last positions and draws them
 - [ ] ParticleRibbon — Missing
 - [ ] ParticleSubEmitter — Missing (`ParentEmitter` only attaches to entity)
 - Also: `GPUParticleMs` timer query, `EmitterShape` box/sphere/disc, `EmitterCount`.
 
 #### Built-in effects
-- [ ] Fire — Missing (no preset; buildable from `Emitter*`)
-- [ ] Smoke — Missing (no preset)
-- [ ] Sparks — **Partial:** `"spark"` streak look; recipe in `examples/gpu_particles.mb`
-- [ ] Explosion — **Partial:** `Explode` is a physics impulse only; no visual effect
-- [ ] Dust — **Partial:** recipe in `examples/gpu_particles.mb`, no preset
+- [x] Fire — `EmitterPreset e, "fire"`
+- [x] Smoke — `EmitterPreset e, "smoke"`
+- [x] Sparks — `EmitterPreset e, "sparks"`
+- [ ] Explosion — **Partial:** `EmitterPreset e, "explosion"` visual; `Explode` is still a physics impulse
+- [x] Dust — `EmitterPreset e, "dust"`
 - [x] Rain — `SetWeather("rain")` streak particles
 - [x] Snow — `SetWeather("snow")` flake particles
-- [ ] Water splashes — **Partial:** weather rain splash rings/wakes; no general splash effect
-- [ ] Magic — **Partial:** recipe in `examples/gpu_particles.mb`, no preset
-- [ ] Trails — **Partial:** streak particles only
+- [x] Water splashes — `EmitterPreset e, "splash"` (weather rings stay separate)
+- [x] Magic — `EmitterPreset e, "magic"`
+- [x] Trails — `CreateTrail` polyline of recent positions (`"streak"` still stretches one particle)
 - [x] Energy beams — `CreateBeam(src, dst, width)` (ez_helpers.go)
-- [ ] Debris — **Partial:** CPU `"cube"` tumbling bits; no debris preset
+- [x] Debris — `EmitterPreset e, "debris"`
 - [ ] Volumetric particles — Missing
 - [x] CPU particle system — `CreateEmitter` (particles.go)
 - [x] GPU particle system — `CreateGPUEmitter` transform feedback (particles_gpu.go)
@@ -778,21 +778,21 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] Animation clips — `ExtractAnimSeq`, `SetAnimSeq`, `AnimSeqName`
 - [x] Animation blending — `SetAnimBlend`, `CrossfadeAnim`
 - [x] Blend trees — `CreateBlendTree`, `AddBlendClip`, `SetBlendParam` (1D/2D)
-- [ ] State machines — **Partial:** `CreateAnimGraph`, `AnimState`, `AnimGo` / no transitions or conditions
+- [x] State machines — `CreateAnimGraph`, `AnimState`, `AnimGo`, `AddAnimTransition` (condition function, stepped each frame)
 - [x] Animation layers — `SetAnimLayer`, `SetAnimAdditive`
-- [ ] Animation masks — Missing (layers affect whole skeleton)
-- [ ] Root motion — Missing
-- [ ] Bone manipulation — **Partial:** `AttachToBone`, IK / no bone get/set transform commands
+- [x] Animation masks — `SetBoneMask e, slot, bone$, weight#`
+- [x] Root motion — `SetRootMotion e, on [, bone$] [, y]` (frame delta, then the bone is planted)
+- [x] Bone manipulation — `GetBoneX`/`GetBoneY`/`GetBoneZ`, `SetBonePos`, plus `AttachToBone` and IK
 - [x] Inverse kinematics — `SetIK` two-bone, `SetIKChain` FABRIK, `SetIKPole`
-- [ ] Look-at constraints — **Partial:** `PointEntity` for entities / no bone look-at
-- [ ] Morph targets — **Partial:** G3N morph shader chunks included / no weight commands
-- [ ] Facial animation — Missing
+- [x] Look-at constraints — `BoneLookAt e, bone$, x, y, z` (`PointEntity` still aims a whole entity)
+- [x] Morph targets — `SetMorph e, index, weight`, `GetMorph`, `MorphCount` (applied when the mesh is a morph geometry)
+- [ ] Facial animation — **Partial:** `SetViseme e, "aa|ee|oh|mm|fv", weight` writes morph slots 0–4; no face rig
 - [ ] Procedural animation — **Partial:** IK, tweens, `SetWindSway` / no procedural rig system
-- [ ] Animation events — Missing
-- [ ] Animation retargeting — Missing
-- [ ] Animation recording — Missing
+- [x] Animation events — `AnimEvent e, time, func$` fires when clip time crosses the mark
+- [x] Animation retargeting — `AnimRetarget e, "Hips=pelvis,Spine=spine"` renames bones on loaded curves
+- [x] Animation recording — `AnimRecord e, 1` samples named bones; `AnimRecord e, 0` stores the clip for playback and `ExportAnimClip`
 - [ ] Timeline editing — Missing
-- [ ] Animation import and export — **Partial:** glTF clips import / no FBX clips, no anim export
+- [ ] Animation import and export — **Partial:** glTF clips import; ASCII and binary FBX translation curves play; `ExportAnimClip` writes a glTF 2.0 JSON file. Binary curves are assigned to limbs in file order, three axes at a time
 - [x] `SetAnimation e, "Idle"` / `UpdateAnimations` style API — `SetAnimation` (alias `SetAnimSeq`), updated in `UpdateWorld`
 
 ### 10. Audio engine
@@ -801,19 +801,19 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] LoadSound — `loadsound` (.wav/.ogg)
 - [x] PlaySound — `playsound`
 - [x] StopSound — `stopsound`
-- [ ] PauseSound — Missing (`stopsound` pauses voice but no resume)
-- [ ] ResumeSound — Missing
+- [x] PauseSound — `pausesound` (and `stopsound`) hold the voice
+- [x] ResumeSound — `resumesound` continues that voice, or starts it if it was never played
 - [x] LoopSound — `loopsound`
 - [x] SoundVolume — `setsoundvolume`
 - [x] SoundPitch — `setsoundpitch`
-- [ ] SoundPan — **Partial:** pan only computed by `emitsound`/`emitsound3d`; no explicit pan
+- [x] SoundPan — `setsoundpan` on a live voice; `emitsound` still pans from the listener at the start
 - [ ] SoundSpeed — **Partial:** `setsoundpitch` resamples rate; speed not independent
 - [x] SoundPosition — `emitsound3d`, `playsound3d`/`sound3d`
 - [x] SoundDistance — `setsoundrange` (min/max distance)
 - [x] SoundLoop — `loopsound`
-- [ ] SoundFade — Missing
+- [x] SoundFade — `fadesound id, volume, seconds` on `Flip`
 - [ ] SoundChannel — Missing (one voice per sound; no channel handles)
-- [ ] SoundPlaybackPosition — Missing
+- [x] SoundPlaybackPosition — `seeksound` / `soundtime` on a decoded clip. Streams stay put
 
 #### 3D audio
 - [ ] Positional audio — **Partial:** `emitsound3d` sets vol/pan at start; not updated while playing
@@ -829,9 +829,9 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 
 #### Audio tools
 - [ ] Mixer — **Partial:** oto mixes voices; no mixer API or master volume
-- [ ] Buses — Missing
+- [x] Buses — `soundbus` / `setaudiobus` scale volume. No per-bus effects
 - [ ] Effects chains — Missing
-- [ ] Reverb — Missing
+- [ ] Reverb — **Partial:** `setsoundecho` is an 80 ms slapback on a decoded clip. No room, zones, or streams
 - [ ] Equalizer — Missing
 - [ ] Compressor — Missing
 - [ ] Limiter — Missing (only clamp16 sample clipping)
@@ -866,24 +866,24 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - Also: `guitree`, `guiheader`, `guicolor`, `guidrag`, `guipickfile`; Gui*/G3N widgets require 3D mode, not Ebiten 2D.
 
 #### UI capabilities
-- [ ] Anchoring — Missing (G3N `setwidgetpos` absolute only)
+- [x] Anchoring — `GuiAnchor` places the next ImGui window; `SetWidgetAnchor e, ax, ay` pins a G3N widget to a fraction of the window
 - [ ] Responsive layouts — Missing
-- [ ] Resolution scaling — **Partial:** ImGui DisplayFramebufferScale for HiDPI; no UI scale command
-- [ ] Flex layouts — Missing
-- [ ] Grid layouts — Missing (only `guisameline` row flow)
+- [ ] Resolution scaling — **Partial:** `UIScale` plus ImGui DisplayFramebufferScale; no automatic layout reflow
+- [x] Flex layouts — `GuiHBox count [, gap]` places the next widgets on one row
+- [ ] Grid layouts — **Partial:** `GuiColumns n`; no cell spanning
 - [x] Nested containers — ImGui `guibeginchild`, `guitree`, tab bars
-- [ ] Themes — Missing (fixed `StyleColorsDark`)
+- [x] Themes — `UITheme "dark"|"light"`
 - [ ] Fonts — **Partial:** `loadfont`/`setfont` for 2D text; ImGui uses default font
-- [ ] Rich text — Missing
-- [ ] Text wrapping — Missing
-- [ ] Text alignment — Missing
-- [ ] UI animations — Missing
+- [x] Rich text — `GuiRich "{#ff8800}hello{#} world"`
+- [x] Text wrapping — `GuiTextWrapped`, `UIWrap width`
+- [ ] Text alignment — **Partial:** `UIAlign 0|1|2` left, centre, or right for `GuiText`
+- [x] UI animations — `TweenWidget e, x, y, seconds` moves a G3N widget
 - [x] Mouse interaction — ImGui widgets, G3N `setonclick`/`setonchange`, `wantcapturemouse`
-- [ ] Keyboard navigation — **Partial:** ImGui text/Tab input, `wantcapturekeyboard`; nav flags not enabled
-- [ ] Gamepad navigation — Missing
+- [x] Keyboard navigation — `UINav 1` sets ImGui keyboard nav
+- [x] Gamepad navigation — `UINav 2` (or `3` for keyboard and gamepad)
 - [ ] Localization — Missing
 - [ ] Accessibility — Missing
-- [ ] Nine-slice scaling — Missing
+- [x] Nine-slice scaling — `DrawNineSlice image, x, y, w, h, border`
 - [ ] Custom widgets — Missing (only compose ImGui primitives)
 
 ### 12. Navigation and AI
@@ -891,29 +891,29 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 #### Navigation
 - [x] NavMesh generation — `createnavmesh` (Recast via go-detour), `baketerrainnav`
 - [x] NavMesh baking — `bakenavmesh`
-- [ ] Navigation regions — Missing (no area types/costs)
+- [x] Navigation regions — `SetNavCost mesh, area, cost` (cost stays at least 1)
 - [ ] Navigation obstacles — **Partial:** `addnavobstacle` baked in; requires rebake, no runtime tile cache
 - [x] Pathfinding — `setagentdestination`, `getagentpathpointx/y/z`, `agentcountpath`, `updatenav`
 - [x] A* — `creategrid`, `setgridwalkable`, `findpath`, `pathx`/`pathy` (commands_agents.go)
 - [x] Waypoints — `followpath` (alias `followpolyline`), `tweenposition`
-- [ ] Navigation links — Missing (no off-mesh connections)
+- [x] Navigation links — `AddNavLink mesh, ax, ay, az, bx, by, bz`
 - [ ] Dynamic obstacle avoidance — **Partial:** `createcrowd`/`crowdupdate` agent separation (crowd.go); no Detour crowd/RVO
 - [x] 2D navigation — grid A* `findpath`
 - [x] 3D navigation — Detour navmesh agents (commands_nav.go), `setnavmaxslope`
 
 #### AI
-- [ ] Finite state machines — Missing (no FSM API)
+- [x] Finite state machines — `CreateStateMachine`, `AddState`, `AddTransition`, `GoState`, `UpdateState`
 - [x] Behaviour trees — `createbehavior`, `btsequence`/`btselector`/`btparallel`, `btcondition`/`btaction`, `setbehavior`
-- [ ] Utility AI — Missing
-- [ ] Steering behaviours — **Partial:** `movetowards`, `smoothdamp`, crowd separation; no seek/flee/wander API
-- [ ] Flocking — Missing (crowd separation only)
-- [ ] Perception systems — Missing
-- [ ] Line-of-sight detection — **Partial:** use `linepick`/`raycast` manually; no LOS command
-- [ ] Hearing detection — Missing
-- [ ] Vision cones — Missing
+- [x] Utility AI — `CreateUtility`, `UtilityConsider`, `UtilityChoose`
+- [x] Steering behaviours — `SteerSeek`, `SteerFlee`, `SteerArrive`, `SteerWander`, `SteerAvoid`
+- [x] Flocking — `SetFlock`, `FlockUpdate`
+- [x] Perception systems — `SetVision`, `SetHearing`, `CanSee`, `CanHear`
+- [x] Line-of-sight detection — `CanSee` is range, a yaw cone, and a block when another entity's radius sits on the segment
+- [x] Hearing detection — `CanHear from, target, loudness`
+- [x] Vision cones — `SetVision ent, range, degrees`
 - [x] Goal-based navigation (GOAP) — `createplanner`, `addplanaction`, `plan`, `planlength`, `planstep`
-- [ ] AI debugging — Missing (no nav/BT debug draw)
-- [ ] `CreateAI` / `AIState` / `AIAddWaypoint` / `AIDetectTarget` style API — Missing (closest: `createagent`, `setbehavior`, `followpath`)
+- [ ] AI debugging — **Partial:** `AIDebug` draws the vision heading and the cone edges; nav meshes still use `DebugDrawNavMesh`
+- [x] `CreateAI` / `AIState` / `AIAddWaypoint` / `AIDetectTarget` style API — `CreateAI`, `AIState`, `AIAddWaypoint`, `AIDetectTarget`, `AIUpdate`
 
 ### 13. Networking and multiplayer
 - [ ] TCP connections — Missing (UDP/ENet only)
@@ -1081,7 +1081,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [ ] Texture resizing — Missing
 - [x] Mipmap generation — G3N auto-mips on upload; DDS mip chains
 - [x] Mesh optimization — `OptimizeMesh` (vertex cache/overdraw)
-- [ ] Mesh LOD generation — **Partial:** `SimplifyMesh` quadric reduction; no LOD chain
+- [ ] Mesh LOD generation — **Partial:** two simpler versions of shared meshes, built on a worker (batch_lod.go), `SimplifyMesh`; no authored LOD chains
 - [ ] Texture atlasing — Missing
 - [ ] Dependency tracking — **Partial:** `moon build` scans quoted paths + included .mb recursively; not references inside scene JSON
 - [ ] Asset metadata — Missing
@@ -1293,15 +1293,15 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] CPU profiler — `ShowProfiler`, `StatsScriptMs` / `StatsPhysicsMs` / `StatsRenderMs`
 - [x] GPU profiler — `StatsGPUMs` (timestamp queries per frame), `GPUParticleMs`
 - [x] Memory profiler / RAM usage — `StatsMemoryMB`, heap and sys in `ShowProfiler`
-- [ ] VRAM usage — Missing
+- [x] VRAM usage — `StatsVRAMMB` sums loaded texture bytes (compressed size, otherwise width × height × 4)
 - [x] Draw-call counter — `StatsDraws`
 - [x] Triangle counter — `StatsTriangles`
 - [ ] Shader compilation statistics — **Partial:** `ShaderLog`/`GetShaderLog`, `moon shader` validation
 - [ ] Physics profiler — **Partial:** `StatsPhysicsMs` step time; no per-body or broadphase breakdown
 - [ ] Audio profiler — Missing
-- [ ] Script execution profiler — **Partial:** `StatsScriptMs` per frame; no per-function timing
+- [x] Script execution profiler — `StatsFuncMs`, `StatsFuncCalls`, `StatsTopFunc`; IDE Profiler sidebar reads `@prof`
 - [x] GC monitoring — `StatsGCPauseMs`, `StatsAllocKB`, GC count in `ShowProfiler`
-- [ ] Resource loading statistics — Missing
+- [x] Resource loading statistics — `StatsAssetKB name$`, `StatsAssetMB` (file size of loaded meshes and textures)
 - Also: `StatsChunks`, `StatsJobs`, `GPUParticleCount`.
 
 #### Visual debugging
@@ -1344,11 +1344,11 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 
 #### GPU
 - [x] Frustum culling — G3N cullable nodes (`SetCullable` in level.go)
-- [ ] Occlusion culling — Missing
+- [ ] Occlusion culling — Missing (measured on a street-level city: culling far more with a short far plane did not help, see GRAPHICS.md)
 - [x] Backface culling — G3N single-sided materials by default
-- [ ] LOD — **Partial:** terrain LOD and far-scatter cards only; no mesh LOD
+- [ ] LOD — **Partial:** terrain LOD, far-scatter cards, automatic mesh LOD for shared meshes
 - [x] Instanced rendering — `CreateInstancedMesh`, `SetGPUInstances`, `BatchInstances`
-- [x] Batching — `LoadLevel`/`MergeLevel` per-material cell merges
+- [x] Batching — automatic for copies with equal materials and merging of still meshes by area (`SetAutoBatch`, batch.go, batch_merge.go), `LoadLevel`/`MergeLevel` per-material cell merges
 - [ ] Texture atlasing — **Partial:** shadow atlas (`EnableShadowAtlas`) only
 - [x] Texture compression — DDS/KTX S3TC uploads (compressed_tex.go)
 - [ ] Mipmap streaming — Missing

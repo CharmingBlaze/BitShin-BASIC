@@ -351,8 +351,9 @@ func (w *World) scanLights() *lightScan {
 	*ls = lightScan{serial: w.renderSerial}
 	// Entity per light node, built once instead of per light.
 	byNode := map[core.INode]*Entity{}
-	for _, e := range w.ents {
-		if e != nil && e.node != nil && e.lgtKind != 0 {
+	for _, m := range w.entityOrder() {
+		e := m.e
+		if e.node != nil && e.lgtKind != 0 {
 			byNode[e.node] = e
 		}
 	}
@@ -437,8 +438,9 @@ func (w *World) setEnvHemi(sky, ground math32.Color) {
 }
 
 func (w *World) eachLocalLight(fn func(*Entity)) {
-	for _, e := range w.ents {
-		if e == nil || e.lgtKind < 1 || e.lgtKind > 3 {
+	for _, m := range w.entityOrder() {
+		e := m.e
+		if e.lgtKind < 1 || e.lgtKind > 3 {
 			continue
 		}
 		fn(e)

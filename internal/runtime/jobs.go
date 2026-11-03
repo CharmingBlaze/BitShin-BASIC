@@ -13,6 +13,7 @@ import (
 type jobPool struct {
 	ch     chan *jobItem
 	gl     chan func()
+	glOver []func() // what the full gl channel could not hold; guarded by mu
 	mu     sync.Mutex
 	next   int
 	items  map[int]*jobItem
@@ -121,8 +122,11 @@ func (p *jobPool) enqueueGL(fn func()) {
 	select {
 	case p.gl <- fn:
 	default:
-		// queue full: apply on caller (must be GL thread)
-		fn()
+		// Queue full. The caller is often a worker, so fn must not run here,
+		// and waiting could deadlock against a GL thread blocked in submit.
+		p.mu.Lock()
+		p.glOver = append(p.glOver, fn)
+		p.mu.Unlock()
 	}
 }
 
@@ -137,7 +141,16 @@ func (p *jobPool) flushGL() {
 				fn()
 			}
 		default:
-			return
+			p.mu.Lock()
+			over := p.glOver
+			p.glOver = nil
+			p.mu.Unlock()
+			if len(over) == 0 {
+				return
+			}
+			for _, fn := range over {
+				fn()
+			}
 		}
 	}
 }

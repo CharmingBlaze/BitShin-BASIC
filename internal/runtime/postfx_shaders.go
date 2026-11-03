@@ -56,8 +56,24 @@ uniform sampler2D uBloom1;
 uniform sampler2D uBloom2;
 uniform sampler2D uBloom3;
 uniform sampler2D uBloom4;
+uniform int uLinear;
 
 float luma(vec3 c) { return dot(c, vec3(0.299, 0.587, 0.114)); }
+
+// seen is brightness as the eye reads it. Edge and contact tests were tuned
+// on display values; in linear light the same numbers would miss dark edges.
+float seen(vec3 c) {
+	float l = luma(c);
+	return uLinear != 0 ? sqrt(max(l, 0.0)) : l;
+}
+
+// encodeOut is the exact sRGB curve, for the linear path.
+vec3 encodeOut(vec3 c) {
+	c = clamp(c, 0.0, 1.0);
+	vec3 lo = c * 12.92;
+	vec3 hi = 1.055 * pow(c, vec3(1.0 / 2.4)) - 0.055;
+	return mix(hi, lo, step(c, vec3(0.0031308)));
+}
 
 vec3 tonemapReinhard(vec3 c) {
 	return c / (c + vec3(1.0));
@@ -109,9 +125,9 @@ vec3 fxaa(vec3 rgb) {
 	vec3 s = texture(uTex, vUV + vec2(0.0, px.y)).rgb;
 	vec3 e = texture(uTex, vUV + vec2(px.x, 0.0)).rgb;
 	vec3 ww = texture(uTex, vUV + vec2(-px.x, 0.0)).rgb;
-	float lM = luma(rgb);
-	float lMin = min(lM, min(min(luma(n), luma(s)), min(luma(e), luma(ww))));
-	float lMax = max(lM, max(max(luma(n), luma(s)), max(luma(e), luma(ww))));
+	float lM = seen(rgb);
+	float lMin = min(lM, min(min(seen(n), seen(s)), min(seen(e), seen(ww))));
+	float lMax = max(lM, max(max(seen(n), seen(s)), max(seen(e), seen(ww))));
 	if (lMax - lMin < 0.08) {
 		return rgb;
 	}
@@ -225,7 +241,7 @@ void main() {
 	}
 	if (uSSAO != 0) {
 		float vis = texture(uAOTex, vUV).r;
-		float fill = 1.0 - smoothstep(0.22, 1.05, luma(rgb));
+		float fill = 1.0 - smoothstep(0.22, 1.05, seen(rgb));
 		rgb *= mix(1.0, vis, fill);
 	}
 	vec3 bloom = vec3(0.0);
@@ -253,7 +269,11 @@ void main() {
 			bloom = acc * b * uBloom * 2.4;
 		}
 	}
-	rgb = grade(tonemap(rgb + bloom));
+	rgb = tonemap(rgb + bloom);
+	if (uLinear != 0) {
+		rgb = encodeOut(rgb);
+	}
+	rgb = grade(rgb);
 	if (uLUTOn != 0) {
 		rgb = applyLUT(rgb);
 	}
@@ -267,6 +287,9 @@ void main() {
 		blur += texture(uTex, vUV + vec2(0.0, px.y)).rgb;
 		blur += texture(uTex, vUV - vec2(0.0, px.y)).rgb;
 		blur *= 0.25;
+		if (uLinear != 0) {
+			blur = encodeOut(tonemap(blur));
+		}
 		rgb += (rgb - blur) * uSharpen;
 	}
 	if (uVignette > 0.001) {
@@ -412,6 +435,13 @@ void main() {
 		uRadius / max(z * uAspect * uTanHalf * 2.0, 0.0001),
 		uRadius / max(z * uTanHalf * 2.0, 0.0001)
 	);
+	// Under a few pixels the radius sees only depth rounding, and that follows
+	// each triangle's slope: far water went dark in whole straight-edged wedges.
+	float reach = smoothstep(2.0, 6.0, uvRadius.y / uTexel.y);
+	if (reach <= 0.0) {
+		frag = vec4(1.0);
+		return;
+	}
 	for (int slice = 0; slice < SLICES; slice++) {
 		float ang = (float(slice) + noise) * PI / float(SLICES);
 		vec2 dir = vec2(cos(ang), sin(ang));
@@ -446,6 +476,7 @@ void main() {
 	}
 	float vis = wsum > 0.0 ? acc / wsum : 1.0;
 	vis = pow(clamp(vis, 0.0, 1.0), max(uIntensity, 0.0) / 1.8);
+	vis = mix(1.0, vis, reach);
 	frag = vec4(vis, vis, vis, 1.0);
 }
 `

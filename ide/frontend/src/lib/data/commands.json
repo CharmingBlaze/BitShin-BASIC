@@ -10,6 +10,12 @@
           "category": "Display / loop"
         },
         {
+          "syntax": "GraphicsApp [w, h [, depth, mode]]",
+          "name": "GraphicsApp",
+          "description": "`Graphics3D` with defaults 960×640, then a camera. `GraphicsUI` is the same call",
+          "category": "Display / loop"
+        },
+        {
           "syntax": "Graphics2D w, h",
           "name": "Graphics2D",
           "description": "Ebiten window",
@@ -64,9 +70,21 @@
           "category": "Display / loop"
         },
         {
-          "syntax": "Color r, g, b",
+          "syntax": "Color r, g, b [, a]",
           "name": "Color",
-          "description": "Draw / text color (0–255 or 0–1)",
+          "description": "Draw / text color (0–255 or 0–1). The fourth channel is the 2D draw alpha",
+          "category": "Display / loop"
+        },
+        {
+          "syntax": "SetAlpha a",
+          "name": "SetAlpha",
+          "description": "2D draw alpha for `Rect`, `Oval`, `Line`, and `Text`. `0`–`1` or `0`–`255`. `GetAlpha` is `0`–`1`. `SetDrawAlpha` and `ColorAlpha` are the same set",
+          "category": "Display / loop"
+        },
+        {
+          "syntax": "GetAlpha()",
+          "name": "GetAlpha",
+          "description": "2D draw alpha for `Rect`, `Oval`, `Line`, and `Text`. `0`–`1` or `0`–`255`. `GetAlpha` is `0`–`1`. `SetDrawAlpha` and `ColorAlpha` are the same set",
           "category": "Display / loop"
         },
         {
@@ -1102,25 +1120,61 @@
         {
           "syntax": "EnableContactShadows",
           "name": "EnableContactShadows",
-          "description": "Stub",
+          "description": "Tight shadow-map search. Darkens receivers whose neighbor texels are only slightly closer (feet, props on the ground)",
           "category": "Shadows (G3N has no built-in CSM)"
         },
         {
           "syntax": "SetContactShadows",
           "name": "SetContactShadows",
-          "description": "Stub",
+          "description": "Tight shadow-map search. Darkens receivers whose neighbor texels are only slightly closer (feet, props on the ground)",
           "category": "Shadows (G3N has no built-in CSM)"
         },
         {
           "syntax": "EnableScreenSpaceShadows",
           "name": "EnableScreenSpaceShadows",
-          "description": "Stub",
+          "description": "Wider search. `n` is quality 1–4 (radius and depth window). `0` is off",
           "category": "Shadows (G3N has no built-in CSM)"
         },
         {
           "syntax": "SetScreenSpaceShadows",
           "name": "SetScreenSpaceShadows",
-          "description": "Stub",
+          "description": "Wider search. `n` is quality 1–4 (radius and depth window). `0` is off",
+          "category": "Shadows (G3N has no built-in CSM)"
+        },
+        {
+          "syntax": "SetSSS n",
+          "name": "SetSSS",
+          "description": "Wider search. `n` is quality 1–4 (radius and depth window). `0` is off",
+          "category": "Shadows (G3N has no built-in CSM)"
+        },
+        {
+          "syntax": "SetShadowSoftness n",
+          "name": "SetShadowSoftness",
+          "description": "Scales the PCF sample radius. `1` is the usual width. `0` is treated as `1`",
+          "category": "Shadows (G3N has no built-in CSM)"
+        },
+        {
+          "syntax": "ShadowSoftness n",
+          "name": "ShadowSoftness",
+          "description": "Scales the PCF sample radius. `1` is the usual width. `0` is treated as `1`",
+          "category": "Shadows (G3N has no built-in CSM)"
+        },
+        {
+          "syntax": "SetShadowColor r, g, b",
+          "name": "SetShadowColor",
+          "description": "Tint of the shadowed term. Channels are 0–255 or 0–1",
+          "category": "Shadows (G3N has no built-in CSM)"
+        },
+        {
+          "syntax": "ShadowColor r, g, b",
+          "name": "ShadowColor",
+          "description": "Tint of the shadowed term. Channels are 0–255 or 0–1",
+          "category": "Shadows (G3N has no built-in CSM)"
+        },
+        {
+          "syntax": "SetShadowFade near, far",
+          "name": "SetShadowFade",
+          "description": "Fade directional shadows out across view-space depth. Defaults `60`, `100`. The fade stays off until `far` is greater than `near`",
           "category": "Shadows (G3N has no built-in CSM)"
         },
         {
@@ -1513,6 +1567,24 @@
           "category": "PBR (opt-in metallic-roughness)"
         },
         {
+          "syntax": "SetLinearLight on",
+          "name": "SetLinearLight",
+          "description": "Light the scene in linear space, tone map it, and encode sRGB at the end. Needs post effects, so the low tier stays on the old path. Custom shaders get `uniform int LinearLight` and should output linear light while it is 1",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "GetLinearLight()",
+          "name": "GetLinearLight",
+          "description": "Light the scene in linear space, tone map it, and encode sRGB at the end. Needs post effects, so the low tier stays on the old path. Custom shaders get `uniform int LinearLight` and should output linear light while it is 1",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "SetLook name$",
+          "name": "SetLook",
+          "description": "`modern`: linear lighting, ACES tone mapping, bloom, FXAA, ambient occlusion, image-based light, sun shadows and horizon fog, plus a sky and a sun if the scene has none. `off` turns them off. Change any after; the low tier skips post effects",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
           "syntax": "SetRetroPreset name$",
           "name": "SetRetroPreset",
           "description": "A whole look: `ps1`, `n64`, `gameboy`, `pico8`, `dos`, `cga`, `lowpoly`, or `off`. Sets the screen and geometry effects; change any after",
@@ -1527,13 +1599,31 @@
         {
           "syntax": "SetRenderScale f",
           "name": "SetRenderScale",
-          "description": "Render at `f` (0.25–1) of the window, upscaled smoothly, for speed",
+          "description": "Render at `f` (0.25–1) of the window, upscaled with FSR 1, for speed. Turns dynamic resolution off; `GetRenderScale` also reads the scale it chose",
           "category": "PBR (opt-in metallic-roughness)"
         },
         {
           "syntax": "GetRenderScale()",
           "name": "GetRenderScale",
-          "description": "Render at `f` (0.25–1) of the window, upscaled smoothly, for speed",
+          "description": "Render at `f` (0.25–1) of the window, upscaled with FSR 1, for speed. Turns dynamic resolution off; `GetRenderScale` also reads the scale it chose",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "StatsPassMs(name$)",
+          "name": "StatsPassMs",
+          "description": "GPU milliseconds of `shadow`, `reflect`, `refract`, `scene`, or `post`, a few frames old. 0 if the driver has no timer. `MOON_GPU_PROFILE=1` prints the whole table",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "SetDynamicResolution on [, targetFPS]",
+          "name": "SetDynamicResolution",
+          "description": "On by default. Draws the 3D scene smaller when frames run late (default target 60), sharpens it back up, and raises it again when there is room. HUD text stays at full size",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "GetDynamicResolution()",
+          "name": "GetDynamicResolution",
+          "description": "On by default. Draws the 3D scene smaller when frames run late (default target 60), sharpens it back up, and raises it again when there is room. HUD text stays at full size",
           "category": "PBR (opt-in metallic-roughness)"
         },
         {
@@ -1800,6 +1890,96 @@
           "category": "Mesh animation (glTF)"
         },
         {
+          "syntax": "SetRootMotion e, on [, bone$] [, useY]",
+          "name": "SetRootMotion",
+          "description": "Move the entity by the bone's frame delta, then plant the bone. `useY` 0 drops vertical motion. See [ANIMATION.md](ANIMATION.md)",
+          "category": "Mesh animation (glTF)"
+        },
+        {
+          "syntax": "SetBoneMask e, slot, bone$, weight#",
+          "name": "SetBoneMask",
+          "description": "Per-bone weight on a layer. 0 skips the bone. `\"*\"` clears the mask",
+          "category": "Mesh animation (glTF)"
+        },
+        {
+          "syntax": "GetBoneX/Y/Z(e, bone$)",
+          "name": "GetBoneX",
+          "description": "Local bone position, same axes as `PositionEntity`",
+          "category": "Mesh animation (glTF)"
+        },
+        {
+          "syntax": "SetBonePos e, bone$, x, y, z",
+          "name": "SetBonePos",
+          "description": "Write that local position",
+          "category": "Mesh animation (glTF)"
+        },
+        {
+          "syntax": "BoneLookAt e, bone$, x, y, z",
+          "name": "BoneLookAt",
+          "description": "Aim the bone at a world point",
+          "category": "Mesh animation (glTF)"
+        },
+        {
+          "syntax": "AnimEvent e, time, func$",
+          "name": "AnimEvent",
+          "description": "Call `func(time)` when the clip crosses `time`",
+          "category": "Mesh animation (glTF)"
+        },
+        {
+          "syntax": "ClearAnimEvents e",
+          "name": "ClearAnimEvents",
+          "description": "Drop those marks",
+          "category": "Mesh animation (glTF)"
+        },
+        {
+          "syntax": "AnimRecord e, on",
+          "name": "AnimRecord",
+          "description": "1 samples named bones. 0 stores the clip",
+          "category": "Mesh animation (glTF)"
+        },
+        {
+          "syntax": "AnimRetarget e, map$",
+          "name": "AnimRetarget",
+          "description": "Rename curve bones. `\"Old=New\"` pairs, commas between pairs",
+          "category": "Mesh animation (glTF)"
+        },
+        {
+          "syntax": "ExportAnimClip e, file$",
+          "name": "ExportAnimClip",
+          "description": "glTF 2.0 JSON with translation keys in a base64 buffer",
+          "category": "Mesh animation (glTF)"
+        },
+        {
+          "syntax": "SetMorph e, index, weight",
+          "name": "SetMorph",
+          "description": "Blend-shape weight 0–1. Applied when the mesh is morph geometry",
+          "category": "Mesh animation (glTF)"
+        },
+        {
+          "syntax": "GetMorph(e, index)",
+          "name": "GetMorph",
+          "description": "Read one weight, or how many exist",
+          "category": "Mesh animation (glTF)"
+        },
+        {
+          "syntax": "MorphCount(e)",
+          "name": "MorphCount",
+          "description": "Read one weight, or how many exist",
+          "category": "Mesh animation (glTF)"
+        },
+        {
+          "syntax": "SetViseme e, shape$, weight",
+          "name": "SetViseme",
+          "description": "`aa` `ee` `oh` `mm` `fv` → morph slots 0–4",
+          "category": "Mesh animation (glTF)"
+        },
+        {
+          "syntax": "AddAnimTransition graph, from$, to$, func$",
+          "name": "AddAnimTransition",
+          "description": "When `func()` is nonzero, `AnimGo` to `to$`. `from$` `*` is any state",
+          "category": "Mesh animation (glTF)"
+        },
+        {
           "syntax": "DeltaTime",
           "name": "DeltaTime",
           "description": "",
@@ -2056,6 +2236,18 @@
           "category": "2D (Ebiten)"
         },
         {
+          "syntax": "SpriteAnimEvent s, frame, func$",
+          "name": "SpriteAnimEvent",
+          "description": "`Function func(frame)` when the sheet lands on that frame",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "DrawNineSlice img, x, y, w, h, border",
+          "name": "DrawNineSlice",
+          "description": "nine-slice a HUD image. Corners stay `border` pixels. Edges and the centre stretch",
+          "category": "2D (Ebiten)"
+        },
+        {
           "syntax": "FlipSprite s, horiz, vert",
           "name": "FlipSprite",
           "description": "1 flips that axis",
@@ -2196,6 +2388,30 @@
         {
           "syntax": "DrawTile",
           "name": "DrawTile",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "CameraTarget2D",
+          "name": "CameraTarget2D",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "CameraSmooth2D",
+          "name": "CameraSmooth2D",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "MoveSprite",
+          "name": "MoveSprite",
+          "description": "",
+          "category": "2D (Ebiten)"
+        },
+        {
+          "syntax": "DeltaTime()",
+          "name": "DeltaTime",
           "description": "",
           "category": "2D (Ebiten)"
         },
@@ -3151,6 +3367,12 @@
           "category": "Particles"
         },
         {
+          "syntax": "EmitterSpread",
+          "name": "EmitterSpread",
+          "description": "",
+          "category": "Particles"
+        },
+        {
           "syntax": "EmitterDrag",
           "name": "EmitterDrag",
           "description": "",
@@ -3268,6 +3490,36 @@
           "syntax": "EmitterGround e, on [, y, bounce, friction]",
           "name": "EmitterGround",
           "description": "Bounce (0–1) off a flat floor at height `y`",
+          "category": "Particles"
+        },
+        {
+          "syntax": "EmitterSoft e, on",
+          "name": "EmitterSoft",
+          "description": "Fade against the scene depth. On by default. 0 is a hard edge",
+          "category": "Particles"
+        },
+        {
+          "syntax": "EmitterSort e, on",
+          "name": "EmitterSort",
+          "description": "Far-to-near, up to 8192 particles",
+          "category": "Particles"
+        },
+        {
+          "syntax": "EmitterCollide e, entity",
+          "name": "EmitterCollide",
+          "description": "Push out of that entity's box. Four boxes; the oldest drops",
+          "category": "Particles"
+        },
+        {
+          "syntax": "EmitterClearCollide e",
+          "name": "EmitterClearCollide",
+          "description": "Drop those boxes",
+          "category": "Particles"
+        },
+        {
+          "syntax": "EmitterPreset e, name$",
+          "name": "EmitterPreset",
+          "description": "`fire` `smoke` `sparks` `explosion` `dust` `magic` `splash` `debris`",
           "category": "Particles"
         },
         {
@@ -3574,6 +3826,30 @@
           "name": "GetGamepadDeadzone",
           "description": "axis deadzone (default 0.15)",
           "category": "Input"
+        },
+        {
+          "syntax": "GetAxis(negKey, posKey)",
+          "name": "GetAxis",
+          "description": "",
+          "category": "Input"
+        },
+        {
+          "syntax": "GetMouseWorldX(cam, planeY)",
+          "name": "GetMouseWorldX",
+          "description": "",
+          "category": "Input"
+        },
+        {
+          "syntax": "GetMouseWorldZ(cam, planeY)",
+          "name": "GetMouseWorldZ",
+          "description": "",
+          "category": "Input"
+        },
+        {
+          "syntax": "IsGrounded(e [, rayLen])",
+          "name": "IsGrounded",
+          "description": "",
+          "category": "Input"
         }
       ]
     },
@@ -3790,6 +4066,24 @@
           "category": "Math"
         },
         {
+          "syntax": "LerpAngle(a, b, t)",
+          "name": "LerpAngle",
+          "description": "Same blend along the short way around the circle, degrees",
+          "category": "Math"
+        },
+        {
+          "syntax": "SmoothDamp(cur, target [, smoothTime, maxSpeed])",
+          "name": "SmoothDamp",
+          "description": "One step of a damped spring. `smoothTime` defaults to `0.25` seconds, `maxSpeed` to `1000`. Uses the real frame time (`0.016` s when the clock has not started). Returns the new value",
+          "category": "Math"
+        },
+        {
+          "syntax": "MoveTowards(cur, target [, maxDelta])",
+          "name": "MoveTowards",
+          "description": "Steps at most `maxDelta` (default `0.1`)",
+          "category": "Math"
+        },
+        {
           "syntax": "InvLerp(a, b, x)",
           "name": "InvLerp",
           "description": "How far `x` is from `a` to `b` (0 at `a`)",
@@ -3882,6 +4176,12 @@
         {
           "syntax": "AngleDelta(from, to)",
           "name": "AngleDelta",
+          "description": "Shortest signed turn from `from` to `to`",
+          "category": "Math"
+        },
+        {
+          "syntax": "AngleDiff(from, to)",
+          "name": "AngleDiff",
           "description": "Shortest signed turn from `from` to `to`",
           "category": "Math"
         },
@@ -4281,6 +4581,18 @@
           "category": "Audio (Ebiten / Oto)"
         },
         {
+          "syntax": "PauseSound",
+          "name": "PauseSound",
+          "description": "",
+          "category": "Audio (Ebiten / Oto)"
+        },
+        {
+          "syntax": "ResumeSound",
+          "name": "ResumeSound",
+          "description": "",
+          "category": "Audio (Ebiten / Oto)"
+        },
+        {
           "syntax": "StopSound",
           "name": "StopSound",
           "description": "",
@@ -4302,6 +4614,60 @@
           "syntax": "SetSoundPitch s, n",
           "name": "SetSoundPitch",
           "description": "",
+          "category": "Audio (Ebiten / Oto)"
+        },
+        {
+          "syntax": "SetSoundPan s, pan",
+          "name": "SetSoundPan",
+          "description": "`-1` left, `0` center, `1` right, including a voice already playing",
+          "category": "Audio (Ebiten / Oto)"
+        },
+        {
+          "syntax": "FadeSound s, volume, seconds",
+          "name": "FadeSound",
+          "description": "clip volume over time; `0` seconds jumps. Runs on `Flip`",
+          "category": "Audio (Ebiten / Oto)"
+        },
+        {
+          "syntax": "Flip",
+          "name": "Flip",
+          "description": "clip volume over time; `0` seconds jumps. Runs on `Flip`",
+          "category": "Audio (Ebiten / Oto)"
+        },
+        {
+          "syntax": "SeekSound s, seconds",
+          "name": "SeekSound",
+          "description": "",
+          "category": "Audio (Ebiten / Oto)"
+        },
+        {
+          "syntax": "SoundTime(s)",
+          "name": "SoundTime",
+          "description": "",
+          "category": "Audio (Ebiten / Oto)"
+        },
+        {
+          "syntax": "SoundBus s, name$",
+          "name": "SoundBus",
+          "description": "heard volume is clip × bus × master",
+          "category": "Audio (Ebiten / Oto)"
+        },
+        {
+          "syntax": "SetAudioBus name$, volume",
+          "name": "SetAudioBus",
+          "description": "heard volume is clip × bus × master",
+          "category": "Audio (Ebiten / Oto)"
+        },
+        {
+          "syntax": "SetMasterVolume n",
+          "name": "SetMasterVolume",
+          "description": "heard volume is clip × bus × master",
+          "category": "Audio (Ebiten / Oto)"
+        },
+        {
+          "syntax": "SetSoundEcho s, wet",
+          "name": "SetSoundEcho",
+          "description": "80 ms slapback on a decoded clip, `wet` 0–1. Not a room, and not on a stream",
           "category": "Audio (Ebiten / Oto)"
         },
         {
@@ -4345,6 +4711,24 @@
           "name": "SetListener",
           "description": "distance volume + stereo pan from the listener (default camera). `SetListener e`",
           "category": "Audio (Ebiten / Oto)"
+        },
+        {
+          "syntax": "PlaySound3D sound, x, y, z [, maxDist, volume]",
+          "name": "PlaySound3D",
+          "description": "volume falls with distance from the active camera and is silent past `maxDist` (default `30`, at least `1`). It does not set stereo pan. `EmitSound` does. `Sound3D` is the same call. Returns `0` when the clip is missing or out of range.",
+          "category": "Audio (Ebiten / Oto)"
+        },
+        {
+          "syntax": "EmitSound",
+          "name": "EmitSound",
+          "description": "volume falls with distance from the active camera and is silent past `maxDist` (default `30`, at least `1`). It does not set stereo pan. `EmitSound` does. `Sound3D` is the same call. Returns `0` when the clip is missing or out of range.",
+          "category": "Audio (Ebiten / Oto)"
+        },
+        {
+          "syntax": "Sound3D",
+          "name": "Sound3D",
+          "description": "volume falls with distance from the active camera and is silent past `maxDist` (default `30`, at least `1`). It does not set stereo pan. `EmitSound` does. `Sound3D` is the same call. Returns `0` when the clip is missing or out of range.",
+          "category": "Audio (Ebiten / Oto)"
         }
       ]
     },
@@ -4364,6 +4748,18 @@
           "category": "Physics"
         },
         {
+          "syntax": "PhysicsBackend$()",
+          "name": "PhysicsBackend$",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "GroundPlane([y])",
+          "name": "GroundPlane",
+          "description": "",
+          "category": "Physics"
+        },
+        {
           "syntax": "Collide(mesh [, STATIC|KINEMATIC|DYNAMIC [, mass]])",
           "name": "Collide",
           "description": "",
@@ -4378,6 +4774,12 @@
         {
           "syntax": "SetMaterial",
           "name": "SetMaterial",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "GetPhysicsMaterial$(e)",
+          "name": "GetPhysicsMaterial$",
           "description": "",
           "category": "Physics"
         },
@@ -4420,6 +4822,24 @@
         {
           "syntax": "GetRayFraction",
           "name": "GetRayFraction",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "UpdateWorld",
+          "name": "UpdateWorld",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "Flip",
+          "name": "Flip",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "UpdateWorld",
+          "name": "UpdateWorld",
           "description": "",
           "category": "Physics"
         },
@@ -4708,13 +5128,13 @@
         {
           "syntax": "SetBodyRotation e, pitch,yaw,roll",
           "name": "SetBodyRotation",
-          "description": "quaternion synced onto G3N nodes (native Jolt on Windows; software pose on Linux/macOS and fallback).",
+          "description": "quaternion synced onto G3N nodes (native Jolt on the default build; software pose with `-tags joltgo` and on fallback).",
           "category": "Physics"
         },
         {
           "syntax": "GetBodyPitch/Yaw/Roll",
           "name": "GetBodyPitch",
-          "description": "quaternion synced onto G3N nodes (native Jolt on Windows; software pose on Linux/macOS and fallback).",
+          "description": "quaternion synced onto G3N nodes (native Jolt on the default build; software pose with `-tags joltgo` and on fallback).",
           "category": "Physics"
         },
         {
@@ -4942,31 +5362,31 @@
         {
           "syntax": "Grab holder, target [, freq, damp]",
           "name": "Grab",
-          "description": "6DOF spring on Windows Jolt; parented kinematic fallback if the joint is unavailable.",
+          "description": "6DOF spring on native Jolt; parented kinematic fallback if the joint is unavailable (`-tags joltgo` uses the position spring).",
           "category": "Physics"
         },
         {
           "syntax": "GrabPick",
           "name": "GrabPick",
-          "description": "6DOF spring on Windows Jolt; parented kinematic fallback if the joint is unavailable.",
+          "description": "6DOF spring on native Jolt; parented kinematic fallback if the joint is unavailable (`-tags joltgo` uses the position spring).",
           "category": "Physics"
         },
         {
           "syntax": "DropGrab",
           "name": "DropGrab",
-          "description": "6DOF spring on Windows Jolt; parented kinematic fallback if the joint is unavailable.",
+          "description": "6DOF spring on native Jolt; parented kinematic fallback if the joint is unavailable (`-tags joltgo` uses the position spring).",
           "category": "Physics"
         },
         {
           "syntax": "Throw holder, speed",
           "name": "Throw",
-          "description": "6DOF spring on Windows Jolt; parented kinematic fallback if the joint is unavailable.",
+          "description": "6DOF spring on native Jolt; parented kinematic fallback if the joint is unavailable (`-tags joltgo` uses the position spring).",
           "category": "Physics"
         },
         {
           "syntax": "GrabbedEntity(holder)",
           "name": "GrabbedEntity",
-          "description": "6DOF spring on Windows Jolt; parented kinematic fallback if the joint is unavailable.",
+          "description": "6DOF spring on native Jolt; parented kinematic fallback if the joint is unavailable (`-tags joltgo` uses the position spring).",
           "category": "Physics"
         },
         {
@@ -5008,91 +5428,103 @@
         {
           "syntax": "SetBodyCCD e, on",
           "name": "SetBodyCCD",
-          "description": "Windows: Jolt `LinearCast`. Linux/macOS and fallback: ray sweep from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
+          "description": "native Jolt `LinearCast` on the default build. `-tags joltgo` and fallback sweep a ray from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
           "category": "Physics"
         },
         {
           "syntax": "SetCCD e, on",
           "name": "SetCCD",
-          "description": "Windows: Jolt `LinearCast`. Linux/macOS and fallback: ray sweep from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
+          "description": "native Jolt `LinearCast` on the default build. `-tags joltgo` and fallback sweep a ray from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
           "category": "Physics"
         },
         {
           "syntax": "BodySleep e",
           "name": "BodySleep",
-          "description": "Windows: Jolt `LinearCast`. Linux/macOS and fallback: ray sweep from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
+          "description": "native Jolt `LinearCast` on the default build. `-tags joltgo` and fallback sweep a ray from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
           "category": "Physics"
         },
         {
           "syntax": "SleepBody e",
           "name": "SleepBody",
-          "description": "Windows: Jolt `LinearCast`. Linux/macOS and fallback: ray sweep from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
+          "description": "native Jolt `LinearCast` on the default build. `-tags joltgo` and fallback sweep a ray from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
           "category": "Physics"
         },
         {
           "syntax": "BodyWake e",
           "name": "BodyWake",
-          "description": "Windows: Jolt `LinearCast`. Linux/macOS and fallback: ray sweep from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
+          "description": "native Jolt `LinearCast` on the default build. `-tags joltgo` and fallback sweep a ray from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
           "category": "Physics"
         },
         {
           "syntax": "WakeBody e",
           "name": "WakeBody",
-          "description": "Windows: Jolt `LinearCast`. Linux/macOS and fallback: ray sweep from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
+          "description": "native Jolt `LinearCast` on the default build. `-tags joltgo` and fallback sweep a ray from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
           "category": "Physics"
         },
         {
           "syntax": "ActivateBody e",
           "name": "ActivateBody",
-          "description": "Windows: Jolt `LinearCast`. Linux/macOS and fallback: ray sweep from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
+          "description": "native Jolt `LinearCast` on the default build. `-tags joltgo` and fallback sweep a ray from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
           "category": "Physics"
         },
         {
           "syntax": "CreateCharacterController(e [, height, radius, maxSlope, maxStrength])",
           "name": "CreateCharacterController",
-          "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). Windows also attaches a slightly smaller inner kinematic body so rays hit the player; Linux/macOS adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
+          "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). The default build attaches a slightly smaller inner kinematic body so rays hit the player. `-tags joltgo` adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterGroundNormal(e [, axis])` is the floor normal: axis `0` X, `1` Y (default), `2` Z. `CharacterGroundNormalX/Y/Z(e)` are the same components. `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
           "category": "Physics"
         },
         {
           "syntax": "MoveCharacter e, vx, vz",
           "name": "MoveCharacter",
-          "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). Windows also attaches a slightly smaller inner kinematic body so rays hit the player; Linux/macOS adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
+          "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). The default build attaches a slightly smaller inner kinematic body so rays hit the player. `-tags joltgo` adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterGroundNormal(e [, axis])` is the floor normal: axis `0` X, `1` Y (default), `2` Z. `CharacterGroundNormalX/Y/Z(e)` are the same components. `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
           "category": "Physics"
         },
         {
           "syntax": "MoveCharacter e, vx, vy, vz",
           "name": "MoveCharacter",
-          "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). Windows also attaches a slightly smaller inner kinematic body so rays hit the player; Linux/macOS adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
+          "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). The default build attaches a slightly smaller inner kinematic body so rays hit the player. `-tags joltgo` adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterGroundNormal(e [, axis])` is the floor normal: axis `0` X, `1` Y (default), `2` Z. `CharacterGroundNormalX/Y/Z(e)` are the same components. `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
           "category": "Physics"
         },
         {
           "syntax": "UpdateWorld",
           "name": "UpdateWorld",
-          "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). Windows also attaches a slightly smaller inner kinematic body so rays hit the player; Linux/macOS adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
+          "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). The default build attaches a slightly smaller inner kinematic body so rays hit the player. `-tags joltgo` adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterGroundNormal(e [, axis])` is the floor normal: axis `0` X, `1` Y (default), `2` Z. `CharacterGroundNormalX/Y/Z(e)` are the same components. `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
           "category": "Physics"
         },
         {
           "syntax": "SetCharacterShape e, \"capsule\"|\"box\", h, r",
           "name": "SetCharacterShape",
-          "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). Windows also attaches a slightly smaller inner kinematic body so rays hit the player; Linux/macOS adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
+          "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). The default build attaches a slightly smaller inner kinematic body so rays hit the player. `-tags joltgo` adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterGroundNormal(e [, axis])` is the floor normal: axis `0` X, `1` Y (default), `2` Z. `CharacterGroundNormalX/Y/Z(e)` are the same components. `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
           "category": "Physics"
         },
         {
           "syntax": "GetCharacterGroundState",
           "name": "GetCharacterGroundState",
-          "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). Windows also attaches a slightly smaller inner kinematic body so rays hit the player; Linux/macOS adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
+          "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). The default build attaches a slightly smaller inner kinematic body so rays hit the player. `-tags joltgo` adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterGroundNormal(e [, axis])` is the floor normal: axis `0` X, `1` Y (default), `2` Z. `CharacterGroundNormalX/Y/Z(e)` are the same components. `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
+          "category": "Physics"
+        },
+        {
+          "syntax": "GetCharacterGroundNormal(e [, axis])",
+          "name": "GetCharacterGroundNormal",
+          "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). The default build attaches a slightly smaller inner kinematic body so rays hit the player. `-tags joltgo` adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterGroundNormal(e [, axis])` is the floor normal: axis `0` X, `1` Y (default), `2` Z. `CharacterGroundNormalX/Y/Z(e)` are the same components. `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
+          "category": "Physics"
+        },
+        {
+          "syntax": "CharacterGroundNormalX/Y/Z(e)",
+          "name": "CharacterGroundNormalX",
+          "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). The default build attaches a slightly smaller inner kinematic body so rays hit the player. `-tags joltgo` adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterGroundNormal(e [, axis])` is the floor normal: axis `0` X, `1` Y (default), `2` Z. `CharacterGroundNormalX/Y/Z(e)` are the same components. `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
           "category": "Physics"
         },
         {
           "syntax": "GetCharacterContact(e)",
           "name": "GetCharacterContact",
-          "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). Windows also attaches a slightly smaller inner kinematic body so rays hit the player; Linux/macOS adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
+          "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). The default build attaches a slightly smaller inner kinematic body so rays hit the player. `-tags joltgo` adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterGroundNormal(e [, axis])` is the floor normal: axis `0` X, `1` Y (default), `2` Z. `CharacterGroundNormalX/Y/Z(e)` are the same components. `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
           "category": "Physics"
         },
         {
           "syntax": "CreateCharacter(e [, halfH, r])",
           "name": "CreateCharacter",
-          "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). Windows also attaches a slightly smaller inner kinematic body so rays hit the player; Linux/macOS adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
+          "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). The default build attaches a slightly smaller inner kinematic body so rays hit the player. `-tags joltgo` adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterGroundNormal(e [, axis])` is the floor normal: axis `0` X, `1` Y (default), `2` Z. `CharacterGroundNormalX/Y/Z(e)` are the same components. `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
           "category": "Physics"
         },
         {
@@ -5344,6 +5776,12 @@
         {
           "syntax": "FreeJoint2D id",
           "name": "FreeJoint2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "DeleteJoint2D id",
+          "name": "DeleteJoint2D",
           "description": "",
           "category": "Physics"
         },
@@ -5670,6 +6108,36 @@
           "name": "FreeCharacter2D",
           "description": "",
           "category": "Physics"
+        },
+        {
+          "syntax": "Physics2D",
+          "name": "Physics2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "Gravity2D",
+          "name": "Gravity2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "MoveCharacter2D",
+          "name": "MoveCharacter2D",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "UpdateWorld",
+          "name": "UpdateWorld",
+          "description": "",
+          "category": "Physics"
+        },
+        {
+          "syntax": "CreateBox2D",
+          "name": "CreateBox2D",
+          "description": "",
+          "category": "Physics"
         }
       ]
     },
@@ -5679,6 +6147,48 @@
         {
           "syntax": "NetUpdate",
           "name": "NetUpdate",
+          "description": "",
+          "category": "Network"
+        },
+        {
+          "syntax": "Net.Host",
+          "name": "Net.Host",
+          "description": "",
+          "category": "Network"
+        },
+        {
+          "syntax": "Net.Join",
+          "name": "Net.Join",
+          "description": "",
+          "category": "Network"
+        },
+        {
+          "syntax": "Net.Say",
+          "name": "Net.Say",
+          "description": "",
+          "category": "Network"
+        },
+        {
+          "syntax": "NetRecv",
+          "name": "NetRecv",
+          "description": "",
+          "category": "Network"
+        },
+        {
+          "syntax": "NetEvent() = NET_RECEIVE",
+          "name": "NetEvent",
+          "description": "",
+          "category": "Network"
+        },
+        {
+          "syntax": "NetMsg$",
+          "name": "NetMsg$",
+          "description": "",
+          "category": "Network"
+        },
+        {
+          "syntax": "Flip",
+          "name": "Flip",
           "description": "",
           "category": "Network"
         },
@@ -5889,49 +6399,55 @@
         {
           "syntax": "NetRecv()",
           "name": "NetRecv",
-          "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
+          "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `NetRecvPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
           "category": "Network"
         },
         {
           "syntax": "NetMsg$()",
           "name": "NetMsg$",
-          "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
+          "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `NetRecvPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
           "category": "Network"
         },
         {
           "syntax": "NetRecvMsg$()",
           "name": "NetRecvMsg$",
-          "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
+          "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `NetRecvPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
           "category": "Network"
         },
         {
           "syntax": "GetNetMsg$()",
           "name": "GetNetMsg$",
-          "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
+          "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `NetRecvPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
           "category": "Network"
         },
         {
           "syntax": "NetPeer()",
           "name": "NetPeer",
-          "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
+          "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `NetRecvPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
+          "category": "Network"
+        },
+        {
+          "syntax": "NetRecvPeer()",
+          "name": "NetRecvPeer",
+          "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `NetRecvPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
           "category": "Network"
         },
         {
           "syntax": "GetNetPeer()",
           "name": "GetNetPeer",
-          "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
+          "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `NetRecvPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
           "category": "Network"
         },
         {
           "syntax": "NetEvent()",
           "name": "NetEvent",
-          "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
+          "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `NetRecvPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
           "category": "Network"
         },
         {
           "syntax": "GetNetEvent()",
           "name": "GetNetEvent",
-          "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
+          "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `NetRecvPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
           "category": "Network"
         },
         {
@@ -6444,9 +6960,105 @@
           "category": "Language builtins"
         },
         {
+          "syntax": "CreateMap()",
+          "name": "CreateMap",
+          "description": "string keys, case-insensitive. `m(\"hp\")` and `m(\"hp\") = 3` are the same get and set. A missing key is `0`. `Map.Get` is `MapGet`",
+          "category": "Language builtins"
+        },
+        {
+          "syntax": "MapSet m, key$, v",
+          "name": "MapSet",
+          "description": "string keys, case-insensitive. `m(\"hp\")` and `m(\"hp\") = 3` are the same get and set. A missing key is `0`. `Map.Get` is `MapGet`",
+          "category": "Language builtins"
+        },
+        {
+          "syntax": "MapGet(m, key$)",
+          "name": "MapGet",
+          "description": "string keys, case-insensitive. `m(\"hp\")` and `m(\"hp\") = 3` are the same get and set. A missing key is `0`. `Map.Get` is `MapGet`",
+          "category": "Language builtins"
+        },
+        {
+          "syntax": "MapHas(m, key$)",
+          "name": "MapHas",
+          "description": "string keys, case-insensitive. `m(\"hp\")` and `m(\"hp\") = 3` are the same get and set. A missing key is `0`. `Map.Get` is `MapGet`",
+          "category": "Language builtins"
+        },
+        {
+          "syntax": "MapDelete m, key$",
+          "name": "MapDelete",
+          "description": "string keys, case-insensitive. `m(\"hp\")` and `m(\"hp\") = 3` are the same get and set. A missing key is `0`. `Map.Get` is `MapGet`",
+          "category": "Language builtins"
+        },
+        {
+          "syntax": "MapCount(m)",
+          "name": "MapCount",
+          "description": "string keys, case-insensitive. `m(\"hp\")` and `m(\"hp\") = 3` are the same get and set. A missing key is `0`. `Map.Get` is `MapGet`",
+          "category": "Language builtins"
+        },
+        {
+          "syntax": "MapGet",
+          "name": "MapGet",
+          "description": "string keys, case-insensitive. `m(\"hp\")` and `m(\"hp\") = 3` are the same get and set. A missing key is `0`. `Map.Get` is `MapGet`",
+          "category": "Language builtins"
+        },
+        {
           "syntax": "ArraySize(arr [, dim])",
           "name": "ArraySize",
-          "description": "`Dim` length (`dim` 1 = first axis)",
+          "description": "`Dim` length (`dim` 1 = first axis). `Redim` is the `Dim` statement again; it copies the overlapping slots",
+          "category": "Language builtins"
+        },
+        {
+          "syntax": "Copy(v)",
+          "name": "Copy",
+          "description": "a separate array, map, or struct. Assignment of a struct shares it",
+          "category": "Language builtins"
+        },
+        {
+          "syntax": "Callback(fn)",
+          "name": "Callback",
+          "description": "a function value. `@Name` is the same kind of value",
+          "category": "Language builtins"
+        },
+        {
+          "syntax": "CreateStateMachine()",
+          "name": "CreateStateMachine",
+          "description": "the first `AddState` is current; `UpdateState` calls that function by name",
+          "category": "Language builtins"
+        },
+        {
+          "syntax": "AddState sm, name$, func$",
+          "name": "AddState",
+          "description": "the first `AddState` is current; `UpdateState` calls that function by name",
+          "category": "Language builtins"
+        },
+        {
+          "syntax": "GoState sm, name$",
+          "name": "GoState",
+          "description": "the first `AddState` is current; `UpdateState` calls that function by name",
+          "category": "Language builtins"
+        },
+        {
+          "syntax": "StateName(sm)",
+          "name": "StateName",
+          "description": "the first `AddState` is current; `UpdateState` calls that function by name",
+          "category": "Language builtins"
+        },
+        {
+          "syntax": "UpdateState sm",
+          "name": "UpdateState",
+          "description": "the first `AddState` is current; `UpdateState` calls that function by name",
+          "category": "Language builtins"
+        },
+        {
+          "syntax": "AddState",
+          "name": "AddState",
+          "description": "the first `AddState` is current; `UpdateState` calls that function by name",
+          "category": "Language builtins"
+        },
+        {
+          "syntax": "UpdateState",
+          "name": "UpdateState",
+          "description": "the first `AddState` is current; `UpdateState` calls that function by name",
           "category": "Language builtins"
         },
         {
@@ -6472,6 +7084,191 @@
           "name": "SetBuffer",
           "description": "classic no-ops (`SetBuffer BackBuffer()`)",
           "category": "Language builtins"
+        }
+      ]
+    },
+    {
+      "name": "Files, actions, tables",
+      "commands": [
+        {
+          "syntax": "ReadText(path$)",
+          "name": "ReadText",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "WriteText path$, text$",
+          "name": "WriteText",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "ListDir(path$)",
+          "name": "ListDir",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "DropCount()",
+          "name": "DropCount",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "DroppedFile$()",
+          "name": "DroppedFile$",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "Graphics3D",
+          "name": "Graphics3D",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "BindAction name$, key",
+          "name": "BindAction",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "ActionDown(name$)",
+          "name": "ActionDown",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "ActionHit(name$)",
+          "name": "ActionHit",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "UnbindAction name$",
+          "name": "UnbindAction",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "SaveBinds path$",
+          "name": "SaveBinds",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "LoadBinds path$",
+          "name": "LoadBinds",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "BindAction",
+          "name": "BindAction",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "ActionHit",
+          "name": "ActionHit",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "ActionDown",
+          "name": "ActionDown",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "SaveSlot",
+          "name": "SaveSlot",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "LoadSlot$",
+          "name": "LoadSlot$",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "TableInsert",
+          "name": "TableInsert",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "TableCreate name$",
+          "name": "TableCreate",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "TableInsert name$, json$",
+          "name": "TableInsert",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "TableGet$(name$, row, column$)",
+          "name": "TableGet$",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "TableCount(name$)",
+          "name": "TableCount",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "TableSave name$, path$",
+          "name": "TableSave",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "TableLoad name$, path$",
+          "name": "TableLoad",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "SaveSlot slot, text$",
+          "name": "SaveSlot",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "LoadSlot$(slot)",
+          "name": "LoadSlot$",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "ReloadScripts [path$]",
+          "name": "ReloadScripts",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "SolveTwoBone(ax, ay, tx, ty, len1, len2)",
+          "name": "SolveTwoBone",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "IKBend()",
+          "name": "IKBend",
+          "description": "",
+          "category": "Files, actions, tables"
+        },
+        {
+          "syntax": "GuiPickFile [dir$]",
+          "name": "GuiPickFile",
+          "description": "",
+          "category": "Files, actions, tables"
         }
       ]
     },
@@ -6880,7 +7677,37 @@
         {
           "syntax": "GuiText s$",
           "name": "GuiText",
-          "description": "Label",
+          "description": "Label. `UIAlign` shifts it",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiTextWrapped s$",
+          "name": "GuiTextWrapped",
+          "description": "Label wrapped to `UIWrap` pixels",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiRich s$",
+          "name": "GuiRich",
+          "description": "`{#rrggbb}` … `{#}` colored runs",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiHBox count [, gap]",
+          "name": "GuiHBox",
+          "description": "The next `count` buttons, texts, sliders, or checks share a row",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiColumns n",
+          "name": "GuiColumns",
+          "description": "Start a column row",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "GuiAnchor x, y",
+          "name": "GuiAnchor",
+          "description": "Place the next `GuiBegin` window. 0–1 across the framebuffer",
           "category": "Dear ImGui (cimgui-go v1.6.0)"
         },
         {
@@ -7088,6 +7915,36 @@
           "category": "Dear ImGui (cimgui-go v1.6.0)"
         },
         {
+          "syntax": "UITheme name$",
+          "name": "UITheme",
+          "description": "`\"dark\"` or `\"light\"`",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "UIScale n",
+          "name": "UIScale",
+          "description": "Font scale, 0.5–3",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "UIWrap width",
+          "name": "UIWrap",
+          "description": "Wrap width for `GuiTextWrapped`",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "UIAlign mode",
+          "name": "UIAlign",
+          "description": "0 left, 1 centre, 2 right",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
+          "syntax": "UINav flags",
+          "name": "UINav",
+          "description": "1 keyboard, 2 gamepad, 3 both",
+          "category": "Dear ImGui (cimgui-go v1.6.0)"
+        },
+        {
           "syntax": "WantCaptureMouse()",
           "name": "WantCaptureMouse",
           "description": "1 when the panel wants the mouse",
@@ -7204,6 +8061,18 @@
           "syntax": "SetWidgetPos e, x, y",
           "name": "SetWidgetPos",
           "description": "Screen position",
+          "category": "G3N scene widgets"
+        },
+        {
+          "syntax": "SetWidgetAnchor e, ax, ay",
+          "name": "SetWidgetAnchor",
+          "description": "Pin to a fraction of the window. `1, 0` is the right edge",
+          "category": "G3N scene widgets"
+        },
+        {
+          "syntax": "TweenWidget e, x, y, seconds",
+          "name": "TweenWidget",
+          "description": "Slide to pixels. 0 moves now",
           "category": "G3N scene widgets"
         }
       ]
@@ -7439,6 +8308,24 @@
           "category": "Pathfinding"
         },
         {
+          "syntax": "SetNavCost nav, area, cost",
+          "name": "SetNavCost",
+          "description": "area cost, never below 1.",
+          "category": "Pathfinding"
+        },
+        {
+          "syntax": "GetNavCost(nav, area)",
+          "name": "GetNavCost",
+          "description": "area cost, never below 1.",
+          "category": "Pathfinding"
+        },
+        {
+          "syntax": "AddNavLink nav, ax, ay, az, bx, by, bz",
+          "name": "AddNavLink",
+          "description": "off-mesh hop, stitched when a path passes within 1.5 of either end.",
+          "category": "Pathfinding"
+        },
+        {
           "syntax": "CreateGrid(w, h)",
           "name": "CreateGrid",
           "description": "",
@@ -7550,6 +8437,114 @@
           "syntax": "BakeTerrainNav([terrain])",
           "name": "BakeTerrainNav",
           "description": "Detour from loaded terrain chunk triangles",
+          "category": "Pathfinding"
+        },
+        {
+          "syntax": "SetVision e, range, degrees",
+          "name": "SetVision",
+          "description": "",
+          "category": "Pathfinding"
+        },
+        {
+          "syntax": "SetHearing e, radius",
+          "name": "SetHearing",
+          "description": "",
+          "category": "Pathfinding"
+        },
+        {
+          "syntax": "CanSee(from, to)",
+          "name": "CanSee",
+          "description": "",
+          "category": "Pathfinding"
+        },
+        {
+          "syntax": "CanHear(from, to, loud)",
+          "name": "CanHear",
+          "description": "",
+          "category": "Pathfinding"
+        },
+        {
+          "syntax": "SteerSeek",
+          "name": "SteerSeek",
+          "description": "",
+          "category": "Pathfinding"
+        },
+        {
+          "syntax": "SteerFlee e, x, y, z, speed",
+          "name": "SteerFlee",
+          "description": "",
+          "category": "Pathfinding"
+        },
+        {
+          "syntax": "SteerArrive e, x, y, z, speed, slow",
+          "name": "SteerArrive",
+          "description": "",
+          "category": "Pathfinding"
+        },
+        {
+          "syntax": "SteerWander e, turn, speed",
+          "name": "SteerWander",
+          "description": "",
+          "category": "Pathfinding"
+        },
+        {
+          "syntax": "SteerAvoid e, reach, speed",
+          "name": "SteerAvoid",
+          "description": "",
+          "category": "Pathfinding"
+        },
+        {
+          "syntax": "SetFlock e, group",
+          "name": "SetFlock",
+          "description": "",
+          "category": "Pathfinding"
+        },
+        {
+          "syntax": "FlockUpdate group, reach, separate, align, cohere",
+          "name": "FlockUpdate",
+          "description": "",
+          "category": "Pathfinding"
+        },
+        {
+          "syntax": "AIDebug e",
+          "name": "AIDebug",
+          "description": "",
+          "category": "Pathfinding"
+        },
+        {
+          "syntax": "CreateAI([entity])",
+          "name": "CreateAI",
+          "description": "",
+          "category": "Pathfinding"
+        },
+        {
+          "syntax": "AIState ai [, name$]",
+          "name": "AIState",
+          "description": "",
+          "category": "Pathfinding"
+        },
+        {
+          "syntax": "AIAddWaypoint ai, x, y, z",
+          "name": "AIAddWaypoint",
+          "description": "",
+          "category": "Pathfinding"
+        },
+        {
+          "syntax": "AIDetectTarget(ai, e)",
+          "name": "AIDetectTarget",
+          "description": "",
+          "category": "Pathfinding"
+        },
+        {
+          "syntax": "AIUpdate ai [, speed]",
+          "name": "AIUpdate",
+          "description": "",
+          "category": "Pathfinding"
+        },
+        {
+          "syntax": "CreateTrail e, points",
+          "name": "CreateTrail",
+          "description": "last positions as a debug line. See [NAV.md](NAV.md).",
           "category": "Pathfinding"
         }
       ]
@@ -7854,6 +8849,18 @@
           "category": "Scene streaming"
         },
         {
+          "syntax": "GetWorldOriginX()",
+          "name": "GetWorldOriginX",
+          "description": "Accumulated shift. `SaveScene` and `SaveGame` store it, and loading after a different shift puts things back in the same world place",
+          "category": "Scene streaming"
+        },
+        {
+          "syntax": "GetWorldOriginZ()",
+          "name": "GetWorldOriginZ",
+          "description": "Accumulated shift. `SaveScene` and `SaveGame` store it, and loading after a different shift puts things back in the same world place",
+          "category": "Scene streaming"
+        },
+        {
           "syntax": "CreateWorldStream([chunkSize, radius])",
           "name": "CreateWorldStream",
           "description": "Prop grid, including the demo slabs and cones",
@@ -7993,7 +9000,7 @@
         {
           "syntax": "GenerateHeightmapPreset(name$, w, h, seed)",
           "name": "GenerateHeightmapPreset",
-          "description": "`alpine` `rolling-hills` `sharp-peaks` `archipelago` `plateaus` `gentle-dunes` `island` (one landmass, rim below 0.1)",
+          "description": "`alpine` `rolling-hills` `sharp-peaks` `archipelago` `plateaus` `gentle-dunes` `island` (one landmass, rim below 0.1) `mountain-island` (round, low coast, real peaks; follow with `HydraulicErodeHeightmap`, and set the sea near 0.3 of the height)",
           "category": "Terrain"
         },
         {
@@ -8077,30 +9084,36 @@
         {
           "syntax": "SetTerrainOctaves",
           "name": "SetTerrainOctaves",
-          "description": "Their GUI sliders (rebuilds chunks)",
+          "description": "Their GUI sliders (rebuilds chunks). `GetTerrainOctaves(t)`, `GetTerrainFreq(t)`, `GetTerrainDispFactor(t)` read them back (`0` when `t` is not terrain)",
           "category": "Terrain"
         },
         {
           "syntax": "SetTerrainFreq",
           "name": "SetTerrainFreq",
-          "description": "Their GUI sliders (rebuilds chunks)",
+          "description": "Their GUI sliders (rebuilds chunks). `GetTerrainOctaves(t)`, `GetTerrainFreq(t)`, `GetTerrainDispFactor(t)` read them back (`0` when `t` is not terrain)",
           "category": "Terrain"
         },
         {
           "syntax": "SetTerrainDispFactor",
           "name": "SetTerrainDispFactor",
-          "description": "Their GUI sliders (rebuilds chunks)",
+          "description": "Their GUI sliders (rebuilds chunks). `GetTerrainOctaves(t)`, `GetTerrainFreq(t)`, `GetTerrainDispFactor(t)` read them back (`0` when `t` is not terrain)",
           "category": "Terrain"
         },
         {
           "syntax": "SetTerrainPower",
           "name": "SetTerrainPower",
-          "description": "Their GUI sliders (rebuilds chunks)",
+          "description": "Their GUI sliders (rebuilds chunks). `GetTerrainOctaves(t)`, `GetTerrainFreq(t)`, `GetTerrainDispFactor(t)` read them back (`0` when `t` is not terrain)",
           "category": "Terrain"
         },
         {
           "syntax": "SetTerrainGrassCoverage",
           "name": "SetTerrainGrassCoverage",
+          "description": "Splat + fog",
+          "category": "Terrain"
+        },
+        {
+          "syntax": "GetTerrainGrassCoverage(t)",
+          "name": "GetTerrainGrassCoverage",
           "description": "Splat + fog",
           "category": "Terrain"
         },
@@ -8119,19 +9132,19 @@
         {
           "syntax": "SetTerrainWaterHeight",
           "name": "SetTerrainWaterHeight",
-          "description": "Sand line + optional snow. The snow edge wanders by about ±9 m and creeps lower on flat ground; trees and props are not planted in it. Steep rock gets strata and crevices",
+          "description": "Sand line + optional snow. The snow edge wanders by up to ±9 m (less on small hills) and creeps lower on flat ground; trees and props are not planted in it. Steep rock gets strata and crevices",
           "category": "Terrain"
         },
         {
           "syntax": "SetTerrainBlend",
           "name": "SetTerrainBlend",
-          "description": "Sand line + optional snow. The snow edge wanders by about ±9 m and creeps lower on flat ground; trees and props are not planted in it. Steep rock gets strata and crevices",
+          "description": "Sand line + optional snow. The snow edge wanders by up to ±9 m (less on small hills) and creeps lower on flat ground; trees and props are not planted in it. Steep rock gets strata and crevices",
           "category": "Terrain"
         },
         {
           "syntax": "SetTerrainSnow(on [, y])",
           "name": "SetTerrainSnow",
-          "description": "Sand line + optional snow. The snow edge wanders by about ±9 m and creeps lower on flat ground; trees and props are not planted in it. Steep rock gets strata and crevices",
+          "description": "Sand line + optional snow. The snow edge wanders by up to ±9 m (less on small hills) and creeps lower on flat ground; trees and props are not planted in it. Steep rock gets strata and crevices",
           "category": "Terrain"
         },
         {
@@ -8233,19 +9246,25 @@
         {
           "syntax": "SetCloudCoverage",
           "name": "SetCloudCoverage",
-          "description": "Cloud layer",
+          "description": "Cloud layer. The getter reads that sheet, or the current one",
+          "category": "Terrain"
+        },
+        {
+          "syntax": "GetCloudCoverage([id])",
+          "name": "GetCloudCoverage",
+          "description": "Cloud layer. The getter reads that sheet, or the current one",
           "category": "Terrain"
         },
         {
           "syntax": "SetCloudSpeed",
           "name": "SetCloudSpeed",
-          "description": "Cloud layer",
+          "description": "Cloud layer. The getter reads that sheet, or the current one",
           "category": "Terrain"
         },
         {
           "syntax": "SetCloudDensity",
           "name": "SetCloudDensity",
-          "description": "Cloud layer",
+          "description": "Cloud layer. The getter reads that sheet, or the current one",
           "category": "Terrain"
         },
         {
@@ -8996,6 +10015,18 @@
           "category": "Water"
         },
         {
+          "syntax": "SetWaterShallow(r, g, b [, metres])",
+          "name": "SetWaterShallow",
+          "description": "The color over shallow ground, out to that much water seen through (default 14). Use with `SetWaterClarity`",
+          "category": "Water"
+        },
+        {
+          "syntax": "SetWaterClarity(metres)",
+          "name": "SetWaterClarity",
+          "description": "How deep the bottom stays visible; `0` is the default, 70. A small value keeps a sea blue up to its shallows",
+          "category": "Water"
+        },
+        {
           "syntax": "SetWaterWaves(count [, amp])",
           "name": "SetWaterWaves",
           "description": "0 = flat plane, 1–4 Gerstner",
@@ -9136,6 +10167,24 @@
           "syntax": "EnableGPUInstances",
           "name": "EnableGPUInstances",
           "description": "",
+          "category": "Instancing"
+        },
+        {
+          "syntax": "CopyEntity",
+          "name": "CopyEntity",
+          "description": "",
+          "category": "Instancing"
+        },
+        {
+          "syntax": "SetAutoBatch on",
+          "name": "SetAutoBatch",
+          "description": "Draw copies of a mesh with equal materials as one instanced draw, with distance detail, and merge still meshes by area. On by default; 0 draws each alone",
+          "category": "Instancing"
+        },
+        {
+          "syntax": "StatsBatched()",
+          "name": "StatsBatched",
+          "description": "How many entities batches drew this frame",
           "category": "Instancing"
         },
         {
@@ -9736,6 +10785,42 @@
           "category": "Physics extras (Jolt)"
         },
         {
+          "syntax": "SetTimeScale n",
+          "name": "SetTimeScale",
+          "description": "Scales `UpdateWorld` (`DeltaTime` stays real). `SetTimeScale` clamps to `0`–`10`. A stored `0` is stepped as `1`, and `GetTimeScale` returns `1` in that case. `TimeScale(n)` sets without the cap of `10`",
+          "category": "Physics extras (Jolt)"
+        },
+        {
+          "syntax": "GetTimeScale()",
+          "name": "GetTimeScale",
+          "description": "Scales `UpdateWorld` (`DeltaTime` stays real). `SetTimeScale` clamps to `0`–`10`. A stored `0` is stepped as `1`, and `GetTimeScale` returns `1` in that case. `TimeScale(n)` sets without the cap of `10`",
+          "category": "Physics extras (Jolt)"
+        },
+        {
+          "syntax": "TimeScale([n])",
+          "name": "TimeScale",
+          "description": "Scales `UpdateWorld` (`DeltaTime` stays real). `SetTimeScale` clamps to `0`–`10`. A stored `0` is stepped as `1`, and `GetTimeScale` returns `1` in that case. `TimeScale(n)` sets without the cap of `10`",
+          "category": "Physics extras (Jolt)"
+        },
+        {
+          "syntax": "TweenPosition e, x, y, z, seconds [, ease$]",
+          "name": "TweenPosition",
+          "description": "Move to a point. Ease: `linear` (default), `in`, `out`, `inout`, `smooth`, `smoother`",
+          "category": "Physics extras (Jolt)"
+        },
+        {
+          "syntax": "TweenRotation e, pitch, yaw, roll, seconds [, ease$]",
+          "name": "TweenRotation",
+          "description": "Turn to a pose, degrees",
+          "category": "Physics extras (Jolt)"
+        },
+        {
+          "syntax": "TweenColor e, r, g, b, seconds [, ease$]",
+          "name": "TweenColor",
+          "description": "Blend the entity color",
+          "category": "Physics extras (Jolt)"
+        },
+        {
           "syntax": "EnablePhysicsDebug on",
           "name": "EnablePhysicsDebug",
           "description": "Collider shapes, contacts, velocities and joints overlay. See [Debug drawing](#debug-drawing)",
@@ -9841,6 +10926,18 @@
           "syntax": "SetBodySensor",
           "name": "SetBodySensor",
           "description": "Trigger volume",
+          "category": "Physics extras (Jolt)"
+        },
+        {
+          "syntax": "GetTriggerHit(sensor)",
+          "name": "GetTriggerHit",
+          "description": "First entity touching that sensor this frame, or `0`",
+          "category": "Physics extras (Jolt)"
+        },
+        {
+          "syntax": "BodyType e [, n]",
+          "name": "BodyType",
+          "description": "Entity motion flag: `0` none, `1` dynamic, `2` static, `3` kinematic. One argument reads it. These numbers are the entity flag, separate from the `STATIC` / `KINEMATIC` / `DYNAMIC` constants",
           "category": "Physics extras (Jolt)"
         },
         {
@@ -10107,6 +11204,36 @@
           "category": "Vehicles"
         },
         {
+          "syntax": "CreateJetSkiController",
+          "name": "CreateJetSkiController",
+          "description": "",
+          "category": "Vehicles"
+        },
+        {
+          "syntax": "UpdateJetSki",
+          "name": "UpdateJetSki",
+          "description": "",
+          "category": "Vehicles"
+        },
+        {
+          "syntax": "CreateWaterSkiController",
+          "name": "CreateWaterSkiController",
+          "description": "",
+          "category": "Vehicles"
+        },
+        {
+          "syntax": "CreateWaterSki",
+          "name": "CreateWaterSki",
+          "description": "",
+          "category": "Vehicles"
+        },
+        {
+          "syntax": "UpdateWaterSki(e, throttle, steer [, tow])",
+          "name": "UpdateWaterSki",
+          "description": "",
+          "category": "Vehicles"
+        },
+        {
           "syntax": "CreateHelicopterController",
           "name": "CreateHelicopterController",
           "description": "",
@@ -10151,6 +11278,30 @@
         {
           "syntax": "UpdateDrone",
           "name": "UpdateDrone",
+          "description": "",
+          "category": "Vehicles"
+        },
+        {
+          "syntax": "CreateMechController",
+          "name": "CreateMechController",
+          "description": "",
+          "category": "Vehicles"
+        },
+        {
+          "syntax": "UpdateMech",
+          "name": "UpdateMech",
+          "description": "",
+          "category": "Vehicles"
+        },
+        {
+          "syntax": "CreateLanderController",
+          "name": "CreateLanderController",
+          "description": "",
+          "category": "Vehicles"
+        },
+        {
+          "syntax": "UpdateLander",
+          "name": "UpdateLander",
           "description": "",
           "category": "Vehicles"
         },
@@ -10223,19 +11374,19 @@
         {
           "syntax": "CreateCarController",
           "name": "CreateCarController",
-          "description": "Jolt wheeled (Windows) or force fallback",
+          "description": "Jolt wheeled, or force fallback with `-tags joltgo` / `-tags nojolt`",
           "category": "Vehicles"
         },
         {
           "syntax": "CreateVehicle",
           "name": "CreateVehicle",
-          "description": "Jolt wheeled (Windows) or force fallback",
+          "description": "Jolt wheeled, or force fallback with `-tags joltgo` / `-tags nojolt`",
           "category": "Vehicles"
         },
         {
           "syntax": "UpdateCar e, steer, th, brake",
           "name": "UpdateCar",
-          "description": "Jolt wheeled (Windows) or force fallback",
+          "description": "Jolt wheeled, or force fallback with `-tags joltgo` / `-tags nojolt`",
           "category": "Vehicles"
         },
         {
@@ -10393,6 +11544,155 @@
           "name": "UpdateSki",
           "description": "Low friction",
           "category": "Vehicles"
+        },
+        {
+          "syntax": "CreateWaterSkiController",
+          "name": "CreateWaterSkiController",
+          "description": "Ski on `WaterHeight`. A shared rope skips the spring tow",
+          "category": "Vehicles"
+        },
+        {
+          "syntax": "UpdateWaterSki e, th, steer [, tow]",
+          "name": "UpdateWaterSki",
+          "description": "Ski on `WaterHeight`. A shared rope skips the spring tow",
+          "category": "Vehicles"
+        },
+        {
+          "syntax": "CreateMechController",
+          "name": "CreateMechController",
+          "description": "Heavy friction and an upright gyro",
+          "category": "Vehicles"
+        },
+        {
+          "syntax": "UpdateMech e, th, turn, strafe",
+          "name": "UpdateMech",
+          "description": "Heavy friction and an upright gyro",
+          "category": "Vehicles"
+        },
+        {
+          "syntax": "CreateLanderController",
+          "name": "CreateLanderController",
+          "description": "Up engine plus attitude torque",
+          "category": "Vehicles"
+        },
+        {
+          "syntax": "UpdateLander e, thrust, pitch, roll, yaw",
+          "name": "UpdateLander",
+          "description": "Up engine plus attitude torque",
+          "category": "Vehicles"
+        }
+      ]
+    },
+    {
+      "name": "Characters",
+      "commands": [
+        {
+          "syntax": "UpdateWorld",
+          "name": "UpdateWorld",
+          "description": "",
+          "category": "Characters"
+        },
+        {
+          "syntax": "SetTimeScale",
+          "name": "SetTimeScale",
+          "description": "",
+          "category": "Characters"
+        },
+        {
+          "syntax": "GetAxis",
+          "name": "GetAxis",
+          "description": "",
+          "category": "Characters"
+        },
+        {
+          "syntax": "CreateFPSController(e, cam [, height, radius, walk, sprint, jump])",
+          "name": "CreateFPSController",
+          "description": "Defaults `1.8`, `0.4`, `6`, `10.5`, `9.5`. Mouse look, pitch clamped to ±89, ignored while ImGui has the pointer. Crouch shortens the capsule to `0.55` of its height",
+          "category": "Characters"
+        },
+        {
+          "syntax": "UpdateFPS(e, x, z, jump, sprint, crouch [, sens])",
+          "name": "UpdateFPS",
+          "description": "`x`/`z` are about `-1`..`1`. `sens` defaults to `0.15` degrees per mouse pixel",
+          "category": "Characters"
+        },
+        {
+          "syntax": "GetFPSPitch(e)",
+          "name": "GetFPSPitch",
+          "description": "Look angles and ground",
+          "category": "Characters"
+        },
+        {
+          "syntax": "GetFPSYaw(e)",
+          "name": "GetFPSYaw",
+          "description": "Look angles and ground",
+          "category": "Characters"
+        },
+        {
+          "syntax": "IsFPSGrounded(e)",
+          "name": "IsFPSGrounded",
+          "description": "Look angles and ground",
+          "category": "Characters"
+        },
+        {
+          "syntax": "CreateTPSController(e, cam [, height, radius, move, sprint, jump])",
+          "name": "CreateTPSController",
+          "description": "Defaults `1.8`, `0.45`, `6.5`, `11`, `10`. Aim slows the walk to `0.65`",
+          "category": "Characters"
+        },
+        {
+          "syntax": "UpdateTPS(e, x, z, jump, sprint, aim, camDist, camPitch, camYaw)",
+          "name": "UpdateTPS",
+          "description": "Move is relative to `camYaw`. Defaults if you omit the camera args: distance `4.5`, pitch `16`, yaw `0`",
+          "category": "Characters"
+        },
+        {
+          "syntax": "GetTPSYaw(e)",
+          "name": "GetTPSYaw",
+          "description": "Facing and ground",
+          "category": "Characters"
+        },
+        {
+          "syntax": "IsTPSGrounded(e)",
+          "name": "IsTPSGrounded",
+          "description": "Facing and ground",
+          "category": "Characters"
+        },
+        {
+          "syntax": "CreateTopDownController(e [, speed, turnRate])",
+          "name": "CreateTopDownController",
+          "description": "Defaults `8` and `18` degrees/sec of aim ease. Capsule is `1.8` × `0.45`",
+          "category": "Characters"
+        },
+        {
+          "syntax": "UpdateTopDown(e, x, z, aimX, aimZ, dash)",
+          "name": "UpdateTopDown",
+          "description": "Faces the aim point. A dash lasts `0.18` s and then waits `0.8` s",
+          "category": "Characters"
+        },
+        {
+          "syntax": "GetTopDownAimYaw(e)",
+          "name": "GetTopDownAimYaw",
+          "description": "Current facing",
+          "category": "Characters"
+        },
+        {
+          "syntax": "CreatePlatformerController(e [, speed, jump, maxJumps])",
+          "name": "CreatePlatformerController",
+          "description": "Defaults `8.5`, `12`, `2` jumps. Side view: `x` is the only axis",
+          "category": "Characters"
+        },
+        {
+          "syntax": "UpdatePlatformer(e, x, jumpPressed, jumpHeld)",
+          "name": "UpdatePlatformer",
+          "description": "Releasing jump raises gravity. Coyote time is `0.12` s",
+          "category": "Characters"
+        },
+        {
+          "syntax": "IsPlatformerGrounded(e)",
+          "name": "IsPlatformerGrounded",
+          "description": "Ground state `0`",
+          "category": "Characters"
         }
       ]
     },
@@ -10475,6 +11775,42 @@
           "syntax": "StatsAllocKB()",
           "name": "StatsAllocKB",
           "description": "Go heap in use, the last GC pause, and KB allocated per frame",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "StatsFuncMs(name$)",
+          "name": "StatsFuncMs",
+          "description": "Exclusive function time, call count, and the slowest name",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "StatsFuncCalls(name$)",
+          "name": "StatsFuncCalls",
+          "description": "Exclusive function time, call count, and the slowest name",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "StatsTopFunc$()",
+          "name": "StatsTopFunc$",
+          "description": "Exclusive function time, call count, and the slowest name",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "StatsAssetKB(name$)",
+          "name": "StatsAssetKB",
+          "description": "File size of one loaded mesh or texture, and the total. Keys look like `\"mesh hero.glb\"`",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "StatsAssetMB()",
+          "name": "StatsAssetMB",
+          "description": "File size of one loaded mesh or texture, and the total. Keys look like `\"mesh hero.glb\"`",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "StatsVRAMMB()",
+          "name": "StatsVRAMMB",
+          "description": "Texture memory. Compressed byte size, otherwise width × height × 4",
           "category": "Editor / stats"
         },
         {
@@ -10725,6 +12061,72 @@
           "syntax": "GetExposure()",
           "name": "GetExposure",
           "description": "Linear exposure (0.05–8)",
+          "category": "Post-processing (GL 3.3 fullscreen blit)"
+        },
+        {
+          "syntax": "SetAutoExposure [on]",
+          "name": "SetAutoExposure",
+          "description": "Ease exposure toward a middle brightness. Turns the stack on. `GetAutoExposure` is `1` or `0`, not the exposure number",
+          "category": "Post-processing (GL 3.3 fullscreen blit)"
+        },
+        {
+          "syntax": "GetAutoExposure()",
+          "name": "GetAutoExposure",
+          "description": "Ease exposure toward a middle brightness. Turns the stack on. `GetAutoExposure` is `1` or `0`, not the exposure number",
+          "category": "Post-processing (GL 3.3 fullscreen blit)"
+        },
+        {
+          "syntax": "EnableSSAO [on]",
+          "name": "EnableSSAO",
+          "description": "Contact occlusion on the scene depth. Turns the stack on. Defaults: radius `0.8`, intensity `1.8`, bias `0.02`",
+          "category": "Post-processing (GL 3.3 fullscreen blit)"
+        },
+        {
+          "syntax": "SetSSAO [on]",
+          "name": "SetSSAO",
+          "description": "Contact occlusion on the scene depth. Turns the stack on. Defaults: radius `0.8`, intensity `1.8`, bias `0.02`",
+          "category": "Post-processing (GL 3.3 fullscreen blit)"
+        },
+        {
+          "syntax": "GetSSAO()",
+          "name": "GetSSAO",
+          "description": "Contact occlusion on the scene depth. Turns the stack on. Defaults: radius `0.8`, intensity `1.8`, bias `0.02`",
+          "category": "Post-processing (GL 3.3 fullscreen blit)"
+        },
+        {
+          "syntax": "SetSSAORadius n",
+          "name": "SetSSAORadius",
+          "description": "Sample radius. Floor `0.01`. Getter returns `0.8` until set",
+          "category": "Post-processing (GL 3.3 fullscreen blit)"
+        },
+        {
+          "syntax": "GetSSAORadius()",
+          "name": "GetSSAORadius",
+          "description": "Sample radius. Floor `0.01`. Getter returns `0.8` until set",
+          "category": "Post-processing (GL 3.3 fullscreen blit)"
+        },
+        {
+          "syntax": "SetSSAOIntensity n",
+          "name": "SetSSAOIntensity",
+          "description": "Darkening. Floor `0`. Getter returns `1.8` until set",
+          "category": "Post-processing (GL 3.3 fullscreen blit)"
+        },
+        {
+          "syntax": "GetSSAOIntensity()",
+          "name": "GetSSAOIntensity",
+          "description": "Darkening. Floor `0`. Getter returns `1.8` until set",
+          "category": "Post-processing (GL 3.3 fullscreen blit)"
+        },
+        {
+          "syntax": "SetSSAOBias n",
+          "name": "SetSSAOBias",
+          "description": "Depth bias. Getter returns `0.02` until set",
+          "category": "Post-processing (GL 3.3 fullscreen blit)"
+        },
+        {
+          "syntax": "GetSSAOBias()",
+          "name": "GetSSAOBias",
+          "description": "Depth bias. Getter returns `0.02` until set",
           "category": "Post-processing (GL 3.3 fullscreen blit)"
         },
         {
@@ -11197,6 +12599,12 @@
       "category": "Display / loop"
     },
     {
+      "syntax": "GraphicsApp [w, h [, depth, mode]]",
+      "name": "GraphicsApp",
+      "description": "`Graphics3D` with defaults 960×640, then a camera. `GraphicsUI` is the same call",
+      "category": "Display / loop"
+    },
+    {
       "syntax": "Graphics2D w, h",
       "name": "Graphics2D",
       "description": "Ebiten window",
@@ -11251,9 +12659,21 @@
       "category": "Display / loop"
     },
     {
-      "syntax": "Color r, g, b",
+      "syntax": "Color r, g, b [, a]",
       "name": "Color",
-      "description": "Draw / text color (0–255 or 0–1)",
+      "description": "Draw / text color (0–255 or 0–1). The fourth channel is the 2D draw alpha",
+      "category": "Display / loop"
+    },
+    {
+      "syntax": "SetAlpha a",
+      "name": "SetAlpha",
+      "description": "2D draw alpha for `Rect`, `Oval`, `Line`, and `Text`. `0`–`1` or `0`–`255`. `GetAlpha` is `0`–`1`. `SetDrawAlpha` and `ColorAlpha` are the same set",
+      "category": "Display / loop"
+    },
+    {
+      "syntax": "GetAlpha()",
+      "name": "GetAlpha",
+      "description": "2D draw alpha for `Rect`, `Oval`, `Line`, and `Text`. `0`–`1` or `0`–`255`. `GetAlpha` is `0`–`1`. `SetDrawAlpha` and `ColorAlpha` are the same set",
       "category": "Display / loop"
     },
     {
@@ -12177,25 +13597,61 @@
     {
       "syntax": "EnableContactShadows",
       "name": "EnableContactShadows",
-      "description": "Stub",
+      "description": "Tight shadow-map search. Darkens receivers whose neighbor texels are only slightly closer (feet, props on the ground)",
       "category": "Shadows (G3N has no built-in CSM)"
     },
     {
       "syntax": "SetContactShadows",
       "name": "SetContactShadows",
-      "description": "Stub",
+      "description": "Tight shadow-map search. Darkens receivers whose neighbor texels are only slightly closer (feet, props on the ground)",
       "category": "Shadows (G3N has no built-in CSM)"
     },
     {
       "syntax": "EnableScreenSpaceShadows",
       "name": "EnableScreenSpaceShadows",
-      "description": "Stub",
+      "description": "Wider search. `n` is quality 1–4 (radius and depth window). `0` is off",
       "category": "Shadows (G3N has no built-in CSM)"
     },
     {
       "syntax": "SetScreenSpaceShadows",
       "name": "SetScreenSpaceShadows",
-      "description": "Stub",
+      "description": "Wider search. `n` is quality 1–4 (radius and depth window). `0` is off",
+      "category": "Shadows (G3N has no built-in CSM)"
+    },
+    {
+      "syntax": "SetSSS n",
+      "name": "SetSSS",
+      "description": "Wider search. `n` is quality 1–4 (radius and depth window). `0` is off",
+      "category": "Shadows (G3N has no built-in CSM)"
+    },
+    {
+      "syntax": "SetShadowSoftness n",
+      "name": "SetShadowSoftness",
+      "description": "Scales the PCF sample radius. `1` is the usual width. `0` is treated as `1`",
+      "category": "Shadows (G3N has no built-in CSM)"
+    },
+    {
+      "syntax": "ShadowSoftness n",
+      "name": "ShadowSoftness",
+      "description": "Scales the PCF sample radius. `1` is the usual width. `0` is treated as `1`",
+      "category": "Shadows (G3N has no built-in CSM)"
+    },
+    {
+      "syntax": "SetShadowColor r, g, b",
+      "name": "SetShadowColor",
+      "description": "Tint of the shadowed term. Channels are 0–255 or 0–1",
+      "category": "Shadows (G3N has no built-in CSM)"
+    },
+    {
+      "syntax": "ShadowColor r, g, b",
+      "name": "ShadowColor",
+      "description": "Tint of the shadowed term. Channels are 0–255 or 0–1",
+      "category": "Shadows (G3N has no built-in CSM)"
+    },
+    {
+      "syntax": "SetShadowFade near, far",
+      "name": "SetShadowFade",
+      "description": "Fade directional shadows out across view-space depth. Defaults `60`, `100`. The fade stays off until `far` is greater than `near`",
       "category": "Shadows (G3N has no built-in CSM)"
     },
     {
@@ -12541,6 +13997,24 @@
       "category": "PBR (opt-in metallic-roughness)"
     },
     {
+      "syntax": "SetLinearLight on",
+      "name": "SetLinearLight",
+      "description": "Light the scene in linear space, tone map it, and encode sRGB at the end. Needs post effects, so the low tier stays on the old path. Custom shaders get `uniform int LinearLight` and should output linear light while it is 1",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "GetLinearLight()",
+      "name": "GetLinearLight",
+      "description": "Light the scene in linear space, tone map it, and encode sRGB at the end. Needs post effects, so the low tier stays on the old path. Custom shaders get `uniform int LinearLight` and should output linear light while it is 1",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "SetLook name$",
+      "name": "SetLook",
+      "description": "`modern`: linear lighting, ACES tone mapping, bloom, FXAA, ambient occlusion, image-based light, sun shadows and horizon fog, plus a sky and a sun if the scene has none. `off` turns them off. Change any after; the low tier skips post effects",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
       "syntax": "SetRetroPreset name$",
       "name": "SetRetroPreset",
       "description": "A whole look: `ps1`, `n64`, `gameboy`, `pico8`, `dos`, `cga`, `lowpoly`, or `off`. Sets the screen and geometry effects; change any after",
@@ -12555,13 +14029,31 @@
     {
       "syntax": "SetRenderScale f",
       "name": "SetRenderScale",
-      "description": "Render at `f` (0.25–1) of the window, upscaled smoothly, for speed",
+      "description": "Render at `f` (0.25–1) of the window, upscaled with FSR 1, for speed. Turns dynamic resolution off; `GetRenderScale` also reads the scale it chose",
       "category": "PBR (opt-in metallic-roughness)"
     },
     {
       "syntax": "GetRenderScale()",
       "name": "GetRenderScale",
-      "description": "Render at `f` (0.25–1) of the window, upscaled smoothly, for speed",
+      "description": "Render at `f` (0.25–1) of the window, upscaled with FSR 1, for speed. Turns dynamic resolution off; `GetRenderScale` also reads the scale it chose",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "StatsPassMs(name$)",
+      "name": "StatsPassMs",
+      "description": "GPU milliseconds of `shadow`, `reflect`, `refract`, `scene`, or `post`, a few frames old. 0 if the driver has no timer. `MOON_GPU_PROFILE=1` prints the whole table",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "SetDynamicResolution on [, targetFPS]",
+      "name": "SetDynamicResolution",
+      "description": "On by default. Draws the 3D scene smaller when frames run late (default target 60), sharpens it back up, and raises it again when there is room. HUD text stays at full size",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "GetDynamicResolution()",
+      "name": "GetDynamicResolution",
+      "description": "On by default. Draws the 3D scene smaller when frames run late (default target 60), sharpens it back up, and raises it again when there is room. HUD text stays at full size",
       "category": "PBR (opt-in metallic-roughness)"
     },
     {
@@ -12811,6 +14303,96 @@
       "category": "Mesh animation (glTF)"
     },
     {
+      "syntax": "SetRootMotion e, on [, bone$] [, useY]",
+      "name": "SetRootMotion",
+      "description": "Move the entity by the bone's frame delta, then plant the bone. `useY` 0 drops vertical motion. See [ANIMATION.md](ANIMATION.md)",
+      "category": "Mesh animation (glTF)"
+    },
+    {
+      "syntax": "SetBoneMask e, slot, bone$, weight#",
+      "name": "SetBoneMask",
+      "description": "Per-bone weight on a layer. 0 skips the bone. `\"*\"` clears the mask",
+      "category": "Mesh animation (glTF)"
+    },
+    {
+      "syntax": "GetBoneX/Y/Z(e, bone$)",
+      "name": "GetBoneX",
+      "description": "Local bone position, same axes as `PositionEntity`",
+      "category": "Mesh animation (glTF)"
+    },
+    {
+      "syntax": "SetBonePos e, bone$, x, y, z",
+      "name": "SetBonePos",
+      "description": "Write that local position",
+      "category": "Mesh animation (glTF)"
+    },
+    {
+      "syntax": "BoneLookAt e, bone$, x, y, z",
+      "name": "BoneLookAt",
+      "description": "Aim the bone at a world point",
+      "category": "Mesh animation (glTF)"
+    },
+    {
+      "syntax": "AnimEvent e, time, func$",
+      "name": "AnimEvent",
+      "description": "Call `func(time)` when the clip crosses `time`",
+      "category": "Mesh animation (glTF)"
+    },
+    {
+      "syntax": "ClearAnimEvents e",
+      "name": "ClearAnimEvents",
+      "description": "Drop those marks",
+      "category": "Mesh animation (glTF)"
+    },
+    {
+      "syntax": "AnimRecord e, on",
+      "name": "AnimRecord",
+      "description": "1 samples named bones. 0 stores the clip",
+      "category": "Mesh animation (glTF)"
+    },
+    {
+      "syntax": "AnimRetarget e, map$",
+      "name": "AnimRetarget",
+      "description": "Rename curve bones. `\"Old=New\"` pairs, commas between pairs",
+      "category": "Mesh animation (glTF)"
+    },
+    {
+      "syntax": "ExportAnimClip e, file$",
+      "name": "ExportAnimClip",
+      "description": "glTF 2.0 JSON with translation keys in a base64 buffer",
+      "category": "Mesh animation (glTF)"
+    },
+    {
+      "syntax": "SetMorph e, index, weight",
+      "name": "SetMorph",
+      "description": "Blend-shape weight 0–1. Applied when the mesh is morph geometry",
+      "category": "Mesh animation (glTF)"
+    },
+    {
+      "syntax": "GetMorph(e, index)",
+      "name": "GetMorph",
+      "description": "Read one weight, or how many exist",
+      "category": "Mesh animation (glTF)"
+    },
+    {
+      "syntax": "MorphCount(e)",
+      "name": "MorphCount",
+      "description": "Read one weight, or how many exist",
+      "category": "Mesh animation (glTF)"
+    },
+    {
+      "syntax": "SetViseme e, shape$, weight",
+      "name": "SetViseme",
+      "description": "`aa` `ee` `oh` `mm` `fv` → morph slots 0–4",
+      "category": "Mesh animation (glTF)"
+    },
+    {
+      "syntax": "AddAnimTransition graph, from$, to$, func$",
+      "name": "AddAnimTransition",
+      "description": "When `func()` is nonzero, `AnimGo` to `to$`. `from$` `*` is any state",
+      "category": "Mesh animation (glTF)"
+    },
+    {
       "syntax": "CreateBlendTree(e [, kind])",
       "name": "CreateBlendTree",
       "description": "New tree for an animated entity. `kind` 1 = 1D thresholds (default), 2 = 2D points (gradient band). Returns a handle",
@@ -13033,6 +14615,18 @@
       "category": "2D (Ebiten)"
     },
     {
+      "syntax": "SpriteAnimEvent s, frame, func$",
+      "name": "SpriteAnimEvent",
+      "description": "`Function func(frame)` when the sheet lands on that frame",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "DrawNineSlice img, x, y, w, h, border",
+      "name": "DrawNineSlice",
+      "description": "nine-slice a HUD image. Corners stay `border` pixels. Edges and the centre stretch",
+      "category": "2D (Ebiten)"
+    },
+    {
       "syntax": "FlipSprite s, horiz, vert",
       "name": "FlipSprite",
       "description": "1 flips that axis",
@@ -13159,6 +14753,18 @@
       "category": "2D (Ebiten)"
     },
     {
+      "syntax": "CameraTarget2D",
+      "name": "CameraTarget2D",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
+      "syntax": "CameraSmooth2D",
+      "name": "CameraSmooth2D",
+      "description": "",
+      "category": "2D (Ebiten)"
+    },
+    {
       "syntax": "CreateCamera2D([x, y, w, h])",
       "name": "CreateCamera2D",
       "description": "another camera with its own viewport (split screen). `FreeCamera2D cam`",
@@ -13204,18 +14810,6 @@
       "syntax": "CameraViewport2D cam, x, y, w, h",
       "name": "CameraViewport2D",
       "description": "window pixels; 0, 0, 0, 0 fills the window",
-      "category": "2D (Ebiten)"
-    },
-    {
-      "syntax": "CameraTarget2D cam, sprite [, ox, oy]",
-      "name": "CameraTarget2D",
-      "description": "follow every frame; sprite 0 stops",
-      "category": "2D (Ebiten)"
-    },
-    {
-      "syntax": "CameraSmooth2D cam, seconds",
-      "name": "CameraSmooth2D",
-      "description": "time to close 95% of the gap; 0 snaps",
       "category": "2D (Ebiten)"
     },
     {
@@ -13951,6 +15545,12 @@
       "category": "Particles"
     },
     {
+      "syntax": "EmitterSpread",
+      "name": "EmitterSpread",
+      "description": "",
+      "category": "Particles"
+    },
+    {
       "syntax": "EmitterDrag",
       "name": "EmitterDrag",
       "description": "",
@@ -14026,6 +15626,36 @@
       "syntax": "EmitterGround e, on [, y, bounce, friction]",
       "name": "EmitterGround",
       "description": "Bounce (0–1) off a flat floor at height `y`",
+      "category": "Particles"
+    },
+    {
+      "syntax": "EmitterSoft e, on",
+      "name": "EmitterSoft",
+      "description": "Fade against the scene depth. On by default. 0 is a hard edge",
+      "category": "Particles"
+    },
+    {
+      "syntax": "EmitterSort e, on",
+      "name": "EmitterSort",
+      "description": "Far-to-near, up to 8192 particles",
+      "category": "Particles"
+    },
+    {
+      "syntax": "EmitterCollide e, entity",
+      "name": "EmitterCollide",
+      "description": "Push out of that entity's box. Four boxes; the oldest drops",
+      "category": "Particles"
+    },
+    {
+      "syntax": "EmitterClearCollide e",
+      "name": "EmitterClearCollide",
+      "description": "Drop those boxes",
+      "category": "Particles"
+    },
+    {
+      "syntax": "EmitterPreset e, name$",
+      "name": "EmitterPreset",
+      "description": "`fire` `smoke` `sparks` `explosion` `dust` `magic` `splash` `debris`",
       "category": "Particles"
     },
     {
@@ -14311,6 +15941,30 @@
       "category": "Input"
     },
     {
+      "syntax": "GetAxis(negKey, posKey)",
+      "name": "GetAxis",
+      "description": "",
+      "category": "Input"
+    },
+    {
+      "syntax": "GetMouseWorldX(cam, planeY)",
+      "name": "GetMouseWorldX",
+      "description": "",
+      "category": "Input"
+    },
+    {
+      "syntax": "GetMouseWorldZ(cam, planeY)",
+      "name": "GetMouseWorldZ",
+      "description": "",
+      "category": "Input"
+    },
+    {
+      "syntax": "IsGrounded(e [, rayLen])",
+      "name": "IsGrounded",
+      "description": "",
+      "category": "Input"
+    },
+    {
       "syntax": "CreateTimer(hz)",
       "name": "CreateTimer",
       "description": "",
@@ -14503,6 +16157,24 @@
       "category": "Math"
     },
     {
+      "syntax": "LerpAngle(a, b, t)",
+      "name": "LerpAngle",
+      "description": "Same blend along the short way around the circle, degrees",
+      "category": "Math"
+    },
+    {
+      "syntax": "SmoothDamp(cur, target [, smoothTime, maxSpeed])",
+      "name": "SmoothDamp",
+      "description": "One step of a damped spring. `smoothTime` defaults to `0.25` seconds, `maxSpeed` to `1000`. Uses the real frame time (`0.016` s when the clock has not started). Returns the new value",
+      "category": "Math"
+    },
+    {
+      "syntax": "MoveTowards(cur, target [, maxDelta])",
+      "name": "MoveTowards",
+      "description": "Steps at most `maxDelta` (default `0.1`)",
+      "category": "Math"
+    },
+    {
       "syntax": "InvLerp(a, b, x)",
       "name": "InvLerp",
       "description": "How far `x` is from `a` to `b` (0 at `a`)",
@@ -14565,6 +16237,12 @@
     {
       "syntax": "AngleDelta(from, to)",
       "name": "AngleDelta",
+      "description": "Shortest signed turn from `from` to `to`",
+      "category": "Math"
+    },
+    {
+      "syntax": "AngleDiff(from, to)",
+      "name": "AngleDiff",
       "description": "Shortest signed turn from `from` to `to`",
       "category": "Math"
     },
@@ -14929,6 +16607,18 @@
       "category": "Audio (Ebiten / Oto)"
     },
     {
+      "syntax": "PauseSound",
+      "name": "PauseSound",
+      "description": "",
+      "category": "Audio (Ebiten / Oto)"
+    },
+    {
+      "syntax": "ResumeSound",
+      "name": "ResumeSound",
+      "description": "",
+      "category": "Audio (Ebiten / Oto)"
+    },
+    {
       "syntax": "StopSound",
       "name": "StopSound",
       "description": "",
@@ -14950,6 +16640,54 @@
       "syntax": "SetSoundPitch s, n",
       "name": "SetSoundPitch",
       "description": "",
+      "category": "Audio (Ebiten / Oto)"
+    },
+    {
+      "syntax": "SetSoundPan s, pan",
+      "name": "SetSoundPan",
+      "description": "`-1` left, `0` center, `1` right, including a voice already playing",
+      "category": "Audio (Ebiten / Oto)"
+    },
+    {
+      "syntax": "FadeSound s, volume, seconds",
+      "name": "FadeSound",
+      "description": "clip volume over time; `0` seconds jumps. Runs on `Flip`",
+      "category": "Audio (Ebiten / Oto)"
+    },
+    {
+      "syntax": "SeekSound s, seconds",
+      "name": "SeekSound",
+      "description": "",
+      "category": "Audio (Ebiten / Oto)"
+    },
+    {
+      "syntax": "SoundTime(s)",
+      "name": "SoundTime",
+      "description": "",
+      "category": "Audio (Ebiten / Oto)"
+    },
+    {
+      "syntax": "SoundBus s, name$",
+      "name": "SoundBus",
+      "description": "heard volume is clip × bus × master",
+      "category": "Audio (Ebiten / Oto)"
+    },
+    {
+      "syntax": "SetAudioBus name$, volume",
+      "name": "SetAudioBus",
+      "description": "heard volume is clip × bus × master",
+      "category": "Audio (Ebiten / Oto)"
+    },
+    {
+      "syntax": "SetMasterVolume n",
+      "name": "SetMasterVolume",
+      "description": "heard volume is clip × bus × master",
+      "category": "Audio (Ebiten / Oto)"
+    },
+    {
+      "syntax": "SetSoundEcho s, wet",
+      "name": "SetSoundEcho",
+      "description": "80 ms slapback on a decoded clip, `wet` 0–1. Not a room, and not on a stream",
       "category": "Audio (Ebiten / Oto)"
     },
     {
@@ -14989,6 +16727,18 @@
       "category": "Audio (Ebiten / Oto)"
     },
     {
+      "syntax": "PlaySound3D sound, x, y, z [, maxDist, volume]",
+      "name": "PlaySound3D",
+      "description": "volume falls with distance from the active camera and is silent past `maxDist` (default `30`, at least `1`). It does not set stereo pan. `EmitSound` does. `Sound3D` is the same call. Returns `0` when the clip is missing or out of range.",
+      "category": "Audio (Ebiten / Oto)"
+    },
+    {
+      "syntax": "Sound3D",
+      "name": "Sound3D",
+      "description": "volume falls with distance from the active camera and is silent past `maxDist` (default `30`, at least `1`). It does not set stereo pan. `EmitSound` does. `Sound3D` is the same call. Returns `0` when the clip is missing or out of range.",
+      "category": "Audio (Ebiten / Oto)"
+    },
+    {
       "syntax": "PhysicsBackend$()",
       "name": "PhysicsBackend$",
       "description": "",
@@ -15001,6 +16751,12 @@
       "category": "Physics"
     },
     {
+      "syntax": "GroundPlane([y])",
+      "name": "GroundPlane",
+      "description": "",
+      "category": "Physics"
+    },
+    {
       "syntax": "Collide(mesh [, STATIC|KINEMATIC|DYNAMIC [, mass]])",
       "name": "Collide",
       "description": "",
@@ -15009,6 +16765,12 @@
     {
       "syntax": "SetPhysicsMaterial e, \"ice\"|\"rubber\"|\"wood\"|\"metal\"|\"stone\"|\"plastic\"|\"bouncy\"|\"glass\"|\"default\"",
       "name": "SetPhysicsMaterial",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "GetPhysicsMaterial$(e)",
+      "name": "GetPhysicsMaterial$",
       "description": "",
       "category": "Physics"
     },
@@ -15303,13 +17065,13 @@
     {
       "syntax": "SetBodyRotation e, pitch,yaw,roll",
       "name": "SetBodyRotation",
-      "description": "quaternion synced onto G3N nodes (native Jolt on Windows; software pose on Linux/macOS and fallback).",
+      "description": "quaternion synced onto G3N nodes (native Jolt on the default build; software pose with `-tags joltgo` and on fallback).",
       "category": "Physics"
     },
     {
       "syntax": "GetBodyPitch/Yaw/Roll",
       "name": "GetBodyPitch",
-      "description": "quaternion synced onto G3N nodes (native Jolt on Windows; software pose on Linux/macOS and fallback).",
+      "description": "quaternion synced onto G3N nodes (native Jolt on the default build; software pose with `-tags joltgo` and on fallback).",
       "category": "Physics"
     },
     {
@@ -15513,7 +17275,7 @@
     {
       "syntax": "GrabbedEntity(holder)",
       "name": "GrabbedEntity",
-      "description": "6DOF spring on Windows Jolt; parented kinematic fallback if the joint is unavailable.",
+      "description": "6DOF spring on native Jolt; parented kinematic fallback if the joint is unavailable (`-tags joltgo` uses the position spring).",
       "category": "Physics"
     },
     {
@@ -15543,73 +17305,85 @@
     {
       "syntax": "SetBodyCCD e, on",
       "name": "SetBodyCCD",
-      "description": "Windows: Jolt `LinearCast`. Linux/macOS and fallback: ray sweep from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
+      "description": "native Jolt `LinearCast` on the default build. `-tags joltgo` and fallback sweep a ray from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
       "category": "Physics"
     },
     {
       "syntax": "SetCCD e, on",
       "name": "SetCCD",
-      "description": "Windows: Jolt `LinearCast`. Linux/macOS and fallback: ray sweep from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
+      "description": "native Jolt `LinearCast` on the default build. `-tags joltgo` and fallback sweep a ray from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
       "category": "Physics"
     },
     {
       "syntax": "BodySleep e",
       "name": "BodySleep",
-      "description": "Windows: Jolt `LinearCast`. Linux/macOS and fallback: ray sweep from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
+      "description": "native Jolt `LinearCast` on the default build. `-tags joltgo` and fallback sweep a ray from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
       "category": "Physics"
     },
     {
       "syntax": "SleepBody e",
       "name": "SleepBody",
-      "description": "Windows: Jolt `LinearCast`. Linux/macOS and fallback: ray sweep from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
+      "description": "native Jolt `LinearCast` on the default build. `-tags joltgo` and fallback sweep a ray from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
       "category": "Physics"
     },
     {
       "syntax": "BodyWake e",
       "name": "BodyWake",
-      "description": "Windows: Jolt `LinearCast`. Linux/macOS and fallback: ray sweep from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
+      "description": "native Jolt `LinearCast` on the default build. `-tags joltgo` and fallback sweep a ray from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
       "category": "Physics"
     },
     {
       "syntax": "WakeBody e",
       "name": "WakeBody",
-      "description": "Windows: Jolt `LinearCast`. Linux/macOS and fallback: ray sweep from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
+      "description": "native Jolt `LinearCast` on the default build. `-tags joltgo` and fallback sweep a ray from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate",
       "category": "Physics"
     },
     {
       "syntax": "CreateCharacterController(e [, height, radius, maxSlope, maxStrength])",
       "name": "CreateCharacterController",
-      "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). Windows also attaches a slightly smaller inner kinematic body so rays hit the player; Linux/macOS adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
+      "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). The default build attaches a slightly smaller inner kinematic body so rays hit the player. `-tags joltgo` adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterGroundNormal(e [, axis])` is the floor normal: axis `0` X, `1` Y (default), `2` Z. `CharacterGroundNormalX/Y/Z(e)` are the same components. `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
       "category": "Physics"
     },
     {
       "syntax": "MoveCharacter e, vx, vz",
       "name": "MoveCharacter",
-      "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). Windows also attaches a slightly smaller inner kinematic body so rays hit the player; Linux/macOS adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
+      "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). The default build attaches a slightly smaller inner kinematic body so rays hit the player. `-tags joltgo` adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterGroundNormal(e [, axis])` is the floor normal: axis `0` X, `1` Y (default), `2` Z. `CharacterGroundNormalX/Y/Z(e)` are the same components. `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
       "category": "Physics"
     },
     {
       "syntax": "SetCharacterShape e, \"capsule\"|\"box\", h, r",
       "name": "SetCharacterShape",
-      "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). Windows also attaches a slightly smaller inner kinematic body so rays hit the player; Linux/macOS adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
+      "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). The default build attaches a slightly smaller inner kinematic body so rays hit the player. `-tags joltgo` adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterGroundNormal(e [, axis])` is the floor normal: axis `0` X, `1` Y (default), `2` Z. `CharacterGroundNormalX/Y/Z(e)` are the same components. `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
       "category": "Physics"
     },
     {
       "syntax": "GetCharacterGroundState",
       "name": "GetCharacterGroundState",
-      "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). Windows also attaches a slightly smaller inner kinematic body so rays hit the player; Linux/macOS adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
+      "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). The default build attaches a slightly smaller inner kinematic body so rays hit the player. `-tags joltgo` adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterGroundNormal(e [, axis])` is the floor normal: axis `0` X, `1` Y (default), `2` Z. `CharacterGroundNormalX/Y/Z(e)` are the same components. `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
+      "category": "Physics"
+    },
+    {
+      "syntax": "GetCharacterGroundNormal(e [, axis])",
+      "name": "GetCharacterGroundNormal",
+      "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). The default build attaches a slightly smaller inner kinematic body so rays hit the player. `-tags joltgo` adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterGroundNormal(e [, axis])` is the floor normal: axis `0` X, `1` Y (default), `2` Z. `CharacterGroundNormalX/Y/Z(e)` are the same components. `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
+      "category": "Physics"
+    },
+    {
+      "syntax": "CharacterGroundNormalX/Y/Z(e)",
+      "name": "CharacterGroundNormalX",
+      "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). The default build attaches a slightly smaller inner kinematic body so rays hit the player. `-tags joltgo` adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterGroundNormal(e [, axis])` is the floor normal: axis `0` X, `1` Y (default), `2` Z. `CharacterGroundNormalX/Y/Z(e)` are the same components. `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
       "category": "Physics"
     },
     {
       "syntax": "GetCharacterContact(e)",
       "name": "GetCharacterContact",
-      "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). Windows also attaches a slightly smaller inner kinematic body so rays hit the player; Linux/macOS adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
+      "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). The default build attaches a slightly smaller inner kinematic body so rays hit the player. `-tags joltgo` adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterGroundNormal(e [, axis])` is the floor normal: axis `0` X, `1` Y (default), `2` Z. `CharacterGroundNormalX/Y/Z(e)` are the same components. `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
       "category": "Physics"
     },
     {
       "syntax": "CreateCharacter(e [, halfH, r])",
       "name": "CreateCharacter",
-      "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). Windows also attaches a slightly smaller inner kinematic body so rays hit the player; Linux/macOS adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
+      "description": "Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). The default build attaches a slightly smaller inner kinematic body so rays hit the player. `-tags joltgo` adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, \"capsule\"|\"box\", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterGroundNormal(e [, axis])` is the floor normal: axis `0` X, `1` Y (default), `2` Z. `CharacterGroundNormalX/Y/Z(e)` are the same components. `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.",
       "category": "Physics"
     },
     {
@@ -15843,6 +17617,12 @@
     {
       "syntax": "FreeJoint2D id",
       "name": "FreeJoint2D",
+      "description": "",
+      "category": "Physics"
+    },
+    {
+      "syntax": "DeleteJoint2D id",
+      "name": "DeleteJoint2D",
       "description": "",
       "category": "Physics"
     },
@@ -16117,6 +17897,42 @@
       "category": "Network"
     },
     {
+      "syntax": "Net.Host",
+      "name": "Net.Host",
+      "description": "",
+      "category": "Network"
+    },
+    {
+      "syntax": "Net.Join",
+      "name": "Net.Join",
+      "description": "",
+      "category": "Network"
+    },
+    {
+      "syntax": "Net.Say",
+      "name": "Net.Say",
+      "description": "",
+      "category": "Network"
+    },
+    {
+      "syntax": "NetRecv",
+      "name": "NetRecv",
+      "description": "",
+      "category": "Network"
+    },
+    {
+      "syntax": "NetEvent() = NET_RECEIVE",
+      "name": "NetEvent",
+      "description": "",
+      "category": "Network"
+    },
+    {
+      "syntax": "NetMsg$",
+      "name": "NetMsg$",
+      "description": "",
+      "category": "Network"
+    },
+    {
       "syntax": "HostGame([port])",
       "name": "HostGame",
       "description": "returns 1, announces on the LAN",
@@ -16309,51 +18125,39 @@
       "category": "Network"
     },
     {
-      "syntax": "NetRecv()",
-      "name": "NetRecv",
-      "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
-      "category": "Network"
-    },
-    {
-      "syntax": "NetMsg$()",
-      "name": "NetMsg$",
-      "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
-      "category": "Network"
-    },
-    {
       "syntax": "NetRecvMsg$()",
       "name": "NetRecvMsg$",
-      "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
+      "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `NetRecvPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
       "category": "Network"
     },
     {
       "syntax": "GetNetMsg$()",
       "name": "GetNetMsg$",
-      "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
+      "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `NetRecvPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
       "category": "Network"
     },
     {
       "syntax": "NetPeer()",
       "name": "NetPeer",
-      "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
+      "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `NetRecvPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
+      "category": "Network"
+    },
+    {
+      "syntax": "NetRecvPeer()",
+      "name": "NetRecvPeer",
+      "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `NetRecvPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
       "category": "Network"
     },
     {
       "syntax": "GetNetPeer()",
       "name": "GetNetPeer",
-      "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
-      "category": "Network"
-    },
-    {
-      "syntax": "NetEvent()",
-      "name": "NetEvent",
-      "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
+      "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `NetRecvPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
       "category": "Network"
     },
     {
       "syntax": "GetNetEvent()",
       "name": "GetNetEvent",
-      "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
+      "description": "1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `NetRecvPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)",
       "category": "Network"
     },
     {
@@ -16819,9 +18623,87 @@
       "category": "Language builtins"
     },
     {
+      "syntax": "CreateMap()",
+      "name": "CreateMap",
+      "description": "string keys, case-insensitive. `m(\"hp\")` and `m(\"hp\") = 3` are the same get and set. A missing key is `0`. `Map.Get` is `MapGet`",
+      "category": "Language builtins"
+    },
+    {
+      "syntax": "MapSet m, key$, v",
+      "name": "MapSet",
+      "description": "string keys, case-insensitive. `m(\"hp\")` and `m(\"hp\") = 3` are the same get and set. A missing key is `0`. `Map.Get` is `MapGet`",
+      "category": "Language builtins"
+    },
+    {
+      "syntax": "MapGet(m, key$)",
+      "name": "MapGet",
+      "description": "string keys, case-insensitive. `m(\"hp\")` and `m(\"hp\") = 3` are the same get and set. A missing key is `0`. `Map.Get` is `MapGet`",
+      "category": "Language builtins"
+    },
+    {
+      "syntax": "MapHas(m, key$)",
+      "name": "MapHas",
+      "description": "string keys, case-insensitive. `m(\"hp\")` and `m(\"hp\") = 3` are the same get and set. A missing key is `0`. `Map.Get` is `MapGet`",
+      "category": "Language builtins"
+    },
+    {
+      "syntax": "MapDelete m, key$",
+      "name": "MapDelete",
+      "description": "string keys, case-insensitive. `m(\"hp\")` and `m(\"hp\") = 3` are the same get and set. A missing key is `0`. `Map.Get` is `MapGet`",
+      "category": "Language builtins"
+    },
+    {
+      "syntax": "MapCount(m)",
+      "name": "MapCount",
+      "description": "string keys, case-insensitive. `m(\"hp\")` and `m(\"hp\") = 3` are the same get and set. A missing key is `0`. `Map.Get` is `MapGet`",
+      "category": "Language builtins"
+    },
+    {
       "syntax": "ArraySize(arr [, dim])",
       "name": "ArraySize",
-      "description": "`Dim` length (`dim` 1 = first axis)",
+      "description": "`Dim` length (`dim` 1 = first axis). `Redim` is the `Dim` statement again; it copies the overlapping slots",
+      "category": "Language builtins"
+    },
+    {
+      "syntax": "Copy(v)",
+      "name": "Copy",
+      "description": "a separate array, map, or struct. Assignment of a struct shares it",
+      "category": "Language builtins"
+    },
+    {
+      "syntax": "Callback(fn)",
+      "name": "Callback",
+      "description": "a function value. `@Name` is the same kind of value",
+      "category": "Language builtins"
+    },
+    {
+      "syntax": "CreateStateMachine()",
+      "name": "CreateStateMachine",
+      "description": "the first `AddState` is current; `UpdateState` calls that function by name",
+      "category": "Language builtins"
+    },
+    {
+      "syntax": "AddState sm, name$, func$",
+      "name": "AddState",
+      "description": "the first `AddState` is current; `UpdateState` calls that function by name",
+      "category": "Language builtins"
+    },
+    {
+      "syntax": "GoState sm, name$",
+      "name": "GoState",
+      "description": "the first `AddState` is current; `UpdateState` calls that function by name",
+      "category": "Language builtins"
+    },
+    {
+      "syntax": "StateName(sm)",
+      "name": "StateName",
+      "description": "the first `AddState` is current; `UpdateState` calls that function by name",
+      "category": "Language builtins"
+    },
+    {
+      "syntax": "UpdateState sm",
+      "name": "UpdateState",
+      "description": "the first `AddState` is current; `UpdateState` calls that function by name",
       "category": "Language builtins"
     },
     {
@@ -16835,6 +18717,144 @@
       "name": "FrontBuffer",
       "description": "classic no-ops (`SetBuffer BackBuffer()`)",
       "category": "Language builtins"
+    },
+    {
+      "syntax": "ReadText(path$)",
+      "name": "ReadText",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "WriteText path$, text$",
+      "name": "WriteText",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "ListDir(path$)",
+      "name": "ListDir",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "DropCount()",
+      "name": "DropCount",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "DroppedFile$()",
+      "name": "DroppedFile$",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "BindAction name$, key",
+      "name": "BindAction",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "ActionDown(name$)",
+      "name": "ActionDown",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "ActionHit(name$)",
+      "name": "ActionHit",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "UnbindAction name$",
+      "name": "UnbindAction",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "SaveBinds path$",
+      "name": "SaveBinds",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "LoadBinds path$",
+      "name": "LoadBinds",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "SaveSlot",
+      "name": "SaveSlot",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "LoadSlot$",
+      "name": "LoadSlot$",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "TableInsert",
+      "name": "TableInsert",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "TableCreate name$",
+      "name": "TableCreate",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "TableGet$(name$, row, column$)",
+      "name": "TableGet$",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "TableCount(name$)",
+      "name": "TableCount",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "TableSave name$, path$",
+      "name": "TableSave",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "TableLoad name$, path$",
+      "name": "TableLoad",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "ReloadScripts [path$]",
+      "name": "ReloadScripts",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "SolveTwoBone(ax, ay, tx, ty, len1, len2)",
+      "name": "SolveTwoBone",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "IKBend()",
+      "name": "IKBend",
+      "description": "",
+      "category": "Files, actions, tables"
+    },
+    {
+      "syntax": "GuiPickFile [dir$]",
+      "name": "GuiPickFile",
+      "description": "",
+      "category": "Files, actions, tables"
     },
     {
       "syntax": "DebugLog msg$ [, level$]",
@@ -17133,7 +19153,37 @@
     {
       "syntax": "GuiText s$",
       "name": "GuiText",
-      "description": "Label",
+      "description": "Label. `UIAlign` shifts it",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiTextWrapped s$",
+      "name": "GuiTextWrapped",
+      "description": "Label wrapped to `UIWrap` pixels",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiRich s$",
+      "name": "GuiRich",
+      "description": "`{#rrggbb}` … `{#}` colored runs",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiHBox count [, gap]",
+      "name": "GuiHBox",
+      "description": "The next `count` buttons, texts, sliders, or checks share a row",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiColumns n",
+      "name": "GuiColumns",
+      "description": "Start a column row",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "GuiAnchor x, y",
+      "name": "GuiAnchor",
+      "description": "Place the next `GuiBegin` window. 0–1 across the framebuffer",
       "category": "Dear ImGui (cimgui-go v1.6.0)"
     },
     {
@@ -17341,6 +19391,36 @@
       "category": "Dear ImGui (cimgui-go v1.6.0)"
     },
     {
+      "syntax": "UITheme name$",
+      "name": "UITheme",
+      "description": "`\"dark\"` or `\"light\"`",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "UIScale n",
+      "name": "UIScale",
+      "description": "Font scale, 0.5–3",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "UIWrap width",
+      "name": "UIWrap",
+      "description": "Wrap width for `GuiTextWrapped`",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "UIAlign mode",
+      "name": "UIAlign",
+      "description": "0 left, 1 centre, 2 right",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
+      "syntax": "UINav flags",
+      "name": "UINav",
+      "description": "1 keyboard, 2 gamepad, 3 both",
+      "category": "Dear ImGui (cimgui-go v1.6.0)"
+    },
+    {
       "syntax": "WantCaptureMouse()",
       "name": "WantCaptureMouse",
       "description": "1 when the panel wants the mouse",
@@ -17452,6 +19532,18 @@
       "syntax": "SetWidgetPos e, x, y",
       "name": "SetWidgetPos",
       "description": "Screen position",
+      "category": "G3N scene widgets"
+    },
+    {
+      "syntax": "SetWidgetAnchor e, ax, ay",
+      "name": "SetWidgetAnchor",
+      "description": "Pin to a fraction of the window. `1, 0` is the right edge",
+      "category": "G3N scene widgets"
+    },
+    {
+      "syntax": "TweenWidget e, x, y, seconds",
+      "name": "TweenWidget",
+      "description": "Slide to pixels. 0 moves now",
       "category": "G3N scene widgets"
     },
     {
@@ -17671,6 +19763,24 @@
       "category": "Pathfinding"
     },
     {
+      "syntax": "SetNavCost nav, area, cost",
+      "name": "SetNavCost",
+      "description": "area cost, never below 1.",
+      "category": "Pathfinding"
+    },
+    {
+      "syntax": "GetNavCost(nav, area)",
+      "name": "GetNavCost",
+      "description": "area cost, never below 1.",
+      "category": "Pathfinding"
+    },
+    {
+      "syntax": "AddNavLink nav, ax, ay, az, bx, by, bz",
+      "name": "AddNavLink",
+      "description": "off-mesh hop, stitched when a path passes within 1.5 of either end.",
+      "category": "Pathfinding"
+    },
+    {
       "syntax": "CreateGrid(w, h)",
       "name": "CreateGrid",
       "description": "",
@@ -17764,6 +19874,114 @@
       "syntax": "BakeTerrainNav([terrain])",
       "name": "BakeTerrainNav",
       "description": "Detour from loaded terrain chunk triangles",
+      "category": "Pathfinding"
+    },
+    {
+      "syntax": "SetVision e, range, degrees",
+      "name": "SetVision",
+      "description": "",
+      "category": "Pathfinding"
+    },
+    {
+      "syntax": "SetHearing e, radius",
+      "name": "SetHearing",
+      "description": "",
+      "category": "Pathfinding"
+    },
+    {
+      "syntax": "CanSee(from, to)",
+      "name": "CanSee",
+      "description": "",
+      "category": "Pathfinding"
+    },
+    {
+      "syntax": "CanHear(from, to, loud)",
+      "name": "CanHear",
+      "description": "",
+      "category": "Pathfinding"
+    },
+    {
+      "syntax": "SteerSeek",
+      "name": "SteerSeek",
+      "description": "",
+      "category": "Pathfinding"
+    },
+    {
+      "syntax": "SteerFlee e, x, y, z, speed",
+      "name": "SteerFlee",
+      "description": "",
+      "category": "Pathfinding"
+    },
+    {
+      "syntax": "SteerArrive e, x, y, z, speed, slow",
+      "name": "SteerArrive",
+      "description": "",
+      "category": "Pathfinding"
+    },
+    {
+      "syntax": "SteerWander e, turn, speed",
+      "name": "SteerWander",
+      "description": "",
+      "category": "Pathfinding"
+    },
+    {
+      "syntax": "SteerAvoid e, reach, speed",
+      "name": "SteerAvoid",
+      "description": "",
+      "category": "Pathfinding"
+    },
+    {
+      "syntax": "SetFlock e, group",
+      "name": "SetFlock",
+      "description": "",
+      "category": "Pathfinding"
+    },
+    {
+      "syntax": "FlockUpdate group, reach, separate, align, cohere",
+      "name": "FlockUpdate",
+      "description": "",
+      "category": "Pathfinding"
+    },
+    {
+      "syntax": "AIDebug e",
+      "name": "AIDebug",
+      "description": "",
+      "category": "Pathfinding"
+    },
+    {
+      "syntax": "CreateAI([entity])",
+      "name": "CreateAI",
+      "description": "",
+      "category": "Pathfinding"
+    },
+    {
+      "syntax": "AIState ai [, name$]",
+      "name": "AIState",
+      "description": "",
+      "category": "Pathfinding"
+    },
+    {
+      "syntax": "AIAddWaypoint ai, x, y, z",
+      "name": "AIAddWaypoint",
+      "description": "",
+      "category": "Pathfinding"
+    },
+    {
+      "syntax": "AIDetectTarget(ai, e)",
+      "name": "AIDetectTarget",
+      "description": "",
+      "category": "Pathfinding"
+    },
+    {
+      "syntax": "AIUpdate ai [, speed]",
+      "name": "AIUpdate",
+      "description": "",
+      "category": "Pathfinding"
+    },
+    {
+      "syntax": "CreateTrail e, points",
+      "name": "CreateTrail",
+      "description": "last positions as a debug line. See [NAV.md](NAV.md).",
       "category": "Pathfinding"
     },
     {
@@ -17977,6 +20195,18 @@
       "category": "Scene streaming"
     },
     {
+      "syntax": "GetWorldOriginX()",
+      "name": "GetWorldOriginX",
+      "description": "Accumulated shift. `SaveScene` and `SaveGame` store it, and loading after a different shift puts things back in the same world place",
+      "category": "Scene streaming"
+    },
+    {
+      "syntax": "GetWorldOriginZ()",
+      "name": "GetWorldOriginZ",
+      "description": "Accumulated shift. `SaveScene` and `SaveGame` store it, and loading after a different shift puts things back in the same world place",
+      "category": "Scene streaming"
+    },
+    {
       "syntax": "CreateWorldStream([chunkSize, radius])",
       "name": "CreateWorldStream",
       "description": "Prop grid, including the demo slabs and cones",
@@ -18099,7 +20329,7 @@
     {
       "syntax": "GenerateHeightmapPreset(name$, w, h, seed)",
       "name": "GenerateHeightmapPreset",
-      "description": "`alpine` `rolling-hills` `sharp-peaks` `archipelago` `plateaus` `gentle-dunes` `island` (one landmass, rim below 0.1)",
+      "description": "`alpine` `rolling-hills` `sharp-peaks` `archipelago` `plateaus` `gentle-dunes` `island` (one landmass, rim below 0.1) `mountain-island` (round, low coast, real peaks; follow with `HydraulicErodeHeightmap`, and set the sea near 0.3 of the height)",
       "category": "Terrain"
     },
     {
@@ -18183,30 +20413,36 @@
     {
       "syntax": "SetTerrainOctaves",
       "name": "SetTerrainOctaves",
-      "description": "Their GUI sliders (rebuilds chunks)",
+      "description": "Their GUI sliders (rebuilds chunks). `GetTerrainOctaves(t)`, `GetTerrainFreq(t)`, `GetTerrainDispFactor(t)` read them back (`0` when `t` is not terrain)",
       "category": "Terrain"
     },
     {
       "syntax": "SetTerrainFreq",
       "name": "SetTerrainFreq",
-      "description": "Their GUI sliders (rebuilds chunks)",
+      "description": "Their GUI sliders (rebuilds chunks). `GetTerrainOctaves(t)`, `GetTerrainFreq(t)`, `GetTerrainDispFactor(t)` read them back (`0` when `t` is not terrain)",
       "category": "Terrain"
     },
     {
       "syntax": "SetTerrainDispFactor",
       "name": "SetTerrainDispFactor",
-      "description": "Their GUI sliders (rebuilds chunks)",
+      "description": "Their GUI sliders (rebuilds chunks). `GetTerrainOctaves(t)`, `GetTerrainFreq(t)`, `GetTerrainDispFactor(t)` read them back (`0` when `t` is not terrain)",
       "category": "Terrain"
     },
     {
       "syntax": "SetTerrainPower",
       "name": "SetTerrainPower",
-      "description": "Their GUI sliders (rebuilds chunks)",
+      "description": "Their GUI sliders (rebuilds chunks). `GetTerrainOctaves(t)`, `GetTerrainFreq(t)`, `GetTerrainDispFactor(t)` read them back (`0` when `t` is not terrain)",
       "category": "Terrain"
     },
     {
       "syntax": "SetTerrainGrassCoverage",
       "name": "SetTerrainGrassCoverage",
+      "description": "Splat + fog",
+      "category": "Terrain"
+    },
+    {
+      "syntax": "GetTerrainGrassCoverage(t)",
+      "name": "GetTerrainGrassCoverage",
       "description": "Splat + fog",
       "category": "Terrain"
     },
@@ -18225,19 +20461,19 @@
     {
       "syntax": "SetTerrainWaterHeight",
       "name": "SetTerrainWaterHeight",
-      "description": "Sand line + optional snow. The snow edge wanders by about ±9 m and creeps lower on flat ground; trees and props are not planted in it. Steep rock gets strata and crevices",
+      "description": "Sand line + optional snow. The snow edge wanders by up to ±9 m (less on small hills) and creeps lower on flat ground; trees and props are not planted in it. Steep rock gets strata and crevices",
       "category": "Terrain"
     },
     {
       "syntax": "SetTerrainBlend",
       "name": "SetTerrainBlend",
-      "description": "Sand line + optional snow. The snow edge wanders by about ±9 m and creeps lower on flat ground; trees and props are not planted in it. Steep rock gets strata and crevices",
+      "description": "Sand line + optional snow. The snow edge wanders by up to ±9 m (less on small hills) and creeps lower on flat ground; trees and props are not planted in it. Steep rock gets strata and crevices",
       "category": "Terrain"
     },
     {
       "syntax": "SetTerrainSnow(on [, y])",
       "name": "SetTerrainSnow",
-      "description": "Sand line + optional snow. The snow edge wanders by about ±9 m and creeps lower on flat ground; trees and props are not planted in it. Steep rock gets strata and crevices",
+      "description": "Sand line + optional snow. The snow edge wanders by up to ±9 m (less on small hills) and creeps lower on flat ground; trees and props are not planted in it. Steep rock gets strata and crevices",
       "category": "Terrain"
     },
     {
@@ -18303,19 +20539,25 @@
     {
       "syntax": "SetCloudCoverage",
       "name": "SetCloudCoverage",
-      "description": "Cloud layer",
+      "description": "Cloud layer. The getter reads that sheet, or the current one",
+      "category": "Terrain"
+    },
+    {
+      "syntax": "GetCloudCoverage([id])",
+      "name": "GetCloudCoverage",
+      "description": "Cloud layer. The getter reads that sheet, or the current one",
       "category": "Terrain"
     },
     {
       "syntax": "SetCloudSpeed",
       "name": "SetCloudSpeed",
-      "description": "Cloud layer",
+      "description": "Cloud layer. The getter reads that sheet, or the current one",
       "category": "Terrain"
     },
     {
       "syntax": "SetCloudDensity",
       "name": "SetCloudDensity",
-      "description": "Cloud layer",
+      "description": "Cloud layer. The getter reads that sheet, or the current one",
       "category": "Terrain"
     },
     {
@@ -18817,6 +21059,18 @@
       "category": "Water"
     },
     {
+      "syntax": "SetWaterShallow(r, g, b [, metres])",
+      "name": "SetWaterShallow",
+      "description": "The color over shallow ground, out to that much water seen through (default 14). Use with `SetWaterClarity`",
+      "category": "Water"
+    },
+    {
+      "syntax": "SetWaterClarity(metres)",
+      "name": "SetWaterClarity",
+      "description": "How deep the bottom stays visible; `0` is the default, 70. A small value keeps a sea blue up to its shallows",
+      "category": "Water"
+    },
+    {
       "syntax": "SetWaterWaves(count [, amp])",
       "name": "SetWaterWaves",
       "description": "0 = flat plane, 1–4 Gerstner",
@@ -18940,6 +21194,18 @@
       "syntax": "EnableGPUInstances",
       "name": "EnableGPUInstances",
       "description": "",
+      "category": "Instancing"
+    },
+    {
+      "syntax": "SetAutoBatch on",
+      "name": "SetAutoBatch",
+      "description": "Draw copies of a mesh with equal materials as one instanced draw, with distance detail, and merge still meshes by area. On by default; 0 draws each alone",
+      "category": "Instancing"
+    },
+    {
+      "syntax": "StatsBatched()",
+      "name": "StatsBatched",
+      "description": "How many entities batches drew this frame",
       "category": "Instancing"
     },
     {
@@ -19327,6 +21593,42 @@
       "category": "Physics extras (Jolt)"
     },
     {
+      "syntax": "SetTimeScale n",
+      "name": "SetTimeScale",
+      "description": "Scales `UpdateWorld` (`DeltaTime` stays real). `SetTimeScale` clamps to `0`–`10`. A stored `0` is stepped as `1`, and `GetTimeScale` returns `1` in that case. `TimeScale(n)` sets without the cap of `10`",
+      "category": "Physics extras (Jolt)"
+    },
+    {
+      "syntax": "GetTimeScale()",
+      "name": "GetTimeScale",
+      "description": "Scales `UpdateWorld` (`DeltaTime` stays real). `SetTimeScale` clamps to `0`–`10`. A stored `0` is stepped as `1`, and `GetTimeScale` returns `1` in that case. `TimeScale(n)` sets without the cap of `10`",
+      "category": "Physics extras (Jolt)"
+    },
+    {
+      "syntax": "TimeScale([n])",
+      "name": "TimeScale",
+      "description": "Scales `UpdateWorld` (`DeltaTime` stays real). `SetTimeScale` clamps to `0`–`10`. A stored `0` is stepped as `1`, and `GetTimeScale` returns `1` in that case. `TimeScale(n)` sets without the cap of `10`",
+      "category": "Physics extras (Jolt)"
+    },
+    {
+      "syntax": "TweenPosition e, x, y, z, seconds [, ease$]",
+      "name": "TweenPosition",
+      "description": "Move to a point. Ease: `linear` (default), `in`, `out`, `inout`, `smooth`, `smoother`",
+      "category": "Physics extras (Jolt)"
+    },
+    {
+      "syntax": "TweenRotation e, pitch, yaw, roll, seconds [, ease$]",
+      "name": "TweenRotation",
+      "description": "Turn to a pose, degrees",
+      "category": "Physics extras (Jolt)"
+    },
+    {
+      "syntax": "TweenColor e, r, g, b, seconds [, ease$]",
+      "name": "TweenColor",
+      "description": "Blend the entity color",
+      "category": "Physics extras (Jolt)"
+    },
+    {
       "syntax": "EnablePhysicsDebug on",
       "name": "EnablePhysicsDebug",
       "description": "Collider shapes, contacts, velocities and joints overlay. See [Debug drawing](#debug-drawing)",
@@ -19348,6 +21650,18 @@
       "syntax": "SetBodySensor",
       "name": "SetBodySensor",
       "description": "Trigger volume",
+      "category": "Physics extras (Jolt)"
+    },
+    {
+      "syntax": "GetTriggerHit(sensor)",
+      "name": "GetTriggerHit",
+      "description": "First entity touching that sensor this frame, or `0`",
+      "category": "Physics extras (Jolt)"
+    },
+    {
+      "syntax": "BodyType e [, n]",
+      "name": "BodyType",
+      "description": "Entity motion flag: `0` none, `1` dynamic, `2` static, `3` kinematic. One argument reads it. These numbers are the entity flag, separate from the `STATIC` / `KINEMATIC` / `DYNAMIC` constants",
       "category": "Physics extras (Jolt)"
     },
     {
@@ -19513,6 +21827,36 @@
       "category": "Vehicles"
     },
     {
+      "syntax": "CreateJetSkiController",
+      "name": "CreateJetSkiController",
+      "description": "",
+      "category": "Vehicles"
+    },
+    {
+      "syntax": "UpdateJetSki",
+      "name": "UpdateJetSki",
+      "description": "",
+      "category": "Vehicles"
+    },
+    {
+      "syntax": "CreateWaterSkiController",
+      "name": "CreateWaterSkiController",
+      "description": "",
+      "category": "Vehicles"
+    },
+    {
+      "syntax": "CreateWaterSki",
+      "name": "CreateWaterSki",
+      "description": "",
+      "category": "Vehicles"
+    },
+    {
+      "syntax": "UpdateWaterSki(e, throttle, steer [, tow])",
+      "name": "UpdateWaterSki",
+      "description": "",
+      "category": "Vehicles"
+    },
+    {
       "syntax": "CreateHelicopterController",
       "name": "CreateHelicopterController",
       "description": "",
@@ -19561,6 +21905,30 @@
       "category": "Vehicles"
     },
     {
+      "syntax": "CreateMechController",
+      "name": "CreateMechController",
+      "description": "",
+      "category": "Vehicles"
+    },
+    {
+      "syntax": "UpdateMech",
+      "name": "UpdateMech",
+      "description": "",
+      "category": "Vehicles"
+    },
+    {
+      "syntax": "CreateLanderController",
+      "name": "CreateLanderController",
+      "description": "",
+      "category": "Vehicles"
+    },
+    {
+      "syntax": "UpdateLander",
+      "name": "UpdateLander",
+      "description": "",
+      "category": "Vehicles"
+    },
+    {
       "syntax": "CreateGliderController",
       "name": "CreateGliderController",
       "description": "",
@@ -19583,6 +21951,96 @@
       "name": "UpdateSki",
       "description": "Low friction",
       "category": "Vehicles"
+    },
+    {
+      "syntax": "CreateFPSController(e, cam [, height, radius, walk, sprint, jump])",
+      "name": "CreateFPSController",
+      "description": "Defaults `1.8`, `0.4`, `6`, `10.5`, `9.5`. Mouse look, pitch clamped to ±89, ignored while ImGui has the pointer. Crouch shortens the capsule to `0.55` of its height",
+      "category": "Characters"
+    },
+    {
+      "syntax": "UpdateFPS(e, x, z, jump, sprint, crouch [, sens])",
+      "name": "UpdateFPS",
+      "description": "`x`/`z` are about `-1`..`1`. `sens` defaults to `0.15` degrees per mouse pixel",
+      "category": "Characters"
+    },
+    {
+      "syntax": "GetFPSPitch(e)",
+      "name": "GetFPSPitch",
+      "description": "Look angles and ground",
+      "category": "Characters"
+    },
+    {
+      "syntax": "GetFPSYaw(e)",
+      "name": "GetFPSYaw",
+      "description": "Look angles and ground",
+      "category": "Characters"
+    },
+    {
+      "syntax": "IsFPSGrounded(e)",
+      "name": "IsFPSGrounded",
+      "description": "Look angles and ground",
+      "category": "Characters"
+    },
+    {
+      "syntax": "CreateTPSController(e, cam [, height, radius, move, sprint, jump])",
+      "name": "CreateTPSController",
+      "description": "Defaults `1.8`, `0.45`, `6.5`, `11`, `10`. Aim slows the walk to `0.65`",
+      "category": "Characters"
+    },
+    {
+      "syntax": "UpdateTPS(e, x, z, jump, sprint, aim, camDist, camPitch, camYaw)",
+      "name": "UpdateTPS",
+      "description": "Move is relative to `camYaw`. Defaults if you omit the camera args: distance `4.5`, pitch `16`, yaw `0`",
+      "category": "Characters"
+    },
+    {
+      "syntax": "GetTPSYaw(e)",
+      "name": "GetTPSYaw",
+      "description": "Facing and ground",
+      "category": "Characters"
+    },
+    {
+      "syntax": "IsTPSGrounded(e)",
+      "name": "IsTPSGrounded",
+      "description": "Facing and ground",
+      "category": "Characters"
+    },
+    {
+      "syntax": "CreateTopDownController(e [, speed, turnRate])",
+      "name": "CreateTopDownController",
+      "description": "Defaults `8` and `18` degrees/sec of aim ease. Capsule is `1.8` × `0.45`",
+      "category": "Characters"
+    },
+    {
+      "syntax": "UpdateTopDown(e, x, z, aimX, aimZ, dash)",
+      "name": "UpdateTopDown",
+      "description": "Faces the aim point. A dash lasts `0.18` s and then waits `0.8` s",
+      "category": "Characters"
+    },
+    {
+      "syntax": "GetTopDownAimYaw(e)",
+      "name": "GetTopDownAimYaw",
+      "description": "Current facing",
+      "category": "Characters"
+    },
+    {
+      "syntax": "CreatePlatformerController(e [, speed, jump, maxJumps])",
+      "name": "CreatePlatformerController",
+      "description": "Defaults `8.5`, `12`, `2` jumps. Side view: `x` is the only axis",
+      "category": "Characters"
+    },
+    {
+      "syntax": "UpdatePlatformer(e, x, jumpPressed, jumpHeld)",
+      "name": "UpdatePlatformer",
+      "description": "Releasing jump raises gravity. Coyote time is `0.12` s",
+      "category": "Characters"
+    },
+    {
+      "syntax": "IsPlatformerGrounded(e)",
+      "name": "IsPlatformerGrounded",
+      "description": "Ground state `0`",
+      "category": "Characters"
     },
     {
       "syntax": "StatsFPS()",
@@ -19660,6 +22118,42 @@
       "syntax": "StatsAllocKB()",
       "name": "StatsAllocKB",
       "description": "Go heap in use, the last GC pause, and KB allocated per frame",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "StatsFuncMs(name$)",
+      "name": "StatsFuncMs",
+      "description": "Exclusive function time, call count, and the slowest name",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "StatsFuncCalls(name$)",
+      "name": "StatsFuncCalls",
+      "description": "Exclusive function time, call count, and the slowest name",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "StatsTopFunc$()",
+      "name": "StatsTopFunc$",
+      "description": "Exclusive function time, call count, and the slowest name",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "StatsAssetKB(name$)",
+      "name": "StatsAssetKB",
+      "description": "File size of one loaded mesh or texture, and the total. Keys look like `\"mesh hero.glb\"`",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "StatsAssetMB()",
+      "name": "StatsAssetMB",
+      "description": "File size of one loaded mesh or texture, and the total. Keys look like `\"mesh hero.glb\"`",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "StatsVRAMMB()",
+      "name": "StatsVRAMMB",
+      "description": "Texture memory. Compressed byte size, otherwise width × height × 4",
       "category": "Editor / stats"
     },
     {
@@ -19744,12 +22238,6 @@
       "syntax": "ReloadMesh(ent [, file$])",
       "name": "ReloadMesh",
       "description": "No file: reload the entity's `LoadMesh` file in place, keeping handle, transform, children, colour, and texture. With a file: load a new mesh, copy pose, return it",
-      "category": "Editor / stats"
-    },
-    {
-      "syntax": "ReloadScripts [file$]",
-      "name": "ReloadScripts",
-      "description": "Reparse the script and its includes and replace its functions",
       "category": "Editor / stats"
     },
     {
@@ -19876,6 +22364,72 @@
       "syntax": "GetExposure()",
       "name": "GetExposure",
       "description": "Linear exposure (0.05–8)",
+      "category": "Post-processing (GL 3.3 fullscreen blit)"
+    },
+    {
+      "syntax": "SetAutoExposure [on]",
+      "name": "SetAutoExposure",
+      "description": "Ease exposure toward a middle brightness. Turns the stack on. `GetAutoExposure` is `1` or `0`, not the exposure number",
+      "category": "Post-processing (GL 3.3 fullscreen blit)"
+    },
+    {
+      "syntax": "GetAutoExposure()",
+      "name": "GetAutoExposure",
+      "description": "Ease exposure toward a middle brightness. Turns the stack on. `GetAutoExposure` is `1` or `0`, not the exposure number",
+      "category": "Post-processing (GL 3.3 fullscreen blit)"
+    },
+    {
+      "syntax": "EnableSSAO [on]",
+      "name": "EnableSSAO",
+      "description": "Contact occlusion on the scene depth. Turns the stack on. Defaults: radius `0.8`, intensity `1.8`, bias `0.02`",
+      "category": "Post-processing (GL 3.3 fullscreen blit)"
+    },
+    {
+      "syntax": "SetSSAO [on]",
+      "name": "SetSSAO",
+      "description": "Contact occlusion on the scene depth. Turns the stack on. Defaults: radius `0.8`, intensity `1.8`, bias `0.02`",
+      "category": "Post-processing (GL 3.3 fullscreen blit)"
+    },
+    {
+      "syntax": "GetSSAO()",
+      "name": "GetSSAO",
+      "description": "Contact occlusion on the scene depth. Turns the stack on. Defaults: radius `0.8`, intensity `1.8`, bias `0.02`",
+      "category": "Post-processing (GL 3.3 fullscreen blit)"
+    },
+    {
+      "syntax": "SetSSAORadius n",
+      "name": "SetSSAORadius",
+      "description": "Sample radius. Floor `0.01`. Getter returns `0.8` until set",
+      "category": "Post-processing (GL 3.3 fullscreen blit)"
+    },
+    {
+      "syntax": "GetSSAORadius()",
+      "name": "GetSSAORadius",
+      "description": "Sample radius. Floor `0.01`. Getter returns `0.8` until set",
+      "category": "Post-processing (GL 3.3 fullscreen blit)"
+    },
+    {
+      "syntax": "SetSSAOIntensity n",
+      "name": "SetSSAOIntensity",
+      "description": "Darkening. Floor `0`. Getter returns `1.8` until set",
+      "category": "Post-processing (GL 3.3 fullscreen blit)"
+    },
+    {
+      "syntax": "GetSSAOIntensity()",
+      "name": "GetSSAOIntensity",
+      "description": "Darkening. Floor `0`. Getter returns `1.8` until set",
+      "category": "Post-processing (GL 3.3 fullscreen blit)"
+    },
+    {
+      "syntax": "SetSSAOBias n",
+      "name": "SetSSAOBias",
+      "description": "Depth bias. Getter returns `0.02` until set",
+      "category": "Post-processing (GL 3.3 fullscreen blit)"
+    },
+    {
+      "syntax": "GetSSAOBias()",
+      "name": "GetSSAOBias",
+      "description": "Depth bias. Getter returns `0.02` until set",
       "category": "Post-processing (GL 3.3 fullscreen blit)"
     },
     {

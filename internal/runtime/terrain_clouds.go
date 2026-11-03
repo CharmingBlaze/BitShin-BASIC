@@ -49,6 +49,7 @@ func (m *cloudMat) RenderSetup(gs *gls.GLS) {
 		return
 	}
 	c, w := m.c, m.w
+	w.bindLinear(gs)
 	cam := math32.Vector3{}
 	var view, proj, vp math32.Matrix4
 	if w.cam != nil {

@@ -1,0 +1,33 @@
+; Reference scene: rolling hills with grass, rock, a beach and a snowy top.
+Graphics3D(1280, 720)
+SetGraphicsQuality("high")
+SetCameraClsColor(110, 160, 210)
+SetAmbientLight(88, 92, 100)
+EnableFog(True)
+SetFog(145, 168, 188, 80, 500)
+cam = CreateCamera()
+SetCameraRange(cam, 0.25, 2000)
+CreateSkyBox("default")
+sun = CreateDirectionalLight()
+SetLightDirection(sun, 42, 48, 12)
+SetLightColor(sun, 255, 228, 190)
+SetLightShadow(sun, True)
+EnableShadows(True)
+
+hm = GenerateHeightmapPreset("alpine", 160, 160, 19)
+ground = CreateTerrainFromHeightmap(hm, 220, 220, 28)
+ApplyTerrainSplat(ground)
+SetTerrainGrassCoverage(ground, 0.68)
+SetTerrainWaterHeight(ground, 5.5)
+SetTerrainSnow(True, 19)
+water = CreateWater(360, 360, 48)
+SetWaterLevel(5.5)
+SetWaterColor(22, 78, 102)
+
+PositionEntity(cam, 12, TerrainHeight(12, 18) + 14, -60)
+CameraLookAt(cam, 0, 10, 30)
+
+While 1
+    RenderWorld
+    Flip
+Wend

@@ -36,7 +36,10 @@ type tierSettings struct {
 }
 
 var tiers = [...]tierSettings{
-	qualityLow:    {shadow: 1024, reflect: 0, refract: 0, post: false, radius: 1, detailPx: 14, scatter: 0.45, treeReachM: 220},
+	// Low keeps the post pass. Without it the scene draws into G3N's 8x
+	// multisampled window: about 3x slower on a 780M, with a stall of seconds
+	// on the way there. It only loses bloom (see bloomAllowed).
+	qualityLow:    {shadow: 1024, reflect: 0, refract: 0, post: true, radius: 1, detailPx: 14, scatter: 0.45, treeReachM: 220},
 	qualityMedium: {shadow: 1024, reflect: 512, refract: 512, post: true, radius: 2, detailPx: 10, scatter: 0.7, treeReachM: 320},
 	qualityHigh:   {shadow: 2048, reflect: 1024, refract: 1024, post: true, radius: 2, detailPx: 8, scatter: 1, treeReachM: 420, ao: true},
 	qualityUltra:  {shadow: 2048, reflect: 2048, refract: 1024, post: true, radius: 3, detailPx: 6, scatter: 1, treeReachM: 480, ao: true, softShadow: true, msaa: 4},
@@ -172,6 +175,11 @@ func (w *World) applyTerrainQuality(t *terrain, rescatter bool) {
 	}
 }
 
+// bloomAllowed is false on the low tier, where the blur chain costs too much.
+func (w *World) bloomAllowed() bool {
+	return !w.quality.set || w.quality.tier > qualityLow
+}
+
 // scatterScale thins trees, props, and grass on lower tiers.
 func (w *World) scatterScale() float32 {
 	if !w.quality.set {
@@ -227,6 +235,10 @@ func (w *World) tickQuality() {
 	avg := q.acc / float64(q.frames)
 	q.acc, q.frames = 0, 0
 	if avg > 0.026 {
+		// Resolution gives way before effects.
+		if w.dynActive() && !w.dyn.atFloor() {
+			return
+		}
 		w.setQuality(q.tier - 1)
 		q.drops++
 		q.warm = 1 // the rebuild after a change is a stall too
@@ -234,8 +246,100 @@ func (w *World) tickQuality() {
 	}
 }
 
+// applyLook sets a whole picture in one call, using the same commands a script
+// would. It adds what the scene lacks (a sky, a sun) and leaves what it has.
+// Anything set afterwards still wins.
+func (w *World) applyLook(name string) error {
+	switch strings.ToLower(strings.TrimSpace(name)) {
+	case "off":
+		w.post.on = false
+		w.post.userOn = true
+		w.post.ssao = false
+		w.iblOn = false
+		w.fogMode = 0
+		w.linearLight = false
+		if w.ready && !w.headless {
+			_, err := w.Call("enableshadows", []value.Value{value.Num(0)})
+			return err
+		}
+		return nil
+	case "modern", "":
+	default:
+		return fmt.Errorf("SetLook: want modern or off, got %q", name)
+	}
+	w.iblOn = true
+	if w.headless {
+		return nil // nothing to draw
+	}
+	if err := w.require3D(); err != nil {
+		return err
+	}
+	if !w.quality.set || w.quality.tier > qualityLow {
+		if _, err := w.Call("enablepostfx", []value.Value{value.Num(1)}); err != nil {
+			return err
+		}
+		w.linearLight = true
+		w.post.tonemap = 2 // ACES: the film curve linear light was made for
+		w.post.exposure = 0.8
+		if !w.quality.set || tiers[w.quality.tier].ao {
+			if _, err := w.Call("enablessao", []value.Value{value.Num(1)}); err != nil {
+				return err
+			}
+		}
+	}
+	if w.skyID == 0 {
+		if _, err := w.makeSkyBox("default"); err != nil {
+			return err
+		}
+	}
+	sun := 0
+	for id, e := range w.ents {
+		if e != nil && e.lgtKind == 1 && (sun == 0 || id < sun) {
+			sun = id
+		}
+	}
+	if sun == 0 {
+		v, err := w.Call("createdirectionallight", nil)
+		if err != nil {
+			return err
+		}
+		sun = int(v.Num)
+		if _, err := w.Call("setlightdirection", []value.Value{value.Num(float64(sun)), value.Num(45), value.Num(40), value.Num(0)}); err != nil {
+			return err
+		}
+		if _, err := w.Call("setlightcolor", []value.Value{value.Num(float64(sun)), value.Num(255), value.Num(238), value.Num(212)}); err != nil {
+			return err
+		}
+	}
+	if _, err := w.Call("setlightshadow", []value.Value{value.Num(float64(sun)), value.Num(1)}); err != nil {
+		return err
+	}
+	if _, err := w.Call("enableshadows", []value.Value{value.Num(1)}); err != nil {
+		return err
+	}
+	// Distance melts into the sky's own horizon, so the world has no hard edge.
+	if w.fogMode == 0 {
+		far := 1000.0
+		if w.cam != nil && w.cam.Far() > 0 {
+			far = float64(w.cam.Far())
+		}
+		r, g, b := w.envColor(1, 0.02, 0)
+		w.setFog(float64(r)*255, float64(g)*255, float64(b)*255, far*0.35, far*0.95)
+	}
+	return nil
+}
+
 func (w *World) qualityCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error)) map[string]cmd {
 	return map[string]cmd{
+		// SetLook name$: "modern" turns on linear lighting, tone mapping, bloom,
+		// FXAA, ambient occlusion, image-based light, sun shadows and horizon fog, and adds
+		// a sky and a sun if the scene has none. "off" turns them off.
+		"setlook": n(func(a []value.Value) (value.Value, error) {
+			if err := w.applyLook(argS(a, 0)); err != nil {
+				return value.Value{}, err
+			}
+			return z()
+		}),
 		"setgraphicsquality": n(func(a []value.Value) (value.Value, error) {
 			tier, auto := parseQuality(argS(a, 0))
 			if len(a) == 0 {

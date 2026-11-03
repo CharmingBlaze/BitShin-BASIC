@@ -58,6 +58,7 @@ func (m *atmoMat) RenderSetup(gs *gls.GLS) {
 	if m.w == nil || m.a == nil || gs == nil {
 		return
 	}
+	m.w.bindLinear(gs)
 	a := m.a
 	cam := math32.Vector3{}
 	if m.w.cam != nil {

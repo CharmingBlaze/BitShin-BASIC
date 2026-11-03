@@ -112,14 +112,18 @@ func (w *World) envColor(dx, dy, dz float32) (float32, float32, float32) {
 	return skyColor(dx, dy, dz)
 }
 
-func (w *World) bindEnvCube(gs *gls.GLS) {
+func (w *World) bindEnvCube(gs *gls.GLS) { w.bindEnvCubeAt(gs, envCubeUnit) }
+
+// bindEnvCubeAt binds the sky or probe cube for the current program on unit.
+func (w *World) bindEnvCubeAt(gs *gls.GLS, unit int) {
 	if gs == nil {
 		return
 	}
 	w.ensureSkyCube()
-	cube := w.skyCube
+	// HasEnvCube: 0 none, 1 the sky alone, 2 a probe that saw the scene.
+	cube, kind := w.skyCube, 1
 	if pr := w.nearestReadyProbe(); pr != nil {
-		cube = pr.cube
+		cube, kind = pr.cube, 2
 	}
 	if cube == 0 {
 		setUni1i(gs, "HasEnvCube", 0)
@@ -127,10 +131,10 @@ func (w *World) bindEnvCube(gs *gls.GLS) {
 	}
 	var prev int32
 	gl.GetIntegerv(gl.ACTIVE_TEXTURE, &prev)
-	gl.ActiveTexture(gl.TEXTURE0 + envCubeUnit)
+	gl.ActiveTexture(gl.TEXTURE0 + uint32(unit))
 	gl.BindTexture(gl.TEXTURE_CUBE_MAP, cube)
-	setUni1i(gs, "uEnvCube", envCubeUnit)
-	setUni1i(gs, "HasEnvCube", 1)
+	setUni1i(gs, "uEnvCube", unit)
+	setUni1i(gs, "HasEnvCube", kind)
 	if w.cam != nil {
 		cp := worldPos(w.cam.GetNode())
 		setUni3f(gs, "CamWorldPos", cp.X, cp.Y, cp.Z)
@@ -244,7 +248,7 @@ func (w *World) stepProbeCapture(rend *renderer.Renderer) {
 	gl.ClearColor(pr.sky.R, pr.sky.G, pr.sky.B, 1)
 	gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT)
 	w.capturingProbe = true
-	_ = rend.Render(w.scene, w.probeCam)
+	_ = rend.Render(w.renderRoot(), w.probeCam)
 	w.capturingProbe = false
 	pr.face = face + 1
 	if pr.face%6 == 0 {

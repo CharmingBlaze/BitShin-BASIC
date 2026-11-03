@@ -605,9 +605,12 @@ func (w *World) presentExtraWindows(rend *renderer.Renderer) {
 		w.app.Gls().Clear(gls.DEPTH_BUFFER_BIT | gls.STENCIL_BUFFER_BIT | gls.COLOR_BUFFER_BIT)
 		if cam := w.extraCam(ew); cam != nil && rend != nil {
 			cam.SetAspect(float32(fbw) / float32(fbh))
-			if err := rend.Render(w.scene, cam); err != nil {
+			// No post pass follows here to encode linear light.
+			w.linearHold = true
+			if err := rend.Render(w.renderRoot(), cam); err != nil {
 				fmt.Println("RenderWorld:", err)
 			}
+			w.linearHold = false
 		}
 		gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
 

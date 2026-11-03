@@ -2,6 +2,8 @@
 
 Names are case-insensitive. Optional arguments in brackets. Handles are integers. Angles are **degrees**. RGB is **0–255**, or **0–1 if every channel is ≤ 1**. Paths resolve next to the `.mb` file, or inside `OpenPak` if set.
 
+Worked programs, from a console `Print` through a falling body and a first-person walk, are [GUIDE.md](GUIDE.md). This page is the argument list.
+
 Dotted topic names call these same commands: `Math.Abs`, `String.Upper`, `Input.KeyDown`, `Time.Delta`, `Entity.SetPos`, `File.Read`, `Json.Load`, `Sound.Play`, `Net.Host`. `App.Open`, `Draw.Text`, `Render.*`, and `Model.*` are not commands here.
 
 `Flip`, `WaitTimer`, `WaitKey`, and `Delay` yield a frame and are not allowed inside `Function`.
@@ -11,6 +13,7 @@ Dotted topic names call these same commands: `Math.Abs`, `String.Upper`, `Input.
 | Command | Meaning |
 | --- | --- |
 | `Graphics3D w, h [, depth, mode]` | G3N window. `mode` 1 = fullscreen |
+| `GraphicsApp [w, h [, depth, mode]]` | `Graphics3D` with defaults 960×640, then a camera. `GraphicsUI` is the same call |
 | `Graphics2D w, h` / `Graphics w, h` | Ebiten window |
 | `AppTitle s$` | Window title |
 | `EndGraphics` | Request quit |
@@ -19,7 +22,8 @@ Dotted topic names call these same commands: `Math.Abs`, `String.Upper`, `Input.
 | `Cls` | Clear 2D draw list / 3D HUD text |
 | `ClsColor r, g, b` | 2D clear color (0–255 or 0–1) |
 | `CameraClsColor r, g, b` | 3D background (0–255 or 0–1) |
-| `Color r, g, b` | Draw / text color (0–255 or 0–1) |
+| `Color r, g, b [, a]` | Draw / text color (0–255 or 0–1). The fourth channel is the 2D draw alpha |
+| `SetAlpha a` / `GetAlpha()` | 2D draw alpha for `Rect`, `Oval`, `Line`, and `Text`. `0`–`1` or `0`–`255`. `GetAlpha` is `0`–`1`. `SetDrawAlpha` and `ColorAlpha` are the same set |
 | `Text x, y, s$` | HUD text (2D uses `LoadFont` if set) |
 | `DeltaTime()` / `FrameTime()` | Seconds since last frame |
 | `MilliSecs()` | Milliseconds since start |
@@ -126,8 +130,11 @@ See `docs/SHADOWS.md`. All of these change rendering (or skip a redundant depth 
 | `SetShadowLightSize n` | PCSS penumbra scale |
 | `EnableShadowCache` / `SetShadowCache` / `EnableShadowCaching` | Split static (terrain / static bodies) vs dynamic maps; static redraws when sun/dir or static key changes |
 | `EnableShadowAtlas` / `SetShadowAtlas` | Packed atlas (cascades + point/spot) |
-| `EnableContactShadows` / `SetContactShadows` | Stub |
-| `EnableScreenSpaceShadows` / `SetScreenSpaceShadows` | Stub |
+| `EnableContactShadows` / `SetContactShadows` | Tight shadow-map search. Darkens receivers whose neighbor texels are only slightly closer (feet, props on the ground) |
+| `EnableScreenSpaceShadows` / `SetScreenSpaceShadows` / `SetSSS n` | Wider search. `n` is quality 1–4 (radius and depth window). `0` is off |
+| `SetShadowSoftness n` / `ShadowSoftness n` | Scales the PCF sample radius. `1` is the usual width. `0` is treated as `1` |
+| `SetShadowColor r, g, b` / `ShadowColor r, g, b` | Tint of the shadowed term. Channels are 0–255 or 0–1 |
+| `SetShadowFade near, far` | Fade directional shadows out across view-space depth. Defaults `60`, `100`. The fade stays off until `far` is greater than `near` |
 | `SetLightShadow light, on` | Directional = CSM sun (on by default for the first directional). Point/spot = extra maps, opt-in |
 | `EntityCastShadow` / `EntityReceiveShadow` | Per-mesh cast/receive (aliases `CastShadow`, `ReceiveShadow`) |
 
@@ -203,9 +210,13 @@ Post-pass effects; HUD text and ImGui stay at full resolution. See `docs/RETRO.m
 
 | Command | Meaning | Example |
 | --- | --- | --- |
+| `SetLinearLight on` / `GetLinearLight()` | Light the scene in linear space, tone map it, and encode sRGB at the end. Needs post effects, so the low tier stays on the old path. Custom shaders get `uniform int LinearLight` and should output linear light while it is 1 | `SetLinearLight(True)` |
+| `SetLook name$` | `modern`: linear lighting, ACES tone mapping, bloom, FXAA, ambient occlusion, image-based light, sun shadows and horizon fog, plus a sky and a sun if the scene has none. `off` turns them off. Change any after; the low tier skips post effects | `SetLook("modern")` |
 | `SetRetroPreset name$` | A whole look: `ps1`, `n64`, `gameboy`, `pico8`, `dos`, `cga`, `lowpoly`, or `off`. Sets the screen and geometry effects; change any after | `SetRetroPreset("ps1")` |
 | `SetRetroResolution w [, h, pixelPerfect]` | Render at `w` × `h` (h 0 follows the window) and upscale with sharp pixels; `pixelPerfect` 1 letterboxes a whole-number scale. 0 turns it off | `SetRetroResolution(320, 240, 1)` |
-| `SetRenderScale f` / `GetRenderScale()` | Render at `f` (0.25–1) of the window, upscaled smoothly, for speed | `SetRenderScale(0.75)` |
+| `SetRenderScale f` / `GetRenderScale()` | Render at `f` (0.25–1) of the window, upscaled with FSR 1, for speed. Turns dynamic resolution off; `GetRenderScale` also reads the scale it chose | `SetRenderScale(0.75)` |
+| `StatsPassMs(name$)` | GPU milliseconds of `shadow`, `reflect`, `refract`, `scene`, or `post`, a few frames old. 0 if the driver has no timer. `MOON_GPU_PROFILE=1` prints the whole table | `Print StatsPassMs("shadow")` |
+| `SetDynamicResolution on [, targetFPS]` / `GetDynamicResolution()` | On by default. Draws the 3D scene smaller when frames run late (default target 60), sharpens it back up, and raises it again when there is room. HUD text stays at full size | `SetDynamicResolution(True, 30)` |
 | `SetRetroColors levels` | Levels per channel (32 = 15-bit, 6 = 216 colours); 0 off | `SetRetroColors(32)` |
 | `SetRetroDither amount` | 0–1 ordered 4 × 4 Bayer dither, in scene pixels | `SetRetroDither(0.5)` |
 | `SetRetroPalette name$` | Snap to `gameboy`, `pico8`, `cga`, `ega`, `c64`, `grey4`, or a PNG's colours (up to 256); `"none"` off | `SetRetroPalette("pico8")` |
@@ -256,6 +267,20 @@ Source must be `.gltf` / `.glb` **with clips**.
 | `SetIKPole e, x, y, z` | Bend the two-bone chain toward this world point |
 | `ClearIK e` | Stop solving |
 | `AttachToBone child, mesh, bone$` | Parent `child` to a named glTF node (or a named child entity). Alias `AttachBone`. See [PHYSICS.md](PHYSICS.md) |
+| `SetRootMotion e, on [, bone$] [, useY]` | Move the entity by the bone's frame delta, then plant the bone. `useY` 0 drops vertical motion. See [ANIMATION.md](ANIMATION.md) | `SetRootMotion hero, 1, "Hips"` |
+| `SetBoneMask e, slot, bone$, weight#` | Per-bone weight on a layer. 0 skips the bone. `"*"` clears the mask | `SetBoneMask hero, 0, "Hips", 0` |
+| `GetBoneX/Y/Z(e, bone$)` | Local bone position, same axes as `PositionEntity` | `h = GetBoneY(hero, "Head")` |
+| `SetBonePos e, bone$, x, y, z` | Write that local position | `SetBonePos hero, "Jaw", 0, 0.02, 0` |
+| `BoneLookAt e, bone$, x, y, z` | Aim the bone at a world point | `BoneLookAt hero, "Head", tx, ty, tz` |
+| `AnimEvent e, time, func$` | Call `func(time)` when the clip crosses `time` | `AnimEvent hero, 0.4, "Footstep"` |
+| `ClearAnimEvents e` | Drop those marks | `ClearAnimEvents hero` |
+| `AnimRecord e, on` | 1 samples named bones. 0 stores the clip | `AnimRecord hero, 0` |
+| `AnimRetarget e, map$` | Rename curve bones. `"Old=New"` pairs, commas between pairs | `AnimRetarget hero, "Hips=pelvis"` |
+| `ExportAnimClip e, file$` | glTF 2.0 JSON with translation keys in a base64 buffer | `ExportAnimClip hero, "walk.gltf"` |
+| `SetMorph e, index, weight` | Blend-shape weight 0–1. Applied when the mesh is morph geometry | `SetMorph face, 0, 0.8` |
+| `GetMorph(e, index)` / `MorphCount(e)` | Read one weight, or how many exist | `n = MorphCount(face)` |
+| `SetViseme e, shape$, weight` | `aa` `ee` `oh` `mm` `fv` → morph slots 0–4 | `SetViseme face, "oh", 1` |
+| `AddAnimTransition graph, from$, to$, func$` | When `func()` is nonzero, `AnimGo` to `to$`. `from$` `*` is any state | `AddAnimTransition g, "idle", "run", "ShouldRun"` |
 
 Clips advance with `DeltaTime` each frame (Flip), not twice if you also `UpdateWorld`.
 
@@ -299,6 +324,8 @@ Weighted clip mixing by a parameter, plus timed state changes. Layers from `SetA
 `SetSpriteSheet s, img, frameW, frameH` — grid on the image, frame 0 at the top left  
 `SetSpriteFrame s, index` — holds that frame  
 `AnimateSprite s, first, count, fps` — loops those frames  
+`SpriteAnimEvent s, frame, func$` — `Function func(frame)` when the sheet lands on that frame  
+`DrawNineSlice img, x, y, w, h, border` — nine-slice a HUD image. Corners stay `border` pixels. Edges and the centre stretch  
 `FlipSprite s, horiz, vert` — 1 flips that axis  
 `SpriteAlpha s, a` — 0 invisible, 1 solid  
 `SpriteColor s, r, g, b`  
@@ -311,6 +338,24 @@ Weighted clip mixing by a parameter, plus timed state changes. Layers from `SetA
 `SetCamera2D x, y` — world point at the top-left of the screen. `MoveCamera2D`, `Camera2DX`, `Camera2DY`  
 `CameraFollow2D sprite [, ox, oy]` — one snap that centres the sprite, plus an optional nudge  
 Sprites, `DrawTileMap`, and 2D particles are in the world and move with the camera. `Rect`, `Oval`, `Line`, `Text`, `DrawImage`, and `DrawTile` stay on the screen (HUD).
+
+A sprite is a picture in the world. `CameraTarget2D` keeps camera 0 centred on it, and `CameraSmooth2D` is how many seconds that catch-up takes. `MoveSprite` is pixels per call, so multiply by `DeltaTime()` for a speed in pixels per second. `examples/draw2d.mb` is shapes only. `examples/camera2d.mb` is zoom, shake, and a split screen.
+
+```basic
+Graphics2D 800, 480
+hero = CreateSprite(CreateImage(32, 48))
+SpriteColor hero, 80, 190, 255
+PositionSprite hero, 80, 240
+CameraTarget2D 0, hero
+CameraSmooth2D 0, 0.3
+
+While Not KeyDown(1)
+    MoveSprite hero, 160 * DeltaTime(), 0
+    Cls
+    Text 16, 16, "sprite follows the camera"
+    Flip
+Wend
+```
 
 ### 2D cameras
 
@@ -455,7 +500,7 @@ SetEmitterSize(bits, 0.12, 0.04)
 `EmitterSize e, start [, end]` or `EmitterSize e, w0, h0, w1, h1` — start size shrinks toward the end size over the particle’s life. On a cube, start/end are the edge length.  
 `EmitterColor e, r, g, b [, a, r1, g1, b1, a1]` — RGB 0–255 or 0–1 (if all channels ≤ 1); alpha 0–1 or 0–255. The second color is the color at death.  
 `EmitterVelocity e, vx, vy, vz` — spray direction, not a one-shot impulse.  
-`EmitterGravity e, x, y, z` `EmitterWind` `EmitterCone e, deg` `EmitterDrag`  
+`EmitterGravity e, x, y, z` `EmitterWind` `EmitterCone e, deg` (`EmitterSpread`) `EmitterDrag`  
 `EmitterArea e, x, y, z` — random box around the origin.  
 `EmitterDuration e, secs` `EmitterLoop e, on`  
 `PositionEmitter e, x, y [, z]`  
@@ -478,6 +523,11 @@ SetEmitterSize(bits, 0.12, 0.04)
 | `EmitterBlend e, "add"/"alpha"` | Additive glow or alpha blend (default alpha) | `EmitterBlend(em, "add")` |
 | `EmitterTurbulence e, strength [, scale, speed]` | Curl-noise swirl; 0 turns it off | `EmitterTurbulence(em, 3, 0.5, 0.6)` |
 | `EmitterGround e, on [, y, bounce, friction]` | Bounce (0–1) off a flat floor at height `y` | `EmitterGround(em, 1, 0, 0.3, 0.2)` |
+| `EmitterSoft e, on` | Fade against the scene depth. On by default. 0 is a hard edge | `EmitterSoft em, 1` |
+| `EmitterSort e, on` | Far-to-near, up to 8192 particles | `EmitterSort em, 1` |
+| `EmitterCollide e, entity` | Push out of that entity's box. Four boxes; the oldest drops | `EmitterCollide em, crate` |
+| `EmitterClearCollide e` | Drop those boxes | `EmitterClearCollide em` |
+| `EmitterPreset e, name$` | `fire` `smoke` `sparks` `explosion` `dust` `magic` `splash` `debris` | `EmitterPreset em, "fire"` |
 | `EmitterWeatherWind e, on` | Add the weather system's wind to `EmitterWind` | `EmitterWeatherWind(em, 1)` |
 | `EmitterSizeVar e, var` | Random per-particle size, ±fraction | `EmitterSizeVar(em, 0.3)` |
 | `EmitterCount(e)` | Live particles (estimate on the GPU; exact on the CPU) | `n = EmitterCount(em)` |
@@ -507,6 +557,9 @@ See `examples/particles.mb` and `examples/particles2d.mb`.
 `MouseLook [cam] [, sens, pitchMin, pitchMax]` — apply mouse delta to camera pitch/yaw (degrees). Pair with `SetCursorMode 2` / `SetRawMouse`  
 `CreateFreeCamera()` + `UpdateFreeLook cam [, speed]` — same look plus WASD. Do not bind Escape; use `WindowShouldClose`. `examples/freelook.mb`  
 `SetGamepadDeadzone n` / `GamepadDeadzone()` / `GetGamepadDeadzone()` — axis deadzone (default 0.15)  
+`GetAxis(negKey, posKey)` is `-1`, `0`, or `1` from two keys held together.  
+`GetMouseWorldX(cam, planeY)` / `GetMouseWorldZ(cam, planeY)` are where that camera's look ray meets a horizontal plane. They follow the camera pitch and yaw, not the mouse pixel. A look parallel to the plane returns the camera's own X or Z.  
+`IsGrounded(e [, rayLen])` casts down from the entity (default `1.2`) and returns `1` when the ray hits something else.
 
 See `examples/input.mb`.
 
@@ -555,6 +608,9 @@ Every angle is **degrees** (same as Blitz). `ATan2(y, x)` is the usual two-argum
 | Command | Meaning |
 | --- | --- |
 | `Lerp(a, b, t)` | `a + (b-a)*t` |
+| `LerpAngle(a, b, t)` | Same blend along the short way around the circle, degrees |
+| `SmoothDamp(cur, target [, smoothTime, maxSpeed])` | One step of a damped spring. `smoothTime` defaults to `0.25` seconds, `maxSpeed` to `1000`. Uses the real frame time (`0.016` s when the clock has not started). Returns the new value |
+| `MoveTowards(cur, target [, maxDelta])` | Steps at most `maxDelta` (default `0.1`) |
 | `InvLerp(a, b, x)` | How far `x` is from `a` to `b` (0 at `a`) |
 | `SmoothStep(t)` | Hermite 0..1. Or `SmoothStep(edge0, edge1, x)` |
 | `EaseIn(t)` / `EaseIn(a, b, t)` | Quad ease-in (`t*t`) |
@@ -572,7 +628,7 @@ Every angle is **degrees** (same as Blitz). `ATan2(y, x)` is the usual two-argum
 | Command | Meaning |
 | --- | --- |
 | `WrapAngle(deg)` | Wrap to −180..180 |
-| `AngleDelta(from, to)` | Shortest signed turn from `from` to `to` |
+| `AngleDelta(from, to)` / `AngleDiff(from, to)` | Shortest signed turn from `from` to `to` |
 | `ApproachAngle(cur, target, step)` | Turn toward `target` by at most `step` degrees |
 | `DeltaYaw src, dest` | Entity: shortest yaw (degrees) from `src` toward `dest` |
 | `DeltaPitch src, dest` | Same for pitch |
@@ -650,17 +706,41 @@ See `examples/math.mb`.
 
 ## Audio (Ebiten / Oto)
 
-`LoadSound file$` (`.wav` / `.ogg` / `.mp3` / `.flac`), `PlaySound`, `LoopSound`, `StopSound`, `FreeSound`  
-`SetSoundVolume s, n` `SetSoundPitch s, n` (1 = normal)  
+`LoadSound file$` (`.wav` / `.ogg` / `.mp3` / `.flac`), `PlaySound`, `LoopSound`, `PauseSound`, `ResumeSound`, `StopSound` (same hold as pause), `FreeSound`  
+`SetSoundVolume s, n` `SetSoundPitch s, n` (1 = normal, applied to a voice already playing)  
+`SetSoundPan s, pan` — `-1` left, `0` center, `1` right, including a voice already playing  
+`FadeSound s, volume, seconds` — clip volume over time; `0` seconds jumps. Runs on `Flip`  
+`SeekSound s, seconds` returns `1` on a decoded clip that is playing. `SoundTime(s)` is seconds read. Streams return `0`  
+`SoundBus s, name$` `SetAudioBus name$, volume` `SetMasterVolume n` — heard volume is clip × bus × master  
+`SetSoundEcho s, wet` — 80 ms slapback on a decoded clip, `wet` 0–1. Not a room, and not on a stream  
 `LoadMusic file$` (streams from disk) `PlayMusic [s]` `StopMusic` `SetMusicVolume n`  
 `EmitSound s, x, y, z` or `EmitSound s, entity` — distance volume + stereo pan from the listener (default camera). `SetListener e`  
-Playback is Oto v3. No OpenAL.
+`PlaySound3D sound, x, y, z [, maxDist, volume]` — volume falls with distance from the active camera and is silent past `maxDist` (default `30`, at least `1`). It does not set stereo pan. `EmitSound` does. `Sound3D` is the same call. Returns `0` when the clip is missing or out of range.  
+How the voice, buses, and echo fit together is [AUDIO.md](AUDIO.md). Playback is Oto v3. No OpenAL.
 
 ## Physics
 
-**3D (Jolt, or software `fallback`):** `PhysicsBackend$()` / `GetPhysicsBackend$()` is `"jolt"` or `"fallback"` (honest; `-tags nojolt` and unsupported OS/arch are fallback). Windows Jolt is native. Linux/macOS Jolt keeps the command names, with software velocity, joints, and hull rotation. Full walkthrough: [PHYSICS.md](PHYSICS.md). Vehicles: [VEHICLES.md](VEHICLES.md).
+**3D (Jolt, or software `fallback`):** `PhysicsBackend$()` / `GetPhysicsBackend$()` is `"jolt"` or `"fallback"`. Windows, Linux amd64/arm64, and macOS ARM link native Jolt (velocity, joints, vehicles, cloth, rotated shapes, grab, `LinearCast`). `-tags joltgo` is the older jolt-go subset (software velocity and hull stand-ins; `PhysicsBackend$()` stays `"jolt"`). `-tags nojolt` and any other OS/arch are `"fallback"`. Full walkthrough: [PHYSICS.md](PHYSICS.md). Vehicles: [VEHICLES.md](VEHICLES.md).
 
-Beginner: `Collide(mesh [, STATIC|KINEMATIC|DYNAMIC [, mass]])` boxes the mesh (sphere if the mesh is a sphere). `SetPhysicsMaterial e, "ice"|"rubber"|"wood"|"metal"|"stone"|"plastic"|"bouncy"|"glass"|"default"` — `SetMaterial` with a name does the same; a numeric id is still a PBR material. `Flip` steps physics once if `UpdateWorld` was not called this frame. `RaycastHit` returns `RayHit` (`entity`, `x`, `y`, `z`, `nx`, `ny`, `nz`, `fraction`, `hit`) without writing `Picked*`. `RaycastAll` returns every hit along the ray. After `Raycast`, `GetRayNormalX/Y/Z` and `GetRayFraction`. Constants: `STATIC` `KINEMATIC` `DYNAMIC` `ON_GROUND` `GROUND_STEEP` `GROUND_UNSUPPORTED` `IN_AIR`.
+Beginner: `GroundPlane([y])` is a plane mesh at height `y` plus a static box 160 wide, 0.5 thick, and 160 deep. `Collide(mesh [, STATIC|KINEMATIC|DYNAMIC [, mass]])` boxes the mesh (sphere if the mesh is a sphere). `SetPhysicsMaterial e, "ice"|"rubber"|"wood"|"metal"|"stone"|"plastic"|"bouncy"|"glass"|"default"` — `SetMaterial` with a name does the same; a numeric id is still a PBR material. `GetPhysicsMaterial$(e)` is the last name, or `""`. `Flip` steps physics once if `UpdateWorld` was not called this frame. `RaycastHit` returns `RayHit` (`entity`, `x`, `y`, `z`, `nx`, `ny`, `nz`, `fraction`, `hit`) without writing `Picked*`. `RaycastAll` returns every hit along the ray. After `Raycast`, `GetRayNormalX/Y/Z` and `GetRayFraction`. Constants: `STATIC` `KINEMATIC` `DYNAMIC` `ON_GROUND` `GROUND_STEEP` `GROUND_UNSUPPORTED` `IN_AIR`.
+
+The floor is a mesh plus a body that does not move. The ball is a mesh plus a body that does. `0` is static, `1` is dynamic. `UpdateWorld` steps the world. `Flip` steps it only when this frame skipped `UpdateWorld`. Space pushes the ball up. The same scene with a HUD is `examples/jolt_drop.mb`. A longer walk is [GUIDE.md](GUIDE.md).
+
+```basic
+Graphics3D 960, 600
+cam = CreateCamera().Position([0, 6, -14]).Rotate(18, 0, 0)
+CreateLight()
+ground = CreateCube().Scale(8, 0.2, 8).Position([0, 0, 10])
+CreateRigidBodyBox ground, 8, 0.2, 8, 0
+ball = CreateSphere().Position([0, 8, 10])
+CreateRigidBodySphere ball, 1, 1
+While Not KeyDown(1)
+    If KeyHit(KEY_SPACE) Then ApplyImpulse ball, 0, 6, 0
+    UpdateWorld
+    RenderWorld
+    Flip
+Wend
+```
 
 `SetGravity x,y,z` / `GetGravityX/Y/Z()` — stored and applied to Jolt via `SetGravity`.  
 `CreateBody` / `CreateBodySphere` / `CreateBodyBox` / `CreateBodyCapsule` / `CreateBodyCylinder` / `CreateBodyConvex` return the entity/body handle. `ActivateBody e` wakes the body.  
@@ -669,23 +749,23 @@ Beginner: `Collide(mesh [, STATIC|KINEMATIC|DYNAMIC [, mass]])` boxes the mesh (
 `SetGravityScale e, n` — 0 = no gravity. `GetGravityScale(e)`. `SetRestitution` / `GetRestitution` / `SetFriction` / `GetFriction` / `SetLinearDamping` / `GetLinearDamping` / `SetAngularDamping` / `GetAngularDamping`. `GetMass(e)` / `GetCCD(e)` / `GetBodyCCD(e)`. `ApplyBuoyancy e [, waterY, scale]` is Jolt `ApplyBuoyancyImpulse` on the `WaterHeight` plane (or a flat `waterY`). `CreateBodyMesh` / `CreateBodyHeightField` / `CreateSensor` / `ShapeCast` / `OverlapSphere`. `OffsetCenterOfMass e, x,y,z`. Vehicles drop COM automatically. After a loop of `CreateBody*`, call `OptimizePhysics` (alias `OptimizeBroadPhase`) so the quad tree is not left deep.  
 `SetBodyAngularVelocity` / `GetBodyAngularVelocityX/Y/Z` — **Jolt:** native. **fallback:** stored.  
 `SetBodyMass`  
-`SetBodyRotation e, pitch,yaw,roll` / `GetBodyPitch/Yaw/Roll` — quaternion synced onto G3N nodes (native Jolt on Windows; software pose on Linux/macOS and fallback).  
+`SetBodyRotation e, pitch,yaw,roll` / `GetBodyPitch/Yaw/Roll` — quaternion synced onto G3N nodes (native Jolt on the default build; software pose with `-tags joltgo` and on fallback).  
 `Raycast(x,y,z, dx,dy,dz)` — Jolt `CastRay` (Windows + Linux/macOS Jolt). Fallback (`-tags nojolt`) uses sphere + AABB. Sets `PickedX/Y/Z`. `LinePick` / `RayPick` use the same physics ray, then a visual-sphere pick if physics missed.  
 `CreateHingeJoint(a, b, x,y,z, ax,ay,az)` — aliases `CreateHinge` / `CreateHinge3D`. `CreatePointJoint` / `CreateBallSocketJoint`. `CreateSliderJoint`. `CreateSpringJoint` (distance spring; **no** `CreateDistanceJoint` command). `CreateFixedJoint` / `CreateConeJoint` / `CreateSwingTwistJoint`. `CreateJoint kind, a, b, …` (`JOINT_HINGE`=1 … `JOINT_SWINGTWIST`=7). `Grab holder, target [, freq, damp [, x,y,z]]` / `GrabPick` (hit-point grab) / `DropGrab` / `Throw holder, speed`. `a`/`b` are body handles; **`0` is world-fixed**. No args on hinge → 0. `FreeJoint id`  
 
 `CreateRope(a, b [, length, segments, radius])` creates a sagging, colliding physical rope between body centers. `CreateRopeAnchored(a, b, ax,ay,az, bx,by,bz [, length,segments,radius])` uses local body anchors; an anchor belonging to body `0` is a world coordinate. `SetRopeColor`, `SetRopeMass`, `SetRopeDamping`, `SetRopeStrength rope, stiffness, damping, maxForce`, `SetRopeVisible`, `ResetRope`, `FreeRope`; queries: `RopeLength`, `RopeSegments`, `RopeTension` (0–1).  
 `CreateCloth(width, height [, nx, ny, pin])` is a Jolt soft-body sheet (ezEngine recipe). Default pin `1` = top edge. `SetClothWind e, n`. Alias `CreateFlag`. Cloth collides one-way with rigid bodies (they push it; it does not shove them). No cloth-on-cloth, no buoyancy.  
-`Grab holder, target [, freq, damp]` / `GrabPick` / `DropGrab` / `Throw holder, speed` / `GrabbedEntity(holder)` — 6DOF spring on Windows Jolt; parented kinematic fallback if the joint is unavailable.  
+`Grab holder, target [, freq, damp]` / `GrabPick` / `DropGrab` / `Throw holder, speed` / `GrabbedEntity(holder)` — 6DOF spring on native Jolt; parented kinematic fallback if the joint is unavailable (`-tags joltgo` uses the position spring).  
 `CreateProjectile e, speed [, gravity, life, radius, bounce, impulse, ignore]` flies along local +Z (ray hits apply impulse). `CreateBeam a, b [, width]` is a stretched cube between two entities. `PlaceAtRay src, dest [, maxDist]` parks `dest` on the first hit (or at max range). `AttachToBone child, mesh, "BoneName"` parents to a named glTF node (or a named child entity).  
 `SetWaterFlow vx, vy, vz` feeds fluid velocity into `ApplyBuoyancyImpulse`. Dynamic bodies that enter the water (not vehicles / buoys) auto-float at factor 1.1; `SetBuoyancyFactor e, n` (`<0` disables).  
-`SetBodyCCD e, on` / `SetCCD e, on` — Windows: Jolt `LinearCast`. Linux/macOS and fallback: ray sweep from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate  
-`CreateCharacterController(e [, height, radius, maxSlope, maxStrength])` — Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). Windows also attaches a slightly smaller inner kinematic body so rays hit the player; Linux/macOS adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, "capsule"|"box", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.  
-Contacts, after `UpdateWorld`: `EntityCollided(e [, type|other])`, `CountCollisions(e)` (one entry per other entity), `CollisionEntity(e)`, `CollisionX/Y/Z(e)`. The list and the point are cleared when nothing is touching. `ResetEntity e` clears them early. `EntityType` / `GetEntityType`, `EntityRadius`, `EntityBox`. `Collisions srcType, destType, method, response` adds a sphere-radius rule; response 1 or 2 pushes the source apart. Windows uses the Jolt contact queue. Linux and macOS test each box or sphere. Fallback overlaps boxes and spheres. See [PHYSICS.md](PHYSICS.md).
+`SetBodyCCD e, on` / `SetCCD e, on` — native Jolt `LinearCast` on the default build. `-tags joltgo` and fallback sweep a ray from the last pose. `BodySleep e` / `SleepBody e`, `BodyWake e` / `WakeBody e` / `ActivateBody e` — Jolt Activate/Deactivate  
+`CreateCharacterController(e [, height, radius, maxSlope, maxStrength])` — Jolt CharacterVirtual. `height` is the **full** height including the rounded caps (default 1.8, radius 0.4). The default build attaches a slightly smaller inner kinematic body so rays hit the player. `-tags joltgo` adds a kinematic capsule on the same handle. `MoveCharacter e, vx, vz` keeps the current Y (jump). `MoveCharacter e, vx, vy, vz` sets all three. Do not add gravity yourself: `UpdateWorld` does, and while the character is supported it copies the floor’s vertical speed unless Y is already a jump. `SetCharacterShape e, "capsule"|"box", h, r`. Ground **0** on / **1** steep / **2** unsupported / **3** air (`GetCharacterGroundState`). `GetCharacterGroundNormal(e [, axis])` is the floor normal: axis `0` X, `1` Y (default), `2` Z. `CharacterGroundNormalX/Y/Z(e)` are the same components. `GetCharacterContact(e)`. Older `CreateCharacter(e [, halfH, r])` is the kinematic helper. See `docs/PHYSICS.md`.  
+Contacts, after `UpdateWorld`: `EntityCollided(e [, type|other])`, `CountCollisions(e)` (one entry per other entity), `CollisionEntity(e)`, `CollisionX/Y/Z(e)`. The list and the point are cleared when nothing is touching. `ResetEntity e` clears them early. `EntityType` / `GetEntityType`, `EntityRadius`, `EntityBox`. `Collisions srcType, destType, method, response` adds a sphere-radius rule; response 1 or 2 pushes the source apart. The default build drains the Jolt contact queue. `-tags joltgo` tests each box or sphere. Fallback overlaps boxes and spheres. See [PHYSICS.md](PHYSICS.md).
 
 See `examples/physics3d.mb`, `examples/jolt_drop.mb`, `examples/physics_joints.mb`, `examples/physics_body.mb`, `examples/physics_contacts.mb`, `examples/physics_pile.mb`, `examples/character_virt.mb`, `examples/cloth.mb`, `examples/grab_beam.mb`. Helpers: [PHYSICS.md](PHYSICS.md), [MODERN_GAME_HELPERS.md](MODERN_GAME_HELPERS.md).
 
 **2D (Chipmunk, not Box2D):** Box2D CGO was not added; Chipmunk already owns `phys2d`. `Physics2D`, `Gravity2D` / `SetGravity2D`, `CreateCircle2D`, `CreateBox2D`, `CreatePoly2D` / `CreatePolygon2D`, `Body2D`, `SetStatic2D`, `SetMass2D`, `SetVelocity2D` / `Velocity2D` / `Velocity2DX` / `Velocity2DY`, `Position2D` / `Position2DY`, `ApplyImpulse2D`, `ApplyForce2D`, `EntityAngle2D`, `Collides2D`, `CountCollisions2D`, `Raycast2D(x1,y1,x2,y2)` (segment; sets `PickedEntity` / `PickedX/Y`), `SetCCD2D on` (more iterations / tighter slop — not Box2D bullet CCD), `UpdateWorld2D`  
-`CreatePin2D(a, b [, ax,ay, bx,by])`, `CreateSpring2D(a, b, rest, stiff, damp [, anchors])`, `CreateSlide2D(a, b, min, max [, anchors])`, `CreateJoint2D(kind, a, b, …)` (1 pin, 2 spring, 3 slide), `FreeJoint2D id`  
+`CreatePin2D(a, b [, ax,ay, bx,by])`, `CreateSpring2D(a, b, rest, stiff, damp [, anchors])`, `CreateSlide2D(a, b, min, max [, anchors])`, `CreateJoint2D(kind, a, b, …)` (1 pin, 2 spring, 3 slide), `FreeJoint2D id` / `DeleteJoint2D id`  
 `SetKinematic2D body [, on]` — kinematic: moved only by its velocity (`SetVelocity2D`) or position, pushes dynamic bodies, ignores gravity and forces; `0` makes it dynamic again with its old mass. `IsKinematic2D(body)`. A dynamic flag of `2` on `CreateBox2D` / `CreateCircle2D` / `CreateCapsule2D` creates it kinematic. Move platforms by velocity so riders are carried  
 `CreateCapsule2D(body, w, h [, mass, dynamic])` — Chipmunk segment with a radius; the long axis follows the larger of `w`/`h`. `FreeBody2D body` removes any 2D body  
 `SetCollisionLayer2D body, layer` (1–32, bodies start on 1) / `GetCollisionLayer2D(body)`, `SetLayerCollides2D a, b [, on]` (both ways), `SetCollisionMask2D body, mask` (bit 0 = layer 1; narrows the layer table). Chipmunk shape filters, so `Collides2D`, casts and characters follow them too  
@@ -694,9 +774,50 @@ See `examples/physics3d.mb`, `examples/jolt_drop.mb`, `examples/physics_joints.m
 `ShapeCast2D(x1,y1, x2,y2, w [, h, ignore])` (also `BoxCast2D`) sweeps a `w`×`h` box, or a circle of diameter `w` when `h` is 0; `CircleCast2D(x1,y1, x2,y2, r [, ignore])`. They return the first body hit (0 = none), skip sensors and body `ignore`, and set `PickedEntity` / `PickedX/Y`. Results: `CastHit2D()`, `CastBody2D()`, `CastX2D()` / `CastY2D()` (contact point), `CastNormalX2D()` / `CastNormalY2D()`, `CastFraction2D()` (0–1 along the path). `Raycast2D` fills the same getters  
 `CreateCharacter2D(x, y, w, h)` returns a new body handle; `CreateCharacter2D(sprite, w, h)` puts the controller on a sprite so it follows. `MoveCharacter2D ch, dx` (-1..1, every frame), `JumpCharacter2D ch`, `CharacterOnGround2D(ch)`, `CharacterGroundBody2D(ch)`. Tuning: `SetCharacterSpeed2D` (default 5×h per second), `SetCharacterJump2D` (apex height, default 2×h), `SetCharacterGravity2D` (scale), `SetCharacterAirControl2D` (0–1, default 0.8), `SetCharacterCoyote2D` (seconds, 0.1), `SetCharacterJumpBuffer2D` (seconds, 0.12), `SetCharacterMaxSlope2D` (degrees, 50). Walks along slopes without sliding, slides off walls, rides kinematic platforms, lands on one-way platforms. `BodyX2D(body)` / `BodyY2D(body)` read any body. `FreeCharacter2D ch`. See `examples/platformer2d_physics.mb`
 
+`Physics2D` turns the step on. `Gravity2D` is pixels per second squared, so a platformer wants something near `900`, not `9.8`. The sprite and the body are the same handle. `MoveCharacter2D` wants `-1`..`1` every frame. `UpdateWorld` moves the sprite to the body. The floor's last `CreateBox2D` argument `0` is static.
+
+```basic
+Graphics2D 800, 480
+Physics2D
+Gravity2D 0, 900
+floor = CreateSprite(CreateImage(800, 40))
+PositionSprite floor, 400, 460
+CreateBox2D floor, 800, 40, 0, 0
+player = CreateSprite(CreateImage(24, 48))
+PositionSprite player, 80, 360
+CreateCharacter2D player, 24, 48
+While Not KeyDown(1)
+    dx = 0
+    If KeyDown(KEY_LEFT) Then dx = dx - 1
+    If KeyDown(KEY_RIGHT) Then dx = dx + 1
+    MoveCharacter2D player, dx
+    If KeyHit(KEY_SPACE) Then JumpCharacter2D player
+    UpdateWorld
+    Cls
+    Flip
+Wend
+```
+
 ## Network
 
-How to host, join, and play is [NETWORK.md](NETWORK.md). One room, port **27015**. Call `NetUpdate` every frame. Examples: `examples/net_lobby.mb`, `examples/net_echo.mb`.
+How to host, join, and play is [NETWORK.md](NETWORK.md). One room, port **27015**. Call `NetUpdate` every frame once a window is open. `examples/net_echo.mb` hosts and joins in one process so you can see a message come back. `examples/net_lobby.mb` is the ready room.
+
+`Net.Host` returns `1` when the port opens. `Net.Join` connects to it. `Net.Say` sends a line. `NetRecv` is `1` when a line is waiting, and `NetEvent() = NET_RECEIVE` means that line is chat rather than a connect or a disconnect. `NetMsg$` is the text. Without a `Flip` loop the sample pumps until the message arrives or 50 tries pass.
+
+```basic
+If Not Net.Host(1973) Then End
+If Not Net.Join("127.0.0.1", 1973) Then End
+Net.Say "hello"
+ticks = 0
+While ticks < 50
+    ticks = ticks + 1
+    If NetRecv() And NetEvent() = NET_RECEIVE Then
+        Print NetMsg$()
+        Exit
+    EndIf
+Wend
+NetClose
+```
 
 **Room**
 
@@ -719,7 +840,7 @@ How to host, join, and play is [NETWORK.md](NETWORK.md). One room, port **27015*
 **Messages**
 
 `NetSay msg$` — chat to the room  
-`NetRecv()` — 1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)  
+`NetRecv()` — 1 when a line is waiting. `NetMsg$()` / `NetRecvMsg$()` / `GetNetMsg$()`, `NetPeer()` / `NetRecvPeer()` / `GetNetPeer()`, `NetEvent()` / `GetNetEvent()` (1 connect, 2 disconnect, 3 receive)  
 `NetSend peer, msg$ [, reliable]`, `NetSendReliable peer, msg$`, `NetBroadcast msg$ [, reliable]`  
 `SetNetInfo key$, value$`, `NetInfo$(key$)` — short shared facts, host keeps the copy  
 `NetSendJSON json$ [, peer]`, `NetRecvJSON$()` — one JSON text, about 4KB  
@@ -760,11 +881,54 @@ UDP can drop a packet. `go build -tags enet` is the reliable build.
 `ReadString(file)` `WriteString(file, s$)` — 32-bit length, then the bytes.  
 `FileSize(path$)` — bytes on disk, or 0.  
 `CreateList()`, `ListAdd list, v`, `ListGet(list, i)`, `ListSet list, i, v`, `ListCount(list)`, `ListRemove list, i`  
-`ArraySize(arr [, dim])` — `Dim` length (`dim` 1 = first axis)  
+`CreateMap()`, `MapSet m, key$, v`, `MapGet(m, key$)`, `MapHas(m, key$)`, `MapDelete m, key$`, `MapCount(m)` — string keys, case-insensitive. `m("hp")` and `m("hp") = 3` are the same get and set. A missing key is `0`. `Map.Get` is `MapGet`  
+`ArraySize(arr [, dim])` — `Dim` length (`dim` 1 = first axis). `Redim` is the `Dim` statement again; it copies the overlapping slots  
+`Copy(v)` — a separate array, map, or struct. Assignment of a struct shares it  
+`Callback(fn)` — a function value. `@Name` is the same kind of value  
+`CreateStateMachine()`, `AddState sm, name$, func$`, `GoState sm, name$`, `StateName(sm)`, `UpdateState sm` — the first `AddState` is current; `UpdateState` calls that function by name  
 `Data` / `Read` / `Restore` — classic DATA pointer (language statements, not `World.Call`)  
 `BackBuffer()` / `FrontBuffer()` / `SetBuffer` — classic no-ops (`SetBuffer BackBuffer()`)
 
+`Strict` rejects a name that was never declared. `Try` / `Catch err$` / `End Try` catches a runtime error into `err$`. See [LANGUAGE.md](LANGUAGE.md).
+
 Math is in the **Math** section above. See [LANGUAGE.md](LANGUAGE.md) for `Select` / `Const` / `Struct`.
+
+## Files, actions, tables
+
+`ReadText(path$)` returns the whole file as one string. A missing file is an error (`Try` catches it) and the value is `""`. `WriteText path$, text$` creates parent folders and returns `1`. `ListDir(path$)` is one name per line; a directory name ends with `/`.
+
+`DropCount()` is how many paths are waiting. `DroppedFile$()` takes the next one. Drops arrive on the `Graphics3D` window.
+
+`BindAction name$, key` adds a key to that action. Call it again to add another. `ActionDown(name$)` is `1` while any of those keys is held. `ActionHit(name$)` is `1` if any of them was pressed this frame. `UnbindAction name$` clears the name. `SaveBinds path$` / `LoadBinds path$` write and read the map as JSON. Names are matched without case.
+
+`BindAction` adds a key. A second call adds another key to the same name. `ActionHit` is the frame the key went down. `ActionDown` stays true while it is held. `SaveSlot` writes `saves/slotN.txt` beside the script. `LoadSlot$` is that text, or `""` when the file is absent.
+
+```basic
+BindAction "jump", KEY_SPACE
+BindAction "quicksave", KEY_F5
+If ActionHit("jump") Then vy = 8
+If ActionHit("quicksave") Then SaveSlot 1, EntityX(player) + "," + EntityY(player) + "," + EntityZ(player)
+slot$ = LoadSlot$(1)
+```
+
+A table is rows of string fields. `TableInsert` takes one JSON object and returns the new row index.
+
+```basic
+TableCreate "items"
+TableInsert "items", "{""name"":""sword"",""atk"":""4""}"
+Print TableGet$("items", 0, "name")
+TableSave "items", "items.json"
+```
+
+`TableCreate name$` starts an empty table. `TableInsert name$, json$` appends one row. The JSON is an object of strings, and the call returns the new row index. `TableGet$(name$, row, column$)` is that cell, or `""`. `TableCount(name$)` is the row count. `TableSave name$, path$` / `TableLoad name$, path$` write and read the rows as JSON.
+
+`SaveSlot slot, text$` writes `saves/slotN.txt` next to the script. `LoadSlot$(slot)` reads it back, or `""` when the file is missing.
+
+`ReloadScripts [path$]` reparses the running script (or `path$`) and swaps in its functions. A parse error leaves the old functions and returns `0`.
+
+`SolveTwoBone(ax, ay, tx, ty, len1, len2)` is a 2D two-bone reach in the XY plane. Lengths default to `1`. It returns the shoulder angle in degrees. `IKBend()` is the elbow angle from that same solve.
+
+`GuiPickFile [dir$]` lists that folder inside the current ImGui frame (`.` if omitted). It returns the last row that was clicked.
 
 ## Debugging
 
@@ -846,7 +1010,12 @@ See `examples/windows.mb`.
 | `GuiBegin(title$ [, menu])` | Start a panel. `menu` nonzero reserves a menu bar. Auto-closed on `Flip` if you skip `GuiEnd` |
 | `GuiEnd` | Close the current panel |
 | `GuiButton(label$)` | 1 if clicked |
-| `GuiText s$` | Label |
+| `GuiText s$` | Label. `UIAlign` shifts it |
+| `GuiTextWrapped s$` | Label wrapped to `UIWrap` pixels |
+| `GuiRich s$` | `{#rrggbb}` … `{#}` colored runs |
+| `GuiHBox count [, gap]` | The next `count` buttons, texts, sliders, or checks share a row |
+| `GuiColumns n` | Start a column row |
+| `GuiAnchor x, y` | Place the next `GuiBegin` window. 0–1 across the framebuffer |
 | `GuiBullet s$` | Bulleted label |
 | `GuiSlider(label$, lo, hi [, v])` | Slider. Returns the current value |
 | `GuiDrag(label$, lo, hi [, v])` | Drag box over the same range |
@@ -881,11 +1050,16 @@ See `examples/windows.mb`.
 | `GuiBeginPopup(id$)` | 1 while the popup is open |
 | `GuiEndPopup` | Close the popup |
 | `GuiSelectable(label$)` | 1 if clicked |
+| `UITheme name$` | `"dark"` or `"light"` |
+| `UIScale n` | Font scale, 0.5–3 |
+| `UIWrap width` | Wrap width for `GuiTextWrapped` |
+| `UIAlign mode` | 0 left, 1 centre, 2 right |
+| `UINav flags` | 1 keyboard, 2 gamepad, 3 both |
 | `WantCaptureMouse()` | 1 when the panel wants the mouse |
 | `WantCaptureKeyboard()` | 1 when the panel wants the keyboard |
 | `GuiDemo` | Built-in ImGui demo window |
 
-See `examples/gui_demo.mb`, `examples/gui_panels.mb`, and `examples/gui_3d.mb` (panel on a lit 3D scene). Scene-graph widgets are `examples/gui_scene.mb`.
+How the layout, theme, and profiler fit together is [UI.md](UI.md). See `examples/gui_demo.mb`, `examples/gui_panels.mb`, and `examples/gui_3d.mb` (panel on a lit 3D scene). Scene-graph widgets are `examples/gui_scene.mb`.
 
 ## G3N scene widgets
 
@@ -910,6 +1084,8 @@ SetOnClick(btn, "OnOK")
 | `SetWidgetText e, s$` / `WidgetText$(e)` / `GetWidgetText$(e)` | Label / button / edit text | `SetWidgetText(l, "Go")` |
 | `SetWidgetValue e, n` / `WidgetValue(e)` / `GetWidgetValue(e)` | Slider 0–1 or checkbox 0/1 | `SetWidgetValue(s, 0.5)` |
 | `SetWidgetPos e, x, y` | Screen position | `SetWidgetPos(b, 20, 40)` |
+| `SetWidgetAnchor e, ax, ay` | Pin to a fraction of the window. `1, 0` is the right edge | `SetWidgetAnchor b, 1, 1` |
+| `TweenWidget e, x, y, seconds` | Slide to pixels. 0 moves now | `TweenWidget b, 24, 24, 0.4` |
 
 See `examples/gui_scene.mb`.
 
@@ -927,6 +1103,8 @@ See `docs/NAV.md` and `examples/nav.mb`. Detour + grid A* + an ORCA crowd. **No 
 `SetAgentSpeed e, n` `SetAgentRadius e, n` `SetAgentDestination e, x, y, z`  
 `GetAgentPathPointX/Y/Z(e, i)` `AgentCountPath(e)` `AgentStop e` `UpdateNav`  
 `SetNavMaxSlope deg` / `GetNavMaxSlope()` — skip faces steeper than `deg` when baking. Unset reads as **45** and does not write. `GetNavMaxSlope` never sets.  
+`SetNavCost nav, area, cost` / `GetNavCost(nav, area)` — area cost, never below 1.  
+`AddNavLink nav, ax, ay, az, bx, by, bz` — off-mesh hop, stitched when a path passes within 1.5 of either end.  
 `CreateGrid(w, h)` `SetGridWalkable grid, x, y, on` `FindPath(grid, x1, y1, x2, y2)` `PathLength(p)` `PathX(p, i)` `PathY(p, i)`
 
 ### Crowd (ORCA)
@@ -952,6 +1130,15 @@ CrowdUpdate
 | `BakeTerrainNav([terrain])` | Detour from loaded terrain chunk triangles | `nav = BakeTerrainNav(land)` |
 
 See `docs/NAV.md`, `examples/crowd.mb`, `examples/ecs_crowd.mb`.
+
+### Steering and agents
+
+`SetVision e, range, degrees` `SetHearing e, radius` `CanSee(from, to)` `CanHear(from, to, loud)`  
+`SteerSeek` / `SteerFlee e, x, y, z, speed` `SteerArrive e, x, y, z, speed, slow`  
+`SteerWander e, turn, speed` `SteerAvoid e, reach, speed`  
+`SetFlock e, group` `FlockUpdate group, reach, separate, align, cohere` `AIDebug e`  
+`CreateAI([entity])` `AIState ai [, name$]` `AIAddWaypoint ai, x, y, z` `AIDetectTarget(ai, e)` `AIUpdate ai [, speed]`  
+`CreateTrail e, points` — last positions as a debug line. See [NAV.md](NAV.md).
 
 ## Behavior trees
 
@@ -1009,7 +1196,7 @@ Grid of prop chunks. Load/unload by camera/player. Mesh create stays on the GL t
 | `SetWorldSimRadius(n)` / `GetWorldSimRadius()` | Heightfield chunks around the player. `-1` is draw-only | `SetWorldSimRadius(1)` |
 | `SetWorldShift(on [, metres])` | Move the world when the player passes `metres` (default 4096) | `SetWorldShift(1, 4096)` |
 | `SetWorldMorph(on)` | Slide terrain verts toward the next LOD | `SetWorldMorph(1)` |
-| `WorldOriginX()` / `WorldOriginZ()` | Accumulated shift. `SaveScene` and `SaveGame` store it, and loading after a different shift puts things back in the same world place | `x# = WorldOriginX()` |
+| `WorldOriginX()` / `WorldOriginZ()` / `GetWorldOriginX()` / `GetWorldOriginZ()` | Accumulated shift. `SaveScene` and `SaveGame` store it, and loading after a different shift puts things back in the same world place | `x# = WorldOriginX()` |
 | `CreateWorldStream([chunkSize, radius])` | Prop grid, including the demo slabs and cones | `CreateWorldStream(20, 2)` |
 | `SetStreamRadius(n)` / `GetStreamRadius()` | Chunks in each direction | `SetStreamRadius(3)` |
 | `SetStreamOrigin(x, y, z)` | Pin the center (y ignored). Wins over follow until the next `SetStreamFollow` | `SetStreamOrigin(EntityX(p), 0, EntityZ(p))` |
@@ -1032,7 +1219,7 @@ See `docs/TERRAIN.md`. OpenGL **3.3** grids: central-difference normals, far chu
 | `CreateTerrainFromHeightmap(hm [, w, d, hscale])` | Same as numeric `CreateTerrain` | `t = CreateTerrainFromHeightmap(hm, 80, 80, 14)` |
 | `LoadHeightmap(file$ [, w, d, hscale])` | Decode grayscale → **terrain** handle | `t = LoadHeightmap("h.png", 64, 64, 10)` |
 | `GenerateHeightmap(w, h, seed [, octaves, scale, persist, lacun, …])` | CPU FBM / ridged / diamond-square → heightmap handle. Up to 8192², generated on every core. A terrain over 2048² keeps 16-bit heights (4096² is 32 MB); `FreeHeightmap` after `CreateTerrainFromHeightmap` drops the float copy | `hm = GenerateHeightmap(128, 128, 42, 6, 70, 0.48, 2.15)` |
-| `GenerateHeightmapPreset(name$, w, h, seed)` | `alpine` `rolling-hills` `sharp-peaks` `archipelago` `plateaus` `gentle-dunes` `island` (one landmass, rim below 0.1) | `hm = GenerateHeightmapPreset("alpine", 128, 128, 3)` |
+| `GenerateHeightmapPreset(name$, w, h, seed)` | `alpine` `rolling-hills` `sharp-peaks` `archipelago` `plateaus` `gentle-dunes` `island` (one landmass, rim below 0.1) `mountain-island` (round, low coast, real peaks; follow with `HydraulicErodeHeightmap`, and set the sea near 0.3 of the height) | `hm = GenerateHeightmapPreset("alpine", 128, 128, 3)` |
 | `SaveHeightmap(path$ [, hm])` | Greyscale PNG | `SaveHeightmap("assets/heightmap.png", hm)` |
 | `ImportHeightmap(file$)` / `LoadHeightmapData` | Image → heightmap handle | `hm = ImportHeightmap("h.png")` |
 | `ErodeHeightmap(hm [, iters, talus, transfer])` | Thermal erosion | `ErodeHeightmap(hm, 6)` |
@@ -1044,9 +1231,9 @@ See `docs/TERRAIN.md`. OpenGL **3.3** grids: central-difference normals, far chu
 | `CreateTerrainGL([seed, chunk, radius, disp, freq, octaves, scale])` | Terrain-OpenGL noise + splat | `t = CreateTerrainGL()` |
 | `ApplyTerrainSplat([t])` | Generate CC0 sand/grass/rock/snow + enable `mbterrain` | `ApplyTerrainSplat(t)` |
 | `SetTerrainSplat([t,] sand, grass, rock, snow [, grass2, rockN])` | Bind texture handles | `SetTerrainSplat(t, s, g, r, n)` |
-| `SetTerrainOctaves` / `SetTerrainFreq` / `SetTerrainDispFactor` / `SetTerrainPower` | Their GUI sliders (rebuilds chunks) | `SetTerrainOctaves(t, 8)` |
-| `SetTerrainGrassCoverage` / `SetTerrainRockColor` / `SetTerrainFogFalloff` | Splat + fog | `SetTerrainGrassCoverage(t, 0.65)` |
-| `SetTerrainWaterHeight` / `SetTerrainBlend` / `SetTerrainSnow(on [, y])` | Sand line + optional snow. The snow edge wanders by about ±9 m and creeps lower on flat ground; trees and props are not planted in it. Steep rock gets strata and crevices | `SetTerrainSnow(True, 8.5)` |
+| `SetTerrainOctaves` / `SetTerrainFreq` / `SetTerrainDispFactor` / `SetTerrainPower` | Their GUI sliders (rebuilds chunks). `GetTerrainOctaves(t)`, `GetTerrainFreq(t)`, `GetTerrainDispFactor(t)` read them back (`0` when `t` is not terrain) | `SetTerrainOctaves(t, 8)` |
+| `SetTerrainGrassCoverage` / `GetTerrainGrassCoverage(t)` / `SetTerrainRockColor` / `SetTerrainFogFalloff` | Splat + fog | `SetTerrainGrassCoverage(t, 0.65)` |
+| `SetTerrainWaterHeight` / `SetTerrainBlend` / `SetTerrainSnow(on [, y])` | Sand line + optional snow. The snow edge wanders by up to ±9 m (less on small hills) and creeps lower on flat ground; trees and props are not planted in it. Steep rock gets strata and crevices | `SetTerrainSnow(True, 8.5)` |
 | `SetTerrainEdge(t, mode$)` | Ground past a heightmap's border. `"zero"` (default) drops to 0, an island in a sea. `"clamp"` carries the border height on. `"mirror"` reflects the hills so the land keeps going and a lake stays a lake | `SetTerrainEdge(t, "mirror")` |
 | `SetTerrainTessMultiplier(m)` | CPU vertex density (not GL tess) | `SetTerrainTessMultiplier(t, 1.4)` |
 | `SetTerrainDetail(t, pixels)` | Screen-space size as a CPU step. `8` is the old LOD. Smaller stays fine longer. `0` clears it | `SetTerrainDetail(t, 6)` |
@@ -1061,7 +1248,7 @@ See `docs/TERRAIN.md`. OpenGL **3.3** grids: central-difference normals, far chu
 | `CreateProcTexture(kind$)` | `sand` `grass` `grass2` `rock` `snow` `rocknormal` `dudv` `cloud` | `tex = CreateProcTexture("grass")` |
 | `TerrainSlope(x, z)` / `GetTerrainSlope` | Up-dot normal (1 = flat) | `n# = TerrainSlope(x, z)` |
 | `CreateVolumetricClouds([y, scale])` / `CreateClouds` | One cloud sheet `y` meters above the camera (at least 120). `scale` sets the cloud size | `c = CreateVolumetricClouds(160, 400)` |
-| `SetCloudCoverage` / `SetCloudSpeed` / `SetCloudDensity` | Cloud layer | `SetCloudCoverage(0.55)` |
+| `SetCloudCoverage` / `GetCloudCoverage([id])` / `SetCloudSpeed` / `SetCloudDensity` | Cloud layer. The getter reads that sheet, or the current one | `SetCloudCoverage(0.55)` |
 | `SetSkyPreset(name$)` | `default` `sunset` `sunset1` | `SetSkyPreset("sunset")` |
 | `SetSkyGradient(tR,tG,tB, bR,bG,bB)` | Rebuild procedural sky | `SetSkyGradient(134, 187, 214, 230, 230, 242)` |
 | `TerrainHeight(x, z)` / `GetTerrainHeight` | Bilinear / FBM / Terrain-GL sample | `y# = TerrainHeight(EntityX(p), EntityZ(p))` |
@@ -1180,6 +1367,8 @@ See `docs/WATER.md`. Two techniques, one shader: **Gerstner** vertex ocean + **s
 | `EnableWaterRefraction([on])` / `SetWaterRefraction` | Underwater color + depth FBO | `EnableWaterRefraction(True)` |
 | `SetWaterSpeed(s)` / `GetWaterSpeed()` | DuDv scroll rate | `SetWaterSpeed(0.04)` |
 | `SetWaterWaveStrength(s)` | DuDv distortion amount | `SetWaterWaveStrength(0.05)` |
+| `SetWaterShallow(r, g, b [, metres])` | The color over shallow ground, out to that much water seen through (default 14). Use with `SetWaterClarity` | `SetWaterShallow(36, 150, 165, 16)` |
+| `SetWaterClarity(metres)` | How deep the bottom stays visible; `0` is the default, 70. A small value keeps a sea blue up to its shallows | `SetWaterClarity(7)` |
 | `SetWaterWaves(count [, amp])` | 0 = flat plane, 1–4 Gerstner | `SetWaterWaves(4, 0.42)` |
 | `SetGerstner(i, dirX, dirZ, steep, amp, lambda, speed)` | One wave (i = 0–3) | `SetGerstner(0, 0.85, 0.35, 0.42, 0.55, 18, 1.15)` |
 | `SetWaterWind(dirX, dirZ [, str])` / `GetWaterWind()` | Steer / boost Gerstner | `SetWaterWind(0.9, 0.25, 0.7)` |
@@ -1198,6 +1387,13 @@ See `docs/WATER.md`. Two techniques, one shader: **Gerstner** vertex ocean + **s
 ## Instancing
 
 G3N has no instanced-draw wrapper. On **OpenGL 3.3** we prefer `glDrawElementsInstanced` (`EnableGPUInstances`). If that path is off or fails, we **merge** identical source triangles into one mesh (CPU fallback). See `docs/GRAPHICS.md`.
+
+Copies made with `CopyEntity` are batched by themselves when their materials are equal; these commands are for scenes that want one handle for many copies.
+
+| Command | Meaning | Example |
+| --- | --- | --- |
+| `SetAutoBatch on` | Draw copies of a mesh with equal materials as one instanced draw, with distance detail, and merge still meshes by area. On by default; 0 draws each alone | `SetAutoBatch(0)` |
+| `StatsBatched()` | How many entities batches drew this frame | `StatsBatched()` |
 
 | Command | Meaning | Example |
 | --- | --- | --- |
@@ -1332,6 +1528,10 @@ See [PHYSICS.md](PHYSICS.md).
 | `CreateHitbox(e, hx,hy,hz)` | Query sensor + green debug. Alias `CreateQueryBox` | `CreateHitbox(hurt, 0.4, 0.8, 0.3)` |
 | `Explode x,y,z,r,imp` | Sphere overlap + falloff impulse. Alias `AreaDamage` | `Explode(x,y,z, 5, 20)` |
 | `FollowPath e, speed [, loop], pts…` | Polyline rail. Alias `FollowPolyline` | `FollowPath(cam, 8, 0,0,0, 10,2,0)` |
+| `SetTimeScale n` / `GetTimeScale()` / `TimeScale([n])` | Scales `UpdateWorld` (`DeltaTime` stays real). `SetTimeScale` clamps to `0`–`10`. A stored `0` is stepped as `1`, and `GetTimeScale` returns `1` in that case. `TimeScale(n)` sets without the cap of `10` | `SetTimeScale(0.35)` |
+| `TweenPosition e, x, y, z, seconds [, ease$]` | Move to a point. Ease: `linear` (default), `in`, `out`, `inout`, `smooth`, `smoother` | `TweenPosition(door, 0, 2, 0, 0.4, "out")` |
+| `TweenRotation e, pitch, yaw, roll, seconds [, ease$]` | Turn to a pose, degrees | `TweenRotation(door, 0, 90, 0, 0.4, "inout")` |
+| `TweenColor e, r, g, b, seconds [, ease$]` | Blend the entity color | `TweenColor(lamp, 255, 180, 80, 0.2)` |
 | `EnablePhysicsDebug on` | Collider shapes, contacts, velocities and joints overlay. See [Debug drawing](#debug-drawing) | `EnablePhysicsDebug(1)` |
 | `CreateFixedJoint` / `CreateConeJoint` / `CreateSwingTwistJoint` | Weld / cone / ragdoll-ish limits | `CreateFixedJoint(a, b, x,y,z)` |
 | `SetCollisionLayer` / `SetLayerCollides` | 32 layers; default all collide | `SetLayerCollides(0, 1, 0)` |
@@ -1347,6 +1547,8 @@ See [PHYSICS.md](PHYSICS.md).
 | `AttachToBone child, mesh, bone$` | Parent to named glTF node. Alias `AttachBone` | `AttachToBone(gun, hero, "RightHand")` |
 | Aliases | `CreateRigidBodyCylinder` `CreateConvexHull` `CreateConvexBody` `CreateRigidBodyConvex` `GrabEntity` `ReleaseGrab` `ThrowEntity` `AttachBone` `RayPlace` `CreateFlag` | Same handlers as the names above |
 | `CreateSensor` / `SetBodySensor` | Trigger volume | `CreateSensor(trig, 2, 1, 2)` |
+| `GetTriggerHit(sensor)` | First entity touching that sensor this frame, or `0` | `who = GetTriggerHit(zone)` |
+| `BodyType e [, n]` | Entity motion flag: `0` none, `1` dynamic, `2` static, `3` kinematic. One argument reads it. These numbers are the entity flag, separate from the `STATIC` / `KINEMATIC` / `DYNAMIC` constants | `BodyType(crate, 2)` |
 | `OffsetCenterOfMass e, x,y,z` | Shift COM | `OffsetCenterOfMass(car, 0, -0.2, 0)` |
 | `OptimizePhysics()` / `OptimizeBroadPhase` | Rebuild broadphase after many `CreateBody*` | `OptimizePhysics()` |
 | `CreateCharacterController(e [, h, r, slope, str])` | CharacterVirtual | `CreateCharacterController(hero, 1.8, 0.4, 50, 100)` |
@@ -1362,9 +1564,9 @@ See [VEHICLES.md](VEHICLES.md). `CreateXxxController` + `UpdateXxx` each frame.
 
 **Name clash:** `CreatePlane` is the **ground mesh**. The aircraft is `CreatePlaneController` + `UpdatePlane`. There is no `CreatePlane` → controller alias (`CreateCar` / `CreateJet` / `CreateBoat` *are* aliases).
 
-**Native Jolt** (Windows vehicle constraint; else force fallback): `CreateCarController` / `CreateVehicle` + `UpdateCar` / `UpdateVehicle` / `SetVehicleInput(e, steer, throttle, brake)`. `CreateMotorcycleController` + `UpdateMotorcycle`. `CreateTankController` / `CreateTrackedController` + `UpdateTank` / `UpdateTracked`.
+**Native Jolt** (vehicle constraint on Windows, Linux amd64/arm64, and macOS ARM; force fallback with `-tags joltgo` or `-tags nojolt`): `CreateCarController` / `CreateVehicle` + `UpdateCar` / `UpdateVehicle` / `SetVehicleInput(e, steer, throttle, brake)`. `CreateMotorcycleController` + `UpdateMotorcycle`. `CreateTankController` / `CreateTrackedController` + `UpdateTank` / `UpdateTracked`.
 
-**Force / torque:** `CreatePlaneController` + `UpdatePlane(e, th, pitch, roll, yaw)`. `CreateJetController` + `UpdateJet`. `CreateSpaceshipController` + `UpdateSpaceship`. `CreateBoatController` + `UpdateBoat(e, th, steer)`. `CreateHelicopterController` + `UpdateHelicopter(e, collective, cyclicP, cyclicR, yaw)`. `CreateHovercraftController` + `UpdateHovercraft`. `CreateSubmarineController` + `UpdateSubmarine(e, throttle, steer, dive)`. `CreateDroneController` + `UpdateDrone`.
+**Force / torque:** `CreatePlaneController` + `UpdatePlane(e, th, pitch, roll, yaw)`. `CreateJetController` + `UpdateJet`. `CreateSpaceshipController` + `UpdateSpaceship`. `CreateBoatController` + `UpdateBoat(e, th, steer)`. `CreateJetSkiController` + `UpdateJetSki`. `CreateWaterSkiController` (`CreateWaterSki`) + `UpdateWaterSki(e, throttle, steer [, tow])`. `CreateHelicopterController` + `UpdateHelicopter(e, collective, cyclicP, cyclicR, yaw)`. `CreateHovercraftController` + `UpdateHovercraft`. `CreateSubmarineController` + `UpdateSubmarine(e, throttle, steer, dive)`. `CreateDroneController` + `UpdateDrone`. `CreateMechController` + `UpdateMech`. `CreateLanderController` + `UpdateLander`.
 
 Also: `CreateGliderController` / `CreateSkiController`. Forces: `ApplyTorque` `ApplyForceAtPosition` `ApplyLocalImpulse` `SetGravityScale` `SetRestitution` `SetLinearDamping` `SetFriction` `ApplyBuoyancy` `WaterHeight`.
 
@@ -1372,7 +1574,7 @@ Demos: `examples/car.mb` `plane.mb` `jet.mb` `spaceship.mb` `boat.mb` `motorcycl
 
 | Command | Physics | Example |
 | --- | --- | --- |
-| `CreateCarController` / `CreateVehicle` / `UpdateCar e, steer, th, brake` | Jolt wheeled (Windows) or force fallback | `examples/car.mb` |
+| `CreateCarController` / `CreateVehicle` / `UpdateCar e, steer, th, brake` | Jolt wheeled, or force fallback with `-tags joltgo` / `-tags nojolt` | `examples/car.mb` |
 | `SetVehicleInput e, steer, th, brake` | Same as `UpdateCar` (alias `SetCarInput`) | |
 | `CreateMotorcycleController` / `UpdateMotorcycle` | Jolt motorcycle or fallback | `examples/motorcycle.mb` |
 | `CreateTankController` / `CreateTrackedController` / `UpdateTank` | Jolt tracked or fallback | `examples/tank.mb` |
@@ -1386,6 +1588,49 @@ Demos: `examples/car.mb` `plane.mb` `jet.mb` `spaceship.mb` `boat.mb` `motorcycl
 | `CreateDroneController` / `UpdateDrone` | Small hover | `examples/drone.mb` |
 | `CreateGliderController` / `UpdateGlider` | Aero, no thrust | |
 | `CreateSkiController` / `UpdateSki` | Low friction | |
+| `CreateWaterSkiController` / `UpdateWaterSki e, th, steer [, tow]` | Ski on `WaterHeight`. A shared rope skips the spring tow | |
+| `CreateMechController` / `UpdateMech e, th, turn, strafe` | Heavy friction and an upright gyro | `examples/mech.mb` |
+| `CreateLanderController` / `UpdateLander e, thrust, pitch, roll, yaw` | Up engine plus attitude torque | `examples/lander.mb` |
+
+## Characters
+
+These build a `CharacterVirtual` on the entity and move it when you call `Update*` each frame, before `UpdateWorld`. Their step uses the real frame time, capped at 50 ms, and does not follow `SetTimeScale`. `GetAxis` is `-1`, `0`, or `1`. The mouse is hidden so look input is the raw delta. Escape stays false for the first frames, so the loop counts them. The arena with pillars is `examples/fps_controller.mb`. Third person, overhead, and side view: `examples/tps_controller.mb`, `examples/topdown_controller.mb`, `examples/platformer_controller.mb`. A longer walkthrough is [MODERN_GAME_HELPERS.md](MODERN_GAME_HELPERS.md).
+
+```basic
+Graphics3D 1280, 720
+HidePointer
+cam = CreateCamera()
+CreateLight()
+ground = CreateCube().Scale(40, 0.25, 40)
+CreateRigidBodyBox ground, 40, 0.25, 40, 0
+player = CreatePivot().Position([0, 2, 0])
+CreateFPSController player, cam, 1.8, 0.4, 6.5, 11.5, 9.5
+
+frames = 0
+While 1
+    frames = frames + 1
+    If frames > 8 And KeyHit(KEY_ESCAPE) Then Exit
+    UpdateFPS player, GetAxis(KEY_A, KEY_D), GetAxis(KEY_S, KEY_W), KeyHit(KEY_SPACE), KeyDown(KEY_LEFT_SHIFT), KeyDown(KEY_LEFT_CONTROL), 0.18
+    UpdateWorld
+    RenderWorld
+    Flip
+Wend
+```
+
+| Command | Meaning |
+| --- | --- |
+| `CreateFPSController(e, cam [, height, radius, walk, sprint, jump])` | Defaults `1.8`, `0.4`, `6`, `10.5`, `9.5`. Mouse look, pitch clamped to ±89, ignored while ImGui has the pointer. Crouch shortens the capsule to `0.55` of its height |
+| `UpdateFPS(e, x, z, jump, sprint, crouch [, sens])` | `x`/`z` are about `-1`..`1`. `sens` defaults to `0.15` degrees per mouse pixel |
+| `GetFPSPitch(e)` / `GetFPSYaw(e)` / `IsFPSGrounded(e)` | Look angles and ground |
+| `CreateTPSController(e, cam [, height, radius, move, sprint, jump])` | Defaults `1.8`, `0.45`, `6.5`, `11`, `10`. Aim slows the walk to `0.65` |
+| `UpdateTPS(e, x, z, jump, sprint, aim, camDist, camPitch, camYaw)` | Move is relative to `camYaw`. Defaults if you omit the camera args: distance `4.5`, pitch `16`, yaw `0` |
+| `GetTPSYaw(e)` / `IsTPSGrounded(e)` | Facing and ground |
+| `CreateTopDownController(e [, speed, turnRate])` | Defaults `8` and `18` degrees/sec of aim ease. Capsule is `1.8` × `0.45` |
+| `UpdateTopDown(e, x, z, aimX, aimZ, dash)` | Faces the aim point. A dash lasts `0.18` s and then waits `0.8` s |
+| `GetTopDownAimYaw(e)` | Current facing |
+| `CreatePlatformerController(e [, speed, jump, maxJumps])` | Defaults `8.5`, `12`, `2` jumps. Side view: `x` is the only axis |
+| `UpdatePlatformer(e, x, jumpPressed, jumpHeld)` | Releasing jump raises gravity. Coyote time is `0.12` s |
+| `IsPlatformerGrounded(e)` | Ground state `0` |
 
 ## Editor / stats
 
@@ -1400,6 +1645,9 @@ ImGui panels use the existing `Gui*` commands. These query live numbers:
 | `StatsGPUMs()` | GPU time of the frame from timestamp queries, a frame late; 0 in 2D | `g = StatsGPUMs()` |
 | `StatsTriangles()` | Triangles in visible meshes | `t = StatsTriangles()` |
 | `StatsMemoryMB()`, `StatsGCPauseMs()`, `StatsAllocKB()` | Go heap in use, the last GC pause, and KB allocated per frame | `m = StatsMemoryMB()` |
+| `StatsFuncMs(name$)`, `StatsFuncCalls(name$)`, `StatsTopFunc$()` | Exclusive function time, call count, and the slowest name | `StatsFuncMs("work")` |
+| `StatsAssetKB(name$)`, `StatsAssetMB()` | File size of one loaded mesh or texture, and the total. Keys look like `"mesh hero.glb"` | `StatsAssetKB("tex diffuse.png")` |
+| `StatsVRAMMB()` | Texture memory. Compressed byte size, otherwise width × height × 4 | `v = StatsVRAMMB()` |
 | `SetGraphicsQuality(q$)` | `"low"` `"medium"` `"high"` `"ultra"` or `"auto"`. One call sets shadow size, water reflection and refraction, post FX, terrain detail window and triangle size, tree/prop/grass count and reach. Low is aimed at a 2016 laptop iGPU at 720p: no water passes, cheap terrain texturing. High adds ambient occlusion and a coarse vista out to the fog; ultra adds soft (PCSS) shadow edges and 4× MSAA. On a fast GPU, `SetMSAA(2)` after this call gives high smooth edges for about 2 ms. Low draws cheaper clouds. `"auto"` reads the GPU name, then steps down a tier whenever frames average over 26 ms for 2 s. It never steps up. A setting you change after this call is yours until the next tier change. A script that never calls it gets `"auto"` from `Graphics3D`, so post FX, AO, and anti-aliasing are on by default | `SetGraphicsQuality("auto")` |
 | `GraphicsQuality()` | Current tier, `0` low to `3` ultra | `q = GraphicsQuality()` |
 | `SaveScreenshot(path$)` | Saves the next presented frame (scene, post, HUD) as a PNG | `SaveScreenshot("shot.png")` |
@@ -1446,6 +1694,11 @@ Scene renders to a color FBO, then one blit: tonemap (`reinhard`, `neutral`, `ac
 | `EnablePostFX [on]` | Turn the stack on | `EnablePostFX(True)` |
 | `PostFX()` | 1 if enabled | `If PostFX() Then` |
 | `SetExposure n` / `GetExposure()` | Linear exposure (0.05–8) | `SetExposure(1.2)` |
+| `SetAutoExposure [on]` / `GetAutoExposure()` | Ease exposure toward a middle brightness. Turns the stack on. `GetAutoExposure` is `1` or `0`, not the exposure number | `SetAutoExposure(True)` |
+| `EnableSSAO [on]` / `SetSSAO [on]` / `GetSSAO()` | Contact occlusion on the scene depth. Turns the stack on. Defaults: radius `0.8`, intensity `1.8`, bias `0.02` | `EnableSSAO(True)` |
+| `SetSSAORadius n` / `GetSSAORadius()` | Sample radius. Floor `0.01`. Getter returns `0.8` until set | `SetSSAORadius(0.6)` |
+| `SetSSAOIntensity n` / `GetSSAOIntensity()` | Darkening. Floor `0`. Getter returns `1.8` until set | `SetSSAOIntensity(1.2)` |
+| `SetSSAOBias n` / `GetSSAOBias()` | Depth bias. Getter returns `0.02` until set | `SetSSAOBias(0.03)` |
 | `SetBloom n` / `GetBloom()` | Bright-extract strength (0 off) | `SetBloom(0.35)` |
 | `SetFXAA [on]` | Simple luma FXAA | `SetFXAA(True)` |
 | `SetMSAA n` | Multisampled scene target: `0`, `2`, `4`, or `8` samples (other values round up; no argument is 4). Needs post FX on; resolved before it. Falls back to none if the driver refuses. 4× costs about 2–4 ms at 720p on a mid GPU | `SetMSAA(4)` |

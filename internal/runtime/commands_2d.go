@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"fmt"
 	"image"
 	"image/color"
 	"os"
@@ -84,6 +85,9 @@ func (w *World) twoDCommands(n func(func([]value.Value) (value.Value, error)) cm
 				w.images[id] = &ebiImage{src: rgba, w: ww, h: hh}
 			}
 			return value.Num(float64(id)), nil
+		}),
+		"drawnineslice": need2(func(a []value.Value) (value.Value, error) {
+			return w.drawNineSlice(argI(a, 0, 0), argN(a, 1, 0), argN(a, 2, 0), argN(a, 3, 0), argN(a, 4, 0), argN(a, 5, 8))
 		}),
 		"drawimage": need2(func(a []value.Value) (value.Value, error) {
 			imgID := argI(a, 0, 0)
@@ -300,6 +304,18 @@ func (w *World) twoDCommands(n func(func([]value.Value) (value.Value, error)) cm
 			}
 			return z()
 		}),
+		"spriteanimevent": n(func(a []value.Value) (value.Value, error) {
+			s := w.sprites[argI(a, 0, 0)]
+			if s == nil {
+				return value.Num(0), fmt.Errorf("SpriteAnimEvent: no sprite")
+			}
+			name := argS(a, 2)
+			if name == "" {
+				return value.Num(0), fmt.Errorf("SpriteAnimEvent: function name")
+			}
+			s.marks = append(s.marks, spriteMark{frame: argI(a, 1, 0), fn: name})
+			return value.Num(float64(len(s.marks))), nil
+		}),
 		"animatesprite": need2(func(a []value.Value) (value.Value, error) {
 			s := w.sprites[argI(a, 0, 0)]
 			if s == nil {
@@ -409,4 +425,68 @@ func spriteSize(s *ebiSprite) (float64, float64) {
 		sy = 1
 	}
 	return ww * sx, hh * sy
+}
+
+func (w *World) drawNineSlice(id int, x, y, dw, dh, border float64) (value.Value, error) {
+	im := w.images[id]
+	if im == nil || im.w < 3 || im.h < 3 || dw <= 0 || dh <= 0 {
+		return value.Num(0), nil
+	}
+	b := border
+	if b < 1 {
+		b = 1
+	}
+	if b*2 >= float64(im.w) {
+		b = float64(im.w-1) / 2
+	}
+	if b*2 >= float64(im.h) {
+		b = float64(im.h-1) / 2
+	}
+	if b*2 >= dw {
+		b = dw / 2
+	}
+	if b*2 >= dh {
+		b = dh / 2
+	}
+	bw, bh := int(b), int(b)
+	if bw < 1 {
+		bw = 1
+	}
+	if bh < 1 {
+		bh = 1
+	}
+	alpha := w.drawAlpha
+	if alpha == 0 {
+		alpha = 255
+	}
+	cols := [3]struct {
+		sx, sw int
+		dx, dw float32
+	}{
+		{0, bw, float32(x), float32(b)},
+		{bw, im.w - 2*bw, float32(x + b), float32(dw - 2*b)},
+		{im.w - bw, bw, float32(x + dw - b), float32(b)},
+	}
+	rows := [3]struct {
+		sy, sh int
+		dy, dh float32
+	}{
+		{0, bh, float32(y), float32(b)},
+		{bh, im.h - 2*bh, float32(y + b), float32(dh - 2*b)},
+		{im.h - bh, bh, float32(y + dh - b), float32(b)},
+	}
+	for _, row := range rows {
+		for _, col := range cols {
+			if col.sw < 1 || row.sh < 1 || col.dw <= 0 || row.dh <= 0 {
+				continue
+			}
+			w.draws = append(w.draws, drawOp{
+				kind: 0, img: im.img, imgID: id, glTex: im.glTex, texW: im.w, texH: im.h,
+				x: col.dx, y: row.dy, w: col.dw, h: row.dh,
+				sx: col.sx, sy: row.sy, sw: col.sw, sh: row.sh,
+				r: 255, g: 255, b: 255, a: alpha,
+			})
+		}
+	}
+	return value.Num(1), nil
 }

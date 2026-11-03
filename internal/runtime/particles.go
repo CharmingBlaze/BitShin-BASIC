@@ -191,7 +191,7 @@ func (w *World) acquirePartVis(cube bool) *partVis {
 		mat.SetSide(material.SideDouble)
 		mat.SetTransparent(true)
 		mat.SetDepthMask(false)
-		mesh = graphic.NewMesh(w.particleGeom(), mat)
+		mesh = graphic.NewMesh(w.particleGeom(), &linMat{Standard: mat, w: w})
 		mesh.SetRenderOrder(80)
 	}
 	w.scene.Add(mesh)

@@ -227,6 +227,7 @@ This workspace maps `*.mb` → language id `moonbasic` (`.vscode/settings.json`)
 
 ## Docs
 
+- [docs/GUIDE.md](docs/GUIDE.md) — start here: the language, the frame loop, and each engine system
 - [docs/LANGUAGE.md](docs/LANGUAGE.md) — syntax
 - [docs/NETWORK.md](docs/NETWORK.md) — host a game, find a room, wait, play
 - [docs/PHYSICS.md](docs/PHYSICS.md) — Jolt bodies, joints, grab, cloth, CharacterVirtual

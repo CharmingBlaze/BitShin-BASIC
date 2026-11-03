@@ -1,6 +1,8 @@
 # Language
 
-moonBASIC here is this runtime's dialect. It keeps the everyday BASIC forms and this engine's commands (`Graphics3D`, `CreateCube`, `HostGame`). It does not implement the Raylib registry (`App.Open`, `Draw.Text`, `Render.*`, `Model.*`).
+moonBASIC here is this runtime's dialect. It keeps the everyday BASIC forms and this engine's commands (`Graphics3D`, `CreateCube`, `HostGame`). A walk through a whole program and the engine is [GUIDE.md](GUIDE.md). Raylib command names (`App.Open`, `Draw.Text`, `Render.*`, `Model.*`) are not registered.
+
+Names are case-insensitive. A newline or a colon starts the next statement. `End` stops the program.
 
 Type suffixes are optional. The forms are `Local` / `Global` / `Static`, `Type` records, `If` / `Select` / `For` / `While` / `Repeat` / `Do`, `Function` with `Return`, `As` signatures, `@Name` and anonymous functions, `Erase` / `Delete`, `For v = Each(Type)`, and coroutines.
 
@@ -10,7 +12,9 @@ Plain functions also answer under a topic name: `Math.Abs`, `Math.Lerp`, `String
 
 ## Comments
 
-`;` `'` and `//` run to end of line.
+`;` `'` and `//` run to the end of the line. `Rem` does the same, and stops at a colon, so `Rem note : Print 1` still prints. `/* ... */` is a block comment, including across lines. `a/*b*/c` is `a` then `c`, with no space required.
+
+`'''` at the start of a line is a doc comment. The lines immediately above a `Function` are stored on that function. A doc comment anywhere else is skipped.
 
 ## Values
 
@@ -75,6 +79,8 @@ Select n
         Print "one"
     Case 2, 3
         Print "few"
+    Case 4 To 9
+        Print "more"
     Default
         Print "other"
 End Select
@@ -138,7 +144,15 @@ End Function
 
 ## Functions, instances, and coroutines
 
-`As` on a parameter or a function result accepts `Integer`, `Float`, `String`, `Bool`, or a `Type` name. `Integer` truncates. A user type must be that type, or `0`.
+`As` on a parameter, a function result, a `Local`, a `Global`, or a `Static` accepts `Integer`, `Float`, `String`, `Bool`, or a `Type` name. `Integer` truncates. `Bool` becomes `1` or `0`. `String` stringifies. A user type must be that type, or `0`. Later assigns to that name keep the same rule.
+
+```basic
+Local hp As Integer = 3.9
+hp = hp + 0.6
+Print hp
+```
+
+`hp` starts at `3`. After the add it is `4`. `Local hp% = 3.9` is the same truncation, written with a suffix instead of `As`.
 
 `@Name` is a function value. `Function()` … `End Function` with no name is an anonymous function. Call either with `f()`.
 
@@ -207,7 +221,7 @@ Several fields can sit on one line: `Field x, y, z`.
 
 ## Arrays of types
 
-`Dim pads(8) As Pad` makes a Blitz array (indexes `0` through `8`). Empty slots stay `0` until you write a field or store a value. `pads(i).y = 1` creates a `Pad` in that slot and sets the field. `For p In pads` and `For Each p In pads` visit slots that hold a value and skip the empty ones. Field writes on the loop variable change the array element.
+`Dim pads(8) As Pad` makes a Blitz array (indexes `0` through `8`). Empty slots stay `0` until you write a field or store a value. `pads(i).y = 1` creates a `Pad` in that slot and sets the field. `For p In pads` and `For Each p In pads` visit slots that hold a value and skip the empty ones. Field writes on the loop variable change the array element. `Redim pads(4) As Pad` builds a new array and copies the overlapping slots. `scores(i)` and `scores[i]` are the same index. A missing index reads as `0`.
 
 ```basic
 Type Pad
@@ -258,9 +272,53 @@ End Namespace
 Print Util.Sum(1, 2)
 ```
 
-See `examples/struct.mb`.
+See `examples/struct.mb` and `examples/modern.mb`.
 
 `Const name = value` is a compile-time name. `Data` / `Read` / `Restore` walk a program-wide DATA pointer.
+
+## Strict, maps, Try, and states
+
+`Strict` at the top of the file makes a bare name an error until it is a parameter, a `Local`, a `Global`, or a `Static`. Without `Strict`, a name that has never been written reads as `0`.
+
+```basic
+Strict
+Local hp% = 3.9
+Local name$ = 12
+```
+
+`hp%` is `3` (the `%` suffix truncates). `name$` is the string `"12"` (the `$` suffix stringifies). `#` marks a float and does not change the value.
+
+`CreateMap()` returns a map. Keys are strings, compared without case. `MapSet m, "hp", 3` stores a value. `MapGet(m, "hp")` reads it, or `0` when the key is absent. `MapHas`, `MapDelete`, and `MapCount` test, remove, and count. `m("hp")` and `m("hp") = 3` are the same get and set. `Map.Get` is `MapGet`.
+
+```basic
+Local m = CreateMap()
+MapSet m, "hp", 3
+m("name") = "Ada"
+Print MapGet(m, "hp"), m("name"), MapCount(m)
+```
+
+`Try` runs a block. A runtime error, including a failed `Assert`, jumps to `Catch`. The name after `Catch` receives the error text. `End Try` closes the block.
+
+```basic
+Try
+    ReadText "missing.txt"
+Catch err$
+    Print err$
+End Try
+```
+
+`CreateStateMachine()` returns an id. `AddState sm, "idle", "OnIdle"` records a function name; the first state added is the current one. `GoState sm, "walk"` switches. `UpdateState sm` calls the current state's function. `AddTransition sm, from$, to$, func$` runs first: a nonzero `func()` switches to `to$`. `from$` of `*` matches whatever state is current. `StateName(sm)` is that name. `Callback(OnIdle)` is a function value, the same kind of value as `@OnIdle`.
+
+`CreateUtility()` returns an id you do not pass to `UpdateState`. `UtilityConsider u, "attack", score` stores a number. `UtilityChoose(u)` returns the name with the highest score.
+
+```basic
+Local sm = CreateStateMachine()
+AddState sm, "idle", "OnIdle"
+Function OnIdle()
+    Print "idle"
+End Function
+UpdateState sm
+```
 
 ## Dot methods (entity handles)
 

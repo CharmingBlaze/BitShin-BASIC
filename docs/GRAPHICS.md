@@ -65,6 +65,32 @@ Do not fight GLS blindly: `saveModernGL` / restore around raw calls, like shadow
 
 Depth shadows stay on a G3N `Program` + `gs.UseProgram`. Dummy shadow map when shadows are off (unchanged).
 
+## Automatic batching
+
+Copies need no special commands. Entities that share a geometry and have equal material settings are drawn as one instanced draw, in the scene pass and in every shadow tile, so `CopyEntity` in a loop is cheap. Each copy can still move, turn, scale, hide, and be parented on its own. A copy whose material differs in any way (color, shininess, texture, side, and so on) goes in another group.
+
+These are drawn alone, as before: transparent materials, skinned and morphing meshes, meshes with several materials, swaying trees, custom shaders, terrain, water, and a mesh with no copies. Only `standard`, `bsshadow`, and `mbphysical` materials are grouped. Child meshes inside a loaded model are not entities and are not grouped. Casters with a cut-out texture are grouped in the scene pass but still drawn one by one into the shadow map.
+
+A shared mesh of 256 triangles or more also gets up to two simpler versions, built once on a worker thread. Each view draws a copy with the simplest version whose error covers at most one pixel at its distance, and each directional shadow tile with the simplest whose error fits in one texel. Point and spot shadow tiles and orthographic cameras keep the full mesh. Pixels can change slightly: about 0.1% in the test scenes.
+
+A mesh with no copies that has been still for 30 frames is merged with the others of the same material in its 512-unit area of the level, into one world-space mesh, which makes a level of thousands of different meshes a few hundred draws. Any change to it (moving, a new color, hiding it, gaining a copy) takes it out at once, and it can merge again once it is still. Meshes over 20,000 triangles, mirrored ones, and ones whose vertices can change (`CreateMesh` meshes, skinned meshes, cloth) stay on their own. A merged mesh is frustum-culled as a whole.
+
+In every pass G3N no longer visits batched meshes. Plain shadow and fog uniforms are sent once per program per pass instead of once per mesh; textures are still bound per draw, because programs share texture units. In a water pass, terrain chunks wholly on the discarded side of the clip plane are skipped.
+
+`SetAutoBatch 0` or `MOON_BATCH=0` turns all of this off. `StatsDraws()` counts a group or a merged mesh as one draw; `StatsBatched()` is how many entities groups draw.
+
+| Benchmark, Radeon 780M, 1600 × 900 (island 1280 × 720), shadows on, high tier, dynamic resolution off or not yet present | Before | Now |
+| --- | --- | --- |
+| 5,000 cubes, one in ten spinning | 58.7 ms, 5,000 draws, dropped itself to the low tier | 6.6 ms, 1 draw |
+| 50,000 cubes, one in ten spinning | 63 ms after instancing alone | 44-57 ms, 1 draw |
+| City: 3,600 different meshes, 28,800 copies | 43.7 ms, 3,602 draws after instancing alone | 36.7 ms, 218 draws |
+| 4,000 rocks of 8,000 triangles, most far away | 18.8 ms after instancing alone | 9.8 ms |
+| `examples/island_orbit.mb` camera path, dynamic resolution off | 16.4 ms with all of this off, 9.0 ms of it render CPU | 16.5 ms, 6.3 ms of it render CPU (the GPU sets the frame time) |
+
+Timings moved a lot from run to run on a shared machine. Above about 10,000 entities most CPU time is per-frame walks over every entity, chiefly checking each material for changes. There is no occlusion culling: cutting the city's far plane to 120 units, which removes more than occlusion could, did not make it faster, so it would not help these scenes.
+
+Code: `internal/runtime/batch.go`, `batch_lod.go`, `batch_merge.go`. `MOON_CPUPROFILE=path` with `MOON_SMOKE_FRAMES` writes a Go CPU profile of those frames.
+
 ## Instancing
 
 `CreateInstancedMesh` / `SetInstanceTransform` / `SetInstanceData` are the commands (also used by the large-world example).
@@ -106,6 +132,59 @@ CompileShader(src$, "vert")
 Do **not** replace `math32.Vector3` / `Matrix4` on nodes. Convert at the boundary (`mathx.FromVec3` / `ToVec3` / `FromMat4` / `ToMat4`).
 
 Used today: probe SH (`SHEval`), crowd push-apart, `NoiseFBM`, `JobXform`.
+
+## One-call look
+
+`SetLook "modern"` after `CreateCamera` gives a finished picture: tone mapping, bloom, FXAA, ambient occlusion, image-based light, sun shadows, and fog that fades into the sky's horizon. It adds a default sky and a sun only if the scene has none, and leaves your fog alone if you set one. Anything set afterwards wins. The low tier skips the post effects. `SetLook "off"` turns them off.
+
+## Staying smooth
+
+Every game, run or compiled, has two steps of protection, in this order:
+
+1. **Dynamic resolution.** When over a quarter of the frames in half a second run late, the 3D scene draws 5% smaller per axis (10% when most are late). AMD FSR 1 upsamples and sharpens it onto the window, and HUD text stays at full size. It tries one step sharper after 4 s of on-time frames, stopping below the scale that last ran late, and that limit relaxes after 15 s. Each tier has a floor: ultra 0.85, high 0.75, medium 0.65, low 0.5.
+2. **Quality tiers.** Under `SetGraphicsQuality "auto"`, only once resolution is at its floor does a 26 ms average drop one tier. Tiers never step back up by themselves.
+
+The first second, frames over 250 ms, and frames that spent little time drawing (a script that sleeps or computes for long) are not counted. Use `SetDynamicResolution(False)` when timing the renderer, since it holds frame time steady by changing the picture size.
+
+Every tier keeps the post pass. G3N asks for an 8x multisampled window, so drawing the scene straight to the window was about 3x slower than the low tier's post pass, and switching to it stalled for seconds (Radeon 780M). Low only gives up bloom and ambient occlusion from the pass.
+
+## Where the frame goes
+
+`StatsPassMs(name$)` and `MOON_GPU_PROFILE=1` report GPU time per pass, from timestamps read a few frames late. `examples/island_orbit.mb`, dynamic resolution off, Radeon 780M at 1280x720, ms:
+
+| Tier | Shadow | Reflect | Refract | Scene | Post | Frame |
+| --- | --- | --- | --- | --- | --- | --- |
+| High, before the refraction copy | 4.33 | 0.28 | 4.47 | 6.02 | 1.00 | 17.7 |
+| High | 4.02 | 0.27 | 0 | 6.71 | 1.02 | 13.6 |
+| Medium | 2.40 | 0.12 | 0 | 5.35 | 0.68 | 9.4 |
+| Low (before the refraction copy, which it does not use) | 1.81 | 0 | 0 | 2.77 | 0.45 | 5.7 |
+
+Later changes on the same path brought High to 9.6 ms, Medium to 6.9 ms, and Low to 4.8 ms: far shadow cascades redrawing in turn (`SetShadowTurns`), terrain sampling only the materials that show, and no multisampled window (a patch in `third_party/g3n`). A script that calls `EnablePostFX(False)` now gets no anti-aliasing, since the window has no samples. `SetFXAA` is real edge-directed FXAA, after tone mapping; retro looks skip it.
+
+With post effects on, water refraction copies the finished scene when the water is reached instead of drawing the world again. Without a scene target it falls back to the old redraw. Things above the water can then show in a distorted edge of the refraction, a small artifact the redraw did not have.
+
+## Linear lighting
+
+`SetLinearLight True` (part of `SetLook "modern"`) changes how color is handled. Off, which is the default, shaders add lights up on display values and nothing changes for existing games.
+
+On:
+
+- The lit shaders (`bsshadow`, `mbterrain`, `mbphysical`, `mbwater`) decode colors to linear light, add the lights there, and write to the half-float scene target with no clamp.
+- Terrain and Phong surfaces take their ambient from the sky picture instead of a fixed gradient.
+- Fog still blends as the eye sees it, so `SetFog` distances mean what they did.
+- The sky, clouds, and particles are not lit. They decode their output, so they look as they did.
+- The post pass applies exposure and the tone curve, then encodes sRGB. Grading, LUTs, and retro effects run after that, on display values.
+- Water's Fresnel uses a normal facing the eye. The old path can read the grid as back-facing, which makes it mirror the sky at full strength, so colors tuned for the old path come out much darker here.
+
+Colors tuned for the old path need re-tuning, usually lighter. It needs the post pass, so the low tier stays on the old path, as do extra windows, which have no post step. Shaders from `CreateShader` get `uniform int LinearLight` and are not converted for you. Light probes capture into 8-bit targets, so they can band in dark scenes.
+
+## Reference images
+
+`moon snapshot` draws each scene in `cmd/moon/testdata/render` with time fixed and the window hidden, then compares frame 90 with the PNG beside it. A pixel differs when a channel moves more than 24 of 255, and a scene fails when over 2% of its pixels differ, so driver rounding passes and a real change does not. Failures leave the new picture and a diff in `moon-snapshots` under the temp folder.
+
+After a change you meant to make, run `moon snapshot -update` and look at the new images before keeping them. The references were drawn on a Radeon 780M. Other GPUs have not been compared against them.
+
+`MOON_FIXED_DT=s` makes every frame last `s` seconds; snapshots use it, and it works with any run.
 
 ## Retro geometry
 

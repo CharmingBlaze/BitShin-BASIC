@@ -30,6 +30,7 @@ uniform vec3 AtmoGround;
 uniform vec3 AtmoTint;
 uniform float AtmoFlash;
 out vec4 FragColor;
+` + linearGLSL + `
 
 const vec3 betaR = vec3(5.8e-3, 13.5e-3, 33.1e-3);
 const float betaM = 0.021;
@@ -106,7 +107,7 @@ void main() {
     col *= AtmoTint;
     col += vec3(AtmoFlash);
     col = vec3(1.0) - exp(-col * max(AtmoExposure, 0.2));
-    FragColor = vec4(col, 1.0);
+    FragColor = vec4(toLin(col), 1.0);
 }
 `
 

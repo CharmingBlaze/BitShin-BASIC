@@ -1,0 +1,42 @@
+; Reference scene: clay, polished gold, rust and a glowing ball on a floor.
+Graphics3D(960, 600)
+SetGraphicsQuality("high")
+cam = CreateCamera().Position([0, 3.2, -8])
+cam.Point(0, 0.6, 3)
+CreateSkyBox("default")
+SetIBL True
+EnableShadows True
+sun = CreateDirectionalLight()
+SetLightDirection sun, 50, 35, 0
+SetLightColor sun, 255, 230, 190
+SetLightShadow sun, True
+
+ground = CreatePlane().Scale(18, 1, 18).Position([0, 0, 4])
+SetMaterialPBR(ground, 1)
+SetAlbedo(ground, 48, 54, 64)
+SetRoughness(ground, 0.88)
+
+clay = CreateSphere().Position([-3.2, 0.75, 4])
+SetMaterialPBR(clay, 1)
+SetAlbedo(clay, 200, 72, 58)
+SetRoughness(clay, 0.86)
+
+gold = CreateSphere().Position([-1.05, 0.75, 4])
+SetAlbedo(gold, 232, 196, 96)
+SetMetallic(gold, 1)
+SetRoughness(gold, 0.12)
+
+rust = CreateSphere().Position([1.1, 0.75, 4])
+SetAlbedo(rust, 138, 74, 42)
+SetMetallic(rust, 0.62)
+SetRoughness(rust, 0.74)
+
+glow = CreateSphere().Position([3.25, 0.75, 4])
+SetAlbedo(glow, 16, 18, 24)
+SetRoughness(glow, 0.35)
+SetEmissive(glow, 40, 160, 255)
+
+While 1
+    RenderWorld
+    Flip
+Wend

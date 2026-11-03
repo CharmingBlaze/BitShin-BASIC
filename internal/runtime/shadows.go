@@ -103,6 +103,16 @@ type shadowMap struct {
 	tmpCamPos, tmpCamDir, tmpCenter, tmpEye, tmpDir, tmpOff, tmpUp, tmpTarget math32.Vector3
 	tmpOrtho, tmpPersp                                                        *camera.Camera
 	lightVP                                                                   [maxShadowCascades]math32.Matrix4
+	turnsOn                                                                   bool                             // far cascades take turns this frame
+	turnsOff                                                                  bool                             // SetShadowTurns 0
+	resting                                                                   [maxShadowCascades]bool          // not redrawn this frame
+	drawnVP                                                                   [maxShadowCascades]math32.Matrix4 // the view each tile was last drawn with
+	turnFrame                                                                 int
+	turnFull                                                                  int // frames left of drawing every cascade
+	turnSun                                                                   math32.Vector3
+	turnCam                                                                   math32.Vector3
+	turnN                                                                     int
+	turnSize                                                                  int
 	splits                                                                    [maxShadowCascades]float32
 	pointN                                                                    int
 	spotN                                                                     int
@@ -142,6 +152,12 @@ func (m *litMat) RenderSetup(gs *gls.GLS) {
 		m.w.applyUserUniforms(gs)
 		m.w.bindShadowUniforms(gs)
 		m.w.bindFogUniforms(gs)
+		m.w.bindLinear(gs)
+		// Always its own unit: left at 0 it would share one with MatTexture.
+		setUni1i(gs, "uEnvCube", unitEnvCubeLit)
+		if m.w.linearActive() {
+			m.w.bindEnvCubeAt(gs, unitEnvCubeLit)
+		}
 		recv := 1
 		if !m.recvShadow {
 			recv = 0
@@ -192,7 +208,8 @@ func (m *litMat) bindPhongMaps(gs *gls.GLS) {
 func (m *litMat) Dispose() { m.Standard.Dispose() }
 
 func registerShadowShaders(r *renderer.Renderer) {
-	r.AddShader("mbshadow_vertex", mbshadowVertex)
+	registerBatchShaders(r.AddShader)
+	r.AddShader("mbshadow_vertex", batchVertexSource(mbshadowVertex))
 	r.AddShader("mbshadow_fragment", mbshadowFragment)
 	r.AddProgram("bsshadow", "mbshadow_vertex", "mbshadow_fragment")
 	r.AddShader("mbpart_vertex", mbpartVertex)
@@ -202,7 +219,7 @@ func registerShadowShaders(r *renderer.Renderer) {
 	r.AddProgram("mbflake", "mbpart_vertex", "mbflake_fragment")
 	r.AddShader("mbsoft_fragment", mbsoftFragment)
 	r.AddProgram("mbsoft", "mbpart_vertex", "mbsoft_fragment")
-	r.AddShader("mbphysical_vertex", mbphysicalVertex)
+	r.AddShader("mbphysical_vertex", batchVertexSource(mbphysicalVertex))
 	r.AddShader("mbphysical_fragment", mbphysicalFragment)
 	r.AddProgram("mbphysical", "mbphysical_vertex", "mbphysical_fragment")
 }
@@ -259,6 +276,7 @@ func (w *World) bindShadowUniforms(gs *gls.GLS) {
 		return
 	}
 	w.bindShadowSampler(gs, w.shadow.tex, unitShadow, "ShadowMap")
+	first := w.firstInPass(gs, passShadow)
 	split := 0
 	dyn := w.shadow.dynTex
 	if w.shadow.cache && dyn != 0 && dyn != w.ensureDummyShadowTex() {
@@ -267,9 +285,12 @@ func (w *World) bindShadowUniforms(gs *gls.GLS) {
 	} else {
 		w.bindShadowSampler(gs, w.ensureDummyShadowTex(), unitShadowDyn, "ShadowMapDyn")
 	}
+	setUni1i(gs, "MeshReceiveShadow", 1)
+	if !first {
+		return
+	}
 	setUni1i(gs, "ShadowCacheSplit", split)
 	setUni1i(gs, "ShadowEnabled", 1)
-	setUni1i(gs, "MeshReceiveShadow", 1)
 	setUni1i(gs, "ShadowCascades", w.shadow.cascades)
 	setUni1i(gs, "ShadowFilter", w.shadow.filter)
 	setUni1i(gs, "ShadowPCF", w.shadow.pcf)
@@ -495,11 +516,14 @@ func (w *World) renderShadows(rend *renderer.Renderer, cam *camera.Camera) {
 	if w.shadow.lightSize <= 0 {
 		w.shadow.lightSize = 0.04
 	}
-	if w.scene != nil {
+	if len(w.batch.active) > 0 || len(w.batch.merges) > 0 {
+		w.renderRoot().UpdateMatrixWorld()
+	} else if w.scene != nil {
 		w.scene.UpdateMatrixWorld()
 	}
 	w.computeCascadeSplits(cam, n)
 	w.buildCascadeViews(cam, n)
+	w.planShadowTurns(n)
 	if w.shadow.camTrack && w.shadow.tmpCamPos.DistanceTo(&w.shadow.lastCam) > 40 {
 		w.shadow.warm = 0
 		w.shadow.ready = false
@@ -563,8 +587,13 @@ func (w *World) renderShadows(rend *renderer.Renderer, cam *camera.Camera) {
 		if w.shadow.warm < shadowWarmupFrames {
 			w.shadow.warm++
 		}
-		w.shadow.cacheKey = w.shadowSceneKey()
-		w.clearShadowDirty()
+		// Both walk every entity, so only when something will read them.
+		if w.shadow.cache {
+			w.shadow.cacheKey = w.shadowSceneKey()
+			w.clearShadowDirty()
+		} else {
+			w.shadow.dirty = false
+		}
 		if !w.shadow.okLogged {
 			fmt.Println("shadows: ok")
 			w.shadow.okLogged = true
@@ -627,18 +656,32 @@ func (w *World) renderShadowLayer(gs *gls.GLS, tgt *shadowTarget, mvpLoc int32, 
 	w.setDepthMomentUniforms(gs)
 	w.bindShadowTarget(gs, tgt)
 	drew := 0
+	turns := w.shadow.turnsOn
 	for i := 0; i < n; i++ {
+		if turns {
+			if w.shadow.resting[i] {
+				drew++ // its picture from an earlier frame still counts
+				continue
+			}
+			w.clearShadowTile(i)
+		}
 		w.shadowTileViewport(gs, i)
 		drew += w.drawShadowCasters(gs, &w.shadow.lightVP[i], mvpLoc, layer)
 	}
 	for i := 0; i < w.shadow.pointN; i++ {
 		base := w.shadow.pointTile[i]
 		for f := 0; f < 6; f++ {
+			if turns {
+				w.clearShadowTile(base + f)
+			}
 			w.shadowTileViewport(gs, base+f)
 			drew += w.drawShadowCasters(gs, &w.shadow.pointVP[i*6+f], mvpLoc, layer)
 		}
 	}
 	for i := 0; i < w.shadow.spotN; i++ {
+		if turns {
+			w.clearShadowTile(w.shadow.spotTile[i])
+		}
 		w.shadowTileViewport(gs, w.shadow.spotTile[i])
 		drew += w.drawShadowCasters(gs, &w.shadow.spotVP[i], mvpLoc, layer)
 	}
@@ -885,8 +928,9 @@ func (w *World) collectLocalLightViews(cascadeTiles int) int {
 	w.shadow.pointN = 0
 	w.shadow.spotN = 0
 	tile := cascadeTiles
-	for _, e := range w.ents {
-		if e == nil || !e.castShadow || e.node == nil {
+	for _, m := range w.entityOrder() {
+		e := m.e
+		if !e.castShadow || e.node == nil {
 			continue
 		}
 		switch e.lgtKind {
@@ -1229,8 +1273,9 @@ func (w *World) shadowCasterList() []*Entity {
 	}
 	s.castersAt = w.renderSerial
 	s.casters = s.casters[:0]
-	for _, e := range w.ents {
-		if shadowSkipMesh(e) || e.mesh == nil || !e.mesh.Visible() {
+	for _, m := range w.entityOrder() {
+		e := m.e
+		if w.batchDepthDrawn(e) || shadowSkipMesh(e) || e.mesh == nil || !e.mesh.Visible() {
 			continue
 		}
 		s.casters = append(s.casters, e)
@@ -1299,6 +1344,7 @@ func (w *World) drawShadowCasters(gs *gls.GLS, lightVP *math32.Matrix4, mvpLoc i
 		}
 	}()
 	s := &w.shadow
+	w.batchDepthPrograms(gs)
 	for _, e := range w.shadowCasterList() {
 		if layer == shadowLayerStatic && !shadowCasterStatic(e) {
 			continue
@@ -1306,7 +1352,7 @@ func (w *World) drawShadowCasters(gs *gls.GLS, lightVP *math32.Matrix4, mvpLoc i
 		if layer == shadowLayerDynamic && shadowCasterStatic(e) {
 			continue
 		}
-		if e.mesh == nil || !e.mesh.Renderable() || !e.mesh.Visible() {
+		if e.mesh == nil || (!e.mesh.Renderable() && !batchDrawn(e)) || !e.mesh.Visible() {
 			continue
 		}
 		geom := e.mesh.GetGeometry()
@@ -1374,6 +1420,7 @@ func (w *World) drawShadowCasters(gs *gls.GLS, lightVP *math32.Matrix4, mvpLoc i
 		}
 		drew++
 	}
+	drew += w.drawBatchDepth(gs, lightVP, layer)
 	if layer != shadowLayerStatic {
 		if n := w.drawGPUInstanceDepth(lightVP); n > 0 {
 			drew += n
@@ -1508,6 +1555,10 @@ func (w *World) applyLitShaders() {
 
 func (w *World) bindFogUniforms(gs *gls.GLS) {
 	if gs == nil {
+		return
+	}
+	if !w.firstInPass(gs, passFog) {
+		w.bindWaterExtras(gs) // binds a texture
 		return
 	}
 	setUni1i(gs, "FogMode", w.fogMode)

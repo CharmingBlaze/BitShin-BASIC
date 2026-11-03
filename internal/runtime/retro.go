@@ -35,6 +35,7 @@ type retroPost struct {
 	lowW, lowH   int     // internal resolution; 0 off
 	pixelPerfect bool    // whole-number scale, letterboxed
 	scale        float64 // render scale 0.25..1 (smooth); 0 or 1 off
+	userScale    bool    // SetRenderScale chose it; dynamic resolution stays out
 	levels       float32 // colour levels per channel; 0 off
 	dither       float32 // ordered dither strength 0..1
 	palette      []float32
@@ -293,6 +294,7 @@ func (w *World) retroCommands(n func(func([]value.Value) (value.Value, error)) c
 		// smoothly. A speed knob, not a look; 1 turns it off.
 		"setrenderscale": n(func(a []value.Value) (value.Value, error) {
 			s := argN(a, 0, 1)
+			r.userScale = true
 			if s >= 1 || s <= 0 {
 				r.scale = 0
 				return z()

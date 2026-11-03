@@ -3,8 +3,10 @@ package runtime
 import (
 	"fmt"
 	"os"
+	"runtime/pprof"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 
 	"github.com/go-gl/glfw/v3.3/glfw"
@@ -17,6 +19,8 @@ import (
 //	MOON_NO_GRAB=1       leave the pointer and focus alone (smoke sets it)
 //	MOON_HIDDEN=1        create the 3D window hidden (smoke sets it)
 //	MOON_SHOT=n:path     save frame n as a PNG (docs and visual checks)
+//	MOON_FIXED_DT=s      every frame lasts s seconds (repeatable snapshots)
+//	MOON_CPUPROFILE=path write a Go CPU profile of a smoke run's frames
 
 // glErrCount counts GL errors drainGL has seen, logged or not.
 var glErrCount atomic.Int64
@@ -33,6 +37,36 @@ func smokeFrames() int {
 		return 0
 	}
 	return n
+}
+
+var cpuProfileOnce sync.Once
+
+// startCPUProfile begins MOON_CPUPROFILE at the first frame, so loading a
+// scene is left out. Smoke mode writes it out when the frames are done.
+func startCPUProfile() {
+	path := os.Getenv("MOON_CPUPROFILE")
+	if path == "" {
+		return
+	}
+	cpuProfileOnce.Do(func() {
+		f, err := os.Create(path)
+		if err != nil {
+			fmt.Println("MOON_CPUPROFILE:", err)
+			return
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			fmt.Println("MOON_CPUPROFILE:", err)
+		}
+	})
+}
+
+// fixedDelta is the frame length MOON_FIXED_DT asks for, 0 when unset.
+func fixedDelta() float64 {
+	s, err := strconv.ParseFloat(os.Getenv("MOON_FIXED_DT"), 64)
+	if err != nil || s <= 0 {
+		return 0
+	}
+	return s
 }
 
 // noGrab is true when a script must not hide, warp, or capture the pointer,
@@ -61,6 +95,7 @@ func (w *World) tickSmoke() {
 			w.shotPath = w.resolve(path)
 		}
 	}
+	startCPUProfile()
 	if w.smokeLeft <= 0 {
 		return
 	}
@@ -68,6 +103,7 @@ func (w *World) tickSmoke() {
 	if w.smokeLeft > 0 {
 		return
 	}
+	pprof.StopCPUProfile()
 	if w.headless {
 		fmt.Printf("SMOKE frames=%d headless\n", smokeFrames())
 		os.Exit(0)

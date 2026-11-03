@@ -109,8 +109,51 @@ func heightmapPreset(name string) HeightmapSpec {
 		// a few hills, not a field of bumps.
 		s.Octaves, s.Persistence, s.Lacunarity, s.Scale = 6, 0.48, 2.1, 0
 		s.Island = true
+	case "mountain-island":
+		s.Mode = "mountain-island"
 	}
 	return s
+}
+
+// fillMountainIsland is a round island with real mountains: smooth hills plus
+// ridges bent by domain warping, ridges only where a slow noise allows them,
+// then a fall to sea bed at the rim. Lowlands stay low, so most of the land is
+// gentle and the peaks stand out. The method is DBPRO2026's (MIT).
+func fillMountainIsland(data []float32, w, h, seed int) {
+	base := newNoise2(seed)
+	warpX, warpZ := newNoise2(seed^0xa5a5), newNoise2(seed^0x5a5a)
+	reach := newNoise2(seed ^ 0x77)
+	parallelRows(h, func(y0, y1 int) {
+		for j := y0; j < y1; j++ {
+			v := float64(j) / float64(h-1)
+			for i := 0; i < w; i++ {
+				u := float64(i) / float64(w-1)
+				x, z := u*4, v*4
+				wx := x + 0.6*warpX.fbm(x*0.5+11.3, z*0.5+2.7, 4, 0.5, 2)
+				wz := z + 0.6*warpZ.fbm(x*0.5+5.1, z*0.5+17.9, 4, 0.5, 2)
+				hills := base.fbm(wx, wz, 6, 0.5, 2)*0.5 + 0.5
+				ridges := 1 - math.Abs(base.fbm(wx*0.8, wz*0.8, 6, 0.5, 2))*2
+				if ridges < 0 {
+					ridges = 0
+				}
+				ridges *= ridges
+				mask := (reach.fbm(x*0.35+40, z*0.35, 3, 0.5, 2) + 0.15) * 2.2
+				if mask < 0 {
+					mask = 0
+				}
+				if mask > 1 {
+					mask = 1
+				}
+				val := hills*0.55 + ridges*mask*0.75
+				d := math.Hypot(u-0.5, v-0.5) * 2
+				data[j*w+i] = float32(val*(1-smoothstep64(0.55, 1, d)) - smoothstep64(0.75, 1, d)*0.15)
+			}
+		}
+	})
+	normalize01(data)
+	for i, v := range data {
+		data[i] = float32(math.Pow(float64(v), 1.35))
+	}
 }
 
 // GenerateHeightmapCPU fills a [0,1] field. Pure CPU; no GL.
@@ -128,6 +171,8 @@ func GenerateHeightmapCPU(spec HeightmapSpec) []float32 {
 	switch spec.Mode {
 	case "diamond", "diamondsquare", "ds":
 		fillDiamondSquare(data, w, h, spec.Seed, spec.Persistence)
+	case "mountain-island":
+		fillMountainIsland(data, w, h, spec.Seed)
 	default:
 		n := newNoise2(spec.Seed)
 		ridged := spec.Mode == "ridged" || spec.Mode == "ridge"

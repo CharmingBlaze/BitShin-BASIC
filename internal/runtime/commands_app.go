@@ -18,6 +18,11 @@ type animGraph struct {
 	ent    int
 	states map[string]int
 	cur    string
+	trans  []animTrans
+}
+
+type animTrans struct {
+	from, to, cond string
 }
 
 type appState struct {
@@ -31,6 +36,54 @@ type appState struct {
 	ikB       float64
 	files     map[int]*bbFile
 	nextFile  int
+}
+
+func (w *World) goAnim(id int, name string) (value.Value, error) {
+	g := w.extState().graphs[id]
+	if g == nil {
+		return value.Num(0), fmt.Errorf("AnimGo: no graph")
+	}
+	name = strings.ToLower(name)
+	seq, ok := g.states[name]
+	if !ok {
+		return value.Num(0), fmt.Errorf("AnimGo: no state %s", name)
+	}
+	g.cur = name
+	e := w.ents[g.ent]
+	if e == nil || e.anim == nil || seq < 0 || seq >= len(e.anim.clips) {
+		return value.Num(0), nil
+	}
+	e.anim.seq = seq
+	e.anim.tree, e.anim.fade = nil, nil
+	e.anim.mode = 1
+	e.anim.speed = 1
+	e.anim.dir = 1
+	e.anim.time = e.anim.first[seq]
+	e.anim.clips[seq].Reset()
+	e.anim.clips[seq].SetPaused(false)
+	return value.Num(1), nil
+}
+
+func (w *World) stepAnimGraphs() {
+	if w.ext == nil || w.runner == nil {
+		return
+	}
+	for id, g := range w.ext.graphs {
+		if g == nil {
+			continue
+		}
+		for _, tr := range g.trans {
+			if tr.from != "*" && tr.from != g.cur {
+				continue
+			}
+			v, err := w.runner.CallNamed(tr.cond, nil)
+			if err != nil || v.Number() == 0 {
+				continue
+			}
+			_, _ = w.goAnim(id, tr.to)
+			break
+		}
+	}
 }
 
 func (w *World) extState() *appState {
@@ -248,29 +301,23 @@ func (w *World) appCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			return z()
 		}),
 		"animgo": need(func(a []value.Value) (value.Value, error) {
+			return w.goAnim(argI(a, 0, 0), argS(a, 1))
+		}),
+		"addanimtransition": n(func(a []value.Value) (value.Value, error) {
 			g := w.extState().graphs[argI(a, 0, 0)]
 			if g == nil {
-				return value.Num(0), fmt.Errorf("AnimGo: no graph")
+				return value.Num(0), fmt.Errorf("AddAnimTransition: no graph")
 			}
-			name := strings.ToLower(argS(a, 1))
-			seq, ok := g.states[name]
-			if !ok {
-				return value.Num(0), fmt.Errorf("AnimGo: no state %s", name)
+			cond := strings.TrimSpace(argS(a, 3))
+			if cond == "" {
+				return value.Num(0), fmt.Errorf("AddAnimTransition: condition function")
 			}
-			g.cur = name
-			e := w.ents[g.ent]
-			if e == nil || e.anim == nil || seq < 0 || seq >= len(e.anim.clips) {
-				return value.Num(0), nil
-			}
-			e.anim.seq = seq
-			e.anim.tree, e.anim.fade = nil, nil
-			e.anim.mode = 1
-			e.anim.speed = 1
-			e.anim.dir = 1
-			e.anim.time = e.anim.first[seq]
-			e.anim.clips[seq].Reset()
-			e.anim.clips[seq].SetPaused(false)
-			return value.Num(1), nil
+			g.trans = append(g.trans, animTrans{
+				from: strings.ToLower(argS(a, 1)),
+				to:   strings.ToLower(argS(a, 2)),
+				cond: cond,
+			})
+			return value.Num(float64(len(g.trans))), nil
 		}),
 		"animupdate": need(func(a []value.Value) (value.Value, error) {
 			g := w.extState().graphs[argI(a, 0, 0)]

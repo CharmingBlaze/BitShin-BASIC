@@ -51,7 +51,10 @@ SetAmbientLight 40, 50, 65
 | `EnableShadowCache` / `SetShadowCache` / `EnableShadowCaching` | Two maps: **static** vs **dynamic**. |
 | `EnableShadowAtlas` / `SetShadowAtlas` | Pack directional cascades + point faces + spot maps into a square-ish atlas. |
 | `EnableContactShadows` / `SetContactShadows` | Tight shadow-map search. Darkens receivers whose neighbor texels are only slightly closer (feet, props on the ground). |
-| `EnableScreenSpaceShadows` / `SetScreenSpaceShadows` | Wider search. The integer is quality 1–4 (radius and depth window). `0` is off. |
+| `EnableScreenSpaceShadows` / `SetScreenSpaceShadows` / `SetSSS n` | Wider search. The integer is quality 1–4 (radius and depth window). `0` is off. |
+| `SetShadowSoftness n` / `ShadowSoftness n` | Scales the PCF sample radius. `1` is the usual width. `0` is treated as `1`. |
+| `SetShadowColor r, g, b` / `ShadowColor r, g, b` | Tint mixed into the shadowed term. |
+| `SetShadowFade near, far` | Fade the directional shadow out between two view-space depths. The fade runs when `far` is greater than `near`. |
 
 ## Implementation notes
 

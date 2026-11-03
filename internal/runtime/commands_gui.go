@@ -15,6 +15,75 @@ import (
 
 func (w *World) guiCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error)) map[string]cmd {
 	return map[string]cmd{
+		"uiscale": n(func(a []value.Value) (value.Value, error) {
+			w.uiScale = argN(a, 0, 1)
+			if w.uiScale < 0.5 {
+				w.uiScale = 0.5
+			}
+			if w.uiScale > 3 {
+				w.uiScale = 3
+			}
+			if w.guiReady && imgui.CurrentStyle() != nil {
+				imgui.CurrentStyle().SetFontScaleMain(float32(w.uiScale))
+			}
+			return value.Num(w.uiScale), nil
+		}),
+		"uitheme": n(func(a []value.Value) (value.Value, error) {
+			name := strings.ToLower(argS(a, 0))
+			if name == "" {
+				name = "dark"
+			}
+			w.uiTheme = name
+			if w.guiReady {
+				w.applyUITheme()
+			}
+			return value.Str(w.uiTheme), nil
+		}),
+		"uiwrap": n(func(a []value.Value) (value.Value, error) {
+			w.uiWrap = argN(a, 0, 280)
+			return value.Num(w.uiWrap), nil
+		}),
+		"uialign": n(func(a []value.Value) (value.Value, error) {
+			w.uiAlign = argI(a, 0, 0)
+			return value.Num(float64(w.uiAlign)), nil
+		}),
+		"guianchor": n(func(a []value.Value) (value.Value, error) {
+			w.uiAx = argN(a, 0, 0)
+			w.uiAy = argN(a, 1, 0)
+			w.uiAnchor = true
+			return z()
+		}),
+		"uinav": n(func(a []value.Value) (value.Value, error) {
+			w.uiNav = argI(a, 0, 1)
+			if w.guiReady {
+				w.applyUINav()
+			}
+			return value.Num(float64(w.uiNav)), nil
+		}),
+		"guicolumns": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			cols := int32(argI(a, 0, 1))
+			if cols < 1 {
+				cols = 1
+			}
+			imgui.ColumnsV(cols, "", false)
+			return value.Num(float64(cols)), nil
+		}),
+		"guitextwrapped": n(func(a []value.Value) (value.Value, error) {
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Value{}, err
+			}
+			if w.uiWrap > 0 {
+				imgui.PushTextWrapPosV(imgui.CursorPosX() + float32(w.uiWrap))
+				defer imgui.PopTextWrapPos()
+			}
+			text := argS(a, 0)
+			w.guiAlignText(text)
+			imgui.TextUnformatted(text)
+			return z()
+		}),
 		"guibegin": n(func(a []value.Value) (value.Value, error) {
 			if err := w.guiEnsureFrame(); err != nil {
 				return value.Value{}, err
@@ -26,6 +95,7 @@ func (w *World) guiCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			if title == "" {
 				title = "Panel"
 			}
+			w.placeAnchor()
 			var flags imgui.WindowFlags
 			if argI(a, 1, 0) != 0 {
 				flags |= imgui.WindowFlagsMenuBar
@@ -44,10 +114,40 @@ func (w *World) guiCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			}
 			return z()
 		}),
+		"guihbox": n(func(a []value.Value) (value.Value, error) {
+			w.uiHLeft = argI(a, 0, 2)
+			if w.uiHLeft < 1 {
+				w.uiHLeft = 1
+			}
+			w.uiHGap = argN(a, 1, 8)
+			w.uiHFirst = true
+			return value.Num(float64(w.uiHLeft)), nil
+		}),
+		"guirich": n(func(a []value.Value) (value.Value, error) {
+			spans := parseRich(argS(a, 0))
+			if err := w.guiEnsureFrame(); err != nil {
+				return value.Num(float64(len(spans))), err
+			}
+			for _, s := range spans {
+				if s.text == "" {
+					continue
+				}
+				if s.colored {
+					imgui.PushStyleColorVec4(imgui.ColText, imgui.NewVec4(s.r, s.g, s.b, 1))
+				}
+				w.guiAlignText(s.text)
+				imgui.TextUnformatted(s.text)
+				if s.colored {
+					imgui.PopStyleColor()
+				}
+			}
+			return value.Num(float64(len(spans))), nil
+		}),
 		"guibutton": n(func(a []value.Value) (value.Value, error) {
 			if err := w.guiEnsureFrame(); err != nil {
 				return value.Value{}, err
 			}
+			w.hboxAdvance()
 			if imgui.Button(argS(a, 0)) {
 				return value.Num(1), nil
 			}
@@ -57,13 +157,17 @@ func (w *World) guiCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			if err := w.guiEnsureFrame(); err != nil {
 				return value.Value{}, err
 			}
-			imgui.TextUnformatted(argS(a, 0))
+			text := argS(a, 0)
+			w.hboxAdvance()
+			w.guiAlignText(text)
+			imgui.TextUnformatted(text)
 			return z()
 		}),
 		"guislider": n(func(a []value.Value) (value.Value, error) {
 			if err := w.guiEnsureFrame(); err != nil {
 				return value.Value{}, err
 			}
+			w.hboxAdvance()
 			label := argS(a, 0)
 			lo := float32(argN(a, 1, 0))
 			hi := float32(argN(a, 2, 1))
@@ -85,6 +189,7 @@ func (w *World) guiCommands(n func(func([]value.Value) (value.Value, error)) cmd
 			if err := w.guiEnsureFrame(); err != nil {
 				return value.Value{}, err
 			}
+			w.hboxAdvance()
 			label := argS(a, 0)
 			p := w.guiCheck[label]
 			if p == nil {
@@ -483,7 +588,7 @@ func (w *World) guiInit() error {
 		return fmt.Errorf("Gui*: Graphics3D GLFW window is missing")
 	}
 	imgui.CreateContext()
-	imgui.StyleColorsDark()
+	w.applyUITheme()
 	if io := imgui.CurrentIO(); io != nil {
 		io.SetConfigFlags(io.ConfigFlags() &^ imgui.ConfigFlagsViewportsEnable)
 	}
@@ -496,9 +601,139 @@ func (w *World) guiInit() error {
 		io.SetConfigFlags(io.ConfigFlags() &^ imgui.ConfigFlagsViewportsEnable)
 		io.SetBackendFlags(io.BackendFlags() &^ imgui.BackendFlagsRendererHasViewports)
 	}
+	w.applyUINav()
 	w.guiReady = true
 	w.guiWarm = 24
 	return nil
+}
+
+func (w *World) applyUITheme() {
+	switch w.uiTheme {
+	case "light":
+		imgui.StyleColorsLight()
+	default:
+		imgui.StyleColorsDark()
+	}
+}
+
+func (w *World) applyUINav() {
+	io := imgui.CurrentIO()
+	if io == nil {
+		return
+	}
+	flags := io.ConfigFlags()
+	flags &^= imgui.ConfigFlagsNavEnableKeyboard | imgui.ConfigFlagsNavEnableGamepad
+	if w.uiNav&1 != 0 {
+		flags |= imgui.ConfigFlagsNavEnableKeyboard
+	}
+	if w.uiNav&2 != 0 {
+		flags |= imgui.ConfigFlagsNavEnableGamepad
+	}
+	io.SetConfigFlags(flags)
+	if w.uiScale > 0 && imgui.CurrentStyle() != nil {
+		imgui.CurrentStyle().SetFontScaleMain(float32(w.uiScale))
+	}
+}
+
+type richSpan struct {
+	text    string
+	colored bool
+	r, g, b float32
+}
+
+func parseRich(s string) []richSpan {
+	var out []richSpan
+	col := false
+	var r, g, b float32
+	for s != "" {
+		i := strings.IndexByte(s, '{')
+		if i < 0 {
+			out = append(out, richSpan{text: s, colored: col, r: r, g: g, b: b})
+			break
+		}
+		if i > 0 {
+			out = append(out, richSpan{text: s[:i], colored: col, r: r, g: g, b: b})
+		}
+		j := strings.IndexByte(s[i:], '}')
+		if j < 0 {
+			out = append(out, richSpan{text: s[i:], colored: col, r: r, g: g, b: b})
+			break
+		}
+		tag := s[i+1 : i+j]
+		s = s[i+j+1:]
+		if tag == "" || tag == "#" {
+			col = false
+			continue
+		}
+		if strings.HasPrefix(tag, "#") && len(tag) == 7 {
+			if rgb, ok := parseHex(tag[1:]); ok {
+				r, g, b = rgb[0], rgb[1], rgb[2]
+				col = true
+			}
+		}
+	}
+	return out
+}
+
+func parseHex(s string) ([3]float32, bool) {
+	var n uint64
+	for _, c := range s {
+		n <<= 4
+		switch {
+		case c >= '0' && c <= '9':
+			n += uint64(c - '0')
+		case c >= 'a' && c <= 'f':
+			n += uint64(c-'a') + 10
+		case c >= 'A' && c <= 'F':
+			n += uint64(c-'A') + 10
+		default:
+			return [3]float32{}, false
+		}
+	}
+	return [3]float32{float32((n>>16)&255) / 255, float32((n>>8)&255) / 255, float32(n&255) / 255}, true
+}
+
+func (w *World) hboxAdvance() {
+	if w.uiHLeft <= 0 {
+		return
+	}
+	if w.guiReady && !w.uiHFirst {
+		imgui.SameLineV(0, float32(w.uiHGap))
+	}
+	w.uiHFirst = false
+	w.uiHLeft--
+}
+
+func (w *World) placeAnchor() {
+	if !w.uiAnchor {
+		return
+	}
+	w.uiAnchor = false
+	io := imgui.CurrentIO()
+	if io == nil {
+		return
+	}
+	d := io.DisplaySize()
+	imgui.SetNextWindowPosV(
+		imgui.NewVec2(d.X*float32(w.uiAx), d.Y*float32(w.uiAy)),
+		imgui.CondAlways,
+		imgui.NewVec2(float32(w.uiAx), float32(w.uiAy)),
+	)
+}
+
+func (w *World) guiAlignText(s string) {
+	if w.uiAlign == 0 {
+		return
+	}
+	width := imgui.ContentRegionAvail().X
+	tw := imgui.CalcTextSize(s).X
+	pad := width - tw
+	if w.uiAlign == 1 {
+		pad *= 0.5
+	}
+	if pad > 0 {
+		imgui.SetCursorPosX(imgui.CursorPosX() + pad)
+	}
 }
 
 func (w *World) guiEnsureFrame() error {

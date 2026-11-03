@@ -1769,6 +1769,40 @@ func (m *terrainMat) RenderSetup(gs *gls.GLS) {
 	m.w.applyUserUniforms(gs)
 	m.w.bindShadowUniforms(gs)
 	m.w.bindFogUniforms(gs)
+	m.w.bindLinear(gs)
+	setUni1i(gs, "uEnvCube", unitEnvCubeTerrain)
+	if m.w.linearActive() {
+		m.w.bindEnvCubeAt(gs, unitEnvCubeTerrain)
+	}
+	t := m.t
+	first := m.w.firstTerrainInPass(gs, t)
+	if first {
+		m.bindPlainUniforms(gs)
+	}
+	bind := func(id, unit int, sampler, flag string) {
+		has := 0
+		if slot := m.w.texs[id]; slot != nil && slot.tex != nil {
+			slot.tex.RenderSetup(gs, unit, unit)
+			m.w.applyAnisotropy()
+			setUni1i(gs, sampler, unit)
+			has = 1
+		}
+		setUni1i(gs, flag, has)
+	}
+	// Units from texunits.go: clear of the shadow maps, cookies, and
+	// caustics, and of G3N's own texture and lightmap on 0 and 1.
+	bind(t.sandTex, unitTerrainSand, "TerrainSand", "TerrainHasSand")
+	bind(t.grassTex, unitTerrainGrass, "TerrainGrass", "TerrainHasGrass")
+	bind(t.grass2Tex, unitTerrainGrass2, "TerrainGrass2", "TerrainHasGrass2")
+	bind(t.rockTex, unitTerrainRock, "TerrainRock", "TerrainHasRock")
+	bind(t.snowTex, unitTerrainSnow, "TerrainSnow", "TerrainHasSnow")
+	bind(t.rockNrm, unitTerrainRockN, "TerrainRockN", "TerrainHasRockN")
+	bind(t.blendTex, unitTerrainBlend, "TerrainBlendMap", "TerrainHasBlend")
+	m.w.uploadTerrainPaint(t) // PaintTerrain texels; the blend map is still bound
+}
+
+// bindPlainUniforms sends what stays the same for one terrain through a pass.
+func (m *terrainMat) bindPlainUniforms(gs *gls.GLS) {
 	t := m.t
 	setUni1i(gs, "TerrainSplatOn", bool01(t.splat))
 	setUni1i(gs, "TerrainCheap", bool01(m.w.quality.set && m.w.quality.tier == qualityLow))
@@ -1790,25 +1824,6 @@ func (m *terrainMat) RenderSetup(gs *gls.GLS) {
 		cp := worldPos(m.w.cam.GetNode())
 		setUni3f(gs, "CamWorldPos", cp.X, cp.Y, cp.Z)
 	}
-	bind := func(id, unit int, sampler, flag string) {
-		has := 0
-		if slot := m.w.texs[id]; slot != nil && slot.tex != nil {
-			slot.tex.RenderSetup(gs, unit, unit)
-			setUni1i(gs, sampler, unit)
-			has = 1
-		}
-		setUni1i(gs, flag, has)
-	}
-	// Units from texunits.go: clear of the shadow maps, cookies, and
-	// caustics, and of G3N's own texture and lightmap on 0 and 1.
-	bind(t.sandTex, unitTerrainSand, "TerrainSand", "TerrainHasSand")
-	bind(t.grassTex, unitTerrainGrass, "TerrainGrass", "TerrainHasGrass")
-	bind(t.grass2Tex, unitTerrainGrass2, "TerrainGrass2", "TerrainHasGrass2")
-	bind(t.rockTex, unitTerrainRock, "TerrainRock", "TerrainHasRock")
-	bind(t.snowTex, unitTerrainSnow, "TerrainSnow", "TerrainHasSnow")
-	bind(t.rockNrm, unitTerrainRockN, "TerrainRockN", "TerrainHasRockN")
-	bind(t.blendTex, unitTerrainBlend, "TerrainBlendMap", "TerrainHasBlend")
-	m.w.uploadTerrainPaint(t) // PaintTerrain texels; the blend map is still bound
 	bx, bz, bw, bd := t.blendRect()
 	setUni1f(gs, "TerrainWorldW", bw)
 	setUni1f(gs, "TerrainWorldD", bd)

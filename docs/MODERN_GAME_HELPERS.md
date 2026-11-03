@@ -185,8 +185,7 @@ CameraRTS(cam, panX#, panZ#, zoom#, pitch#, yaw#)
 ## 4. Input & Raycasting Helpers
 
 - `GetAxis#(negativeKey, positiveKey)`: Returns `-1.0`, `0.0`, or `+1.0`.
-- `GetMouseWorldX#(cam, targetPlaneY#)`: Computes world X position on plane under cursor.
-- `GetMouseWorldZ#(cam, targetPlaneY#)`: Computes world Z position on plane under cursor.
+- `GetMouseWorldX(cam, planeY)` / `GetMouseWorldZ(cam, planeY)`: where that camera's look ray meets a horizontal plane. This follows pitch and yaw, not the mouse pixel.
 - `IsGrounded(entity [, rayLength#])`: Returns `1` if physics ray detects floor beneath entity.
 
 ---
@@ -194,7 +193,7 @@ CameraRTS(cam, panX#, panZ#, zoom#, pitch#, yaw#)
 ## 5. Audio & Time Scale
 
 - `PlaySound3D(sound, x#, y#, z#, maxDist# [, baseVolume#])`: Plays sound with distance falloff relative to the active camera.
-- `SetTimeScale(scale#)` / `TimeScale#([scale#])`: Sets simulation speed (`0.5` = half-speed bullet time, `1.0` = normal, `2.0` = fast-forward, `0.0` = pause).
+- `SetTimeScale(scale#)` / `GetTimeScale()` / `TimeScale([scale#])`: Scales `UpdateWorld` (physics, tweens, path follows). `0.5` is half speed, `1` is normal, `2` is fast-forward. `SetTimeScale` clamps to `0`–`10`. A stored `0` is stepped as full speed, and `GetTimeScale` returns `1` in that case. `DeltaTime` stays the real frame time.
 
 ---
 

@@ -219,12 +219,28 @@ func (w *World) bindShadowTarget(gs *gls.GLS, t *shadowTarget) {
 	}
 	gl.DrawBuffer(gl.NONE)
 	gl.ClearDepth(1)
+	if w.shadow.turnsOn {
+		return // each tile clears itself; a resting cascade keeps its picture
+	}
 	if gs != nil {
 		gs.ClearDepth(1)
 		gs.Clear(gls.DEPTH_BUFFER_BIT)
 	} else {
 		gl.Clear(gl.DEPTH_BUFFER_BIT)
 	}
+}
+
+// clearShadowTile clears one atlas tile, leaving the others as they are.
+func (w *World) clearShadowTile(tile int) {
+	cols := w.shadow.atlasCols
+	if cols < 1 {
+		cols = 1
+	}
+	sz := int32(w.shadow.size)
+	gl.Enable(gl.SCISSOR_TEST)
+	gl.Scissor(int32(tile%cols)*sz, int32(tile/cols)*sz, sz, sz)
+	gl.Clear(gl.DEPTH_BUFFER_BIT)
+	gl.Disable(gl.SCISSOR_TEST)
 }
 
 func (w *World) ensureShadowBlit(gs *gls.GLS) error {

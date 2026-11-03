@@ -12,6 +12,7 @@ import (
 	"math/rand/v2"
 	"os"
 	"reflect"
+	"sort"
 	"strings"
 	"time"
 
@@ -69,6 +70,8 @@ type frame struct {
 	ret     value.Value
 	catch   []ast.Stmt
 	errName string
+	t0      time.Time
+	child   time.Duration
 }
 
 type env struct {
@@ -77,6 +80,7 @@ type env struct {
 	declared    map[string]bool
 	kinds       map[string]value.Kind
 	ints        map[string]bool
+	asTypes     map[string]string // Local/Global As Integer|Float|String|Bool|Type
 	funcScope   bool
 	globalAlias map[string]bool // Global name inside a function: assign the global
 	statics     map[string]bool
@@ -199,7 +203,23 @@ func suffixKind(name string) (value.Kind, bool, bool) {
 	}
 }
 
+func (e *env) markAs(name, typ string) {
+	e.mark(name)
+	if typ == "" {
+		return
+	}
+	if e.asTypes == nil {
+		e.asTypes = map[string]string{}
+	}
+	e.asTypes[lex.IdentKey(name)] = typ
+}
+
 func (e *env) coerce(k string, v value.Value) value.Value {
+	for cur := e; cur != nil; cur = cur.parent {
+		if typ := cur.asTypes[k]; typ != "" {
+			return coerceAs(typ, v)
+		}
+	}
 	for cur := e; cur != nil; cur = cur.parent {
 		kind, ok := cur.kinds[k]
 		if !ok {
@@ -275,6 +295,8 @@ type Interp struct {
 	ErrOut      io.Writer // DebugLog warn / error; nil means os.Stderr
 	DebugLogs   bool      // DebugLog prints (-debug or MOON_DEBUG=1)
 	types       map[string]*ast.TypeDecl
+	funcTime    map[string]*funcAcc
+	gosub       []gosubMark
 	methods     map[string]*ast.FuncDecl
 	namespaces  map[string]bool
 	bindEnv     *env // parameter defaults evaluate here
@@ -625,7 +647,11 @@ func (in *Interp) finishFrame(f *frame) bool {
 	case frameTry:
 		// body finished without error; skip Catch
 	}
+	done := *f
 	in.stack = in.stack[:len(in.stack)-1]
+	if done.kind == frameFunc {
+		in.accountFunc(done)
+	}
 	return len(in.stack) > 0
 }
 
@@ -635,6 +661,7 @@ func (in *Interp) unwindReturn() {
 		in.stack = in.stack[:len(in.stack)-1]
 		if f.kind == frameFunc {
 			in.keepStatics(&f)
+			in.accountFunc(f)
 			return
 		}
 	}
@@ -906,7 +933,13 @@ func (in *Interp) exec(s ast.Stmt) Status {
 			tag = "repeat"
 		}
 		in.push(frame{kind: frameRepeat, stmts: t.Body, until: t.Until, env: in.env(), loop: tag})
+	case *ast.LabelStmt:
+	case *ast.GotoStmt:
+		return in.jumpLabel(t.Name, t.Gosub)
 	case *ast.ReturnStmt:
+		if t.Value == nil && !in.inFunc() && in.takeGosub() {
+			return StatusOK
+		}
 		if t.Value != nil {
 			v, err := in.eval(t.Value)
 			if err != nil {
@@ -974,14 +1007,18 @@ func (in *Interp) exec(s ast.Stmt) Status {
 				}
 				v = ev
 			}
+			target := in.global
 			if e.funcScope {
 				e.markGlobal(n)
-				if hasVal {
-					in.global.define(n, v)
-				} else if _, ok := in.global.get(n); !ok {
-					in.global.define(n, value.Num(0))
+			}
+			v, err := typedDecl(target, n, declType(t.Types, i), v)
+			if err != nil {
+				return in.cmdFail(t, err)
+			}
+			if e.funcScope && !hasVal {
+				if _, ok := in.global.get(n); ok {
+					continue
 				}
-				continue
 			}
 			in.global.define(n, v)
 		}
@@ -992,6 +1029,9 @@ func (in *Interp) exec(s ast.Stmt) Status {
 			if t.Static {
 				slot := in.currentFn() + "." + key
 				if prev, ok := in.statics[slot]; ok {
+					if _, err := typedDecl(e, n, declType(t.Types, i), prev); err != nil {
+						return in.cmdFail(t, err)
+					}
 					e.define(n, prev)
 				} else {
 					v := value.Num(0)
@@ -1001,6 +1041,10 @@ func (in *Interp) exec(s ast.Stmt) Status {
 							return in.cmdFail(t, err)
 						}
 						v = ev
+					}
+					v, err := typedDecl(e, n, declType(t.Types, i), v)
+					if err != nil {
+						return in.cmdFail(t, err)
 					}
 					e.define(n, v)
 					if in.statics == nil {
@@ -1021,6 +1065,10 @@ func (in *Interp) exec(s ast.Stmt) Status {
 					return in.cmdFail(t, err)
 				}
 				v = ev
+			}
+			v, err := typedDecl(e, n, declType(t.Types, i), v)
+			if err != nil {
+				return in.cmdFail(t, err)
 			}
 			e.define(n, v)
 		}
@@ -1103,7 +1151,130 @@ func (in *Interp) exec(s ast.Stmt) Status {
 	return StatusOK
 }
 
-func (in *Interp) push(f frame) { in.stack = append(in.stack, f) }
+func (in *Interp) push(f frame) {
+	if f.kind == frameFunc {
+		f.t0 = time.Now()
+	}
+	in.stack = append(in.stack, f)
+}
+
+type funcAcc struct {
+	calls       int
+	total, self time.Duration
+}
+
+type gosubMark struct {
+	depth int
+	pc    int
+}
+
+// FuncStat is one function's inclusive and exclusive time.
+type FuncStat struct {
+	Name    string
+	Calls   int
+	TotalMs float64
+	SelfMs  float64
+}
+
+func (in *Interp) addFuncTime(name string, total, self time.Duration) {
+	if name == "" {
+		return
+	}
+	if in.funcTime == nil {
+		in.funcTime = map[string]*funcAcc{}
+	}
+	a := in.funcTime[name]
+	if a == nil {
+		a = &funcAcc{}
+		in.funcTime[name] = a
+	}
+	a.calls++
+	a.total += total
+	a.self += self
+}
+
+func (in *Interp) accountFunc(f frame) {
+	if f.fn == "" || f.t0.IsZero() {
+		return
+	}
+	d := time.Since(f.t0)
+	excl := d - f.child
+	if excl < 0 {
+		excl = 0
+	}
+	in.addFuncTime(f.fn, d, excl)
+	for i := len(in.stack) - 1; i >= 0; i-- {
+		if in.stack[i].kind == frameFunc {
+			in.stack[i].child += d
+			break
+		}
+	}
+}
+
+// FuncStats returns per-function timings, slowest exclusive time first.
+func (in *Interp) FuncStats() []FuncStat {
+	out := make([]FuncStat, 0, len(in.funcTime))
+	for name, a := range in.funcTime {
+		out = append(out, FuncStat{
+			Name: name, Calls: a.calls,
+			TotalMs: float64(a.total) / float64(time.Millisecond),
+			SelfMs:  float64(a.self) / float64(time.Millisecond),
+		})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].SelfMs > out[j].SelfMs })
+	return out
+}
+
+func (in *Interp) inFunc() bool {
+	for i := len(in.stack) - 1; i >= 0; i-- {
+		if in.stack[i].kind == frameFunc {
+			return true
+		}
+	}
+	return false
+}
+
+func (in *Interp) jumpLabel(name string, gosub bool) Status {
+	key := lex.IdentKey(name)
+	for i := len(in.stack) - 1; i >= 0; i-- {
+		f := &in.stack[i]
+		for j, s := range f.stmts {
+			lab, ok := s.(*ast.LabelStmt)
+			if !ok || lex.IdentKey(lab.Name) != key {
+				continue
+			}
+			if gosub {
+				in.gosub = append(in.gosub, gosubMark{depth: i + 1, pc: f.pc})
+			}
+			in.stack = in.stack[:i+1]
+			in.stack[i].pc = j + 1
+			return StatusOK
+		}
+		if f.kind == frameFunc {
+			break
+		}
+	}
+	return in.failf("unknown label %s", name)
+}
+
+func (in *Interp) takeGosub() bool {
+	if len(in.gosub) == 0 {
+		return false
+	}
+	top := in.gosub[len(in.gosub)-1]
+	in.gosub = in.gosub[:len(in.gosub)-1]
+	if top.depth < 1 || top.depth > len(in.stack) {
+		return true
+	}
+	in.stack = in.stack[:top.depth]
+	in.stack[top.depth-1].pc = top.pc
+	return true
+}
+
+func (in *Interp) failf(format string, args ...any) Status {
+	in.err = fmt.Errorf(format, args...)
+	return StatusEnd
+}
 
 func (in *Interp) wrap(n ast.Node, err error) error {
 	line, col := n.Pos()
@@ -1898,7 +2069,7 @@ func (in *Interp) callUser(fn *ast.FuncDecl, args []value.Value) (value.Value, e
 	savedStatus := in.status
 	line := in.enterCall(saved)
 	defer in.leaveCall(line)
-	in.stack = []frame{{kind: frameFunc, stmts: filterTop(fn.Body), env: local, fn: lex.IdentKey(fn.Name)}}
+	in.stack = []frame{{kind: frameFunc, stmts: filterTop(fn.Body), env: local, fn: lex.IdentKey(fn.Name), t0: time.Now()}}
 	in.ret = value.Num(0)
 	var yieldErr error
 	for {
@@ -2097,7 +2268,7 @@ func (in *Interp) callStructMethod(recv value.Value, method string, args []value
 	saved := in.stack
 	line := in.enterCall(saved)
 	defer in.leaveCall(line)
-	in.stack = []frame{{kind: frameFunc, stmts: filterTop(fn.Body), env: local, fn: lex.IdentKey(fn.Name)}}
+	in.stack = []frame{{kind: frameFunc, stmts: filterTop(fn.Body), env: local, fn: lex.IdentKey(fn.Name), t0: time.Now()}}
 	in.ret = value.Num(0)
 	for {
 		st := in.Step()
@@ -2432,10 +2603,36 @@ func (in *Interp) installBuiltins() {
 		}
 		return value.Str(m.cur)
 	})
+	n("addtransition", func(a []value.Value) value.Value {
+		m := in.machines[int(num(a, 0))]
+		if m == nil {
+			return value.Num(0)
+		}
+		m.trans = append(m.trans, machTrans{
+			from: strings.ToLower(str(a, 1)),
+			to:   strings.ToLower(str(a, 2)),
+			cond: lex.IdentKey(str(a, 3)),
+		})
+		return value.Num(1)
+	})
 	n("updatestate", func(a []value.Value) value.Value {
 		m := in.machines[int(num(a, 0))]
 		if m == nil {
 			return value.Num(0)
+		}
+		for _, tr := range m.trans {
+			if tr.from != "*" && tr.from != m.cur {
+				continue
+			}
+			if tr.cond == "" {
+				continue
+			}
+			v, err := in.call(tr.cond, nil)
+			if err != nil || v.Number() == 0 {
+				continue
+			}
+			m.cur = tr.to
+			break
 		}
 		fn := m.fn[m.cur]
 		if fn == "" {
@@ -2445,6 +2642,39 @@ func (in *Interp) installBuiltins() {
 			return value.Num(0)
 		}
 		return value.Num(1)
+	})
+	n("createutility", func(a []value.Value) value.Value {
+		id := in.nextMach
+		in.nextMach++
+		in.machines[id] = &stateMachine{fn: map[string]string{}, cur: "utility"}
+		return value.Num(float64(id))
+	})
+	n("utilityconsider", func(a []value.Value) value.Value {
+		m := in.machines[int(num(a, 0))]
+		if m == nil {
+			return value.Num(0)
+		}
+		m.fn[strings.ToLower(str(a, 1))] = fmt.Sprint(num(a, 2))
+		return value.Num(1)
+	})
+	n("utilitychoose", func(a []value.Value) value.Value {
+		m := in.machines[int(num(a, 0))]
+		if m == nil {
+			return value.Str("")
+		}
+		best, score := "", -1e18
+		for name, raw := range m.fn {
+			if name == "" {
+				continue
+			}
+			s := 0.0
+			fmt.Sscan(raw, &s)
+			if s > score {
+				best, score = name, s
+			}
+		}
+		m.cur = best
+		return value.Str(best)
 	})
 	n("arraysize", func(a []value.Value) value.Value {
 		if len(a) < 1 || a[0].Kind != value.KindArray {
@@ -2624,6 +2854,25 @@ func (in *Interp) untrack(v value.Value) {
 	}
 }
 
+func declType(types []string, i int) string {
+	if i < len(types) {
+		return types[i]
+	}
+	return ""
+}
+
+func typedDecl(e *env, name, typ string, v value.Value) (value.Value, error) {
+	if typ == "" {
+		return v, nil
+	}
+	cv, err := coerceAsChecked(typ, v)
+	if err != nil {
+		return value.Value{}, err
+	}
+	e.markAs(name, typ)
+	return cv, nil
+}
+
 func coerceAs(typ string, v value.Value) value.Value {
 	out, err := coerceAsChecked(typ, v)
 	if err != nil {
@@ -2672,7 +2921,7 @@ func (in *Interp) launch(name string) (int, error) {
 		return 0, fmt.Errorf("unknown function %s", name)
 	}
 	local := newEnv(in.global)
-	c := &coro{stack: []frame{{kind: frameFunc, stmts: filterTop(fn.Body), env: local, fn: lex.IdentKey(fn.Name)}}}
+	c := &coro{stack: []frame{{kind: frameFunc, stmts: filterTop(fn.Body), env: local, fn: lex.IdentKey(fn.Name), t0: time.Now()}}}
 	in.coros = append(in.coros, c)
 	in.pump(c)
 	return len(in.coros), nil

@@ -2,6 +2,7 @@ package runtime
 
 import (
 	"fmt"
+	"strings"
 
 	bsaudio "moonbasic/internal/audio"
 	"moonbasic/internal/value"
@@ -29,8 +30,58 @@ func (w *World) audioCommands(n func(func([]value.Value) (value.Value, error)) c
 			return w.startClip(argI(a, 0, 0), true)
 		}),
 		"stopsound": n(func(a []value.Value) (value.Value, error) {
-			if s := w.sounds[argI(a, 0, 0)]; s != nil && s.voice != nil {
-				s.voice.Pause()
+			w.pauseSound(argI(a, 0, 0))
+			return z()
+		}),
+		"pausesound": n(func(a []value.Value) (value.Value, error) {
+			w.pauseSound(argI(a, 0, 0))
+			return z()
+		}),
+		"resumesound": n(func(a []value.Value) (value.Value, error) {
+			w.resumeSound(argI(a, 0, 0))
+			return z()
+		}),
+		"setsoundpan": n(func(a []value.Value) (value.Value, error) {
+			w.setSoundPan(argI(a, 0, 0), argN(a, 1, 0))
+			return z()
+		}),
+		"seeksound": n(func(a []value.Value) (value.Value, error) {
+			if w.seekSound(argI(a, 0, 0), argN(a, 1, 0)) {
+				return value.Num(1), nil
+			}
+			return z()
+		}),
+		"soundtime": n(func(a []value.Value) (value.Value, error) {
+			return value.Num(w.soundTime(argI(a, 0, 0))), nil
+		}),
+		"fadesound": n(func(a []value.Value) (value.Value, error) {
+			w.fadeSound(argI(a, 0, 0), argN(a, 1, 0), argN(a, 2, 0))
+			return z()
+		}),
+		"setaudiobus": n(func(a []value.Value) (value.Value, error) {
+			w.setAudioBus(argS(a, 0), argN(a, 1, 1))
+			return z()
+		}),
+		"soundbus": n(func(a []value.Value) (value.Value, error) {
+			w.soundBus(argI(a, 0, 0), argS(a, 1))
+			return z()
+		}),
+		"setmastervolume": n(func(a []value.Value) (value.Value, error) {
+			w.master = argN(a, 0, 1)
+			if w.master < 0 {
+				w.master = 0
+			}
+			if w.master > 1 {
+				w.master = 1
+			}
+			for _, s := range w.sounds {
+				w.applySoundVol(s)
+			}
+			return z()
+		}),
+		"setsoundecho": n(func(a []value.Value) (value.Value, error) {
+			if w.setSoundEcho(argI(a, 0, 0), argN(a, 1, 0)) {
+				return value.Num(1), nil
 			}
 			return z()
 		}),
@@ -56,9 +107,8 @@ func (w *World) audioCommands(n func(func([]value.Value) (value.Value, error)) c
 				return z()
 			}
 			s.vol = argN(a, 1, 1)
-			if s.voice != nil {
-				s.voice.SetVolume(s.vol)
-			}
+			s.fadeDur = 0
+			w.applySoundVol(s)
 			return z()
 		}),
 		"setmusicvolume": n(func(a []value.Value) (value.Value, error) {
@@ -70,8 +120,9 @@ func (w *World) audioCommands(n func(func([]value.Value) (value.Value, error)) c
 						s.vol = argN(a, 1, 1)
 					}
 				}
-				if s != nil && s.voice != nil {
-					s.voice.SetVolume(s.vol)
+				if s != nil {
+					s.fadeDur = 0
+					w.applySoundVol(s)
 				}
 			}
 			return z()
@@ -84,6 +135,9 @@ func (w *World) audioCommands(n func(func([]value.Value) (value.Value, error)) c
 			s.pitch = argN(a, 1, 1)
 			if s.pitch <= 0 {
 				s.pitch = 1
+			}
+			if s.voice != nil {
+				s.voice.SetPitch(s.pitch)
 			}
 			return z()
 		}),
@@ -211,23 +265,197 @@ func (w *World) startClipWithVol(id int, loop bool, volScale float64) (v value.V
 	if s.voice != nil {
 		s.voice.Close()
 	}
-	vFinal := s.vol * volScale
+	vFinal := s.vol * volScale * w.busGain(s.bus) * w.master
 	if vFinal > 1.0 {
 		vFinal = 1.0
 	}
 	if vFinal < 0 {
 		vFinal = 0
 	}
-	voice, playErr := s.clip.PlayAt(vFinal, s.pitch, 0, loop || s.music)
+	voice, playErr := s.clip.PlayAt(vFinal, s.pitch, s.pan, loop || s.music)
 	if playErr != nil {
 		fmt.Println("PlaySound:", playErr)
 		return value.Num(0), nil
 	}
 	s.voice = voice
+	if s.echo > 0 {
+		s.voice.SetEcho(s.echo)
+	}
 	if s.music {
 		w.musicID = id
 	}
 	return value.Num(0), nil
+}
+
+func (w *World) pauseSound(id int) {
+	if s := w.sounds[id]; s != nil && s.voice != nil {
+		s.voice.Pause()
+	}
+}
+
+func (w *World) resumeSound(id int) {
+	s := w.sounds[id]
+	if s == nil {
+		return
+	}
+	if s.voice != nil {
+		s.voice.Play()
+		return
+	}
+	_, _ = w.startClip(id, s.music)
+}
+
+func (w *World) setSoundPan(id int, pan float64) {
+	s := w.sounds[id]
+	if s == nil {
+		return
+	}
+	if pan < -1 {
+		pan = -1
+	}
+	if pan > 1 {
+		pan = 1
+	}
+	s.pan = pan
+	if s.voice != nil {
+		s.voice.SetPan(pan)
+	}
+}
+
+func (w *World) seekSound(id int, seconds float64) bool {
+	s := w.sounds[id]
+	if s == nil || s.voice == nil {
+		return false
+	}
+	return s.voice.Seek(seconds)
+}
+
+func (w *World) soundTime(id int) float64 {
+	s := w.sounds[id]
+	if s == nil || s.voice == nil {
+		return 0
+	}
+	t := s.voice.Seconds()
+	if t < 0 {
+		return 0
+	}
+	return t
+}
+
+func (w *World) fadeSound(id int, to, secs float64) {
+	s := w.sounds[id]
+	if s == nil {
+		return
+	}
+	if to < 0 {
+		to = 0
+	}
+	if to > 1 {
+		to = 1
+	}
+	if secs <= 0 {
+		s.vol = to
+		s.fadeDur = 0
+		w.applySoundVol(s)
+		return
+	}
+	s.fadeFrom = s.vol
+	s.fadeTo = to
+	s.fadeT = 0
+	s.fadeDur = secs
+}
+
+func (w *World) setAudioBus(name string, vol float64) {
+	if w.buses == nil {
+		w.buses = map[string]float64{}
+	}
+	if vol < 0 {
+		vol = 0
+	}
+	if vol > 1 {
+		vol = 1
+	}
+	key := strings.ToLower(strings.TrimSpace(name))
+	if key == "" {
+		return
+	}
+	w.buses[key] = vol
+	for _, s := range w.sounds {
+		if strings.ToLower(s.bus) == key {
+			w.applySoundVol(s)
+		}
+	}
+}
+
+func (w *World) soundBus(id int, name string) {
+	s := w.sounds[id]
+	if s == nil {
+		return
+	}
+	s.bus = strings.TrimSpace(name)
+	w.applySoundVol(s)
+}
+
+func (w *World) setSoundEcho(id int, wet float64) bool {
+	s := w.sounds[id]
+	if s == nil {
+		return false
+	}
+	if wet < 0 {
+		wet = 0
+	}
+	if wet > 1 {
+		wet = 1
+	}
+	s.echo = wet
+	if s.voice == nil {
+		return true
+	}
+	return s.voice.SetEcho(wet)
+}
+
+func (w *World) busGain(name string) float64 {
+	if name == "" || w.buses == nil {
+		return 1
+	}
+	if g, ok := w.buses[strings.ToLower(name)]; ok {
+		return g
+	}
+	return 1
+}
+
+func (w *World) applySoundVol(s *sndSlot) {
+	if s == nil || s.voice == nil {
+		return
+	}
+	v := s.vol * w.busGain(s.bus) * w.master
+	if v < 0 {
+		v = 0
+	}
+	if v > 1 {
+		v = 1
+	}
+	s.voice.SetVolume(v)
+}
+
+func (w *World) tickFades() {
+	d := w.delta
+	if d <= 0 {
+		return
+	}
+	for _, s := range w.sounds {
+		if s == nil || s.fadeDur <= 0 {
+			continue
+		}
+		s.fadeT += d
+		u := s.fadeT / s.fadeDur
+		if u >= 1 {
+			u = 1
+			s.fadeDur = 0
+		}
+		s.vol = s.fadeFrom + (s.fadeTo-s.fadeFrom)*u
+		w.applySoundVol(s)
+	}
 }
 
 func (w *World) listenerPose() (x, y, z, yaw float64) {

@@ -117,7 +117,7 @@ func (w *World) createSkyBoxFromFaces(faces [6]*texture.Texture2D) (int, error) 
 		m.SetDepthMask(false)
 		m.SetDepthTest(true)
 		m.SetDepthFunc(gls.LEQUAL)
-		sky.AddGroupMaterial(sky, m, i)
+		sky.AddGroupMaterial(sky, &linMat{Standard: m, w: w}, i)
 	}
 
 	if w.scene != nil {

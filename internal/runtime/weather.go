@@ -921,8 +921,9 @@ func (w *World) tickWindSway(dt float32) {
 	if str <= 0 {
 		str = math.Sqrt(w.wx.windX*w.wx.windX + w.wx.windZ*w.wx.windZ)
 	}
-	for _, e := range w.ents {
-		if e == nil || !e.windSway || e.node == nil {
+	for _, m := range w.entityOrder() {
+		e := m.e
+		if !e.windSway || e.node == nil {
 			continue
 		}
 		t := w.wx.time + float64(e.windPhase)

@@ -1,14 +1,21 @@
 package interp
 
 import (
+	"time"
+
 	"moonbasic/internal/ast"
 	"moonbasic/internal/lex"
 	"moonbasic/internal/value"
 )
 
 type stateMachine struct {
-	cur string
-	fn  map[string]string
+	cur   string
+	fn    map[string]string
+	trans []machTrans
+}
+
+type machTrans struct {
+	from, to, cond string
 }
 
 type opCode byte
@@ -55,6 +62,11 @@ func (in *Interp) compiled(fn *ast.FuncDecl) (fastCode, bool) {
 
 func (in *Interp) runFast(fn *ast.FuncDecl, code fastCode, args []value.Value) value.Value {
 	in.fastHits++
+	started := time.Now()
+	defer func() {
+		d := time.Since(started)
+		in.addFuncTime(lex.IdentKey(fn.Name), d, d)
+	}()
 	slots := make([]float64, code.slots)
 	for i := range fn.Params {
 		if i < len(args) && i < len(slots) {
@@ -183,6 +195,11 @@ func compileFast(fn *ast.FuncDecl) fastCode {
 		case *ast.LocalStmt:
 			if t.Static {
 				return fastCode{}
+			}
+			for _, typ := range t.Types {
+				if typ != "" {
+					return fastCode{}
+				}
 			}
 			for i, name := range t.Names {
 				ix := slotOf(name)

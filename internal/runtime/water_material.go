@@ -90,6 +90,7 @@ func (m *WaterMaterial) RenderSetup(gs *gls.GLS) {
 	m.Configure()
 	if m.w != nil && m.wb != nil {
 		m.w.ensureWaterMaps(m.wb)
+		m.w.copySceneForWater(m.wb)
 	}
 	if m.Standard != nil {
 		m.Standard.RenderSetup(gs)
@@ -154,6 +155,10 @@ func (m *WaterMaterial) Bind(gs *gls.GLS) {
 	setUni1f(gs, "WaterWaveStrength", wb.waveStr)
 	setUni1f(gs, "WaterShine", wb.shine)
 	setUni1f(gs, "WaterReflectivity", wb.reflectivity)
+	m.w.bindLinear(gs)
+	setUni1f(gs, "WaterClarity", wb.clarity)
+	setUni3f(gs, "WaterShallow", wb.shallow.R, wb.shallow.G, wb.shallow.B)
+	setUni1f(gs, "WaterShallowTo", wb.shallowTo)
 	setUni4f(gs, "WaterWind", wb.windX, wb.windZ, wb.windStr, 0)
 	if m.w != nil && m.w.cam != nil {
 		setUni1f(gs, "CamNear", m.w.cam.Near())

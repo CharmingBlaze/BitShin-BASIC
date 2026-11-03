@@ -50,17 +50,27 @@ The id is an entity, so `PositionEntity`, `EntityParent`, `HideEntity`, and `Fre
 
 Each emitter has two GL buffers of `max` particles. Every frame one vertex-shader pass reads one buffer and writes the other through transform feedback (OpenGL 3.0, so every GL 3.3 machine has it). The CPU only says which slots of a ring to respawn: rate x frame time, plus any `EmitterBurst`. When the ring is full, the oldest particle is replaced, like the CPU emitter dropping its oldest. Spawns in one frame are spread along the frame and along the emitter's path, so a moving emitter leaves a trail, not clumps.
 
-The step applies gravity, `EmitterWind` (plus weather wind when asked), drag, curl-noise turbulence, and the ground plane. Particles are drawn after the scene as instanced camera-facing quads, depth-tested against the scene but not written to depth. They fog like the scene. A floating-origin shift (`SetPlayer` past 4 km) moves live particles with the world.
+The step applies gravity, `EmitterWind` (plus weather wind when asked), drag, curl-noise turbulence, the ground plane, and up to four mesh boxes from `EmitterCollide`. Particles are drawn after the scene as instanced camera-facing quads, depth-tested against the scene but not written to depth. They fog like the scene. A floating-origin shift (`SetPlayer` past 4 km) moves live particles with the world.
+
+`EmitterSoft e, on` fades a particle where it meets the scene depth, so a sprite crossing a wall softens instead of cutting a hard edge. It stays off when the post pass has no depth texture. Soft is on by default for a new GPU emitter.
+
+`EmitterSort e, on` reorders the live particles far-to-near before drawing. The read-back stops at 8192 particles. A larger emitter skips the sort for that frame. Sorting is off until you ask. Additive emitters do not need it.
+
+`EmitterCollide e, entity` pushes particles out of that entity's box. Four boxes are kept. A fifth call drops the oldest. `EmitterClearCollide e` clears them. The test is a box, not the mesh triangles, and it runs in the simulation shader.
+
+`EmitterPreset e, name$` fills a GPU or CPU emitter with one recipe: `fire`, `smoke`, `sparks`, `explosion`, `dust`, `magic`, `splash`, `debris`. You can still change any `Emitter*` value afterwards.
+
+`CreateTrail entity, points` is separate from emitters. It keeps the last positions of that entity (2 to 64) and draws them as a short-lived debug line. It is a polyline, not a camera-facing ribbon.
 
 `GPUParticleMs()` reads a GL timer query of the step and the draw (two frames old, so it never stalls). On a Radeon 780M at 1280x720, 100k particles cost about 0.4 ms as a fountain, 1.2 ms as snow, and 1.5–3 ms for big overlapping sparks or dust, where blending, not the step, is the cost.
 
 ## Limits
 
 - Compute shaders are not used, even when the GL has them: transform feedback is the only path, so one code path runs everywhere.
-- No soft particles: a sprite that crosses a wall shows a hard edge.
-- No sorting. Alpha-blended emitters with strong, overlapping colors can show order artifacts; low-alpha dust and snow look fine, and additive never does.
-- The only collision is one flat ground height. Particles pass through meshes and terrain.
+- Soft particles compare against the post depth buffer. They do not sort against each other. `EmitterSort` does the sort, and only up to 8192 particles.
+- Collision is one ground plane plus four boxes. Particles still pass through triangle meshes and terrain.
 - Particles do not cast shadows or take scene lights.
 - `EmitterCount` on a GPU emitter is an estimate from spawn times and life, not a read-back.
+- `CreateTrail` draws a debug line. It is not a lit ribbon and it does not survive `DebugClear` as its own mesh.
 
 Demo: `examples/gpu_particles.mb` (keys 1–5 switch fountain, sparks, snow, magic, dust; Space bursts).

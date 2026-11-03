@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"image"
 	"io"
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -71,6 +72,22 @@ func (w *World) loadTextureFile(file string) (int, error) {
 		w.texs = map[int]*texSlot{}
 	}
 	w.texs[id] = &texSlot{tex: tex, path: file}
+	if st, err := os.Stat(path); err == nil {
+		w.trackAsset("tex "+filepath.Base(path), st.Size())
+	}
+	comp := 0
+	if strings.EqualFold(filepath.Ext(path), ".dds") || strings.HasPrefix(strings.ToLower(filepath.Ext(path)), ".ktx") {
+		if b, err := readFileBytes(path); err == nil {
+			if img, err := parseGPUImage(b); err == nil && img.compressed {
+				comp = len(img.data)
+			}
+		}
+	}
+	pw, ph := 0, 0
+	if tex != nil {
+		pw, ph = tex.Width(), tex.Height()
+	}
+	w.noteVRAM(pw, ph, comp)
 	return id, nil
 }
 

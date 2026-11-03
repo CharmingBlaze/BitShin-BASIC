@@ -1,0 +1,29 @@
+; Reference scene: SetLook alone supplies the sky, sun, shadows and horizon.
+Graphics3D(1280, 720)
+SetGraphicsQuality("high")
+cam = CreateCamera()
+SetCameraRange(cam, 0.25, 1500)
+SetLook "modern"
+
+hm = GenerateHeightmapPreset("alpine", 160, 160, 19)
+ground = CreateTerrainFromHeightmap(hm, 220, 220, 28)
+ApplyTerrainSplat(ground)
+SetTerrainGrassCoverage(ground, 0.68)
+SetTerrainWaterHeight(ground, 5.5)
+SetTerrainSnow(True, 22)
+water = CreateWater(360, 360, 48)
+SetWaterLevel(5.5)
+SetWaterColor(22, 78, 102)
+
+ball = CreateSphere().Scale(3, 3, 3).Position([12, TerrainHeight(12, -8) + 2.6, -8])
+SetAlbedo(ball, 232, 196, 96)
+SetMetallic(ball, 1)
+SetRoughness(ball, 0.15)
+
+PositionEntity(cam, 12, TerrainHeight(12, 18) + 14, -60)
+CameraLookAt(cam, 0, 10, 30)
+
+While 1
+    RenderWorld
+    Flip
+Wend

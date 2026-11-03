@@ -66,6 +66,10 @@ func (w *World) headlessStubTables(n func(func([]value.Value) (value.Value, erro
 		w.gpuParticleCommands(n, z, need),
 		w.shadingCommands(n, z),
 		w.qualityCommands(n, z),
+		w.linearCommands(n),
+		w.dynResCommands(n),
+		w.passCommands(n),
+		w.shadowTurnCommands(n),
 	}
 }
 

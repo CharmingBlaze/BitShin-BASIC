@@ -4,9 +4,11 @@ Three backends, one set of commands. `PhysicsBackend$()` / `GetPhysicsBackend$()
 
 | Backend | When | What you actually get |
 | --- | --- | --- |
-| Windows Jolt | Windows without `-tags nojolt` | Native velocity, rotated shapes, constraints, vehicles, cloth, CCD |
-| Linux / macOS Jolt | Linux amd64/arm64, macOS ARM | Same command names. Linear velocity, bounce, joints, and rotated hulls are a software layer on jolt-go (that wrapper has no two-body constraints). `PhysicsBackend$()` is still `"jolt"` |
+| Native Jolt | Windows, Linux amd64/arm64, or macOS ARM, without `-tags nojolt` or `-tags joltgo` | Native velocity, rotated shapes, constraints, vehicles, cloth, grab, and `LinearCast` CCD. `PhysicsBackend$()` is `"jolt"` |
+| jolt-go subset | Linux amd64/arm64 or macOS ARM with `-tags joltgo` | Same command names. Linear velocity, bounce, joints, and rotated hulls are a software layer on jolt-go. `PhysicsBackend$()` is still `"jolt"` |
 | Software | `-tags nojolt`, or any other OS/arch | Sphere and box overlap. `PhysicsBackend$()` is `"fallback"` |
+
+The default build on Linux amd64/arm64 and macOS ARM compiles the same native files as Windows (`internal/phys3d/jolt_*_windows.go`). Rows later in this page that split "Windows" from "Linux/macOS" describe `-tags joltgo` and the software fallback. On the default build, use the Windows column.
 
 Print `PhysicsBackend$()` when a sample depends on a native joint, vehicle, or cloth sheet.
 
@@ -197,9 +199,9 @@ There is **no** `CreateDistanceJoint` command. A springy distance constraint is 
 
 `CreateHinge` / `CreateHingeJoint` with fewer than two args returns **0**.
 
-**Grab platforms:** Windows Jolt is a real `SixDOFConstraint`. Linux/macOS Jolt extras use the same **position spring** as fallback `CreateGrabJoint` (not a 6DOF constraint). Fallback (`-tags nojolt`) uses a stiff spring joint. `claw.mb` is still the kinematic-parent claw; `Grab` is the spring/6DOF path.
+**Grab platforms:** the default build is a real `SixDOFConstraint`. `-tags joltgo` uses the same **position spring** as fallback `CreateGrabJoint`. Fallback (`-tags nojolt`) uses a stiff spring joint. `claw.mb` is still the kinematic-parent claw; `Grab` is the spring/6DOF path.
 
-Linux/macOS `GetRotation` / `ApplyTorque` / `ApplyBuoyancy` / `SetGravityScale` are a software pose on top of jolt-go (no native `SetLinearVelocity` or rotated collision shapes). Fallback (`-tags nojolt`) now integrates the same software quaternion, so `GetRotation` / `ApplyLocalImpulse` / vehicle yaw work without Jolt. Visual yaw and force-vehicle `Update*` use that pose; hulls stay axis-aligned. Soft sliders keep the rail axis; cone / hinge limits / hinge motor clamp or rotate the A→B vector (not a Jolt `Constraint`). Hinge friction damps planar speed; swing-twist also stops spin around the axis after `twistDeg`. `SetCollisionLayer` / `SetLayerCollides` filter overlap queries; software joints still run if you `DisableBodyCollision` a pair. `OffsetCenterOfMass` adds gravity torque from that offset. `SetCCD` is a ray sweep, not `LinearCast`. Native `VehicleConstraint` stays Windows-only.
+With `-tags joltgo`, `GetRotation` / `ApplyTorque` / `ApplyBuoyancy` / `SetGravityScale` are a software pose on top of jolt-go (no native `SetLinearVelocity` or rotated collision shapes). Sliders keep the rail axis; cone and hinge limits clamp the A→B vector. `SetCCD` is a ray sweep. Fallback (`-tags nojolt`) integrates the same software quaternion, so `GetRotation` / `ApplyLocalImpulse` / vehicle yaw work without Jolt, and hulls stay axis-aligned. The default build uses native velocity, rotated shapes, `LinearCast`, and `VehicleConstraint` on Windows, Linux amd64/arm64, and macOS ARM.
 
 ### `CreateJoint` kinds
 
@@ -272,7 +274,7 @@ Text(12, 12, "Tension " + Int(RopeTension(rope) * 100) + "%")
 
 Use `CreateRope(a,b,length,segments,radius)` for center-to-center attachment. `CreateRopeAnchored` accepts local offsets for each body; offsets attached to body `0` are world positions. `SetRopeStrength` tunes the taut-line stiffness, velocity damping, and force cap for unusually light or heavy endpoints. `ResetRope` rebuilds its sag after teleporting an endpoint, and `FreeRope` safely removes its bodies and constraints. See `examples/rope.mb` and `examples/waterski.mb`.
 
-`CreateCloth` is a pinned rectangle (default top edge). Windows uses Jolt soft bodies; Linux/macOS Jolt and `-tags nojolt` use Verlet. See `examples/cloth.mb`.
+`CreateCloth` is a pinned rectangle (default top edge). The default build uses a Jolt soft body on Windows, Linux amd64/arm64, and macOS ARM. `-tags joltgo` and `-tags nojolt` use a Verlet sheet. See `examples/cloth.mb`.
 
 ## Grab, projectiles, beams
 
@@ -291,7 +293,7 @@ Demos: `examples/grab_beam.mb` (Space grab, T throw, G drop, laser via `PlaceAtR
 
 For a walking person, use `CreateFPSController` or `CreateTPSController` ([MODERN_GAME_HELPERS.md](MODERN_GAME_HELPERS.md)). The commands below are the capsule those helpers sit on.
 
-`CreateCharacterController` builds a Jolt **CharacterVirtual** (capsule). **`height` is the full height, caps included.** A call with `1.8, 0.4` is a 1.8 m person, not a 2.6 m collider. The visual `CreateCapsule(0.4, 0.9)` is close to that (cylinder 0.9 plus two 0.4 caps ≈ 1.7 m). On **Windows** it also creates a slightly smaller **inner kinematic rigid body** (`CreateCharacterVirtualWithInner`) so rays, CCD, and contact listeners can hit the player. On **Linux/macOS** jolt-go has CharacterVirtual but not that inner helper — we add a kinematic capsule on the same handle so `Raycast` still hits the player. `GetPhysicsCharacter$()` is `"jolt"` when that path is live, `"kinematic"` on fallback.
+`CreateCharacterController` builds a Jolt **CharacterVirtual** (capsule). **`height` is the full height, caps included.** A call with `1.8, 0.4` is a 1.8 m person, not a 2.6 m collider. The visual `CreateCapsule(0.4, 0.9)` is close to that (cylinder 0.9 plus two 0.4 caps ≈ 1.7 m). The default build also creates a slightly smaller **inner kinematic rigid body** (`CreateCharacterVirtualWithInner`) so rays, CCD, and contact listeners can hit the player. `-tags joltgo` has CharacterVirtual without that helper, so a kinematic capsule is added on the same handle. `GetPhysicsCharacter$()` is `"jolt"` when that path is live, `"kinematic"` on fallback.
 
 `UpdateWorld` / `Flip` already run Jolt `CharacterVirtual::ExtendedUpdate` (stick-to-floor + walk-stairs) **and apply gravity**. Do not subtract gravity in the script. Two-argument `MoveCharacter e, vx, vz` keeps Y, so a jump set with `SetCharacterVelocity` survives until the next step. While the character is on the ground and not jumping, vertical speed is copied from the floor, then one gravity step is added. `ExtendedUpdate` / `CharacterExtendedUpdate` are documented no-ops you can call for other engines; they do not double-step.
 
@@ -390,7 +392,7 @@ EndIf
 
 A sensor still shows up in this list. It does not push the other body.
 
-Windows reads Jolt’s contact listener. The listener runs on physics threads and queues events in C++; `UpdateWorld` drains that queue on the main thread. Linux and macOS ask Jolt whether each box or sphere overlaps anything. The software fallback overlaps boxes and spheres itself. A mesh on Linux is tested with a bounding sphere.
+The default build reads Jolt’s contact listener. The listener runs on physics threads and queues events in C++; `UpdateWorld` drains that queue on the main thread. `-tags joltgo` asks Jolt whether each box or sphere overlaps anything, and tests a mesh with a bounding sphere. The software fallback overlaps boxes and spheres itself.
 
 Demo: `examples/physics_contacts.mb`.
 

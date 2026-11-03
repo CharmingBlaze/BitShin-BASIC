@@ -1,0 +1,35 @@
+; Reference scene: scenic water over low islands, seen at a shallow angle,
+; where the surf line used to alias into stripes.
+Graphics3D(1100, 700)
+SetGraphicsQuality("high")
+SetCameraClsColor(72, 128, 178)
+SetAmbientLight(38, 48, 62)
+cam = CreateCamera()
+CreateSkyBox("default")
+sun = CreateDirectionalLight()
+SetLightDirection(sun, 28, 42, 8)
+SetLightColor(sun, 255, 236, 200)
+
+water = CreateWater(160, 160, 12)
+SetWaterStyle("scenic")
+SetWaterColor(18, 78, 108)
+EnableWaterReflection(True)
+EnableWaterRefraction(True)
+SetWaterSpeed(0.04)
+SetWaterWaveStrength(0.05)
+SetWaterWaves(0)
+SetWaterFollow(False)
+SetWaterLevel(0)
+
+isle = CreateProcTerrain(5, 11, 4, 5, 22)
+SetTerrainStreamRadius(isle, 1)
+red = CreateCube().Scale(1.2, 1.8, 1.2).Position([6, 1.1, 8]).Color(210, 70, 55)
+ball = CreateSphere(12).Scale(1.3, 1.3, 1.3).Position([2, 1.4, -6]).Color(240, 210, 70)
+
+PositionEntity(cam, 19, 9, 18)
+CameraLookAt(cam, 0, 0.6, 2)
+
+While 1
+    RenderWorld
+    Flip
+Wend

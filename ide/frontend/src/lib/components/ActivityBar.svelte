@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { FolderTree, BookOpen, ListTree, Library, FolderArchive, Box, Settings, Bug } from 'lucide-svelte';
+  import { FolderTree, BookOpen, ListTree, Library, FolderArchive, Box, Settings, Bug, Gauge } from 'lucide-svelte';
   import { editorStore } from '../stores/editorState.svelte';
 
   const items = [
@@ -9,7 +9,8 @@
     { id: 'commands' as const, icon: BookOpen, title: 'Command reference' },
     { id: 'outline' as const, icon: ListTree, title: 'Outline' },
     { id: 'examples' as const, icon: Library, title: 'Examples' },
-    { id: 'debug' as const, icon: Bug, title: 'Debug: call stack, variables, watch' }
+    { id: 'debug' as const, icon: Bug, title: 'Debug: call stack, variables, watch' },
+    { id: 'profiler' as const, icon: Gauge, title: 'Profiler: functions and assets' }
   ];
 
   function activate(id: typeof items[number]['id']) {

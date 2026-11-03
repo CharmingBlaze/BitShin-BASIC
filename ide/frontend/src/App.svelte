@@ -10,6 +10,7 @@
   import AssetBrowser from './lib/components/AssetBrowser.svelte';
   import ScenePanel from './lib/components/ScenePanel.svelte';
   import DebugPanel from './lib/components/DebugPanel.svelte';
+  import ProfilerPanel from './lib/components/ProfilerPanel.svelte';
   import OutputPanel from './lib/components/OutputPanel.svelte';
   import Editor from './lib/editor/Editor.svelte';
   import NewFileModal from './lib/components/NewFileModal.svelte';
@@ -140,6 +141,8 @@
           <ScenePanel />
         {:else if editorStore.activeSidebarTab === 'debug'}
           <DebugPanel />
+        {:else if editorStore.activeSidebarTab === 'profiler'}
+          <ProfilerPanel />
         {/if}
       </div>
     {/if}
