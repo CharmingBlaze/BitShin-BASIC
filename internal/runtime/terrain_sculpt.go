@@ -793,16 +793,54 @@ func (w *World) seedPaint(p *terrainPaint, texID int) {
 	}
 }
 
+// paintDirt is the dirt layer. The blend map has four channels and four materials
+// already, and the terrain's texture units are full, so dirt is stored as sand and
+// rock equally: the shader takes what they share as dirt.
+const paintDirt = 4
+
 // paintChannel maps PaintTerrain layers (SetTerrainSplat order) to blend map
-// channels: 0 sand R, 1 grass G, 2 rock B, 3 snow A. -1 erases.
+// channels: 0 sand R, 1 grass G, 2 rock B, 3 snow A. -1 erases, 4 is dirt.
 func paintChannel(layer int) int {
 	if layer < 0 {
 		return -1
 	}
-	if layer > 3 {
-		return 3
+	if layer >= paintDirt {
+		return -1 // written as sand and rock, below
 	}
 	return layer
+}
+
+// paintPath dabs along a line, closely enough that it reads as one stroke.
+func paintPath(p *terrainPaint, x0, z0, x1, z1, width float32, layer int) {
+	b := p.img.Bounds()
+	sx := float32(b.Dx()) / max32(p.w, 0.001)
+	sz := float32(b.Dy()) / max32(p.d, 0.001)
+	r := width * 0.5 * (sx + sz) * 0.5
+	dx, dz := (x1-x0)*sx, (z1-z0)*sz
+	n := int(math.Sqrt(float64(dx*dx+dz*dz))/float64(max32(r*0.4, 0.5))) + 1
+	for i := 0; i <= n; i++ {
+		f := float32(i) / float32(n)
+		u := (x0 + (x1-x0)*f - p.x0) * sx
+		v := (z0 + (z1-z0)*f - p.z0) * sz
+		p.dirty = p.dirty.Union(paintImage(p.img, u, v, r, layer, 0.8, 0.5))
+	}
+}
+
+// paintBareAt says whether paint has cleared this spot of plants: dirt, sand, or rock
+// where nothing was asked to grow.
+func (t *terrain) paintBareAt(x, z float32) bool {
+	p := t.sculpt.paint
+	if p == nil || t.blendTex != p.tex {
+		return false
+	}
+	b := p.img.Bounds()
+	u := int((x - p.x0) / max32(p.w, 0.001) * float32(b.Dx()))
+	v := int((z - p.z0) / max32(p.d, 0.001) * float32(b.Dy()))
+	if u < b.Min.X || v < b.Min.Y || u >= b.Max.X || v >= b.Max.Y {
+		return false
+	}
+	o := p.img.PixOffset(u, v)
+	return p.img.Pix[o] > 96 || p.img.Pix[o+2] > 96
 }
 
 // paintImage dabs one brush on img. (u, v) and r are in texels. The outer
@@ -843,7 +881,7 @@ func paintImage(img *image.RGBA, u, v, r float32, layer int, strength, falloff f
 			changed := false
 			for c := 0; c < 4; c++ {
 				target := float32(0)
-				if c == ch {
+				if c == ch || (layer == paintDirt && (c == 0 || c == 2)) {
 					target = 255
 				}
 				cur := float32(img.Pix[o+c])
@@ -1055,8 +1093,8 @@ func (w *World) terrainSculptCommands(n func(func([]value.Value) (value.Value, e
 				return value.Value{}, fmt.Errorf("PaintTerrain: radius must be > 0")
 			}
 			layer := argI(a, 4, 1)
-			if layer < -1 || layer > 3 {
-				return value.Value{}, fmt.Errorf("PaintTerrain: layer %d (0 sand, 1 grass, 2 rock, 3 snow, -1 erase)", layer)
+			if layer < -1 || layer > paintDirt {
+				return value.Value{}, fmt.Errorf("PaintTerrain: layer %d (0 sand, 1 grass, 2 rock, 3 snow, 4 dirt, -1 erase)", layer)
 			}
 			p := w.ensurePaint(t)
 			b := p.img.Bounds()
@@ -1067,6 +1105,26 @@ func (w *World) terrainSculptCommands(n func(func([]value.Value) (value.Value, e
 			touched := paintImage(p.img, u, v, r*(sx+sz)*0.5, layer, float32(argN(a, 5, 0.35)), float32(argN(a, 6, 0.5)))
 			p.dirty = p.dirty.Union(touched)
 			return value.Num(float64(touched.Dx() * touched.Dy())), nil
+		}),
+		// PaintTerrainPath(t, x0, z0, x1, z1, width [, layer]): paint a track between two
+		// points, dirt by default. Grass and trees stay off it, if they are planted after.
+		"paintterrainpath": n(func(a []value.Value) (value.Value, error) {
+			t, err := w.sculptTerrainArg("PaintTerrainPath", a, 6, "(terrain, x0, z0, x1, z1, width [, layer])")
+			if err != nil {
+				return value.Value{}, err
+			}
+			width := float32(argN(a, 5, 3))
+			if width <= 0 {
+				return value.Value{}, fmt.Errorf("PaintTerrainPath: width must be > 0")
+			}
+			layer := argI(a, 6, paintDirt)
+			if layer < -1 || layer > paintDirt {
+				return value.Value{}, fmt.Errorf("PaintTerrainPath: layer %d (0 sand, 1 grass, 2 rock, 3 snow, 4 dirt, -1 erase)", layer)
+			}
+			p := w.ensurePaint(t)
+			paintPath(p, float32(argN(a, 1, 0)), float32(argN(a, 2, 0)), float32(argN(a, 3, 0)), float32(argN(a, 4, 0)), width, layer)
+			w.resetGrass(t)
+			return z()
 		}),
 		"setterrainpaintarea": n(func(a []value.Value) (value.Value, error) {
 			t, err := w.sculptTerrainArg("SetTerrainPaintArea", a, 5, "(terrain, x0, z0, width, depth [, resolution])")

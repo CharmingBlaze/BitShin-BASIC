@@ -9454,9 +9454,15 @@
           "category": "Terrain"
         },
         {
+          "syntax": "PaintTerrainPath(t, x0, z0, x1, z1, width [, layer])",
+          "name": "PaintTerrainPath",
+          "description": "Paint a track between two points, dirt unless a layer is given. Worn earth with a frayed edge. Grass and trees stay off painted dirt, sand, and rock, for anything planted after the paint",
+          "category": "Terrain"
+        },
+        {
           "syntax": "PaintTerrain(t, x, z, radius, layer [, strength, falloff])",
           "name": "PaintTerrain",
-          "description": "Paint the blend map: `0` sand `1` grass `2` rock `3` snow `-1` erase. Uploads only touched texels",
+          "description": "Paint the blend map: `0` sand `1` grass `2` rock `3` snow `4` dirt `-1` erase. Uploads only touched texels",
           "category": "Terrain"
         },
         {
@@ -10179,7 +10185,7 @@
         {
           "syntax": "SetUnderwaterFog(r, g, b [, density])",
           "name": "SetUnderwaterFog",
-          "description": "When camera is under",
+          "description": "When camera is under. By default the color comes from `SetWaterShallow`, or else the water color, with density 0.022",
           "category": "Water"
         },
         {
@@ -20807,9 +20813,15 @@
       "category": "Terrain"
     },
     {
+      "syntax": "PaintTerrainPath(t, x0, z0, x1, z1, width [, layer])",
+      "name": "PaintTerrainPath",
+      "description": "Paint a track between two points, dirt unless a layer is given. Worn earth with a frayed edge. Grass and trees stay off painted dirt, sand, and rock, for anything planted after the paint",
+      "category": "Terrain"
+    },
+    {
       "syntax": "PaintTerrain(t, x, z, radius, layer [, strength, falloff])",
       "name": "PaintTerrain",
-      "description": "Paint the blend map: `0` sand `1` grass `2` rock `3` snow `-1` erase. Uploads only touched texels",
+      "description": "Paint the blend map: `0` sand `1` grass `2` rock `3` snow `4` dirt `-1` erase. Uploads only touched texels",
       "category": "Terrain"
     },
     {
@@ -21289,7 +21301,7 @@
     {
       "syntax": "SetUnderwaterFog(r, g, b [, density])",
       "name": "SetUnderwaterFog",
-      "description": "When camera is under",
+      "description": "When camera is under. By default the color comes from `SetWaterShallow`, or else the water color, with density 0.022",
       "category": "Water"
     },
     {

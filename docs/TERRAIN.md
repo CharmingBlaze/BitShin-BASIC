@@ -216,7 +216,8 @@ Scripts can reshape and paint the ground while the game runs: a level editor, cr
 | `FlattenTerrain(t, x, z, radius, height [, strength, falloff])` | Pull toward `height`. `strength` 1 sets it outright |
 | `SmoothTerrain(t, x, z, radius [, strength, falloff])` | Pull toward the 3×3 average |
 | `SetTerrainHeight(t, gridX, gridZ, height)` / `TerrainGridHeight(t, gridX, gridZ)` | One lattice node |
-| `PaintTerrain(t, x, z, radius, layer [, strength, falloff])` | `layer` 0 sand, 1 grass, 2 rock, 3 snow, `-1` erases back to the slope/height splat |
+| `PaintTerrainPath(t, x0, z0, x1, z1, width [, layer])` | Paint a track between two points, dirt unless a layer is given. Worn earth with a frayed edge. Grass and trees stay off painted dirt, sand, and rock, for anything planted after the paint | `PaintTerrainPath(ground, 0, 0, 40, 25, 5)` |
+| `PaintTerrain(t, x, z, radius, layer [, strength, falloff])` | `layer` 0 sand, 1 grass, 2 rock, 3 snow, 4 dirt, `-1` erases back to the slope/height splat |
 | `SetTerrainPaintArea(t, x0, z0, width, depth [, res])` | World rectangle and texel size of the paint map (default: the heightmap rectangle, or the streamed window around the origin for procedural terrains; 512²) |
 | `ResetTerrainEdits(t)` | Back to the loaded heights and an empty paint map |
 | `PickTerrain(t [, screenX, screenY])` | Ray from the mouse (or a pixel) to the ground. `1` on a hit, point in `PickedX/Y/Z` |

@@ -108,7 +108,8 @@ Aliases: `GetWaterHeight`, `SetWaterReflection`, `SetWaterRefraction`, `SetWater
 | --- | --- |
 | Foam on Gerstner peaks | Cheap height foam in the fragment shader |
 | Dual scrolling normal maps | `WaterNormal` sampled twice and mixed with Gerstner / dFdx normals |
-| Underwater fog | `SetUnderwaterFog` when the camera is below `WaterHeight` |
+| Shore foam | A broken white line where the water is shallow, measured straight down, so a low camera keeps it. Waves roll in behind it up close. Needs the refraction depth, so low tier has none. Linear path only |
+| Underwater fog | `SetUnderwaterFog` when the camera is below `WaterHeight`. Default color follows the shallows |
 | Buoyancy / splash / wakes | `CreateBuoy` + CPU impulse buffer (`WaterWake`). Auto `ApplyBuoyancyImpulse` for submerged dynamics (`SetBuoyancyFactor`, `SetWaterFlow`). Flag demo: `examples/cloth.mb` |
 | Caustics | Animated projected pattern on `mbterrain` / underwater meshes (`SetWaterCaustics`) |
 | Shoreline wetness | Terrain darken + spec near `WaterLevel` using the `Wetness` term |

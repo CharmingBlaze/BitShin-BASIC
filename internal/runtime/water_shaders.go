@@ -456,8 +456,28 @@ void main() {
         surf = (1.0 - smoothstep(0.03, 0.9 + camDist * (LinearLight != 0 ? 0.001 : 0.004), meters)) * mix(0.3, 1.0, lap);
         surf *= smoothstep(0.2, 0.55, foamNoise + 0.2);
         surf *= exp(-camDist * (LinearLight != 0 ? 0.003 : 0.0012));
+        if (LinearLight != 0) {
+            // A white line along the shore, the thing that says "coast" from afar. Depth
+            // here is straight down: along the view ray, as meters is, a low camera
+            // sees depth grow so fast that the line vanishes. Two scales of noise drift
+            // through it, so it is broken and alive and not a painted stripe.
+            float down = meters * max(viewDir.y, 0.04);
+            float pulse = 0.5 + 0.5 * sin(WaveTime * 0.7 + foamNoise * 5.0 + tex.x * 3.0);
+            float reach = 0.45 + 0.3 * pulse + camDist * 0.0022;
+            float patchy = texture(WaterNormal, tex * 0.9 + vec2(WaterMove * 0.05, -WaterMove * 0.03)).r;
+            float line = 1.0 - smoothstep(0.01, reach, down);
+            surf = line * smoothstep(0.42, 0.6, foamNoise * 0.55 + patchy * 0.55 + line * 0.35);
+            // And a wave rolling in further out, up close, where it can be resolved.
+            float roll = sin(down * 9.0 - WaveTime * 0.9 + patchy * 7.0);
+            float rolling = smoothstep(0.8, 0.97, roll) * (1.0 - smoothstep(0.5, 1.5, fwidth(down) * 9.0));
+            rolling *= smoothstep(reach, reach * 1.4, down) * (1.0 - smoothstep(0.7, 1.3, down));
+            surf = max(surf, rolling * smoothstep(0.4, 0.62, patchy) * 0.75);
+        }
     }
     vec3 waterWithFoam = mix(base, foamColor, clamp(foamMask * foamNoise + surf * 0.7, 0.0, 0.7));
+    if (LinearLight != 0) {
+        waterWithFoam = mix(base, toLin(vec3(0.97, 0.98, 0.97)), clamp(foamMask * foamNoise + surf * 0.95, 0.0, 0.95));
+    }
 
     float sh = waterShadow(WorldPos, waveNormal, L);
     vec3 lit = waterWithFoam;

@@ -1829,8 +1829,8 @@ func (m *terrainMat) RenderSetup(gs *gls.GLS) {
 	bind(t.snowTex, unitTerrainSnow, "TerrainSnow", "TerrainHasSnow")
 	bind(t.rockNrm, unitTerrainRockN, "TerrainRockN", "TerrainHasRockN")
 	bind(t.blendTex, unitTerrainBlend, "TerrainBlendMap", "TerrainHasBlend")
+	m.w.uploadTerrainPaint(t) // before any other bind: it writes to whatever is bound
 	bind(t.bakeTex, unitTerrainBake, "TerrainBake", "TerrainHasBake")
-	m.w.uploadTerrainPaint(t) // PaintTerrain texels; the blend map is still bound
 }
 
 // bindPlainUniforms sends what stays the same for one terrain through a pass.

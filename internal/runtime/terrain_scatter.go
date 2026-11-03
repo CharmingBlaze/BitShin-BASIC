@@ -471,6 +471,9 @@ func (w *World) scatterPoints(t *terrain, layer scatterLayer, key chunkKey, salt
 		if !scatterAccept(layer.kind, flat, h, t.waterY, snowLineAt(t, x, z, flat), t.snowOn) {
 			continue
 		}
+		if (layer.kind == "tree" || layer.kind == "grass") && t.paintBareAt(x, z) {
+			continue
+		}
 		if forest != nil {
 			if t.clearing > 0 && h < t.waterY+math32.Max(t.blend, 1.2)*2 {
 				continue // the beach stays open

@@ -762,17 +762,26 @@ func (w *World) tickUnderwater(wb *waterBody) {
 		if wb.underDen > 0 {
 			w.fogDensity = wb.underDen
 		} else {
-			w.fogDensity = 0.08
+			w.fogDensity = 0.022
 		}
-		if wb.underFog.R+wb.underFog.G+wb.underFog.B > 0 {
-			w.fogRGB = wb.underFog
-		} else {
-			w.fogRGB = math32.Color{wb.color.R * 0.25, wb.color.G * 0.45, wb.color.B * 0.55}
-		}
+		w.fogRGB = wb.underwaterColor()
 	} else if wb.savedFog {
 		w.fogMode, w.fogRGB, w.fogDensity = wb.fogMode, wb.fogRGB, wb.fogDen
 		wb.savedFog = false
 	}
+}
+
+// underwaterColor is what water looks like from inside it, unless a script chose.
+// It comes from the shallow color, which is the water's own: a quarter of the surface
+// color, as this was, turned the whole view black.
+func (wb *waterBody) underwaterColor() math32.Color {
+	if wb.underFog.R+wb.underFog.G+wb.underFog.B > 0 {
+		return wb.underFog
+	}
+	if wb.shallowTo > 0 {
+		return math32.Color{R: wb.shallow.R * 0.55, G: wb.shallow.G * 0.72, B: wb.shallow.B * 0.8}
+	}
+	return math32.Color{R: wb.color.R*0.7 + 0.02, G: wb.color.G*0.95 + 0.08, B: wb.color.B*1.05 + 0.1}
 }
 
 func disposeWaterFBO(t *waterFBO) {

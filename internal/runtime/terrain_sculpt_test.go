@@ -3,6 +3,8 @@ package runtime
 import (
 	"image"
 	"math"
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/g3n/engine/gls"
@@ -368,5 +370,68 @@ func TestSculptCompactHeightmap(t *testing.T) {
 	}
 	if y := w.terrainHeight(2, 2); !nearEps(y, before, 1e-4) {
 		t.Fatalf("reset %v want %v", y, before)
+	}
+}
+
+func TestPaintDirtIsSandAndRockTogether(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 16, 16))
+	paintImage(img, 8, 8, 3, paintDirt, 1, 0)
+	o := img.PixOffset(8, 8)
+	if img.Pix[o] != 255 || img.Pix[o+1] != 0 || img.Pix[o+2] != 255 || img.Pix[o+3] != 0 {
+		t.Fatalf("dirt wrote %v, want sand and rock full and nothing else", img.Pix[o:o+4])
+	}
+}
+
+func TestPaintPathKeepsPlantsOff(t *testing.T) {
+	img := image.NewRGBA(image.Rect(0, 0, 128, 128))
+	p := &terrainPaint{img: img, tex: 7, x0: -64, z0: -64, w: 128, d: 128}
+	paintPath(p, -40, 0, 40, 0, 6, paintDirt)
+	if p.dirty.Empty() {
+		t.Fatal("a path should mark texels for upload")
+	}
+	tr := &terrain{blendTex: 7}
+	tr.sculpt.paint = p
+	for _, x := range []float32{-40, -13, 0, 21, 40} {
+		if !tr.paintBareAt(x, 0) {
+			t.Fatalf("nothing should grow on the path at x=%v", x)
+		}
+	}
+	if tr.paintBareAt(0, 20) || tr.paintBareAt(500, 0) {
+		t.Fatal("off the path, and off the map, plants grow as usual")
+	}
+	tr.blendTex = 8 // another blend map bound: this canvas no longer counts
+	if tr.paintBareAt(0, 0) {
+		t.Fatal("a canvas that is not bound should not clear anything")
+	}
+}
+
+// uploadTerrainPaint writes to whatever texture is bound. With the bake bound after
+// the blend map, paint strokes came out as dark squares in the bake.
+func TestPaintUploadsWhileBlendMapIsBound(t *testing.T) {
+	src, err := os.ReadFile("terrain.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(src)
+	blend := strings.Index(s, `bind(t.blendTex, unitTerrainBlend`)
+	up := strings.Index(s, `m.w.uploadTerrainPaint(t)`)
+	bake := strings.Index(s, `bind(t.bakeTex, unitTerrainBake`)
+	if blend < 0 || up < blend || bake < up {
+		t.Fatalf("binds out of order: blend %d, upload %d, bake %d", blend, up, bake)
+	}
+}
+
+func TestUnderwaterIsNotBlack(t *testing.T) {
+	wb := &waterBody{color: math32.Color{R: 0.12, G: 0.21, B: 0.38}}
+	if c := wb.underwaterColor(); c.G < 0.2 || c.B < 0.3 {
+		t.Fatalf("default underwater color %v is too dark to see in", c)
+	}
+	wb.shallow, wb.shallowTo = math32.Color{R: 0.1, G: 0.7, B: 0.7}, 12
+	if c := wb.underwaterColor(); c.G <= c.R || c.B <= c.R {
+		t.Fatalf("underwater color %v should come from the shallows", c)
+	}
+	wb.underFog = math32.Color{R: 0.5}
+	if c := wb.underwaterColor(); c != wb.underFog {
+		t.Fatalf("a script's color should win, got %v", c)
 	}
 }

@@ -96,7 +96,7 @@ Added after the report, as the list is built. Timings are the Radeon 780M at 128
 | 18 | Mostly | `BakeTerrain`: normals with rock detail, horizon occlusion, D8 flow, in one RGBA8 map. Macro color is not done |
 | 19 | Mostly | Decorrelated projections, a second large scale, warped strata, rock normals along the face. Per-projection normal frames are not done |
 | 25 | Partly | Cloud banks from a weather map, billowed edges, a thin high layer. Cloud shadows on terrain are not done |
-| 26 | Partly | Ripple texture mips, `SetWaterRoughness`, wake edge and ripple coordinate fixes. FFT cascades and foam memory are not done |
+| 26 | Partly | Ripple texture mips, `SetWaterRoughness`, wake edge and ripple coordinate fixes, shore foam by vertical depth with rolling waves. FFT cascades and foam memory are not done |
 | 16, 17, 21, 24, 27-29, 31-34 | Not started | Next by rank: 16 render queues, 17 sky, 21 render targets |
 
 ## What not to build

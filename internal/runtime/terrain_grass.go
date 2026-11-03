@@ -110,7 +110,7 @@ func (w *World) grassPoints(t *terrain, g *grassField, k chunkKey, near bool) []
 			continue
 		}
 		h := w.sampleHeight(&t.hf, x, z)
-		if h < shore {
+		if h < shore || t.paintBareAt(x, z) {
 			continue
 		}
 		flat := scatterFlat(t, x, z)

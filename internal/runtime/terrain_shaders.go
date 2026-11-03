@@ -230,6 +230,7 @@ float rockShown = 0.0;
 
 vec4 terrainSplat(inout vec3 n) {
     float h = WorldPos.y;
+    float paintedDirt = 0.0;
     vec3 tp = retroTexPos();
     // Rendering smaller picks blurrier mips, then FSR upscales the blur. Scaling the
     // gradients is the same as Godot's log2(scale) mip bias.
@@ -282,7 +283,14 @@ vec4 terrainSplat(inout vec3 n) {
     // Only what shows here is sampled: this was about 30 texture reads a pixel,
     // on the ground that covers most of the screen. A blend map can bring any
     // material back, so with one everything stays.
-    bool painted = TerrainHasBlend != 0;
+    // Paint can ask for any material, so where there is paint all of them are read.
+    // Only there: a short path should not cost the whole island three more textures.
+    vec4 bw = vec4(0.0);
+    if (TerrainHasBlend != 0) {
+        vec2 buv = vec2((WorldPos.x - TerrainOriginX) / max(TerrainWorldW, 1.0), (-WorldPos.z - TerrainOriginZ) / max(TerrainWorldD, 1.0));
+        bw = texture(TerrainBlendMap, clamp(buv, 0.0, 1.0));
+    }
+    bool painted = bw.r + bw.g + bw.b + bw.a > 0.004;
     bool wantRock = painted || (rockMask < 0.998 && sandMask < 0.998 && snowMask < 0.998);
     bool wantGrass = painted || (rockMask > 0.002 && sandMask < 0.998 && snowMask < 0.998);
     if (wantGrass) {
@@ -341,12 +349,11 @@ vec4 terrainSplat(inout vec3 n) {
         // Decoding deepens color, so this keeps the green a natural meadow.
         grass = mix(vec3(terrainLuma(grass)), grass, 0.7) * vec3(1.12, 1.0, 1.04);
     }
-    if (TerrainHasBlend != 0) {
-        float sx = WorldPos.x;
-        float sz = -WorldPos.z;
-        vec2 buv = vec2((sx - TerrainOriginX) / max(TerrainWorldW, 1.0), (sz - TerrainOriginZ) / max(TerrainWorldD, 1.0));
-        buv = clamp(buv, 0.0, 1.0);
-        vec4 bw = texture(TerrainBlendMap, buv);
+    if (painted) {
+        // Dirt is stored as sand and rock equally. What they share is dirt.
+        paintedDirt = min(bw.r, bw.b);
+        bw.r -= paintedDirt;
+        bw.b -= paintedDirt;
         float sum = bw.r + bw.g + bw.b + bw.a;
         if (sum > 0.04) {
             float k = clamp(sum, 0.0, 1.0);
@@ -364,6 +371,12 @@ vec4 terrainSplat(inout vec3 n) {
         dirtW,
         sandMask,
         snowMask);
+    if (paintedDirt > 0.002) {
+        // Worn earth with stones in it, and an edge that frays into what is around it.
+        vec3 earth = mix(vec3(0.66, 0.54, 0.4), vec3(0.5, 0.39, 0.28), terrainNoise(WorldPos.xz * 0.7));
+        earth = mix(earth, rock, smoothstep(0.62, 0.8, terrainNoise(WorldPos.xz * 2.3)) * 0.5);
+        albedo = mix(albedo, earth, smoothstep(0.3, 0.62, paintedDirt + (terrainNoise(WorldPos.xz * 0.9) - 0.5) * 0.35));
+    }
     float b0 = terrainNoise(WorldPos.xz * 1.6);
     float bx = terrainNoise((WorldPos.xz + vec2(0.15, 0.0)) * 1.6);
     float bz = terrainNoise((WorldPos.xz + vec2(0.0, 0.15)) * 1.6);

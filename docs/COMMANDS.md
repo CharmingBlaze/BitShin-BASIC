@@ -1276,7 +1276,8 @@ See `docs/TERRAIN.md`. OpenGL **3.3** grids: central-difference normals, far chu
 | `SetTerrainHeight(t, gridX, gridZ, height)` | One lattice node (heightmap pixel, or `TerrainCellSize` node on proc terrain) | `SetTerrainHeight(t, 10, 12, 3.5)` |
 | `TerrainGridHeight(t, gridX, gridZ)` | Read one lattice node | `h# = TerrainGridHeight(t, 10, 12)` |
 | `TerrainCellSize(t)` | Lattice spacing in world units | `c# = TerrainCellSize(t)` |
-| `PaintTerrain(t, x, z, radius, layer [, strength, falloff])` | Paint the blend map: `0` sand `1` grass `2` rock `3` snow `-1` erase. Uploads only touched texels | `PaintTerrain(t, x, z, 4, 2, 0.3)` |
+| `PaintTerrainPath(t, x0, z0, x1, z1, width [, layer])` | Paint a track between two points, dirt unless a layer is given. Worn earth with a frayed edge. Grass and trees stay off painted dirt, sand, and rock, for anything planted after the paint | `PaintTerrainPath(ground, 0, 0, 40, 25, 5)` |
+| `PaintTerrain(t, x, z, radius, layer [, strength, falloff])` | Paint the blend map: `0` sand `1` grass `2` rock `3` snow `4` dirt `-1` erase. Uploads only touched texels | `PaintTerrain(t, x, z, 4, 2, 0.3)` |
 | `SetTerrainPaintArea(t, x0, z0, width, depth [, res])` | Rectangle and resolution of the paint map (clears it) | `SetTerrainPaintArea(t, -200, -200, 400, 400, 1024)` |
 | `ResetTerrainEdits(t)` | Undo all sculpting and painting | `ResetTerrainEdits(t)` |
 | `PickTerrain(t [, sx, sy])` | Mouse (or pixel) ray onto the heightfield; `1` on hit, point in `PickedX/Y/Z` | `If PickTerrain(t) Then x# = PickedX()` |
@@ -1391,7 +1392,7 @@ See `docs/WATER.md`. Two techniques, one shader: **Gerstner** vertex ocean + **s
 | `CreateBuoy(ent)` | Jolt lift + splash + wake impulse | `CreateBuoy(boat)` |
 | `SetWaterFollow(on)` | Recenter LOD grid on camera XZ | `SetWaterFollow(True)` |
 | `SetWaterLevel(y)` / `GetWaterLevel()` | Still-water plane | `SetWaterLevel(0)` |
-| `SetUnderwaterFog(r, g, b [, density])` | When camera is under | `SetUnderwaterFog(8, 35, 50, 0.09)` |
+| `SetUnderwaterFog(r, g, b [, density])` | When camera is under. By default the color comes from `SetWaterShallow`, or else the water color, with density 0.022 | `SetUnderwaterFog(8, 35, 50, 0.09)` |
 | `SetWaterStreamRadius(n)` | Large ocean: follow + far radius | `SetWaterStreamRadius(2)` |
 | `SetWaterCaustics([id,] on)` / `GetWaterCaustics` / `EnableWaterCaustics` | Animated caustics on terrain / underwater | `SetWaterCaustics(water, True)` |
 | `SetWaterSSR([id,] on)` / `GetWaterSSR` / `EnableWaterSSR` | Lite planar-FBO screen march (**Partial**) | `SetWaterSSR(water, True)` |
