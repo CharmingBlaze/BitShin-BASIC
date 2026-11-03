@@ -12,7 +12,8 @@ func vec3At(a []float32, i int) math32.Vector3 {
 }
 
 func TestOakCardsCarryUVsAndShade(t *testing.T) {
-	m := oakCards(rand.New(rand.NewSource(1)), 20, 40)
+	r1 := rand.New(rand.NewSource(1))
+	m := oakCards(r1, 20, oakLobes(r1, 20), 40)
 	if len(m.idx) != 40*6 || len(m.pos) != 40*4*3 {
 		t.Fatalf("got %d indices, %d position floats", len(m.idx), len(m.pos))
 	}
@@ -28,7 +29,8 @@ func TestOakCardsCarryUVsAndShade(t *testing.T) {
 }
 
 func TestFarCardsKeepWholeCards(t *testing.T) {
-	m := oakCards(rand.New(rand.NewSource(2)), 20, 40)
+	r2 := rand.New(rand.NewSource(2))
+	m := oakCards(r2, 20, oakLobes(r2, 20), 40)
 	g := m.geometry()
 	if g == nil {
 		t.Fatal("no geometry")
@@ -57,13 +59,14 @@ func TestFarCrownsAreCheaper(t *testing.T) {
 	if near, far := pineCrown(r(), 20, 8, 11, true), pineCrown(r(), 20, 4, 6, false); len(far.idx)*4 > len(near.idx) {
 		t.Fatalf("pine: far %d indices, near %d", len(far.idx), len(near.idx))
 	}
-	if near, far := oakCrown(r(), 20, 7, 0.7, false), oakCrown(r(), 20, 6, 0.7, true); len(far.idx)*4 > len(near.idx) {
+	lobes := oakLobes(r(), 20)
+	if near, far := oakCrown(r(), 20, lobes, 8, 0.55, false), oakCrown(r(), 20, lobes, 8, 0.2, true); len(far.idx)*3 > len(near.idx) {
 		t.Fatalf("oak: far %d indices, near %d", len(far.idx), len(near.idx))
 	}
 }
 
 func TestGrassTuftGrowsFromTheGround(t *testing.T) {
-	p := grassTuft(0.55)
+	p := grassTuft(0.55, false)
 	if len(p.verts) != 15 || len(p.idx) != 15 || len(p.shades) != 15 {
 		t.Fatalf("got %d verts, %d indices, %d shades", len(p.verts), len(p.idx), len(p.shades))
 	}
@@ -94,5 +97,60 @@ func TestMountainIslandIsAnIsland(t *testing.T) {
 		if d[i] > 0.3 || d[(n-1)*n+i] > 0.3 {
 			t.Fatalf("land reaches the map edge at column %d", i)
 		}
+	}
+}
+
+func TestCurvedGrassKeepsItsBladesWhole(t *testing.T) {
+	p := grassTuft(0.55, true)
+	if len(p.verts) != 25 || len(p.idx) != 45 || len(p.shades) != 25 {
+		t.Fatalf("got %d verts, %d indices, %d shades", len(p.verts), len(p.idx), len(p.shades))
+	}
+	for _, i := range p.idx {
+		if int(i) >= len(p.verts) {
+			t.Fatalf("index %d of %d", i, len(p.verts))
+		}
+	}
+}
+
+func TestOakLobesAreSeparateMasses(t *testing.T) {
+	lobes := oakLobes(rand.New(rand.NewSource(5)), 20)
+	if len(lobes) < 5 {
+		t.Fatalf("%d lobes", len(lobes))
+	}
+	top := lobes[0].c.Y
+	for _, l := range lobes[1:] {
+		if l.c.Y >= top {
+			t.Fatalf("lobe at %v above the top at %v", l.c.Y, top)
+		}
+	}
+}
+
+func TestWaterNormalTiles(t *testing.T) {
+	const n = 256
+	img := genWaterNormal(n)
+	var worst, inner int
+	diff := func(x0, y0, x1, y1 int) int {
+		a, b := img.PixOffset(x0, y0), img.PixOffset(x1, y1)
+		d := 0
+		for c := 0; c < 3; c++ {
+			v := int(img.Pix[a+c]) - int(img.Pix[b+c])
+			if v < 0 {
+				v = -v
+			}
+			d += v
+		}
+		return d
+	}
+	for i := 0; i < n; i++ {
+		if d := diff(n-1, i, 0, i); d > worst {
+			worst = d
+		}
+		if d := diff(n/2, i, n/2+1, i); d > inner {
+			inner = d
+		}
+	}
+	// Across the wrap should be no rougher than across any other two columns.
+	if worst > inner*2+8 {
+		t.Fatalf("seam at the wrap: %d, against %d inside the tile", worst, inner)
 	}
 }

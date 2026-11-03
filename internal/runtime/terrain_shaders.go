@@ -75,6 +75,9 @@ uniform sampler2D TerrainSnow;
 uniform sampler2D TerrainRockN;
 uniform sampler2D TerrainBlendMap;
 uniform int TerrainHasBlend;
+uniform sampler2D TerrainBake;
+uniform int TerrainHasBake;
+uniform vec4 TerrainBakeRect;
 uniform float TerrainWorldW;
 uniform float TerrainWorldD;
 uniform float TerrainOriginX;
@@ -180,9 +183,11 @@ vec3 triplanarRGB(sampler2D tex, int has, vec3 fallback, vec3 wp, vec3 n, float 
     // A projection that adds under 2% is not worth its reads.
     vec3 sum = vec3(0.0);
     float kept = 0.0;
-    if (an.x > 0.02) { sum += textureGrad(tex, wp.zy * sc, tpDx.zy * sc, tpDy.zy * sc).rgb * an.x; kept += an.x; }
+    // Each side projection starts somewhere else in the texture, or their rows line
+    // up around a mountain and read as one wrapped image.
+    if (an.x > 0.02) { sum += textureGrad(tex, wp.zy * sc + vec2(0.37, 0.11), tpDx.zy * sc, tpDy.zy * sc).rgb * an.x; kept += an.x; }
     if (an.y > 0.02) { sum += stochasticRGB(tex, wp.xz * sc, tpDx.xz * sc, tpDy.xz * sc) * an.y; kept += an.y; }
-    if (an.z > 0.02) { sum += textureGrad(tex, wp.xy * sc, tpDx.xy * sc, tpDy.xy * sc).rgb * an.z; kept += an.z; }
+    if (an.z > 0.02) { sum += textureGrad(tex, wp.xy * sc + vec2(0.71, 0.53), tpDx.xy * sc, tpDy.xy * sc).rgb * an.z; kept += an.z; }
     return sum / max(kept, 1e-5);
 }
 
@@ -217,6 +222,12 @@ float terrainSnowMask(float h, float ny) {
     return smoothstep(line - soft, line + soft, h) * smoothstep(0.36, 0.72, ny);
 }
 
+// From BakeTerrain: how much sky this point sees, and how much water runs past.
+float bakeAO = 1.0;
+float bakeFlow = 0.0;
+bool baked = false;
+float rockShown = 0.0;
+
 vec4 terrainSplat(inout vec3 n) {
     float h = WorldPos.y;
     vec3 tp = retroTexPos();
@@ -224,7 +235,20 @@ vec4 terrainSplat(inout vec3 n) {
     // gradients is the same as Godot's log2(scale) mip bias.
     tpDx = dFdx(tp) * TerrainMipScale;
     tpDy = dFdy(tp) * TerrainMipScale;
+    // Taken before the baked normal: what material shows follows the ground's real
+    // shape. Cracks only light it, or they draw rock in scars across a meadow.
     float ny = clamp(n.y, 0.0, 1.0);
+    if (TerrainHasBake != 0) {
+        vec2 buv = (vec2(WorldPos.x, -WorldPos.z) - TerrainBakeRect.xy) / TerrainBakeRect.zw;
+        vec4 bk = texture(TerrainBake, buv);
+        if (buv.x >= 0.0 && buv.y >= 0.0 && buv.x <= 1.0 && buv.y <= 1.0) {
+            vec2 xz = bk.rg * 2.0 - 1.0;
+            n = normalize(vec3(xz.x, sqrt(max(1.0 - dot(xz, xz), 0.01)), xz.y));
+            bakeAO = bk.b;
+            bakeFlow = bk.a;
+            baked = true;
+        }
+    }
     float cover = clamp(TerrainGrassCover, 0.0, 1.0);
     float grassLo = mix(0.55, 0.32, cover);
     // High rockMask is flat ground (grass). Low is a cliff.
@@ -239,6 +263,10 @@ vec4 terrainSplat(inout vec3 n) {
     vec3 valleyGrass = vec3(0.16, 0.30, 0.12);
     vec3 hillGrass = vec3(0.36, 0.38, 0.18);
     vec3 grass = mix(valleyGrass, hillGrass, hFac);
+    if (baked) {
+        // Water gathers in gullies, and it greens them.
+        grass *= mix(vec3(1.0), vec3(0.88, 0.98, 0.86), smoothstep(0.5, 0.95, bakeFlow));
+    }
     vec3 rock = TerrainRockColor;
     if (rock.x + rock.y + rock.z < 0.05) { rock = vec3(0.42, 0.36, 0.30); }
     vec3 dirt = vec3(0.34, 0.24, 0.14);
@@ -266,12 +294,23 @@ vec4 terrainSplat(inout vec3 n) {
     // Cliffs read as one flat stain from afar: add horizontal strata and
     // darker crevices so a face has layers, plus a slow tone drift.
     float strata = terrainNoise(vec2(WorldPos.y * 0.55, (WorldPos.x + WorldPos.z) * 0.02));
+    if (LinearLight != 0) {
+        // Layers tilt and bend, and a cliff is banded only where it is steep.
+        float layer = WorldPos.y + dot(WorldPos.xz, vec2(0.07, 0.04)) + (terrainNoise(WorldPos.xz * 0.03) - 0.5) * 9.0;
+        strata = mix(0.53, terrainNoise(vec2(layer * 0.55, 3.7)), 1.0 - rockMask);
+        if (TerrainCheap == 0) {
+            // A second, much larger scale, so the tile does not repeat across a face.
+            rock *= 0.72 + 0.56 * terrainLuma(triplanarRGB(TerrainRock, TerrainHasRock, rock, tp, n, 0.0093));
+        }
+    }
     float crev = smoothstep(0.62, 0.92, terrainNoise(WorldPos.xz * 0.21 + WorldPos.y * 0.13));
     // Linear light deepens contrast, so the bands that read as layers on the
     // old path would become hard stripes here.
-    float strataK = LinearLight != 0 ? 0.04 : 0.30;
+    float strataK = LinearLight != 0 ? 0.09 : 0.30;
     rock *= (1.0 - strataK * 0.53 + strataK * strata) * (1.0 - 0.32 * crev);
     rock *= 0.9 + 0.2 * terrainNoise(WorldPos.xz * 0.004 + 3.7);
+    // Streaks where water runs down the rock.
+    rock *= 1.0 - 0.34 * bakeFlow;
     }
     if (painted || sandMask > 0.002) {
         sand = mix(sand, triplanarRGB(TerrainSand, TerrainHasSand, sand, tp, n, 0.10), 0.72);
@@ -315,6 +354,7 @@ vec4 terrainSplat(inout vec3 n) {
         }
     }
     float open = (1.0 - sandMask) * (1.0 - snowMask);
+    rockShown = (1.0 - rockMask) * open;
     float dirtW = (1.0 - rockMask) * smoothstep(grassLo, grassLo + 0.18, ny) * (1.0 - hFac) * 0.55 * open;
     vec3 albedo = heightBlend(rock, grass, dirt, sand, snow,
         (1.0 - rockMask) * open,
@@ -328,7 +368,7 @@ vec4 terrainSplat(inout vec3 n) {
     // Bump fades out with distance: past ~40 m it only adds shimmer.
     float bump = mix(0.42, 0.10, rockMask) * (1.0 - snowMask) * (1.0 - smoothstep(15.0, 45.0, camD));
     n = normalize(n + vec3(b0 - bx, 0.0, b0 - bz) * bump);
-    if (TerrainCheap == 0) {
+    if (TerrainCheap == 0 && !baked) {
         // Lumps a few metres across catch the sun well past where the fine
         // bump stops, so mid-distance ground has shape, not a smooth wash.
         float m0 = terrainNoise(WorldPos.xz * 0.31);
@@ -343,7 +383,17 @@ vec4 terrainSplat(inout vec3 n) {
         vec3 t = normalize(cross(up, n));
         vec3 b = normalize(cross(n, t));
         mat3 TBN = mat3(t, b, n);
-        vec3 rn = texture(TerrainRockN, WorldPos.xz * 0.07).rgb * 2.0 - 1.0;
+        // Projected along the face's main axis: from above, a cliff's map stretches.
+        vec2 ruv = WorldPos.xz;
+        vec2 rdx = tpDx.xz;
+        vec2 rdy = tpDy.xz;
+        if (abs(n.y) < 0.7) {
+            bool alongZ = abs(n.x) > abs(n.z);
+            ruv = alongZ ? WorldPos.zy : WorldPos.xy;
+            rdx = alongZ ? tpDx.zy : tpDx.xy;
+            rdy = alongZ ? tpDy.zy : tpDy.xy;
+        }
+        vec3 rn = textureGrad(TerrainRockN, ruv * 0.07, rdx * 0.07, rdy * 0.07).rgb * 2.0 - 1.0;
         n = normalize(mix(n, TBN * rn, (1.0 - rockMask) * 0.55));
     }
     return vec4(albedo, 1.0);
@@ -367,10 +417,14 @@ void main() {
 #endif
     }
     vec3 albedo = toLin(texMixed.rgb * MatDiffuseColor);
-    vec3 nDx = dFdx(n);
-    vec3 nDy = dFdy(n);
-    float cavity = clamp(dot(normalize(n + nDx + nDy), n), 0.0, 1.0);
-    albedo *= mix(0.74, 1.0, cavity);
+    if (baked) {
+        albedo *= mix(0.86, 1.0, bakeAO);
+    } else {
+        vec3 nDx = dFdx(n);
+        vec3 nDy = dFdy(n);
+        float cavity = clamp(dot(normalize(n + nDx + nDy), n), 0.0, 1.0);
+        albedo *= mix(0.74, 1.0, cavity);
+    }
     vec3 L = TerrainSunDir;
     if (dot(L, L) < 1e-6) { L = vec3(0.35, 0.82, 0.28); }
     L = normalize(L);
@@ -391,6 +445,12 @@ void main() {
         hemi = skyAmbient(n);
         sunK = 1.0;
         hemiK = 1.0;
+    }
+    hemi *= mix(0.55, 1.0, bakeAO);
+    if (LinearLight != 0) {
+        // Rock has no color of its own to hold against a blue sky, and light bounced
+        // off the land around it warms it. Without this every shaded face goes blue.
+        hemi = mix(hemi, vec3(terrainLuma(hemi)) * vec3(1.06, 1.0, 0.92), rockShown * 0.7);
     }
     vec3 V = normalize(CamWorldPos - WorldPos);
     float groundLevel = smoothstep(mix(0.55, 0.32, clamp(TerrainGrassCover, 0.0, 1.0)), mix(0.90, 0.67, clamp(TerrainGrassCover, 0.0, 1.0)), clamp(n.y, 0.0, 1.0));

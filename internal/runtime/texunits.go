@@ -30,6 +30,7 @@ const (
 	unitTerrainSnow   = 6
 	unitTerrainRockN  = 7
 	unitTerrainBlend  = 10
+	unitTerrainBake   = 11 // terrain has no EmitMap
 
 	// Water. Its material has no G3N textures, so 0-5 are free.
 	unitWaterWake         = 5
@@ -67,7 +68,7 @@ var programUnits = map[string]struct {
 	"mbterrain": {2, map[string]int{
 		"TerrainSand": unitTerrainSand, "TerrainGrass": unitTerrainGrass, "TerrainGrass2": unitTerrainGrass2,
 		"TerrainRock": unitTerrainRock, "TerrainSnow": unitTerrainSnow, "TerrainRockN": unitTerrainRockN,
-		"TerrainBlendMap": unitTerrainBlend, "ShadowMap": unitShadow, "ShadowMapDyn": unitShadowDyn,
+		"TerrainBlendMap": unitTerrainBlend, "TerrainBake": unitTerrainBake, "ShadowMap": unitShadow, "ShadowMapDyn": unitShadowDyn,
 		"uEnvCube":    unitEnvCubeTerrain,
 		"SpotCookie0": unitCookie0, "SpotCookie1": unitCookie1, "WaterCaustic": unitCaustic,
 	}},

@@ -90,9 +90,13 @@ void main() {
         vec2 wuv = VertexPosition.xz / max(WakeSpan, 8.0) + 0.5;
         if (wuv.x > 0.001 && wuv.x < 0.999 && wuv.y > 0.001 && wuv.y < 0.999) {
             vec4 wk = texture(WaterWake, wuv);
-            p.y += (wk.r - 0.5) * WakeAmp * 2.0;
-            n.x -= (wk.g - 0.5) * 1.8;
-            n.z -= (wk.b - 0.5) * 1.8;
+            // Fades out before its edge. A hard stop drew the square's sides as
+            // two straight lines across the sea, following the camera.
+            vec2 wedge = smoothstep(vec2(0.0), vec2(0.08), wuv) * smoothstep(vec2(0.0), vec2(0.08), 1.0 - wuv);
+            float wfade = wedge.x * wedge.y;
+            p.y += (wk.r - 0.5) * WakeAmp * 2.0 * wfade;
+            n.x -= (wk.g - 0.5) * 1.8 * wfade;
+            n.z -= (wk.b - 0.5) * 1.8 * wfade;
         }
     }
     n = normalize(n);
@@ -245,7 +249,9 @@ void main() {
     vec2 ndc = (ClipSpace.xy / max(ClipSpace.w, 0.0001)) * 0.5 + 0.5;
     vec2 reflectUV = vec2(ndc.x, 1.0 - ndc.y);
     vec2 refractUV = vec2(ndc.x, ndc.y);
-    vec2 tex = FragTexcoord;
+    // From the world, not the mesh: a following mesh keeps its coordinates under the
+    // camera, so the ripples rode along with the viewer instead of lying on the sea.
+    vec2 tex = vec2(WorldPos.x, -WorldPos.z) * 0.04;
     // Open ocean has no seabed. 12 m sat inside the "bottom is close" window
     // and painted the whole surface with the refraction image.
     float meters = 80.0;
@@ -292,7 +298,8 @@ void main() {
         if (wuv.x > 0.001 && wuv.x < 0.999 && wuv.y > 0.001 && wuv.y < 0.999) {
             vec4 wk = texture(WaterWake, wuv);
             vec3 wn = normalize(vec3(-(wk.g - 0.5) * 2.0, 1.0, -(wk.b - 0.5) * 2.0));
-            waveNormal = normalize(mix(waveNormal, wn, 0.35 * WakeAmp));
+            vec2 wedge = smoothstep(vec2(0.0), vec2(0.08), wuv) * smoothstep(vec2(0.0), vec2(0.08), 1.0 - wuv);
+            waveNormal = normalize(mix(waveNormal, wn, 0.35 * WakeAmp * wedge.x * wedge.y));
         }
     }
 
@@ -337,7 +344,14 @@ void main() {
         // Near the camera only: far away the depth buffer cannot tell half
         // a metre, and whole lakes read as "shallow" and went pale.
         float edge = (1.0 - smoothstep(0.0, 0.5, meters)) * (1.0 - smoothstep(60.0, 200.0, camDist));
-        refrColor = mix(refrColor, grabbedR, max(bottom * 0.8, edge));
+        float seen = max(bottom * 0.8, edge);
+        if (LinearLight != 0) {
+            // The bottom is plainest where the water is thinnest, and fades with
+            // depth. A window at one or two metres showed sand outside the
+            // turquoise, which drew a second band along every beach.
+            seen = exp(-meters * max(viewDir.y, 0.05) * 4.0 / clearTo);
+        }
+        refrColor = mix(refrColor, grabbedR, seen);
     }
     vec3 reflectCol = mix(deepWaterColor, toLin(vec3(0.65, 0.78, 0.9)), 0.35);
     if (LinearLight != 0 && WaterReflectOn == 0 && dot(WaterSkyTop, WaterSkyTop) > 0.0) {
@@ -347,6 +361,15 @@ void main() {
     }
     if (WaterReflectOn != 0) {
         vec3 grabbed = texture(WaterReflect, reflectUV).rgb;
+        if (LinearLight != 0) {
+            // A rippled surface smears what it mirrors, mostly up and down. A sharp
+            // copy of a cloud reads as a pale stain lying on the sea.
+            grabbed = (grabbed * 2.0
+                + texture(WaterReflect, clamp(reflectUV + vec2(0.004, 0.014), 0.001, 0.999)).rgb
+                + texture(WaterReflect, clamp(reflectUV - vec2(0.004, 0.014), 0.001, 0.999)).rgb
+                + texture(WaterReflect, clamp(reflectUV + vec2(-0.006, 0.034), 0.001, 0.999)).rgb
+                + texture(WaterReflect, clamp(reflectUV - vec2(-0.006, 0.034), 0.001, 0.999)).rgb) / 6.0;
+        }
         vec3 planar = grabbed;
         if (WaterSSROn != 0) {
             vec3 viewR = reflect(normalize(Position.xyz), normalize(Normal));
@@ -411,7 +434,7 @@ void main() {
     }
     float foamStart = maxWavePeak * 0.90;
     float foamMask = smoothstep(foamStart, maxWavePeak, waveHeight);
-    vec2 foamUV = FragTexcoord * 3.0 + vec2(WaterMove * 0.1);
+    vec2 foamUV = tex * 3.0 + vec2(WaterMove * 0.1);
     float foamNoise = texture(WaterNormal, foamUV).r;
     foamMask *= step(0.3, foamNoise);
     foamMask *= 1.0 - contact;
@@ -426,9 +449,9 @@ void main() {
         lap = mix(lap, 0.5, smoothstep(0.5, 1.5, fwidth(meters) * 5.0));
         // Wider with distance, so the coast keeps its white line from afar
         // instead of the surf thinning to nothing under a pixel.
-        surf = (1.0 - smoothstep(0.03, 0.9 + camDist * 0.004, meters)) * mix(0.3, 1.0, lap);
+        surf = (1.0 - smoothstep(0.03, 0.9 + camDist * (LinearLight != 0 ? 0.001 : 0.004), meters)) * mix(0.3, 1.0, lap);
         surf *= smoothstep(0.2, 0.55, foamNoise + 0.2);
-        surf *= exp(-camDist * 0.0012);
+        surf *= exp(-camDist * (LinearLight != 0 ? 0.003 : 0.0012));
     }
     vec3 waterWithFoam = mix(base, foamColor, clamp(foamMask * foamNoise + surf * 0.7, 0.0, 0.7));
 

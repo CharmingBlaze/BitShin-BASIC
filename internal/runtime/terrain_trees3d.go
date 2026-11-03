@@ -20,9 +20,10 @@ type meshPart struct {
 	// Shared-vertex form, for batches with a third of the vertex work.
 	verts, vnors []math32.Vector3
 	idx          []uint32
-	shades       []float32 // baked per vertex (CreateTree); nil shades by height
-	cardUV       []float32 // leaf cards: u, v per vertex
-	far          *meshPart // simplified twin for distant blocks; nil keeps this one
+	shades       []float32                       // baked per vertex (CreateTree); nil shades by height
+	cardUV       []float32                       // leaf cards: u, v per vertex
+	tintAt       func(x, z float32) math32.Color // per-copy color, in place of treeTint
+	far          *meshPart                       // simplified twin for distant blocks; nil keeps this one
 }
 
 // simplifiedPart is a part with about 40% of its triangles and smooth
@@ -609,6 +610,11 @@ func buildTreeBatches(parts []meshPart, minY, maxY float32, pts []scatterPt, swa
 	for _, part := range parts {
 		if len(part.verts) == 0 {
 			continue
+		}
+		if part.tintAt != nil {
+			for i, p := range pts {
+				tint[i] = part.tintAt(p.x, p.z)
+			}
 		}
 		im := &instancedMesh{count: len(pts), xforms: xf, tint: tint, sway: sway,
 			swayLo: minY, swayH: maxY - minY, verts: part.verts, vnors: part.vnors, vidx: part.idx, shades: part.shades, cardUV: part.cardUV}

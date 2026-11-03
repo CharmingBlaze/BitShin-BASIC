@@ -147,15 +147,18 @@ hm = GenerateHeightmapPreset("mountain-island", 256, 256, seed)
 HydraulicErodeHeightmap(hm, 3200, 24)
 ground = CreateTerrainFromHeightmap(hm, 800, 800, 160)
 ApplyTerrainSplat(ground)
+BakeTerrain(ground)
 SetTerrainClearings(ground, 1)
 TerrainTrees(ground, CreateTree("pine", 1), 0.14)
 TerrainTrees(ground, CreateTree("oak", 3), 0.06)
 SetTerrainGrass(ground, 1)
 ```
 
-`examples/island_orbit.mb` is this with water and sky. Costs on a Radeon 780M at 1280x720 with scaling off, in frame milliseconds for high / medium / low: 9.4 / 6.8 / 4.7 circling the island, 14.2 / 10.2 / 6.8 standing in the forest.
+`examples/island_orbit.mb` is this with water and sky. Costs on a Radeon 780M at 1280x720 with scaling off, in frame milliseconds for high / medium / low: about 9.4 / 7.1 / 4.6 circling the island, 14.8 / 9.5 / 6.8 standing in the forest.
 
-Three things keep it cheap. Oak crowns are a dark core inside leaf cards that the shader cuts into leaves from noise, so there is no leaf texture and fewer triangles than solid lumps. Each kind has a hand-built far model, and detail is chosen from the camera even when `SetStreamOrigin` fixes the streaming point. Near trees cast their shadow from the far model, because a soft shadow cannot show the difference and four cascades redraw every caster.
+`BakeTerrain` stores normals with cracks and ledges on steep rock, the real horizon around each point, and where water gathers, in one map. It took 51 ms on the 256 grid above. Rock and grass are still chosen from the ground's smooth shape, since using the detailed normal drew rock in scars across meadows.
+
+Three things keep it cheap. Oak crowns are several lobes, each a dark core inside leaf cards that the shader cuts into leaves from noise, so there is no leaf texture and fewer triangles than solid lumps. Each kind has a hand-built far model, and detail is chosen from the camera even when `SetStreamOrigin` fixes the streaming point. Near trees cast their shadow from the far model, because a soft shadow cannot show the difference and four cascades redraw every caster.
 
 ## Staying smooth
 

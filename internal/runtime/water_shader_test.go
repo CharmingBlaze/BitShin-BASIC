@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/g3n/engine/gls"
@@ -136,5 +137,18 @@ func TestWaterCausticTile(t *testing.T) {
 	}
 	if bright < 8 {
 		t.Fatalf("caustic tex too dark (%d bright texels)", bright)
+	}
+}
+
+func TestWaterWakeFadesBeforeItsEdge(t *testing.T) {
+	// A hard stop at the wake square's edge drew two straight lines across the sea.
+	if n := strings.Count(mbwaterVertex+mbwaterFragment, "smoothstep(vec2(0.0), vec2(0.08), wuv)"); n != 2 {
+		t.Fatalf("the wake should fade in both the vertex and fragment stages, found %d", n)
+	}
+}
+
+func TestWaterRipplesLieOnTheWorld(t *testing.T) {
+	if strings.Contains(mbwaterFragment, "vec2 tex = FragTexcoord") {
+		t.Fatal("ripple coordinates from a following mesh ride along with the camera")
 	}
 }

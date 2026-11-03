@@ -29,13 +29,29 @@ type grassCellState struct {
 type grassField struct {
 	amount, height float32
 	cells          map[chunkKey]grassCellState
-	tuft           meshPart
+	tuft, far      meshPart
+}
+
+// grassGroundTint follows the terrain shader's dry and lush drift, the same noise in
+// Go, so a patch of blades leans the way its ground does. It is kept slight: blades
+// light brighter than ground, and the shader's full drift turned a meadow gold. The
+// scene's Z is the map's negated. Neighbours get a little of their own variation.
+func grassGroundTint(x, z float32) math32.Color {
+	gz := -z
+	big := terrainNoiseGo(x*0.006, gz*0.006)*0.65 + terrainNoiseGo(x*0.019, gz*0.019)*0.35
+	k := smoothstep32(0.32, 0.74, big)
+	own := 0.92 + 0.16*terrainHashGo(x*3.1, z*2.7)
+	return math32.Color{
+		R: (0.9 + 0.14*k) * own,
+		G: own,
+		B: (1 - 0.1*k) * own,
+	}
 }
 
 // grassTuft is a few blades in one template, instanced over a cell.
-func grassTuft(height float32) meshPart {
+func grassTuft(height float32, curved bool) meshPart {
 	r := rand.New(rand.NewSource(4177))
-	p := meshPart{color: math32.Color{R: 0.4, G: 0.46, B: 0.22}}
+	p := meshPart{color: math32.Color{R: 0.4, G: 0.46, B: 0.22}, tintAt: grassGroundTint}
 	for i := 0; i < 5; i++ {
 		x, z := (r.Float32()-0.5)*0.75, (r.Float32()-0.5)*0.75
 		a := r.Float32() * 2 * math32.Pi
@@ -47,11 +63,27 @@ func grassTuft(height float32) meshPart {
 		up := math32.Vector3{Y: 1}
 		p.verts = append(p.verts,
 			math32.Vector3{X: x - s*w, Z: z + c*w},
-			math32.Vector3{X: x + s*w, Z: z - c*w},
-			math32.Vector3{X: x + c*lean, Y: h, Z: z + s*lean})
-		p.vnors = append(p.vnors, up, up, up)
+			math32.Vector3{X: x + s*w, Z: z - c*w})
+		p.vnors = append(p.vnors, up, up)
 		tip := 0.85 + r.Float32()*0.25
-		p.shades = append(p.shades, 0.55, 0.55, tip)
+		p.shades = append(p.shades, 0.5, 0.5)
+		if curved {
+			// A bend partway: it stays upright, then leans, as a stem does.
+			mx, mz := x+c*lean*0.28, z+s*lean*0.28
+			p.verts = append(p.verts,
+				math32.Vector3{X: mx - s*w*0.75, Y: h * 0.58, Z: mz + c*w*0.75},
+				math32.Vector3{X: mx + s*w*0.75, Y: h * 0.58, Z: mz - c*w*0.75})
+			p.vnors = append(p.vnors, up, up)
+			p.shades = append(p.shades, 0.7, 0.7)
+			p.verts = append(p.verts, math32.Vector3{X: x + c*lean, Y: h, Z: z + s*lean})
+			p.vnors = append(p.vnors, up)
+			p.shades = append(p.shades, tip)
+			p.idx = append(p.idx, base, base+1, base+2, base+2, base+1, base+3, base+2, base+3, base+4)
+			continue
+		}
+		p.verts = append(p.verts, math32.Vector3{X: x + c*lean, Y: h, Z: z + s*lean})
+		p.vnors = append(p.vnors, up)
+		p.shades = append(p.shades, tip)
 		p.idx = append(p.idx, base, base+1, base+2)
 	}
 	return p
@@ -102,7 +134,11 @@ func (w *World) buildGrassCell(t *terrain, g *grassField, k chunkKey, near bool)
 	if len(pts) == 0 {
 		return 0
 	}
-	arrs := buildTreeBatches([]meshPart{g.tuft}, 0, g.height, pts, true)
+	tuft := g.far
+	if near {
+		tuft = g.tuft
+	}
+	arrs := buildTreeBatches([]meshPart{tuft}, 0, g.height, pts, true)
 	if len(arrs) == 0 {
 		return 0
 	}
@@ -187,5 +223,5 @@ func (w *World) setTerrainGrass(t *terrain, amount, height float32) {
 	if amount <= 0 {
 		return
 	}
-	t.grass = &grassField{amount: amount, height: height, cells: map[chunkKey]grassCellState{}, tuft: grassTuft(height)}
+	t.grass = &grassField{amount: amount, height: height, cells: map[chunkKey]grassCellState{}, tuft: grassTuft(height, true), far: grassTuft(height, false)}
 }

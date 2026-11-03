@@ -9154,6 +9154,12 @@
           "category": "Terrain"
         },
         {
+          "syntax": "BakeTerrain([t] [, size])",
+          "name": "BakeTerrain",
+          "description": "Normal, occlusion, and water flow maps for a finite terrain: more shape on rock, and fewer noise calls per pixel. Size defaults to four texels per grid cell, up to 2048. Sculpting turns it off; call it again afterwards. Returns 1 if baked",
+          "category": "Terrain"
+        },
+        {
           "syntax": "SetTerrainClearings([t,] amount#)",
           "name": "SetTerrainClearings",
           "description": "0 keeps thin trees between stands; 1 opens bare clearings and keeps trees off the beach. Set before `TerrainTrees`",
@@ -20516,6 +20522,12 @@
       "syntax": "CreateTree(kind$ [, seed, height])",
       "name": "CreateTree",
       "description": "A generated tree template for `TerrainTrees`: `pine` or `oak`. Each seed is a different shape, and it needs no art files. Oak leaves need `SetLook \"modern\"` or `SetLinearLight True` to be cut out",
+      "category": "Terrain"
+    },
+    {
+      "syntax": "BakeTerrain([t] [, size])",
+      "name": "BakeTerrain",
+      "description": "Normal, occlusion, and water flow maps for a finite terrain: more shape on rock, and fewer noise calls per pixel. Size defaults to four texels per grid cell, up to 2048. Sculpting turns it off; call it again afterwards. Returns 1 if baked",
       "category": "Terrain"
     },
     {

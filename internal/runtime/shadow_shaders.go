@@ -426,8 +426,8 @@ void main() {
             // Sky from above, leaf-green bounce from below, about 2:1 as in
             // Crysis. More ambient would flatten the shape, so it stays modest.
             vec3 up = skyAmbient(normalize(wN + vec3(0.0, 0.8, 0.0)));
-            vec3 bounce = vec3(0.09, 0.12, 0.05);
-            hemi = mix(bounce, up, clamp(wN.y * 0.5 + 0.5, 0.0, 1.0)) * vec3(matDiffuse) * 1.35;
+            vec3 bounce = vec3(0.16, 0.20, 0.09);
+            hemi = mix(bounce, up, clamp(wN.y * 0.5 + 0.5, 0.0, 1.0)) * vec3(matDiffuse) * 1.6;
         }
     }
     vec3 finalRGB = ambientColor + hemi * hemiK + totalDiffuse + totalSpec;

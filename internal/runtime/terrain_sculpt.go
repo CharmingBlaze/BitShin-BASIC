@@ -477,6 +477,7 @@ func (w *World) flushTerrainSculpt() {
 		}
 		t.sculpt.editTick++
 		if len(t.sculpt.sculptDirty) > 0 {
+			w.dropTerrainBake(t) // it no longer matches the ground
 			far := false
 			for k, ar := range t.sculpt.sculptDirty {
 				if t.ents[k] == 0 {

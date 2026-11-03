@@ -93,7 +93,9 @@ Added after the report, as the list is built. Timings are the Radeon 780M at 128
 | 22 | Mostly | Per-octave ridging, rotated octaves, derivative damping, octaves limited by map size. Staged erosion and D8 rivers are not done |
 | 23 | Mostly | `CreateTree` pine and oak, leaf cards with no texture, far models, baked shade. Wind still draws through merged batches, not instances |
 | 30 | Partly | `SetTerrainGrass` blades. Root color does not yet match the ground's macro color |
-| 16, 17, 18, 19, 21, 24-29, 31-34 | Not started | Next by rank: 16 render queues, 17 sky, 18 terrain bake, 19 rock projection, 21 render targets |
+| 18 | Mostly | `BakeTerrain`: normals with rock detail, horizon occlusion, D8 flow, in one RGBA8 map. Macro color is not done |
+| 19 | Mostly | Decorrelated projections, a second large scale, warped strata, rock normals along the face. Per-projection normal frames are not done |
+| 16, 17, 21, 24-29, 31-34 | Not started | Next by rank: 16 render queues, 17 sky, 21 render targets |
 
 ## What not to build
 

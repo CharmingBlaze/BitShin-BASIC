@@ -132,6 +132,7 @@ type terrain struct {
 	grassCover   float32
 	clearing     float32 // 0 thin stands, 1 bare clearings and an open shore
 	grass        *grassField
+	bakeTex      int // BakeTerrain: normal X, Z, occlusion, flow
 	waterY       float32
 	blend        float32
 	fogFalloff   float32
@@ -1820,6 +1821,7 @@ func (m *terrainMat) RenderSetup(gs *gls.GLS) {
 	bind(t.snowTex, unitTerrainSnow, "TerrainSnow", "TerrainHasSnow")
 	bind(t.rockNrm, unitTerrainRockN, "TerrainRockN", "TerrainHasRockN")
 	bind(t.blendTex, unitTerrainBlend, "TerrainBlendMap", "TerrainHasBlend")
+	bind(t.bakeTex, unitTerrainBake, "TerrainBake", "TerrainHasBake")
 	m.w.uploadTerrainPaint(t) // PaintTerrain texels; the blend map is still bound
 }
 
@@ -1852,4 +1854,5 @@ func (m *terrainMat) bindPlainUniforms(gs *gls.GLS) {
 	setUni1f(gs, "TerrainWorldD", bd)
 	setUni1f(gs, "TerrainOriginX", bx)
 	setUni1f(gs, "TerrainOriginZ", bz)
+	setUni4f(gs, "TerrainBakeRect", t.hf.ox, t.hf.oz, t.hf.worldW, t.hf.worldD)
 }

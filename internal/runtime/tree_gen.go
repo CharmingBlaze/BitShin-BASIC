@@ -206,56 +206,85 @@ func crownShade(dist, height float32) float32 {
 	return math32.Max(0.36, math32.Min(s, 1.2))
 }
 
-// oakCrown is lumps spread over an ellipsoid shell, with a few inside to keep it
-// from looking hollow through the gaps.
-func oakCrown(r *rand.Rand, height float32, n int, reach float32, plain bool) *treeMesh {
+// crownLobe is one big mass of a broadleaf crown. A real crown is several, which is
+// what keeps it from reading as one ball at any distance.
+type crownLobe struct {
+	c math32.Vector3
+	r float32
+}
+
+// oakLobes places a crown's masses: one on top and a ring below, each different.
+func oakLobes(r *rand.Rand, height float32) []crownLobe {
+	n := 4 + r.Intn(3)
+	lobes := []crownLobe{{c: math32.Vector3{
+		X: (r.Float32() - 0.5) * height * 0.1,
+		Y: height * (0.76 + r.Float32()*0.06),
+		Z: (r.Float32() - 0.5) * height * 0.1,
+	}, r: height * (0.17 + r.Float32()*0.05)}}
+	spin := r.Float32() * 2 * math32.Pi
+	for i := 0; i < n; i++ {
+		a := spin + (float32(i)+r.Float32()*0.5)/float32(n)*2*math32.Pi
+		out := height * (0.15 + r.Float32()*0.12)
+		lobes = append(lobes, crownLobe{c: math32.Vector3{
+			X: math32.Cos(a) * out,
+			Y: height * (0.52 + r.Float32()*0.14),
+			Z: math32.Sin(a) * out,
+		}, r: height * (0.14 + r.Float32()*0.09)})
+	}
+	return lobes
+}
+
+func randomDir(r *rand.Rand) math32.Vector3 {
+	d := math32.Vector3{X: r.Float32()*2 - 1, Y: r.Float32()*2 - 1, Z: r.Float32()*2 - 1}
+	if d.LengthSq() < 1e-4 {
+		d.Y = 1
+	}
+	d.Normalize()
+	return d
+}
+
+// oakCrown is the solid part: lumps inside the lobes, dark through the leaf cards.
+func oakCrown(r *rand.Rand, height float32, lobes []crownLobe, n int, reach float32, plain bool) *treeMesh {
 	m := &treeMesh{}
 	centre := math32.Vector3{Y: height * 0.64}
-	rx, ry := height*0.36, height*0.3
+	rx := height * 0.36
 	for i := 0; i < n; i++ {
-		// Fibonacci spiral: even cover with no clumping, nudged to look grown.
-		k := (float32(i) + 0.5) / float32(n)
-		y := 1 - 2*k
-		ring := math32.Sqrt(math32.Max(1-y*y, 0))
-		a := float32(i) * 2.399963
-		shell := (0.72 + r.Float32()*0.28) * reach
-		p := math32.Vector3{
-			X: centre.X + math32.Cos(a)*ring*rx*shell,
-			Y: centre.Y + y*ry*shell,
-			Z: centre.Z + math32.Sin(a)*ring*rx*shell,
-		}
+		l := lobes[r.Intn(len(lobes))]
+		d := randomDir(r)
+		p := l.c
+		p.X += d.X * l.r * reach
+		p.Y += d.Y * l.r * reach
+		p.Z += d.Z * l.r * reach
 		rad := height * (0.1 + r.Float32()*0.05)
 		if plain {
-			rad *= 1.7
+			rad = l.r * 0.95
 		}
 		m.lump(r, p, rad, centre, rx, plain)
-	}
-	if !plain {
-		m.lump(r, centre, rx*0.72, centre, rx*2, false) // fills the middle, stays dark
 	}
 	return m
 }
 
-// oakCards spreads leaf cards over the crown's shell, facing mostly outward. Their
-// normals come from the crown, so they light as one soft mass, and each card's
-// single shade is also the seed that gives it its own pattern of leaves.
-func oakCards(r *rand.Rand, height float32, n int) *treeMesh {
+// oakCards spreads leaf cards over the lobes, facing mostly outward. Their normals
+// mix the lobe's and the crown's, so each mass is lit as a mass but the crown still
+// reads whole. Each card's single shade is also the seed for its pattern of leaves.
+func oakCards(r *rand.Rand, height float32, lobes []crownLobe, n int) *treeMesh {
 	m := &treeMesh{}
 	centre := math32.Vector3{Y: height * 0.64}
-	rx, ry := height*0.36, height*0.3
+	rx := height * 0.36
 	for i := 0; i < n; i++ {
-		k := (float32(i) + 0.5) / float32(n)
-		y := 1 - 2*k
-		ring := math32.Sqrt(math32.Max(1-y*y, 0))
-		a := float32(i) * 2.399963
-		shell := 0.6 + r.Float32()*0.45
-		d := math32.Vector3{X: math32.Cos(a) * ring, Y: y, Z: math32.Sin(a) * ring}
-		p := math32.Vector3{X: centre.X + d.X*rx*shell, Y: centre.Y + d.Y*ry*shell, Z: centre.Z + d.Z*rx*shell}
+		l := lobes[r.Intn(len(lobes))]
+		d := randomDir(r)
+		p := l.c
+		reach := l.r * (0.72 + r.Float32()*0.42)
+		p.X += d.X * reach
+		p.Y += d.Y * reach
+		p.Z += d.Z * reach
 		out := p
 		out.Sub(&centre)
 		dist := out.Length() / rx
 		height01 := (p.Y - centre.Y) / rx
 		out.Normalize()
+		nrm := math32.Vector3{X: out.X*0.5 + d.X*0.5, Y: out.Y*0.5 + d.Y*0.5, Z: out.Z*0.5 + d.Z*0.5}
 		face := math32.Vector3{X: d.X + (r.Float32()-0.5)*1.1, Y: d.Y + (r.Float32()-0.5)*1.1, Z: d.Z + (r.Float32()-0.5)*1.1}
 		face.Normalize()
 		up := math32.Vector3{Y: 1}
@@ -266,8 +295,9 @@ func oakCards(r *rand.Rand, height float32, n int) *treeMesh {
 		t1.CrossVectors(&face, &up)
 		t1.Normalize()
 		t2.CrossVectors(&face, &t1)
-		s := height * (0.14 + r.Float32()*0.07)
-		shade := crownShade(dist, height01) + (r.Float32()-0.5)*0.22
+		s := height * (0.1 + r.Float32()*0.06)
+		// Bright on top of each lobe and dark under it, which draws the masses apart.
+		shade := crownShade(dist, height01) + d.Y*0.14 + (r.Float32()-0.5)*0.16
 		base := uint32(len(m.pos) / 3)
 		for _, c := range [][2]float32{{0, 0}, {1, 0}, {1, 1}, {0, 1}} {
 			q := p
@@ -275,7 +305,7 @@ func oakCards(r *rand.Rand, height float32, n int) *treeMesh {
 			q.X += t1.X*x + t2.X*y
 			q.Y += t1.Y*x + t2.Y*y
 			q.Z += t1.Z*x + t2.Z*y
-			m.vert(q, out, shade)
+			m.vert(q, nrm, shade)
 			j := len(m.col) - 3
 			m.col[j], m.col[j+1] = c[0], c[1]
 		}
@@ -304,12 +334,13 @@ func (w *World) createTree(kind string, seed int, height float32) (int, error) {
 		// Each tree of a kind differs a little in hue.
 		leaf.G += (r.Float32() - 0.5) * 0.03
 	case "oak", "broadleaf", "tree":
-		crown = oakCrown(r, height, 7, 0.7, false)
-		far = oakCrown(r, height, 6, 0.7, true)
-		cards = oakCards(r, height, 56+r.Intn(16))
+		lobes := oakLobes(r, height)
+		crown = oakCrown(r, height, lobes, 8, 0.55, false)
+		far = oakCrown(r, height, lobes, len(lobes)+2, 0.2, true)
+		cards = oakCards(r, height, lobes, 64+r.Intn(16))
 		trunkH, trunkR = height*0.56, height*0.038
 		bark = math32.Color{R: 0.45, G: 0.37, B: 0.29}
-		leaf = math32.Color{R: 0.29, G: 0.41, B: 0.15}
+		leaf = math32.Color{R: 0.27, G: 0.36, B: 0.17}
 		leaf.R += (r.Float32() - 0.5) * 0.05
 	default:
 		return 0, fmt.Errorf("CreateTree: want pine or oak, got %q", kind)

@@ -889,7 +889,9 @@ func genWaterDuDv(n int) *image.RGBA {
 
 func waterNormalHeight(fx, fy float64, cells int) float64 {
 	h := waterValueNoise(fx, fy, cells)
-	h += 0.45 * waterValueNoise(fx*2.7, fy*2.7, cells*3)
+	// A whole multiple of the base scale, or this layer cannot wrap with the tile:
+	// 2.7 left a seam at every repeat, a straight line across the sea.
+	h += 0.45 * waterValueNoise(fx*3, fy*3, cells*3)
 	return h
 }
 
