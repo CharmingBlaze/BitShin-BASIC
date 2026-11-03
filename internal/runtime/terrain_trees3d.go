@@ -502,7 +502,9 @@ func (w *World) syncMeshTrees(t *terrain, cw float32, cam chunkKey) {
 		// bare patch. The rest are built on a worker: a block is ~1000
 		// trees, and merging them here was a 15-25 ms hitch.
 		far := isFar(b)
-		if b == cb {
+		// A repeatable snapshot cannot wait on a worker's timing: which form a block
+		// is in at a given frame would change from run to run.
+		if b == cb || fixedDelta() > 0 {
 			attach(b, far, build(b, far))
 			continue
 		}

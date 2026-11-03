@@ -307,6 +307,8 @@ vec4 terrainSplat(inout vec3 n) {
     // Linear light deepens contrast, so the bands that read as layers on the
     // old path would become hard stripes here.
     float strataK = LinearLight != 0 ? 0.09 : 0.30;
+    // Past a few hundred metres the crevice pattern is under a pixel and only speckles.
+    crev *= 1.0 - smoothstep(180.0, 600.0, length(Position.xyz));
     rock *= (1.0 - strataK * 0.53 + strataK * strata) * (1.0 - 0.32 * crev);
     rock *= 0.9 + 0.2 * terrainNoise(WorldPos.xz * 0.004 + 3.7);
     // Streaks where water runs down the rock.
@@ -609,14 +611,18 @@ float fbm(vec2 p, int oct) {
 // Cloud noise at p: big shapes, eaten at the edges by finer noise that
 // slowly changes so the clouds boil as they drift.
 float cloudNoise(vec2 p, int oct) {
-    float base = fbm(p, 2);
-    float detail = fbm(p * 3.1 + vec2(CloudTime * 0.012, -CloudTime * 0.008), oct);
-    return base * 0.72 + detail * 0.28;
+    // A slow weather map groups clouds into banks with clear sky between, or they
+    // come out as evenly scattered puffs with stray bits around them.
+    float weather = fbm(p * 0.21 + vec2(5.2, 1.3), 2);
+    float base = fbm(p, 2) + (weather - 0.5) * 0.42;
+    // Billows: rounded lumps that bite into the edge, as cumulus has.
+    float detail = 1.0 - abs(2.0 * fbm(p * 3.1 + vec2(CloudTime * 0.012, -CloudTime * 0.008), oct) - 1.0);
+    return base * 0.8 + detail * 0.2;
 }
 // Coverage from noise: 0 clear sky, 1 cloud.
 float cloudCov(float n) {
     float edge = 1.0 - CloudCover;
-    return smoothstep(edge - 0.06, edge + 0.16, n);
+    return smoothstep(edge - 0.05, edge + 0.2, n);
 }
 // Thickness past the edge. Under full cover the coverage is 1 everywhere;
 // this still varies, so an overcast sky keeps its shape.
@@ -634,7 +640,12 @@ void main() {
     int oct = CloudCheap > 0.5 ? 2 : (dist < 0.25 ? 4 : 3);
     float n = cloudNoise(p, oct);
     float c = cloudCov(n);
-    if (c < 0.01) discard;
+    // A thin high layer behind them, stretched along the wind: cirrus.
+    float high = 0.0;
+    if (CloudCheap < 0.5) {
+        high = smoothstep(0.56, 0.86, fbm(p * vec2(0.28, 0.85) + vec2(31.0, 7.0) + CloudTime * 0.002, 3)) * 0.26 * fade;
+    }
+    if (c < 0.01 && high < 0.01) discard;
     float th = cloudThick(n);
     vec3 sun = normalize(CloudSun);
     // Thicker toward the sun: this side is in the cloud's own shadow
@@ -664,6 +675,9 @@ void main() {
     // Far clouds melt into the haze, then away
     col = mix(col, CloudHaze, smoothstep(0.15, 0.85, dist) * 0.75);
     float alpha = c * fade * clamp(0.55 + 0.45 * dens, 0.4, 0.97);
+    vec3 highCol = mix(CloudHaze, CloudSunColor, 0.45);
+    col = mix(highCol, col, clamp(alpha / max(alpha + high * (1.0 - alpha), 0.001), 0.0, 1.0));
+    alpha += high * (1.0 - alpha);
     FragColor = vec4(toLin(col), alpha);
 }
 `

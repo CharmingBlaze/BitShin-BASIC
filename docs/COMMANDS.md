@@ -1222,7 +1222,7 @@ See `docs/TERRAIN.md`. OpenGL **3.3** grids: central-difference normals, far chu
 | `CreateTerrainFromHeightmap(hm [, w, d, hscale])` | Same as numeric `CreateTerrain` | `t = CreateTerrainFromHeightmap(hm, 80, 80, 14)` |
 | `LoadHeightmap(file$ [, w, d, hscale])` | Decode grayscale → **terrain** handle | `t = LoadHeightmap("h.png", 64, 64, 10)` |
 | `GenerateHeightmap(w, h, seed [, octaves, scale, persist, lacun, …])` | CPU FBM / ridged / diamond-square → heightmap handle. Up to 8192², generated on every core. A terrain over 2048² keeps 16-bit heights (4096² is 32 MB); `FreeHeightmap` after `CreateTerrainFromHeightmap` drops the float copy | `hm = GenerateHeightmap(128, 128, 42, 6, 70, 0.48, 2.15)` |
-| `GenerateHeightmapPreset(name$, w, h, seed)` | `alpine` `rolling-hills` `sharp-peaks` `archipelago` `plateaus` `gentle-dunes` `island` (one landmass, rim below 0.1) `mountain-island` (round, low coast, real peaks; follow with `HydraulicErodeHeightmap`, and set the sea near 0.3 of the height) | `hm = GenerateHeightmapPreset("alpine", 128, 128, 3)` |
+| `GenerateHeightmapPreset(name$, w, h, seed)` | `alpine` `rolling-hills` `sharp-peaks` `archipelago` `plateaus` `gentle-dunes` `island` (one landmass, rim below 0.1) `mountain-island` (round, low coast, real peaks; follow with `HydraulicErodeHeightmap`, and set the sea near 0.3 of the height) `valley` (a lake at 0.27 of the height, meadows, and a ring of mountains; pair with `SetTerrainEdge(t, "mirror")` so land continues past the map) | `hm = GenerateHeightmapPreset("alpine", 128, 128, 3)` |
 | `SaveHeightmap(path$ [, hm])` | Greyscale PNG | `SaveHeightmap("assets/heightmap.png", hm)` |
 | `ImportHeightmap(file$)` / `LoadHeightmapData` | Image → heightmap handle | `hm = ImportHeightmap("h.png")` |
 | `ErodeHeightmap(hm [, iters, talus, transfer])` | Thermal erosion | `ErodeHeightmap(hm, 6)` |
@@ -1374,6 +1374,7 @@ See `docs/WATER.md`. Two techniques, one shader: **Gerstner** vertex ocean + **s
 | `EnableWaterRefraction([on])` / `SetWaterRefraction` | Underwater color + depth FBO | `EnableWaterRefraction(True)` |
 | `SetWaterSpeed(s)` / `GetWaterSpeed()` | DuDv scroll rate | `SetWaterSpeed(0.04)` |
 | `SetWaterWaveStrength(s)` | DuDv distortion amount | `SetWaterWaveStrength(0.05)` |
+| `SetWaterRoughness(r#)` | 0 is a still mirror, 1 is choppy, 0.5 the default: how much ripples show and how far reflections smear, on the linear path | `SetWaterRoughness(0.3)` |
 | `SetWaterShallow(r, g, b [, metres])` | The color over shallow ground, out to that much water seen through (default 14). Use with `SetWaterClarity` | `SetWaterShallow(36, 150, 165, 16)` |
 | `SetWaterClarity(metres)` | How deep the bottom stays visible; `0` is the default, 70. A small value keeps a sea blue up to its shallows | `SetWaterClarity(7)` |
 | `SetWaterWaves(count [, amp])` | 0 = flat plane, 1–4 Gerstner | `SetWaterWaves(4, 0.42)` |

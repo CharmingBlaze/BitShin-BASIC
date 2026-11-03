@@ -154,3 +154,37 @@ func TestWaterNormalTiles(t *testing.T) {
 		t.Fatalf("seam at the wrap: %d, against %d inside the tile", worst, inner)
 	}
 }
+
+func TestQualityProfilesNameTheTiers(t *testing.T) {
+	for name, want := range map[string]int{"classic": qualityLow, "enhanced": qualityMedium, "advanced": qualityHigh, "Advanced ": qualityHigh} {
+		if got, auto := parseQuality(name); auto || got != want {
+			t.Fatalf("%q: tier %d auto %v, want tier %d", name, got, auto, want)
+		}
+	}
+}
+
+func TestCloudSheetStaysInsideTheFarPlane(t *testing.T) {
+	c := &cloudLayer{y: 420}
+	if r := c.cloudRadius(4000); r > 4000 {
+		t.Fatalf("radius %v past the far plane", r)
+	}
+	if r := c.cloudRadius(0); r != 9240 {
+		t.Fatalf("with no camera the radius should be its own, got %v", r)
+	}
+}
+
+func TestPineShapeVariesBySeed(t *testing.T) {
+	widest := func(seed int64) float32 {
+		m := pineCrown(rand.New(rand.NewSource(seed)), 20, 8, 11, true)
+		var w float32
+		for i := 0; i+2 < len(m.pos); i += 3 {
+			if d := m.pos[i]*m.pos[i] + m.pos[i+2]*m.pos[i+2]; d > w {
+				w = d
+			}
+		}
+		return w
+	}
+	if widest(1) == widest(2) {
+		t.Fatal("two seeds gave the same width")
+	}
+}

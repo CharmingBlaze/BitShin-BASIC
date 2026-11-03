@@ -9018,7 +9018,7 @@
         {
           "syntax": "GenerateHeightmapPreset(name$, w, h, seed)",
           "name": "GenerateHeightmapPreset",
-          "description": "`alpine` `rolling-hills` `sharp-peaks` `archipelago` `plateaus` `gentle-dunes` `island` (one landmass, rim below 0.1) `mountain-island` (round, low coast, real peaks; follow with `HydraulicErodeHeightmap`, and set the sea near 0.3 of the height)",
+          "description": "`alpine` `rolling-hills` `sharp-peaks` `archipelago` `plateaus` `gentle-dunes` `island` (one landmass, rim below 0.1) `mountain-island` (round, low coast, real peaks; follow with `HydraulicErodeHeightmap`, and set the sea near 0.3 of the height) `valley` (a lake at 0.27 of the height, meadows, and a ring of mountains; pair with `SetTerrainEdge(t, \"mirror\")` so land continues past the map)",
           "category": "Terrain"
         },
         {
@@ -10054,6 +10054,12 @@
           "syntax": "SetWaterWaveStrength(s)",
           "name": "SetWaterWaveStrength",
           "description": "DuDv distortion amount",
+          "category": "Water"
+        },
+        {
+          "syntax": "SetWaterRoughness(r#)",
+          "name": "SetWaterRoughness",
+          "description": "0 is a still mirror, 1 is choppy, 0.5 the default: how much ripples show and how far reflections smear, on the linear path",
           "category": "Water"
         },
         {
@@ -20389,7 +20395,7 @@
     {
       "syntax": "GenerateHeightmapPreset(name$, w, h, seed)",
       "name": "GenerateHeightmapPreset",
-      "description": "`alpine` `rolling-hills` `sharp-peaks` `archipelago` `plateaus` `gentle-dunes` `island` (one landmass, rim below 0.1) `mountain-island` (round, low coast, real peaks; follow with `HydraulicErodeHeightmap`, and set the sea near 0.3 of the height)",
+      "description": "`alpine` `rolling-hills` `sharp-peaks` `archipelago` `plateaus` `gentle-dunes` `island` (one landmass, rim below 0.1) `mountain-island` (round, low coast, real peaks; follow with `HydraulicErodeHeightmap`, and set the sea near 0.3 of the height) `valley` (a lake at 0.27 of the height, meadows, and a ring of mountains; pair with `SetTerrainEdge(t, \"mirror\")` so land continues past the map)",
       "category": "Terrain"
     },
     {
@@ -21140,6 +21146,12 @@
       "syntax": "SetWaterWaveStrength(s)",
       "name": "SetWaterWaveStrength",
       "description": "DuDv distortion amount",
+      "category": "Water"
+    },
+    {
+      "syntax": "SetWaterRoughness(r#)",
+      "name": "SetWaterRoughness",
+      "description": "0 is a still mirror, 1 is choppy, 0.5 the default: how much ripples show and how far reflections smear, on the linear path",
       "category": "Water"
     },
     {

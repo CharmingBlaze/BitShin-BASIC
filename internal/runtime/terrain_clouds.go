@@ -39,8 +39,20 @@ func (m *cloudMat) Dispose()                        { m.Standard.Dispose() }
 
 // cloudRadius is how far the sheet reaches: far enough that its fade into
 // the haze sits at the horizon from the usual heights.
-func (c *cloudLayer) cloudRadius() float32 {
-	return math32.Max(2400, c.y*22)
+func (c *cloudLayer) cloudRadius(far float32) float32 {
+	r := math32.Max(2400, c.y*22)
+	// Inside the far plane, or the sheet ends in a cut line before it has faded.
+	if far > 100 && r > far*0.98 {
+		r = far * 0.98
+	}
+	return r
+}
+
+func (w *World) cloudFar() float32 {
+	if w.cam != nil {
+		return w.cam.Far()
+	}
+	return 0
 }
 
 func (m *cloudMat) RenderSetup(gs *gls.GLS) {
@@ -73,7 +85,7 @@ func (m *cloudMat) RenderSetup(gs *gls.GLS) {
 	setUni1f(gs, "CloudScale", 1/math32.Max(c.span*0.55, 40))
 	setUni3f(gs, "CloudDrift", c.driftX, 0, c.driftZ)
 	setUni1f(gs, "CloudTime", c.time)
-	setUni1f(gs, "CloudRadius", c.cloudRadius())
+	setUni1f(gs, "CloudRadius", c.cloudRadius(w.cloudFar()))
 	setUni1f(gs, "CloudNight", w.skyNight())
 	cheap := float32(0)
 	if w.quality.set && w.quality.tier == qualityLow {
@@ -220,7 +232,7 @@ func (w *World) tickClouds(dt float32) {
 		n := e.node.GetNode()
 		n.SetVisible(c.cover > 0.02)
 		if hasCam {
-			r := c.cloudRadius()
+			r := c.cloudRadius(w.cloudFar())
 			n.SetPosition(cam.X, cam.Y+c.y, cam.Z)
 			n.SetScale(r, 1, r)
 		}

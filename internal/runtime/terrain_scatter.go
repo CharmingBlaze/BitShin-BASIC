@@ -446,7 +446,9 @@ func (w *World) scatterPoints(t *terrain, layer scatterLayer, key chunkKey, salt
 	if n <= 0 {
 		return nil
 	}
-	seed := int64(key.X)*73856093 ^ int64(key.Z)*19349663 ^ int64(salt+1)*83492791 ^ int64(layer.mesh)*17
+	// The layer's place, not its template's entity id: ids depend on what else
+	// was made first, and the same map should grow the same forest every run.
+	seed := int64(key.X)*73856093 ^ int64(key.Z)*19349663 ^ int64(salt+1)*83492791
 	rng := rand.New(rand.NewSource(seed))
 	pts := make([]scatterPt, 0, n)
 	space2 := spacing * spacing

@@ -1,8 +1,6 @@
 package runtime
 
 import (
-	goruntime "runtime"
-	"sync"
 	"fmt"
 	"image"
 	"image/color"
@@ -10,7 +8,9 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	goruntime "runtime"
 	"strings"
+	"sync"
 
 	"github.com/g3n/engine/texture"
 
@@ -31,15 +31,15 @@ type heightMap struct {
 
 // HeightmapSpec is the generator input (repo sliders + extras).
 type HeightmapSpec struct {
-	Width, Height     int
-	Seed, Octaves     int
-	Persistence       float64
-	Lacunarity        float64
-	Scale             float64
-	PanX, PanY        float64
-	Black, White      float64
-	Mode              string // fbm (default), ridged, diamond / diamondsquare
-	Island            bool   // sink the rim below 0.1 so the map is land in a sea
+	Width, Height int
+	Seed, Octaves int
+	Persistence   float64
+	Lacunarity    float64
+	Scale         float64
+	PanX, PanY    float64
+	Black, White  float64
+	Mode          string // fbm (default), ridged, diamond / diamondsquare
+	Island        bool   // sink the rim below 0.1 so the map is land in a sea
 }
 
 func (s HeightmapSpec) normalize() HeightmapSpec {
@@ -111,17 +111,86 @@ func heightmapPreset(name string) HeightmapSpec {
 		s.Island = true
 	case "mountain-island":
 		s.Mode = "mountain-island"
+	case "valley":
+		s.Mode = "valley"
 	}
 	return s
 }
 
-// fillMountainIsland is a round island with real mountains. Every octave is
-// ridged on its own, not the sum as one, so small ridges run off large ones.
-// Octaves are rotated, which hides the noise grid. Each octave is damped where
-// the land built so far is already steep, so crests stay sharp and flanks
-// smooth, as water leaves them (Inigo Quilez's derivative fBm). Where ridges rise
-// is a slow noise, so most of the land stays gentle and peaks stand out. The
-// radial falloff follows DBPRO2026's generator (MIT).
+// ridgedDamped is mountain noise, 0 to about 1. Every octave is ridged on its own,
+// not the sum as one, so small ridges run off large ones. Octaves are rotated,
+// which hides the noise grid. Each octave is damped where the land built so far is
+// already steep, so crests stay sharp and flanks smooth, as water leaves them
+// (Inigo Quilez's derivative fBm).
+func ridgedDamped(base *noise2, px, pz float64, octaves int) float64 {
+	ridges, amp, norm := 0.0, 1.0, 0.0
+	dx, dz := 0.0, 0.0
+	const e = 0.02
+	ridge := func(a, b float64) float64 {
+		r := 1 - math.Abs(base.noise(a, b))*1.5
+		if r < 0 {
+			r = 0
+		}
+		return r * r
+	}
+	for o := 0; o < octaves; o++ {
+		r := ridge(px, pz)
+		rx := (ridge(px+e, pz) - r) / e
+		rz := (ridge(px, pz+e) - r) / e
+		dx += rx * amp
+		dz += rz * amp
+		ridges += amp * r / (1 + 0.35*(dx*dx+dz*dz))
+		norm += amp
+		amp *= 0.52
+		px, pz = 1.6*px+1.2*pz+17.3, -1.2*px+1.6*pz+9.1
+	}
+	return ridges / norm
+}
+
+// fillValley is a lake in the middle, meadows and low hills around it, and a ring
+// of mountains toward the rim, so a view across the water has a near, a middle and
+// a far. Heights are fixed fractions and not normalised, so a lake set at 0.27 of
+// the height has a shore on every seed.
+func fillValley(data []float32, w, h, seed int) {
+	base := newNoise2(seed)
+	hillN := newNoise2(seed ^ 0x3c3c)
+	warpX, warpZ := newNoise2(seed^0xa5a5), newNoise2(seed^0x5a5a)
+	octaves := 1
+	for f := 2.6 * 2; f*4 < float64(w) && octaves < 8; f *= 2 {
+		octaves++
+	}
+	parallelRows(h, func(y0, y1 int) {
+		for j := y0; j < y1; j++ {
+			v := float64(j) / float64(h-1)
+			for i := 0; i < w; i++ {
+				u := float64(i) / float64(w-1)
+				x, z := u*4, v*4
+				wx := x + 0.5*warpX.fbm(x*0.5+11.3, z*0.5+2.7, 4, 0.5, 2)
+				wz := z + 0.5*warpZ.fbm(x*0.5+5.1, z*0.5+17.9, 4, 0.5, 2)
+				// Warped, so neither the shore nor the mountains are a circle.
+				d := math.Hypot(wx/4-0.5, wz/4-0.5) * 2
+				hills := hillN.fbm(wx*1.3, wz*1.3, 5, 0.5, 2)*0.5 + 0.5
+				ridges := ridgedDamped(base, wx*0.5, wz*0.5, octaves)
+				basin := 1 - smoothstep64(0.2, 0.46, d)
+				range_ := smoothstep64(0.54, 1.0, d)
+				val := 0.285 + hills*0.09*smoothstep64(0.2, 0.5, d) - basin*0.13
+				// Mostly a broad mass, with ridges on it: all ridge makes thin walls.
+				val += range_ * (0.26 + hills*0.2 + ridges*0.34)
+				if val < 0 {
+					val = 0
+				}
+				if val > 1 {
+					val = 1
+				}
+				data[j*w+i] = float32(val)
+			}
+		}
+	})
+}
+
+// fillMountainIsland is a round island with real mountains, from ridgedDamped.
+// Where ridges rise is a slow noise, so most of the land stays gentle and peaks
+// stand out. The radial falloff follows DBPRO2026's generator (MIT).
 func fillMountainIsland(data []float32, w, h, seed int) {
 	base := newNoise2(seed)
 	hillN := newNoise2(seed ^ 0x3c3c)
@@ -143,29 +212,7 @@ func fillMountainIsland(data []float32, w, h, seed int) {
 				wz := z + 0.6*warpZ.fbm(x*0.5+5.1, z*0.5+17.9, 4, 0.5, 2)
 				hills := hillN.fbm(wx, wz, 5, 0.5, 2)*0.5 + 0.5
 
-				ridges, amp, norm := 0.0, 1.0, 0.0
-				px, pz := wx*0.8, wz*0.8
-				dx, dz := 0.0, 0.0
-				const e = 0.02
-				for o := 0; o < octaves; o++ {
-					ridge := func(a, b float64) float64 {
-						r := 1 - math.Abs(base.noise(a, b))*1.5
-						if r < 0 {
-							r = 0
-						}
-						return r * r
-					}
-					r := ridge(px, pz)
-					rx := (ridge(px+e, pz) - r) / e
-					rz := (ridge(px, pz+e) - r) / e
-					dx += rx * amp
-					dz += rz * amp
-					ridges += amp * r / (1 + 0.35*(dx*dx+dz*dz))
-					norm += amp
-					amp *= 0.52
-					px, pz = 1.6*px+1.2*pz+17.3, -1.2*px+1.6*pz+9.1
-				}
-				ridges /= norm
+				ridges := ridgedDamped(base, wx*0.8, wz*0.8, octaves)
 
 				mask := (reach.fbm(x*0.35+40, z*0.35, 3, 0.5, 2) + 0.2) * 1.7
 				if mask < 0 {
@@ -203,6 +250,8 @@ func GenerateHeightmapCPU(spec HeightmapSpec) []float32 {
 		fillDiamondSquare(data, w, h, spec.Seed, spec.Persistence)
 	case "mountain-island":
 		fillMountainIsland(data, w, h, spec.Seed)
+	case "valley":
+		fillValley(data, w, h, spec.Seed)
 	default:
 		n := newNoise2(spec.Seed)
 		ridged := spec.Mode == "ridged" || spec.Mode == "ridge"
@@ -222,7 +271,10 @@ func GenerateHeightmapCPU(spec HeightmapSpec) []float32 {
 			}
 		})
 	}
-	normalize01(data)
+	// A valley's heights are fractions the script relies on, for where its lake sits.
+	if spec.Mode != "valley" {
+		normalize01(data)
+	}
 	if spec.Black > 0 || spec.White < 1 {
 		rng := spec.White - spec.Black
 		if rng < 1e-6 {

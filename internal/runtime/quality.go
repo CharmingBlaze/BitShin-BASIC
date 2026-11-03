@@ -75,11 +75,11 @@ func autoTier(renderer string) int {
 
 func parseQuality(s string) (tier int, auto bool) {
 	switch strings.ToLower(strings.TrimSpace(s)) {
-	case "low", "0":
+	case "low", "classic", "0":
 		return qualityLow, false
-	case "medium", "med", "1":
+	case "medium", "med", "enhanced", "1":
 		return qualityMedium, false
-	case "high", "2":
+	case "high", "advanced", "2":
 		return qualityHigh, false
 	case "ultra", "3":
 		return qualityUltra, false

@@ -159,6 +159,11 @@ func (m *WaterMaterial) Bind(gs *gls.GLS) {
 	setUni1f(gs, "WaterReflectivity", wb.reflectivity)
 	m.w.bindLinear(gs)
 	setUni1f(gs, "WaterClarity", wb.clarity)
+	rough := wb.rough
+	if rough <= 0 {
+		rough = 0.5
+	}
+	setUni1f(gs, "WaterRough", rough*2)
 	setUni3f(gs, "WaterShallow", wb.shallow.R, wb.shallow.G, wb.shallow.B)
 	setUni1f(gs, "WaterShallowTo", wb.shallowTo)
 	setUni4f(gs, "WaterWind", wb.windX, wb.windZ, wb.windStr, 0)

@@ -139,6 +139,8 @@ Used today: probe SH (`SHEval`), crowd push-apart, `NoiseFBM`, `JobXform`.
 
 ## A world with no art files
 
+Quality tiers can also be named by what they are for: `SetGraphicsQuality("classic")` is low, for older hardware, `"enhanced"` is medium, and `"advanced"` is high.
+
 Terrain, forest and grass can all be generated, so a game can start with no assets:
 
 ```
@@ -154,7 +156,7 @@ TerrainTrees(ground, CreateTree("oak", 3), 0.06)
 SetTerrainGrass(ground, 1)
 ```
 
-`examples/island_orbit.mb` is this with water and sky. Costs on a Radeon 780M at 1280x720 with scaling off, in frame milliseconds for high / medium / low: about 9.4 / 7.1 / 4.6 circling the island, 14.8 / 9.5 / 6.8 standing in the forest.
+`examples/island_orbit.mb` is this with water and sky, and `examples/valley.mb` is a larger scene with depth: a lake, forest, and mountains fading into haze on a 512 grid, with about 0.6 s of setup and first frame on a warm shader cache, and 13.9 / 7.8 / 4.0 ms frames circling above the shore. Costs on a Radeon 780M at 1280x720 with scaling off, in frame milliseconds for high / medium / low: about 9.4 / 7.1 / 4.6 circling the island, 14.8 / 9.5 / 6.8 standing in the forest.
 
 `BakeTerrain` stores normals with cracks and ledges on steep rock, the real horizon around each point, and where water gathers, in one map. It took 51 ms on the 256 grid above. Rock and grass are still chosen from the ground's smooth shape, since using the detailed normal drew rock in scars across meadows.
 
@@ -174,6 +176,8 @@ Every tier keeps the post pass. G3N asks for an 8x multisampled window, so drawi
 ## Pacing and first launch
 
 A fence at each frame's end keeps the GPU within two frames of the CPU, which bounds input lag and stops queued frames ending in a long stall. `StatsFrameMs(99)` gives the 1% low of the last ten seconds and `StatsMissedFrames()` counts frames over 1.5 times the target. Report those, not average FPS, since an average can hide a stutter.
+
+One open issue: on the Radeon 780M a run sometimes has a single stall of 500 to 900 ms, at a varying frame. It is not garbage collection (pauses stay under 3 ms) and it does not follow the quality tier, grass, or the shader cache. A stack sample showed it waiting inside a driver call, and removing that call only moved the wait, so its cause is unknown. It may not be moonBASIC's own work at all, and it needs checking on a second machine.
 
 Compiled shaders are saved under the user's cache folder, keyed on GPU and driver, so only a game's first launch on a machine pays to compile them. On the Radeon 780M, shader work on the island went from about 7.2 s to about 15 ms, and the first frames from 7.6 s to 0.3 s. A driver may refuse a saved program, usually after an update; it then compiles from source and saves again. The saved form needs a driver that offers binary formats. Where none does, games compile on every launch as before. `MOON_NO_SHADER_CACHE=1` turns it off, `MOON_SHADER_LOG=1` prints each program's cost, and `StatsShaderMs()` gives the total. Programs moonBASIC builds directly, such as post effects and FSR, are not saved yet.
 

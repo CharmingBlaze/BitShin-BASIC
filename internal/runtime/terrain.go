@@ -1227,6 +1227,14 @@ func (w *World) terrainCommands(n func(func([]value.Value) (value.Value, error))
 			return value.Num(float64(w.addTerrain(hf, chunk, 3))), nil
 		}),
 		"terrainheight": n(func(a []value.Value) (value.Value, error) {
+			// TerrainHeight(x, z) reads the current terrain. Other terrain commands
+			// take a terrain first, and reading that as x gives a wrong height with
+			// no error, so TerrainHeight(t, x, z) works too.
+			if len(a) >= 3 {
+				if t := w.terrains[argI(a, 0, 0)]; t != nil {
+					return value.Num(float64(w.sampleHeight(&t.hf, float32(argN(a, 1, 0)), float32(argN(a, 2, 0))))), nil
+				}
+			}
 			return value.Num(float64(w.terrainHeight(float32(argN(a, 0, 0)), float32(argN(a, 1, 0))))), nil
 		}),
 		"setterraintexture": n(func(a []value.Value) (value.Value, error) {

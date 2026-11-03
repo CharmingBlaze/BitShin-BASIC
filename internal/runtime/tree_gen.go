@@ -102,9 +102,11 @@ func treeTrunk(r *rand.Rand, height, radius float32) *treeMesh {
 // outline breaks up into branch tips where a cone would be one smooth line.
 func pineCrown(r *rand.Rand, height float32, tiers, tips int, under bool) *treeMesh {
 	m := &treeMesh{}
-	base := height * 0.2
+	base := height * (0.14 + r.Float32()*0.14)
 	span := height - base
-	maxR := height * 0.21
+	taper := 0.7 + r.Float32()*0.35
+	// Slim or broad, by seed: stands read as one model repeated if all match.
+	maxR := height * (0.17 + r.Float32()*0.07)
 	for k := 0; k < tiers; k++ {
 		t := float32(k) / float32(tiers)
 		top := base + span*(t+1.55/float32(tiers))
@@ -112,7 +114,7 @@ func pineCrown(r *rand.Rand, height float32, tiers, tips int, under bool) *treeM
 			top = height
 		}
 		low := base + span*t
-		rad := maxR * math32.Pow(1-t*0.93, 0.85) * (0.92 + r.Float32()*0.16)
+		rad := maxR * math32.Pow(1-t*0.93, taper) * (0.92 + r.Float32()*0.16)
 		lit := 0.78 + 0.32*t
 		apex := m.vert(math32.Vector3{Y: top}, math32.Vector3{Y: 1}, lit+0.12)
 		spin := r.Float32() * 2 * math32.Pi

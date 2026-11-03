@@ -132,6 +132,7 @@ uniform sampler2D WaterRefract;
 uniform sampler2D WaterDuDv;
 uniform sampler2D WaterNormal;
 uniform int WaterReflectOn;
+uniform float WaterRough;
 uniform vec3 WaterSkyTop;
 uniform vec3 WaterSkyLow;
 uniform int WaterRefractOn;
@@ -289,6 +290,7 @@ void main() {
         vec3 n2 = texture(WaterNormal, nUV2).rgb * 2.0 - 1.0;
         vec3 detail = normalize(n1 + n2);
         float detailAmt = mix(0.05, 0.28, exp(-camDist * 0.012));
+        if (LinearLight != 0) { detailAmt *= WaterRough; }
         vec3 rippled = vec3(waveNormal.x + detail.x * detailAmt, waveNormal.y, waveNormal.z + detail.z * detailAmt);
         waveNormal = normalize(rippled);
     }
@@ -364,11 +366,13 @@ void main() {
         if (LinearLight != 0) {
             // A rippled surface smears what it mirrors, mostly up and down. A sharp
             // copy of a cloud reads as a pale stain lying on the sea.
+            vec2 sm1 = vec2(0.004, 0.014) * WaterRough;
+            vec2 sm2 = vec2(-0.006, 0.034) * WaterRough;
             grabbed = (grabbed * 2.0
-                + texture(WaterReflect, clamp(reflectUV + vec2(0.004, 0.014), 0.001, 0.999)).rgb
-                + texture(WaterReflect, clamp(reflectUV - vec2(0.004, 0.014), 0.001, 0.999)).rgb
-                + texture(WaterReflect, clamp(reflectUV + vec2(-0.006, 0.034), 0.001, 0.999)).rgb
-                + texture(WaterReflect, clamp(reflectUV - vec2(-0.006, 0.034), 0.001, 0.999)).rgb) / 6.0;
+                + texture(WaterReflect, clamp(reflectUV + sm1, 0.001, 0.999)).rgb
+                + texture(WaterReflect, clamp(reflectUV - sm1, 0.001, 0.999)).rgb
+                + texture(WaterReflect, clamp(reflectUV + sm2, 0.001, 0.999)).rgb
+                + texture(WaterReflect, clamp(reflectUV - sm2, 0.001, 0.999)).rgb) / 6.0;
         }
         vec3 planar = grabbed;
         if (WaterSSROn != 0) {
