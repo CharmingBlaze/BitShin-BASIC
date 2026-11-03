@@ -68,6 +68,9 @@ type batchKey struct {
 	cutout                  int
 	specMap, emitMap, nmMap *texture.Texture2D
 	// pbrMat
+	coat, coatRough, sub, heightScale float32
+	subColor                          math32.Color
+	heightTex                         *texture.Texture2D
 	ao, toonBands, toonRim, toonSpec float32
 	ibl, shading                     int
 	envTex                           *texture.Texture2D
@@ -479,6 +482,8 @@ func fillBatchKey(e *Entity, k *batchKey) bool {
 		k.recv, k.noFog, k.envTex = im.recvShadow, im.noFog, im.envTex
 		k.ao, k.ibl, k.shading = im.ao, im.ibl, im.shading
 		k.toonBands, k.toonRim, k.toonSpec = im.toonBands, im.toonRim, im.toonSpec
+		k.coat, k.coatRough, k.sub, k.subColor = im.clearcoat, im.coatRough, im.subsurface, im.subColor
+		k.heightTex, k.heightScale = im.heightTex, im.heightScale
 	default:
 		return false
 	}

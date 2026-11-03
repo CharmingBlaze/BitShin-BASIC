@@ -1497,13 +1497,43 @@
         {
           "syntax": "SetMaterialShading e, mode$",
           "name": "SetMaterialShading",
-          "description": "`\"pbr\"` (0), `\"unlit\"` (1), or `\"toon\"` (2). Converts the entity to PBR first",
+          "description": "`\"pbr\"` (0), `\"unlit\"` (1), `\"toon\"` (2), `\"cel\"` (3), `\"flat\"` (4), `\"lowpoly\"` (5), or `\"painted\"` (6). Converts the entity to PBR first. Cel is two hard bands with ink on curved silhouettes. Low-poly is faceted and matte, each face a slightly different shade; it does not change the mesh, so give it few segments. Painted, like low-poly, looks best on the modern look",
           "category": "PBR (opt-in metallic-roughness)"
         },
         {
           "syntax": "GetMaterialShading(e)",
           "name": "GetMaterialShading",
-          "description": "`\"pbr\"` (0), `\"unlit\"` (1), or `\"toon\"` (2). Converts the entity to PBR first",
+          "description": "`\"pbr\"` (0), `\"unlit\"` (1), `\"toon\"` (2), `\"cel\"` (3), `\"flat\"` (4), `\"lowpoly\"` (5), or `\"painted\"` (6). Converts the entity to PBR first. Cel is two hard bands with ink on curved silhouettes. Low-poly is faceted and matte, each face a slightly different shade; it does not change the mesh, so give it few segments. Painted, like low-poly, looks best on the modern look",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "SetStyle name$",
+          "name": "SetStyle",
+          "description": "A whole game's look: `realistic`, `lowpoly`, `toon`, `cel`, `painted`, `flat`, `unlit`, `ps1`, `n64`, `pixel`, `gameboy`, `pico8`, or `dos`. Reaches every plain mesh, made before or after it; not terrain, water, sky, or scattered trees and grass",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "SetClearcoat e, amount [, roughness]",
+          "name": "SetClearcoat",
+          "description": "A clear layer over the material with its own sharp highlight: car paint, varnish. Roughness defaults to 0.08",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "SetSubsurface e, amount [, r, g, b]",
+          "name": "SetSubsurface",
+          "description": "Light passing through: skin, wax, leaves. The color is what it picks up inside, default a warm red. An approximation: thin parts glow when back-lit, and shadows stay solid",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "SetHeightMap e, tex [, scale]",
+          "name": "SetHeightMap",
+          "description": "Surface depth with no extra geometry, by parallax occlusion. White is high; scale is depth in UV units (default 0.04). Silhouettes stay the mesh's own, and it fades out past about 25 m. Tex 0 turns it off",
+          "category": "PBR (opt-in metallic-roughness)"
+        },
+        {
+          "syntax": "SetOpacity e, n",
+          "name": "SetOpacity",
+          "description": "0 is clear, 1 solid",
           "category": "PBR (opt-in metallic-roughness)"
         },
         {
@@ -13993,13 +14023,43 @@
     {
       "syntax": "SetMaterialShading e, mode$",
       "name": "SetMaterialShading",
-      "description": "`\"pbr\"` (0), `\"unlit\"` (1), or `\"toon\"` (2). Converts the entity to PBR first",
+      "description": "`\"pbr\"` (0), `\"unlit\"` (1), `\"toon\"` (2), `\"cel\"` (3), `\"flat\"` (4), `\"lowpoly\"` (5), or `\"painted\"` (6). Converts the entity to PBR first. Cel is two hard bands with ink on curved silhouettes. Low-poly is faceted and matte, each face a slightly different shade; it does not change the mesh, so give it few segments. Painted, like low-poly, looks best on the modern look",
       "category": "PBR (opt-in metallic-roughness)"
     },
     {
       "syntax": "GetMaterialShading(e)",
       "name": "GetMaterialShading",
-      "description": "`\"pbr\"` (0), `\"unlit\"` (1), or `\"toon\"` (2). Converts the entity to PBR first",
+      "description": "`\"pbr\"` (0), `\"unlit\"` (1), `\"toon\"` (2), `\"cel\"` (3), `\"flat\"` (4), `\"lowpoly\"` (5), or `\"painted\"` (6). Converts the entity to PBR first. Cel is two hard bands with ink on curved silhouettes. Low-poly is faceted and matte, each face a slightly different shade; it does not change the mesh, so give it few segments. Painted, like low-poly, looks best on the modern look",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "SetStyle name$",
+      "name": "SetStyle",
+      "description": "A whole game's look: `realistic`, `lowpoly`, `toon`, `cel`, `painted`, `flat`, `unlit`, `ps1`, `n64`, `pixel`, `gameboy`, `pico8`, or `dos`. Reaches every plain mesh, made before or after it; not terrain, water, sky, or scattered trees and grass",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "SetClearcoat e, amount [, roughness]",
+      "name": "SetClearcoat",
+      "description": "A clear layer over the material with its own sharp highlight: car paint, varnish. Roughness defaults to 0.08",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "SetSubsurface e, amount [, r, g, b]",
+      "name": "SetSubsurface",
+      "description": "Light passing through: skin, wax, leaves. The color is what it picks up inside, default a warm red. An approximation: thin parts glow when back-lit, and shadows stay solid",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "SetHeightMap e, tex [, scale]",
+      "name": "SetHeightMap",
+      "description": "Surface depth with no extra geometry, by parallax occlusion. White is high; scale is depth in UV units (default 0.04). Silhouettes stay the mesh's own, and it fades out past about 25 m. Tex 0 turns it off",
+      "category": "PBR (opt-in metallic-roughness)"
+    },
+    {
+      "syntax": "SetOpacity e, n",
+      "name": "SetOpacity",
+      "description": "0 is clear, 1 solid",
       "category": "PBR (opt-in metallic-roughness)"
     },
     {

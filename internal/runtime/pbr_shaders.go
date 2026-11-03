@@ -126,7 +126,14 @@ uniform vec3 CamWorldPos;
 uniform float uAO;
 uniform int uPostGrade;
 uniform float uOcclusionStrength;
-uniform int uShading;      // 0 PBR, 1 unlit, 2 toon
+uniform int uShading;      // 0 PBR, 1 unlit, 2 toon, 3 cel, 4 flat, 5 low-poly, 6 painted
+uniform float uClearcoat;
+uniform float uCoatRough;
+uniform float uSubsurface;
+uniform vec3 uSubColor;
+uniform int uHasHeight;
+uniform float uHeightScale;
+uniform sampler2D uHeightMap;
 uniform float uToonBands;  // diffuse steps
 uniform float uToonRim;    // rim light strength
 uniform float uToonSpec;   // hard highlight strength
@@ -176,10 +183,56 @@ vec4 SRGBtoLINEAR(vec4 srgbIn) {
     return vec4(linOut, srgbIn.w);
 }
 
+// The UV after parallax, and the world normal the sky lighting reads.
+vec2 gUV;
+vec3 iblN;
+
+// Parallax occlusion: step along the view through the height map until below it,
+// then interpolate the last step. Depth with no geometry. It fades with distance,
+// where it could only shimmer and cost.
+vec2 parallaxUV(vec2 uv) {
+    vec3 pdx = dFdx(Position), pdy = dFdy(Position);
+    vec2 dx = dFdx(uv), dy = dFdy(uv);
+    vec3 ng = normalize(Normal);
+    vec3 t = (dy.t * pdx - dx.t * pdy) / (dx.s * dy.t - dy.s * dx.t);
+    t = normalize(t - ng * dot(ng, t));
+    vec3 b = cross(ng, t);
+    vec3 vd = normalize(CamDir);
+    vec3 vts = vec3(dot(vd, t), dot(vd, b), dot(vd, ng));
+    float fade = 1.0 - smoothstep(25.0, 60.0, length(Position));
+    if (fade <= 0.0) { return uv; }
+    float steps = mix(24.0, 8.0, clamp(vts.z, 0.0, 1.0));
+    float dh = 1.0 / steps;
+    vec2 duv = vts.xy / max(vts.z, 0.15) * uHeightScale * fade * dh;
+    vec2 cur = uv;
+    float depth = 0.0;
+    float h = 1.0 - textureGrad(uHeightMap, cur, dx, dy).r;
+    for (int i = 0; i < 24 && depth < h; i++) {
+        cur -= duv;
+        depth += dh;
+        h = 1.0 - textureGrad(uHeightMap, cur, dx, dy).r;
+    }
+    float after = h - depth;
+    float before = (1.0 - textureGrad(uHeightMap, cur + duv, dx, dy).r) - depth + dh;
+    float k = after / min(after - before, -1e-4);
+    return mix(cur, cur + duv, clamp(k, 0.0, 1.0));
+}
+
+// paintNoise is smooth noise for brush strokes.
+float paintNoise(vec3 p) {
+    vec3 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    vec2 k = vec2(0.0, 1.0);
+    #define PH(o) fract(sin(dot(i + o, vec3(127.1, 311.7, 74.7))) * 43758.5453)
+    return mix(mix(mix(PH(k.xxx), PH(k.yxx), f.x), mix(PH(k.xyx), PH(k.yyx), f.x), f.y),
+               mix(mix(PH(k.xxy), PH(k.yxy), f.x), mix(PH(k.xyy), PH(k.yyy), f.x), f.y), f.z);
+    #undef PH
+}
+
 vec3 getNormal() {
     vec3 pos_dx = dFdx(Position);
     vec3 pos_dy = dFdy(Position);
-    vec2 nuv = retroUV();
+    vec2 nuv = gUV;
     vec3 tex_dx = dFdx(vec3(nuv, 0.0));
     vec3 tex_dy = dFdy(vec3(nuv, 0.0));
     vec3 t = (tex_dy.t * pos_dx - tex_dx.t * pos_dy) / (tex_dx.s * tex_dy.t - tex_dy.s * tex_dx.t);
@@ -225,7 +278,8 @@ vec3 toonDirect(PBRInfo pbrInputs, vec3 n, vec3 v, vec3 lightColor, vec3 l) {
     float ndl = max(dot(n, l), 0.0);
     float bands = max(uToonBands, 1.0);
     float x = ndl * bands;
-    float edge = fwidth(x) + 0.02;
+    // Cel steps with no soft edge beyond antialiasing.
+    float edge = fwidth(x) + (uShading == 3 ? 0.0 : 0.02);
     float stepped = (floor(x) + smoothstep(0.5 - edge, 0.5 + edge, fract(x))) / bands;
     vec3 h = normalize(l + v);
     float gloss = mix(256.0, 8.0, pbrInputs.perceptualRoughness);
@@ -236,7 +290,7 @@ vec3 toonDirect(PBRInfo pbrInputs, vec3 n, vec3 v, vec3 lightColor, vec3 l) {
 
 vec3 pbrDirect(PBRInfo pbrInputs, vec3 n, vec3 v, vec3 lightColor, vec3 lightDir) {
     vec3 l = normalize(lightDir);
-    if (uShading == 2) {
+    if (uShading == 2 || uShading == 3) {
         return toonDirect(pbrInputs, n, v, lightColor, l);
     }
     vec3 h = normalize(l + v);
@@ -251,7 +305,27 @@ vec3 pbrDirect(PBRInfo pbrInputs, vec3 n, vec3 v, vec3 lightColor, vec3 lightDir
     float D = microfacetDistribution(pbrInputs, pbrLight);
     vec3 diffuseContrib = (1.0 - F) * diffuseBRDF(pbrInputs);
     vec3 specContrib = min(F * G * D / (4.0 * NdotL * NdotV), vec3(6.0));
-    return NdotL * lightColor * (diffuseContrib + specContrib);
+    vec3 lit = NdotL * lightColor * (diffuseContrib + specContrib);
+    if (uSubsurface > 0.0) {
+        // Light wraps past the shadow line and shows through thin parts from behind,
+        // tinted by what it passed through.
+        float nl = dot(n, l);
+        float wrap = max((nl + 0.6) / 1.6, 0.0) - max(nl, 0.0);
+        float back = pow(max(dot(v, -normalize(l + n * 0.4)), 0.0), 3.0);
+        lit += lightColor * uSubsurface * toLin(uSubColor) * pbrInputs.diffuseColor * (wrap + back * 0.8) / M_PI * 2.0;
+    }
+    if (uClearcoat > 0.0) {
+        // A second, smooth layer on top, with its own highlight. What it reflects
+        // does not reach the layer below.
+        float a = max(uCoatRough * uCoatRough, 0.002);
+        float a2 = a * a;
+        float d = NdotH * NdotH * (a2 - 1.0) + 1.0;
+        float Dc = a2 / (M_PI * d * d);
+        float Fc = (0.04 + 0.96 * pow(clamp(1.0 - VdotH, 0.0, 1.0), 5.0)) * uClearcoat;
+        float Vc = 0.25 / max(VdotH * VdotH, 0.05);
+        lit = lit * (1.0 - Fc) + lightColor * min(Dc * Vc * Fc, 8.0) * NdotL;
+    }
+    return lit;
 }
 
 // pbrSpecOnly is pbrDirect's highlight alone, for lights whose diffuse is
@@ -290,7 +364,7 @@ vec3 iblTerm(PBRInfo pbrInputs, vec3 n, vec3 v) {
     specEnv = mix(specEnv, envR, 0.85);
 #endif
     if (HasEnvCube != 0) {
-        vec3 wn = normalize(WorldNormal);
+        vec3 wn = iblN;
         vec3 wv = normalize(CamWorldPos - WorldPos);
         vec3 wr = reflect(-wv, wn);
         float cubeLod = pbrInputs.perceptualRoughness * 5.0;
@@ -325,6 +399,15 @@ vec3 iblTerm(PBRInfo pbrInputs, vec3 n, vec3 v) {
     // F0, not a Schlick term: dfg already holds the rise toward grazing, and
     // counting it twice ringed every polished sphere in white.
     vec3 spec = specEnv * (pbrInputs.reflectance0 * dfg.x + dfg.y);
+    if (uClearcoat > 0.0) {
+        float Fc = (0.04 + 0.96 * pow(1.0 - nv, 5.0)) * uClearcoat;
+        vec3 coat = specEnv;
+        if (HasEnvCube != 0) {
+            coat = textureLod(uEnvCube, reflect(-normalize(CamWorldPos - WorldPos), iblN), uCoatRough * 5.0).rgb;
+            if (HasEnvCube == 1) { coat = toLin(coat); }
+        }
+        return ((diff + spec) * (1.0 - Fc) + coat * Fc) * IBLIntensity;
+    }
     return (diff + spec) * IBLIntensity;
 }
 `
@@ -338,6 +421,10 @@ void main() {
         }
     }
     vec2 baseUV = retroUV();
+    if (uHasHeight != 0) {
+        baseUV = parallaxUV(baseUV);
+    }
+    gUV = baseUV;
     float perceptualRoughness = uRoughnessFactor;
     float metallic = uMetallicFactor;
 #ifdef HAS_METALROUGHNESSMAP
@@ -355,13 +442,26 @@ void main() {
     vec4 baseColor = vec4(toLin(uBaseColor.rgb), uBaseColor.a);
 #endif
 
+    bool faceted = uShading == 4 || uShading == 5;
+    vec3 faceW = vec3(0.0, 1.0, 0.0);
+    if (faceted) {
+        faceW = normalize(cross(dFdx(WorldPos), dFdy(WorldPos)));
+        if (dot(faceW, WorldNormal) < 0.0) { faceW = -faceW; }
+    }
+    if (uShading == 5) {
+        // Low-poly: matte, and each face a slightly different shade of its color.
+        float h = fract(sin(dot(floor(faceW * 40.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+        baseColor.rgb *= 0.86 + 0.28 * h;
+        perceptualRoughness = max(perceptualRoughness, 0.7);
+        alphaRoughness = perceptualRoughness * perceptualRoughness;
+    }
     vec3 f0 = vec3(0.04);
-    if (uShading == 2) {
+    if (uShading == 2 || uShading == 3) {
         // Toon keeps the albedo flat; metal only tints the highlight.
         f0 = vec3(0.0);
     }
     vec3 diffuseColor = baseColor.rgb * (vec3(1.0) - f0);
-    if (uShading != 2) {
+    if (uShading != 2 && uShading != 3) {
         diffuseColor *= 1.0 - metallic;
     }
     vec3 specularColor = mix(f0, baseColor.rgb, metallic);
@@ -378,6 +478,18 @@ void main() {
     );
 
     vec3 n = getNormal();
+    if (faceted) {
+        vec3 faceV = normalize(cross(dFdx(Position), dFdy(Position)));
+        n = dot(faceV, n) < 0.0 ? -faceV : faceV;
+    }
+    if (uShading == 6) {
+        // Brushed: the surface leans a little with each stroke, close up. At full
+        // strength and at any distance this rippled a whole floor into camouflage.
+        vec3 sp = WorldPos * vec3(2.3, 6.1, 2.3);
+        float lean = 0.22 * (1.0 - smoothstep(6.0, 22.0, length(Position)));
+        n = normalize(n + (vec3(paintNoise(sp), paintNoise(sp + 7.1), paintNoise(sp + 13.7)) - 0.5) * lean);
+    }
+    iblN = faceted ? faceW : normalize(WorldNormal);
     vec3 v = normalize(CamDir);
     vec3 ambient = vec3(0.0);
     vec3 direct = vec3(0.0);
@@ -388,7 +500,7 @@ void main() {
     }
 #endif
 
-    vec3 wN = retroFlatNormal(WorldPos, normalize(WorldNormal));
+    vec3 wN = faceted ? faceW : retroFlatNormal(WorldPos, normalize(WorldNormal));
     if (UseIBL != 0) {
         ambient += iblTerm(pbrInputs, n, v);
     } else {
@@ -474,11 +586,11 @@ void main() {
     vec3 emissive = toLin(vec3(uEmissiveColor));
 #endif
 
-    if (uShading == 2) {
+    if (uShading == 2 || uShading == 3) {
         // Flat fill instead of the IBL gradient, and a rim against the sky.
         float sky = step(0.0, wN.y);
         // Bright enough that the darkest band still shows the albedo.
-        ambient = mix(IBLGround, IBLSky, 0.55 + 0.3 * sky) * pbrInputs.diffuseColor * 1.1;
+        ambient = toLin(mix(IBLGround, IBLSky, 0.55 + 0.3 * sky)) * pbrInputs.diffuseColor * 1.1;
 #if AMB_LIGHTS>0
         for (int i = 0; i < AMB_LIGHTS; i++) {
             ambient += toLin(AmbientLightColor[i]) * pbrInputs.diffuseColor;
@@ -486,9 +598,34 @@ void main() {
 #endif
         float rim = 1.0 - max(dot(n, v), 0.0);
         rim = smoothstep(0.62, 0.72, rim) * uToonRim * (0.4 + 0.6 * sunOcc);
-        ambient += IBLSky * rim;
+        ambient += toLin(IBLSky) * rim;
     }
     vec3 color = ambient * ao + direct + emissive + ShadowColor * ((1.0 - sunOcc) * pbrInputs.diffuseColor * 0.35);
+    if (uShading == 3) {
+        // Ink along the silhouette, where the surface turns away and is curving. A
+        // flat floor seen at a low angle is turned away too, but it has no edge.
+        float ink = 1.0 - smoothstep(0.2, 0.3, abs(dot(n, v)));
+        ink *= smoothstep(0.004, 0.03, length(fwidth(n)));
+        color = mix(color, baseColor.rgb * 0.05, ink);
+    }
+    if (uShading == 6) {
+        // Paint: a few broken tones, cool in the shadows and warm in the light, with
+        // brush strokes breaking up where one tone meets the next.
+        vec3 bp = WorldPos;
+        float brush = paintNoise(bp * vec3(7.0, 22.0, 7.0)) * 0.55 + paintNoise(bp * vec3(20.0, 8.0, 17.0) + 4.0) * 0.45;
+        float lum = max(dot(color, vec3(0.2126, 0.7152, 0.0722)), 0.0005);
+        float soft = sqrt(lum);
+        // Strokes break the edge between two tones, so they need one: where brightness
+        // is changing, close up. A flat floor sitting on a tone's boundary would
+        // otherwise flip back and forth into camouflage.
+        float near = 1.0 - smoothstep(12.0, 45.0, length(Position));
+        float changing = smoothstep(0.0004, 0.004, fwidth(soft));
+        float tone = floor(soft * 6.0 + (brush - 0.5) * 0.3 * near * changing + 0.5) / 6.0;
+        tone = mix(soft, tone, 0.45);
+        color *= (tone * tone + 0.002) / lum;
+        color *= mix(vec3(0.84, 0.9, 1.06), vec3(1.06, 1.0, 0.9), smoothstep(0.2, 0.65, tone));
+        color *= 1.0 + (brush - 0.5) * 0.16 * near;
+    }
     if (uShading == 1) {
         color = baseColor.rgb + emissive;
     }

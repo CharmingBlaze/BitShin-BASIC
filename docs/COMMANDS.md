@@ -185,7 +185,12 @@ SetIBL(True)
 | `SetIBL [e,] on` / `EnableIBL on` | Hemisphere, prefiltered sky cubemap, optional 2D env. One arg = world |
 | `GetIBL([e])` | |
 | `SetIBLIntensity n` / `GetIBLIntensity()` | Scale (default 1) |
-| `SetMaterialShading e, mode$` / `GetMaterialShading(e)` | `"pbr"` (0), `"unlit"` (1), or `"toon"` (2). Converts the entity to PBR first |
+| `SetMaterialShading e, mode$` / `GetMaterialShading(e)` | `"pbr"` (0), `"unlit"` (1), `"toon"` (2), `"cel"` (3), `"flat"` (4), `"lowpoly"` (5), or `"painted"` (6). Converts the entity to PBR first. Cel is two hard bands with ink on curved silhouettes. Low-poly is faceted and matte, each face a slightly different shade; it does not change the mesh, so give it few segments. Painted, like low-poly, looks best on the modern look |
+| `SetStyle name$` | A whole game's look: `realistic`, `lowpoly`, `toon`, `cel`, `painted`, `flat`, `unlit`, `ps1`, `n64`, `pixel`, `gameboy`, `pico8`, or `dos`. Reaches every plain mesh, made before or after it; not terrain, water, sky, or scattered trees and grass | `SetStyle("cel")` |
+| `SetClearcoat e, amount [, roughness]` | A clear layer over the material with its own sharp highlight: car paint, varnish. Roughness defaults to 0.08 | `SetClearcoat(car, 1, 0.05)` |
+| `SetSubsurface e, amount [, r, g, b]` | Light passing through: skin, wax, leaves. The color is what it picks up inside, default a warm red. An approximation: thin parts glow when back-lit, and shadows stay solid | `SetSubsurface(wax, 1)` |
+| `SetHeightMap e, tex [, scale]` | Surface depth with no extra geometry, by parallax occlusion. White is high; scale is depth in UV units (default 0.04). Silhouettes stay the mesh's own, and it fades out past about 25 m. Tex 0 turns it off | `SetHeightMap(wall, bricksH, 0.05)` |
+| `SetOpacity e, n` | 0 is clear, 1 solid | `SetOpacity(glass, 0.3)` |
 | `SetUnlit e [, on]` | Base colour plus emissive, no lighting. Fog still applies |
 | `SetToon e [, bands, rim, spec]` | Stepped diffuse (1–16 bands, default 3), sky rim 0–1 (0.5), hard highlight 0–1 (0.6). Pair with `SetOutline` |
 | `EntityFX e, flags` | Blitz flags: `1` fullbright (unlit), `8` no fog, `16` two-sided. Others are ignored |

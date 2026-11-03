@@ -94,6 +94,7 @@ type Entity struct {
 	lgtCookie                          *texture.Texture2D
 	castShadow                         bool
 	shadowProxy bool // drawn only into shadow maps, standing in for a detailed mesh
+	styled int // SetStyle's shading + 1, once it has reached this entity
 	camFollowed                        bool
 	meshNoCast                         bool
 	meshNoRecv                         bool
@@ -125,6 +126,9 @@ type collideRule struct {
 
 type World struct {
 	pace framePacer
+	styleOn bool
+	styleShading int
+	styleAt int
 	batch                            batchState
 	pass                             passBinds
 	app                              *g3nHost
@@ -1270,6 +1274,7 @@ func (w *World) tickFX() {
 	w.tickEmitters(dt)
 	w.syncSkyboxes()
 	w.tickSky()
+	w.applyStyle()
 	w.netUpdate()
 	w.updateNav()
 	w.tickCrowds()

@@ -166,6 +166,10 @@ Three things keep it cheap. Oak crowns are several lobes, each a dark core insid
 
 `examples/lighting.mb` uses everything together: a sun with four shadow cascades and PCF filtering, point and spot lights with their own shadows, metal-roughness PBR materials lit by the sky (`SetIBL`, with a prefiltered sky cube, and a plain hemisphere when it is off), ambient occlusion, and contact shadows. On the linear path a light of intensity 1 lights a PBR surface as brightly as a non-PBR one. Lights with `SetLightFalloff "physical"` keep their candela values, so about 15 is a lamp a few metres away and about 40 a spot at the same distance.
 
+## Styles
+
+`SetStyle` picks a game's look, and `examples/styles.mb` shows them on one scene: `realistic`, `lowpoly`, `toon`, `cel`, `painted`, `flat`, and `unlit` change how surfaces shade, and `ps1`, `n64`, `pixel`, `gameboy`, `pico8`, and `dos` change the whole screen. `SetMaterialShading` sets the first group per object. Scenes can mix them. Terrain, water, and scattered trees and grass keep their own shaders, so a style reaches a game's objects and not its landscape.
+
 ## Staying smooth
 
 Every game, run or compiled, has two steps of protection, in this order:

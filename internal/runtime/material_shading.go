@@ -23,12 +23,20 @@ func shadingMode(name string, n int) (int, bool) {
 	switch strings.ToLower(strings.TrimSpace(name)) {
 	case "pbr", "lit", "standard", "0":
 		return shadePBR, true
-	case "unlit", "fullbright", "flat", "1":
+	case "unlit", "fullbright", "1":
 		return shadeUnlit, true
-	case "toon", "cel", "cartoon", "2":
+	case "toon", "cartoon", "2":
 		return shadeToon, true
+	case "cel", "3":
+		return shadeCel, true
+	case "flat", "4":
+		return shadeFlat, true
+	case "lowpoly", "low-poly", "5":
+		return shadeLowPoly, true
+	case "painted", "handpainted", "hand-painted", "6":
+		return shadePainted, true
 	case "":
-		if n >= shadePBR && n <= shadeToon {
+		if n >= shadePBR && n <= shadePainted {
 			return n, true
 		}
 	}
@@ -65,18 +73,14 @@ func (m *pbrMat) setToon(bands, rim, spec float32) {
 
 func (w *World) shadingCommands(n func(func([]value.Value) (value.Value, error)) cmd, z func() (value.Value, error)) map[string]cmd {
 	return map[string]cmd{
-		// SetMaterialShading e, "pbr" | "unlit" | "toon"
+		// SetMaterialShading e, "pbr" | "unlit" | "toon" | "cel" | "flat" | "lowpoly" | "painted"
 		"setmaterialshading": n(func(a []value.Value) (value.Value, error) {
 			mode, ok := shadingMode(argS(a, 1), argI(a, 1, 0))
 			if !ok {
-				return value.Value{}, fmt.Errorf("SetMaterialShading: want pbr, unlit, or toon, got %q", argS(a, 1))
+				return value.Value{}, fmt.Errorf("SetMaterialShading: want pbr, unlit, toon, cel, flat, lowpoly, or painted, got %q", argS(a, 1))
 			}
 			return z2(w.eachPBR(argI(a, 0, 0), "SetMaterialShading", func(m *pbrMat) {
-				if mode == shadeToon && m.toonBands <= 0 {
-					m.setToon(3, 0.5, 0.6)
-					return
-				}
-				m.shading = mode
+				m.setShading(mode)
 			}))
 		}),
 		"getmaterialshading": n(func(a []value.Value) (value.Value, error) {

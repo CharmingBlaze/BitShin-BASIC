@@ -1,0 +1,86 @@
+; Styles — one engine, many looks. Each object shows one shading style or material
+; feature. Press 1-7 to change the whole game's look with SetStyle. Esc quits.
+;
+; Back row:   PBR, flat, low-poly, unlit
+; Middle row: toon, cel, hand-painted, clearcoat
+; Front row:  subsurface, height map, opacity, emissive
+
+Graphics3D(1280, 720)
+SetWindowTitle("moonBASIC — Styles")
+cam = CreateCamera()
+SetCameraRange(cam, 0.1, 300)
+sun = CreateDirectionalLight()
+SetLightDirection(sun, 46, 150, 0)
+SetLightColor(sun, 255, 240, 214)
+SetLook "modern"
+SetSkyGradient(92, 148, 214, 200, 216, 232)
+SetIBL True
+
+ground = CreatePlane().Scale(60, 1, 60)
+SetMaterialPBR(ground, 1)
+SetAlbedo(ground, 96, 104, 88)
+SetRoughness(ground, 0.9)
+
+Function Ball(col, row, segs)
+    b = CreateSphere(segs).Position([-5.4 + col * 3.6, 1.1, row * 3.4])
+    b.Scale(1.1, 1.1, 1.1)
+    SetMaterialPBR(b, 1)
+    SetAlbedo(b, 200, 74, 56)
+    SetRoughness(b, 0.45)
+    Return b
+End Function
+
+; Back row: how a surface is shaded.
+Ball(0, 2, 32)
+SetMaterialShading(Ball(1, 2, 12), "flat")
+SetMaterialShading(Ball(2, 2, 8), "lowpoly")
+SetMaterialShading(Ball(3, 2, 32), "unlit")
+
+; Middle row.
+SetMaterialShading(Ball(0, 1, 32), "toon")
+SetMaterialShading(Ball(1, 1, 32), "cel")
+SetMaterialShading(Ball(2, 1, 32), "painted")
+coat = Ball(3, 1, 32)
+SetRoughness(coat, 0.6)
+SetClearcoat(coat, 1, 0.06)
+
+; Front row: what a surface is made of.
+wax = Ball(0, 0, 32)
+SetAlbedo(wax, 236, 206, 176)
+SetRoughness(wax, 0.55)
+SetSubsurface(wax, 1)
+
+rock = CreateProcTexture("rock")
+slab = CreateCube().Scale(1, 1, 1).Position([-1.8, 1, 0])
+SetMaterialPBR(slab, 1)
+SetAlbedo(slab, rock)
+SetRoughness(slab, 0.85)
+SetHeightMap(slab, rock, 0.07)
+
+SetOpacity(Ball(2, 0, 32), 0.45)
+
+lamp = Ball(3, 0, 32)
+SetAlbedo(lamp, 30, 30, 40)
+SetEmissive(lamp, 60, 170, 255)
+
+a# = 0
+frames = 0
+While 1
+    frames = frames + 1
+    a = a + 6 * Time.Delta()
+    cam.Position(Math.Sin(a) * 2, 8.5, -5.5)
+    CameraLookAt(cam, 0, 0.5, 3.2)
+    If Input.KeyHit(KEY_1) Then SetStyle("realistic")
+    If Input.KeyHit(KEY_2) Then SetStyle("lowpoly")
+    If Input.KeyHit(KEY_3) Then SetStyle("toon")
+    If Input.KeyHit(KEY_4) Then SetStyle("cel")
+    If Input.KeyHit(KEY_5) Then SetStyle("painted")
+    If Input.KeyHit(KEY_6) Then SetStyle("ps1")
+    If Input.KeyHit(KEY_7) Then SetStyle("pixel")
+    RenderWorld
+    Flip
+    If frames > 8
+        If Input.KeyHit(KEY_ESCAPE) Then End
+    EndIf
+Wend
+End

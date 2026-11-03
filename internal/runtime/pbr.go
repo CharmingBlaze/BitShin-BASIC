@@ -15,27 +15,37 @@ import (
 // pbrMat is G3N Physical plus the same shadow atlas / fog uniforms as litMat.
 type pbrMat struct {
 	*material.Physical
-	w          *World
-	metallic   float32
-	roughness  float32
-	ao         float32
-	albedo     math32.Color4
-	emissive   math32.Color
-	ibl        int // -1 world default, 0 off, 1 on
-	envTex     *texture.Texture2D
-	recvShadow bool
-	shading    int // shadePBR, shadeUnlit, shadeToon
-	toonBands  float32
-	toonRim    float32
-	toonSpec   float32
-	noFog      bool
-	texPaths   map[string]string // scene slot (albedo, normal, ...) -> LoadTexture path
+	w           *World
+	metallic    float32
+	roughness   float32
+	ao          float32
+	albedo      math32.Color4
+	emissive    math32.Color
+	ibl         int // -1 world default, 0 off, 1 on
+	envTex      *texture.Texture2D
+	recvShadow  bool
+	shading     int // shadePBR, shadeUnlit, shadeToon, ...
+	clearcoat   float32
+	coatRough   float32
+	subsurface  float32
+	subColor    math32.Color
+	heightTex   *texture.Texture2D
+	heightScale float32
+	toonBands   float32
+	toonRim     float32
+	toonSpec    float32
+	noFog       bool
+	texPaths    map[string]string // scene slot (albedo, normal, ...) -> LoadTexture path
 }
 
 const (
 	shadePBR = iota
 	shadeUnlit
 	shadeToon
+	shadeCel
+	shadeFlat
+	shadeLowPoly
+	shadePainted
 )
 
 func (m *pbrMat) GetMaterial() *material.Material { return m.Physical.GetMaterial() }
@@ -498,6 +508,23 @@ func (w *World) bindPBRUniforms(gs *gls.GLS, m *pbrMat) {
 	setUni1f(gs, "uToonRim", rim)
 	setUni1f(gs, "uToonSpec", spec)
 	setUni1i(gs, "uNoFog", noFog)
+	var coat, coatRough, sub, hScale float32
+	subCol := math32.Color{}
+	hasHeight := 0
+	if m != nil {
+		coat, coatRough, sub, subCol = m.clearcoat, m.coatRough, m.subsurface, m.subColor
+		if m.heightTex != nil {
+			hasHeight, hScale = 1, m.heightScale
+			m.heightTex.RenderSetup(gs, unitPBRHeight, unitPBRHeight)
+		}
+	}
+	setUni1f(gs, "uClearcoat", coat)
+	setUni1f(gs, "uCoatRough", coatRough)
+	setUni1f(gs, "uSubsurface", sub)
+	setUni3f(gs, "uSubColor", subCol.R, subCol.G, subCol.B)
+	setUni1i(gs, "uHasHeight", hasHeight)
+	setUni1f(gs, "uHeightScale", hScale)
+	setUni1i(gs, "uHeightMap", unitPBRHeight)
 	w.bindAreaLights(gs)
 }
 

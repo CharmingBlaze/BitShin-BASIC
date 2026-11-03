@@ -16,6 +16,7 @@ const (
 	unitNorm      = 14
 	unitCaustic   = 15
 	unitEnvCube   = 10 // PBR has no SpecMap
+	unitPBRHeight = 11 // PBR has no EmitMap
 	// Linear lighting's sky map, where 10 is taken. A samplerCube and a
 	// sampler2D on one unit is a GL error. G3N's lit shader samples three
 	// textures at most, and terrain has no NormMap.
@@ -62,7 +63,7 @@ var programUnits = map[string]struct {
 	}},
 	// Base color, metal-roughness, normal, emissive, occlusion, equirect env
 	"mbphysical": {6, map[string]int{
-		"ShadowMap": unitShadow, "ShadowMapDyn": unitShadowDyn, "uEnvCube": unitEnvCube,
+		"ShadowMap": unitShadow, "ShadowMapDyn": unitShadowDyn, "uEnvCube": unitEnvCube, "uHeightMap": unitPBRHeight,
 		"SpotCookie0": unitCookie0, "SpotCookie1": unitCookie1, "WaterCaustic": unitCaustic,
 	}},
 	"mbterrain": {2, map[string]int{
