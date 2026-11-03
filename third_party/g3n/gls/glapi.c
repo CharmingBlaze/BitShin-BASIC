@@ -328,6 +328,9 @@ static PFNGLGETVERTEXATTRIBPOINTERVPROC               pglGetVertexAttribPointerv
 static PFNGLISPROGRAMPROC                             pglIsProgram;
 static PFNGLISSHADERPROC                              pglIsShader;
 static PFNGLLINKPROGRAMPROC                           pglLinkProgram;
+static PFNGLGETPROGRAMBINARYPROC                      pglGetProgramBinary;
+static PFNGLPROGRAMBINARYPROC                         pglProgramBinary;
+static PFNGLPROGRAMPARAMETERIPROC                     pglProgramParameteri;
 static PFNGLSHADERSOURCEPROC                          pglShaderSource;
 static PFNGLUSEPROGRAMPROC                            pglUseProgram;
 static PFNGLUNIFORM1FPROC                             pglUniform1f;
@@ -679,6 +682,9 @@ static void load_procs() {
 	pglIsProgram = (PFNGLISPROGRAMPROC)get_proc("glIsProgram"); 
 	pglIsShader = (PFNGLISSHADERPROC)get_proc("glIsShader"); 
 	pglLinkProgram = (PFNGLLINKPROGRAMPROC)get_proc("glLinkProgram"); 
+	pglGetProgramBinary = (PFNGLGETPROGRAMBINARYPROC)get_proc("glGetProgramBinary");
+	pglProgramBinary = (PFNGLPROGRAMBINARYPROC)get_proc("glProgramBinary");
+	pglProgramParameteri = (PFNGLPROGRAMPARAMETERIPROC)get_proc("glProgramParameteri");
 	pglShaderSource = (PFNGLSHADERSOURCEPROC)get_proc("glShaderSource"); 
 	pglUseProgram = (PFNGLUSEPROGRAMPROC)get_proc("glUseProgram"); 
 	pglUniform1f = (PFNGLUNIFORM1FPROC)get_proc("glUniform1f"); 
@@ -2415,6 +2421,42 @@ void glLinkProgram(GLuint program) {
 			panic(err, "glLinkProgram");
 		}
 	}
+}
+
+// Program binaries (moonBASIC patch). They may be absent on a 3.3 context, and a
+// driver may offer no formats, so nothing here assumes they work.
+int mbBinarySupported(void) {
+
+	GLint n = 0;
+	if (!pglGetProgramBinary || !pglProgramBinary || !pglProgramParameteri) {
+		return 0;
+	}
+	pglGetIntegerv(GL_NUM_PROGRAM_BINARY_FORMATS, &n);
+	while (pglGetError() != GL_NO_ERROR) {
+	}
+	return n > 0;
+}
+
+void mbProgramRetrievable(GLuint program) {
+
+	pglProgramParameteri(program, GL_PROGRAM_BINARY_RETRIEVABLE_HINT, GL_TRUE);
+}
+
+void mbProgramBinary(GLuint program, GLenum format, const void *data, GLsizei length) {
+
+	pglProgramBinary(program, format, data, length);
+	while (pglGetError() != GL_NO_ERROR) {
+	}
+}
+
+GLsizei mbGetProgramBinary(GLuint program, GLsizei size, GLenum *format, void *data) {
+
+	GLsizei got = 0;
+	pglGetProgramBinary(program, size, &got, format, data);
+	while (pglGetError() != GL_NO_ERROR) {
+		got = 0;
+	}
+	return got;
 }
 
 void glShaderSource(GLuint shader, GLsizei count, const GLchar *const*string, const GLint *length) {

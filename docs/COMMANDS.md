@@ -216,6 +216,9 @@ Post-pass effects; HUD text and ImGui stay at full resolution. See `docs/RETRO.m
 | `SetRetroResolution w [, h, pixelPerfect]` | Render at `w` × `h` (h 0 follows the window) and upscale with sharp pixels; `pixelPerfect` 1 letterboxes a whole-number scale. 0 turns it off | `SetRetroResolution(320, 240, 1)` |
 | `SetRenderScale f` / `GetRenderScale()` | Render at `f` (0.25–1) of the window, upscaled with FSR 1, for speed. Turns dynamic resolution off; `GetRenderScale` also reads the scale it chose | `SetRenderScale(0.75)` |
 | `StatsPassMs(name$)` | GPU milliseconds of `shadow`, `reflect`, `refract`, `scene`, or `post`, a few frames old. 0 if the driver has no timer. `MOON_GPU_PROFILE=1` prints the whole table | `Print StatsPassMs("shadow")` |
+| `StatsFrameMs(percentile#)` | The frame time that share of the last ten seconds' frames beat. 50 is typical, 99 is the 1% low | `Print StatsFrameMs(99)` |
+| `StatsMissedFrames()` | Frames so far that ran over 1.5 times the target | `Print StatsMissedFrames()` |
+| `StatsShaderMs()` | Milliseconds spent building shader programs so far | `Print StatsShaderMs()` |
 | `SetDynamicResolution on [, targetFPS]` / `GetDynamicResolution()` | On by default. Draws the 3D scene smaller when frames run late (default target 60), sharpens it back up, and raises it again when there is room. HUD text stays at full size | `SetDynamicResolution(True, 30)` |
 | `SetRetroColors levels` | Levels per channel (32 = 15-bit, 6 = 216 colours); 0 off | `SetRetroColors(32)` |
 | `SetRetroDither amount` | 0–1 ordered 4 × 4 Bayer dither, in scene pixels | `SetRetroDither(0.5)` |
@@ -1233,6 +1236,9 @@ See `docs/TERRAIN.md`. OpenGL **3.3** grids: central-difference normals, far chu
 | `SetTerrainSplat([t,] sand, grass, rock, snow [, grass2, rockN])` | Bind texture handles | `SetTerrainSplat(t, s, g, r, n)` |
 | `SetTerrainOctaves` / `SetTerrainFreq` / `SetTerrainDispFactor` / `SetTerrainPower` | Their GUI sliders (rebuilds chunks). `GetTerrainOctaves(t)`, `GetTerrainFreq(t)`, `GetTerrainDispFactor(t)` read them back (`0` when `t` is not terrain) | `SetTerrainOctaves(t, 8)` |
 | `SetTerrainGrassCoverage` / `GetTerrainGrassCoverage(t)` / `SetTerrainRockColor` / `SetTerrainFogFalloff` | Splat + fog | `SetTerrainGrassCoverage(t, 0.65)` |
+| `CreateTree(kind$ [, seed, height])` | A generated tree template for `TerrainTrees`: `pine` or `oak`. Each seed is a different shape, and it needs no art files. Oak leaves need `SetLook "modern"` or `SetLinearLight True` to be cut out | `pine = CreateTree("pine", 1, 24)` |
+| `SetTerrainClearings([t,] amount#)` | 0 keeps thin trees between stands; 1 opens bare clearings and keeps trees off the beach. Set before `TerrainTrees` | `SetTerrainClearings(ground, 1)` |
+| `SetTerrainGrass([t,] amount# [, height#])` | Grass blades around the camera, thinned on lower quality tiers. 1 is a full meadow, 0 turns it off; height is in metres (default 0.55) | `SetTerrainGrass(ground, 1)` |
 | `SetTerrainWaterHeight` / `SetTerrainBlend` / `SetTerrainSnow(on [, y])` | Sand line + optional snow. The snow edge wanders by up to ±9 m (less on small hills) and creeps lower on flat ground; trees and props are not planted in it. Steep rock gets strata and crevices | `SetTerrainSnow(True, 8.5)` |
 | `SetTerrainEdge(t, mode$)` | Ground past a heightmap's border. `"zero"` (default) drops to 0, an island in a sea. `"clamp"` carries the border height on. `"mirror"` reflects the hills so the land keeps going and a lake stays a lake | `SetTerrainEdge(t, "mirror")` |
 | `SetTerrainTessMultiplier(m)` | CPU vertex density (not GL tess) | `SetTerrainTessMultiplier(t, 1.4)` |

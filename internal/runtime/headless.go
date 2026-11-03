@@ -70,6 +70,8 @@ func (w *World) headlessStubTables(n func(func([]value.Value) (value.Value, erro
 		w.dynResCommands(n),
 		w.passCommands(n),
 		w.shadowTurnCommands(n),
+		w.treeGenCommands(need),
+		w.pacingCommands(n),
 	}
 }
 

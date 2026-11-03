@@ -740,6 +740,12 @@ func (w *World) commandTable() map[string]cmd {
 	for k, v := range w.shadowTurnCommands(n) {
 		m[k] = v
 	}
+	for k, v := range w.treeGenCommands(need) {
+		m[k] = v
+	}
+	for k, v := range w.pacingCommands(n) {
+		m[k] = v
+	}
 	for k, v := range w.shadingCommands(n, z) {
 		m[k] = v
 	}

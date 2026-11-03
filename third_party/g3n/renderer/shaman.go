@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"strings"
 
+	"sort"
 	"strconv"
 
 	"github.com/g3n/engine/gls"
@@ -252,8 +253,15 @@ func (sm *Shaman) preprocess(source string, defines map[string]string) (string, 
 	var prefix = ""
 	if defines != nil { // This is only true for the outer call
 		prefix = fmt.Sprintf("#version %s\n", GLSL_VERSION)
-		for name, value := range defines {
-			prefix = prefix + fmt.Sprintf("#define %s %s\n", name, value)
+		// Sorted: map order changes every run, and the same shader must produce the
+		// same text or no cache, ours or the driver's, can ever recognise it.
+		names := make([]string, 0, len(defines))
+		for name := range defines {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			prefix = prefix + fmt.Sprintf("#define %s %s\n", name, defines[name])
 		}
 	}
 

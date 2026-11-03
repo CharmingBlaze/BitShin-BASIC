@@ -128,6 +128,8 @@ uniform sampler2D WaterRefract;
 uniform sampler2D WaterDuDv;
 uniform sampler2D WaterNormal;
 uniform int WaterReflectOn;
+uniform vec3 WaterSkyTop;
+uniform vec3 WaterSkyLow;
 uniform int WaterRefractOn;
 uniform int WaterHasDuDv;
 uniform int WaterHasNormal;
@@ -338,6 +340,11 @@ void main() {
         refrColor = mix(refrColor, grabbedR, max(bottom * 0.8, edge));
     }
     vec3 reflectCol = mix(deepWaterColor, toLin(vec3(0.65, 0.78, 0.9)), 0.35);
+    if (LinearLight != 0 && WaterReflectOn == 0 && dot(WaterSkyTop, WaterSkyTop) > 0.0) {
+        // No reflection pass (the low tier): the sky's own gradient, from the
+        // height the view bounces to, costs nothing and still reads as sky.
+        reflectCol = toLin(mix(WaterSkyLow, WaterSkyTop, smoothstep(0.0, 0.6, viewDir.y)));
+    }
     if (WaterReflectOn != 0) {
         vec3 grabbed = texture(WaterReflect, reflectUV).rgb;
         vec3 planar = grabbed;

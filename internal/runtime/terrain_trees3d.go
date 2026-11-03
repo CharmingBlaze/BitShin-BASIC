@@ -8,6 +8,7 @@ import (
 	"github.com/g3n/engine/core"
 	"github.com/g3n/engine/geometry"
 	"github.com/g3n/engine/gls"
+	"github.com/g3n/engine/material"
 	"github.com/g3n/engine/math32"
 )
 
@@ -19,6 +20,8 @@ type meshPart struct {
 	// Shared-vertex form, for batches with a third of the vertex work.
 	verts, vnors []math32.Vector3
 	idx          []uint32
+	shades       []float32 // baked per vertex (CreateTree); nil shades by height
+	cardUV       []float32 // leaf cards: u, v per vertex
 	far          *meshPart // simplified twin for distant blocks; nil keeps this one
 }
 
@@ -60,7 +63,21 @@ func simplifiedPart(p meshPart) *meshPart {
 		}
 		nors[i].Normalize()
 	}
-	return &meshPart{color: p.color, verts: verts, vnors: nors, idx: res.Mesh.Indices}
+	var shades []float32
+	if len(p.shades) == len(p.verts) {
+		// The simplifier keeps a subset of positions; take each one's shade from
+		// the nearest source vertex.
+		shades = make([]float32, n)
+		for i := range verts {
+			best := float32(math32.Infinity)
+			for j := range p.verts {
+				if d := verts[i].DistanceToSquared(&p.verts[j]); d < best {
+					best, shades[i] = d, p.shades[j]
+				}
+			}
+		}
+	}
+	return &meshPart{color: p.color, verts: verts, vnors: nors, idx: res.Mesh.Indices, shades: shades}
 }
 
 // treeMeshParts reads a 3D tree template: its own mesh and its direct
@@ -107,6 +124,28 @@ func (w *World) readTreeParts(id int) (parts []meshPart, minY float32) {
 		}
 		part := meshPart{tris: tris, nors: geomTriNormals(e.mesh.GetGeometry(), m), color: col}
 		part.verts, part.vnors, part.idx = geomIndexed(e.mesh.GetGeometry(), m)
+		if g := e.mesh.GetGeometry(); g.VBO(gls.VertexColor) != nil {
+			if c := readAttrib(g, gls.VertexColor, 3); len(c) == len(part.verts)*3 {
+				part.shades = make([]float32, len(part.verts))
+				for i := range part.shades {
+					part.shades[i] = c[i*3]
+				}
+				if e.name == treeCards {
+					part.cardUV = make([]float32, len(part.verts)*2)
+					for i := range part.shades {
+						part.cardUV[i*2], part.cardUV[i*2+1] = c[i*3], c[i*3+1]
+						part.shades[i] = c[i*3+2]
+					}
+					part.far = farCards(part, 2, 1.35)
+					parts = append(parts, part)
+					return
+				}
+			}
+		}
+		if e.name == treeFarOnly && len(parts) > 0 {
+			parts[len(parts)-1].far = &part
+			return
+		}
 		part.far = simplifiedPart(part)
 		parts = append(parts, part)
 	}
@@ -266,7 +305,7 @@ func (w *World) plantMeshTrees(mesh int, pts []scatterPt, sway bool) []int {
 		id := w.newInstanced(nil, part.tris, part.color, len(pts), true)
 		im := w.instances[id]
 		im.triNor = part.nors
-		im.verts, im.vnors, im.vidx = part.verts, part.vnors, part.idx
+		im.verts, im.vnors, im.vidx, im.shades, im.cardUV = part.verts, part.vnors, part.idx, part.shades, part.cardUV
 		im.tint = tint
 		im.sway = sway
 		im.swayLo, im.swayH = minY, maxY-minY
@@ -281,6 +320,9 @@ func (w *World) plantMeshTrees(mesh int, pts []scatterPt, sway bool) []int {
 			// A chunk of forest behind the camera costs nothing.
 			b.mesh.SetCullable(true)
 			b.name = "scatter"
+			if part.cardUV != nil {
+				markLeafCards(b)
+			}
 		}
 		if e := w.ents[id]; e != nil {
 			e.name = "scatter"
@@ -395,10 +437,20 @@ func (w *World) syncMeshTrees(t *terrain, cw float32, cam chunkKey) {
 		parts, minY := w.treeMeshParts(t.scatters[li].mesh)
 		lps = append(lps, layerParts{li, t.scatters[li], parts, minY, partsTop(parts, minY)})
 	}
-	// Blocks past 3.5 chunks use the simplified parts. treeFar records which
-	// form a block was planted in, so crossing the line rebuilds it.
-	farLine := float32(3.5)
-	isFar := func(b chunkKey) bool { return dist(b) > farLine }
+	// Blocks past 3.5 chunks use the simplified parts, sooner on a map of big
+	// chunks: at most about 100 m past the block's reach (2.1 chunks from its
+	// middle to its corner), so no tree in a far block is close. treeFar records
+	// which form a block was planted in, so crossing the line rebuilds it.
+	farLine := math32.Min(3.5, 100/cw+2.1)
+	// Detail follows the camera, not the stream origin: a game that fixes the
+	// origin to keep a whole map loaded still wants close trees in full.
+	lodFrom := cam
+	if w.cam != nil {
+		p := worldPos(w.cam.GetNode())
+		cx, _, cz := fromG3N(p.X, p.Y, p.Z)
+		lodFrom = chunkOf(cx, cz, cw)
+	}
+	isFar := func(b chunkKey) bool { return treeBlockDist(b, lodFrom) > farLine }
 	if t.treeFar == nil {
 		t.treeFar = map[chunkKey]bool{}
 	}
@@ -413,11 +465,11 @@ func (w *World) syncMeshTrees(t *terrain, cw float32, cam chunkKey) {
 					pts = append(pts, w.scatterPoints(t, lp.layer, k, lp.li, x0, z0, cw, 1)...)
 				}
 			}
-			parts := lp.parts
 			if far {
-				parts = farParts(parts)
+				out = append(out, buildTreeBatches(farParts(lp.parts), lp.minY, lp.maxY, pts, true)...)
+			} else {
+				out = append(out, nearTreeBatches(lp.parts, lp.minY, lp.maxY, pts)...)
 			}
-			out = append(out, buildTreeBatches(parts, lp.minY, lp.maxY, pts, true)...)
 		}
 		return out
 	}
@@ -481,10 +533,38 @@ func (w *World) syncMeshTrees(t *terrain, cw float32, cam chunkKey) {
 
 // treeBatchArrays is one tree part's merged copies, built off the GL thread.
 type treeBatchArrays struct {
-	m     *meshArrays
-	col   *math32.ArrayF32
-	color math32.Color
-	sway  bool
+	m      *meshArrays
+	col    *math32.ArrayF32
+	color  math32.Color
+	sway   bool
+	cards  bool
+	noCast bool // a far twin casts the shadow instead
+	proxy  bool // only drawn into shadow maps
+}
+
+// farCards keeps one card in every so many, grown to cover for the rest.
+func farCards(p meshPart, every int, grow float32) *meshPart {
+	f := &meshPart{color: p.color}
+	for c := 0; c+3 < len(p.verts); c += 4 * every {
+		var mid math32.Vector3
+		for i := 0; i < 4; i++ {
+			mid.Add(&p.verts[c+i])
+		}
+		mid.MultiplyScalar(0.25)
+		base := uint32(len(f.verts))
+		for i := c; i < c+4; i++ {
+			v := p.verts[i]
+			v.Sub(&mid)
+			v.MultiplyScalar(grow)
+			v.Add(&mid)
+			f.verts = append(f.verts, v)
+			f.vnors = append(f.vnors, p.vnors[i])
+			f.shades = append(f.shades, p.shades[i])
+			f.cardUV = append(f.cardUV, p.cardUV[i*2], p.cardUV[i*2+1])
+		}
+		f.idx = append(f.idx, base, base+1, base+2, base, base+2, base+3)
+	}
+	return f
 }
 
 // farParts swaps in each part's simplified twin where it has one.
@@ -531,14 +611,38 @@ func buildTreeBatches(parts []meshPart, minY, maxY float32, pts []scatterPt, swa
 			continue
 		}
 		im := &instancedMesh{count: len(pts), xforms: xf, tint: tint, sway: sway,
-			swayLo: minY, swayH: maxY - minY, verts: part.verts, vnors: part.vnors, vidx: part.idx}
+			swayLo: minY, swayH: maxY - minY, verts: part.verts, vnors: part.vnors, vidx: part.idx, shades: part.shades, cardUV: part.cardUV}
 		pos := math32.NewArrayF32(0, len(part.verts)*3*len(pts))
 		nor := math32.NewArrayF32(0, len(part.verts)*3*len(pts))
 		uvs := math32.NewArrayF32(0, len(part.verts)*2*len(pts))
 		idx := math32.NewArrayU32(0, len(part.idx)*len(pts))
 		col := math32.NewArrayF32(0, len(part.verts)*3*len(pts))
 		buildIndexedBatchArrays(im, &pos, &nor, &uvs, &idx, &col)
-		out = append(out, treeBatchArrays{m: &meshArrays{pos: &pos, nor: &nor, uvs: &uvs, idx: &idx}, col: &col, color: part.color, sway: sway})
+		out = append(out, treeBatchArrays{m: &meshArrays{pos: &pos, nor: &nor, uvs: &uvs, idx: &idx}, col: &col, color: part.color, sway: sway, cards: part.cardUV != nil})
+	}
+	return out
+}
+
+// nearTreeBatches draws each part in full but lets its far twin cast the shadow.
+// Four shadow cascades redraw every caster, and a soft shadow cannot show the
+// difference: this took 3 to 5 ms off a walk through a forest.
+func nearTreeBatches(parts []meshPart, minY, maxY float32, pts []scatterPt) []treeBatchArrays {
+	var out []treeBatchArrays
+	for _, p := range parts {
+		near := buildTreeBatches([]meshPart{p}, minY, maxY, pts, true)
+		if p.far == nil || p.cardUV != nil {
+			out = append(out, near...)
+			continue
+		}
+		for i := range near {
+			near[i].noCast = true
+		}
+		out = append(out, near...)
+		proxy := buildTreeBatches([]meshPart{*p.far}, minY, maxY, pts, true)
+		for i := range proxy {
+			proxy[i].proxy = true
+		}
+		out = append(out, proxy...)
 	}
 	return out
 }
@@ -567,5 +671,26 @@ func (w *World) attachTreeBatch(a treeBatchArrays) int {
 		lm.wind = a.sway
 	}
 	e.mesh.SetCullable(true)
+	if a.cards {
+		markLeafCards(e)
+	}
+	if a.noCast {
+		e.meshNoCast = true
+	}
+	if a.proxy {
+		e.shadowProxy = true
+		e.mesh.SetVisible(false)
+	}
 	return id
+}
+
+// markLeafCards sets a batch to draw as leaf cards: both sides, cut into leaves
+// by the shader. The crown's core casts the shadow, which costs less and looks
+// the same at shadow-map resolution.
+func markLeafCards(e *Entity) {
+	if lm, ok := e.mesh.Materials()[0].IMaterial().(*litMat); ok {
+		lm.leafCard = true
+		lm.SetSide(material.SideDouble)
+	}
+	e.meshNoCast = true
 }

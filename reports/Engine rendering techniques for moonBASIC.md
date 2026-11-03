@@ -76,6 +76,25 @@ The tier budget below is a design, not a measurement. Its current baseline is re
 | AA and post | FXAA-class, 67% start and 50% floor | SMAA low or medium | SMAA high | SMAA plus optional MSAA or TAA |
 | Grass | Cards or clumps to about 30-50 m | Clumps | Clumps plus blades near | Blades |
 
+## Progress against the ranked list
+
+Added after the report, as the list is built. Timings are the Radeon 780M at 1280x720; nothing has been measured on a second machine, so row 1's three-machine goal stays open.
+
+| Rows | State | Result |
+|---|---|---|
+| 2, 3, 4, 5, 6, 7, 8, 9, 13 | Done | Island on high went from 17.7 ms to about 10 ms before the content below was added |
+| 1 | Partly | Per-pass timers done (`StatsPassMs`). Intel, Linux and Mac runs need other machines |
+| 10 | Mostly | Water without a reflection pass uses the sky gradient. Baked shore depth and foam are not done |
+| 11 | Done | Controller reads GPU time and acts before a miss; terrain mip bias. Not tested on a real load ramp |
+| 12 | Mostly | Far cascades take turns; tree shadow proxies took a ground view from 19.3 ms to 14.2 ms. Swept culling and tinted shade are not done |
+| 14 | Mostly | Disk binary cache: 7.2 s of shader work down to about 15 ms on repeat launches. Sorting G3N's `#define` lines was required. Direct GL programs are not cached, and the first launch still stalls |
+| 15 | Mostly | Frame fences, `StatsFrameMs`, `StatsMissedFrames`. Simulation delta smoothing is not done |
+| 20 | Partly | 8-bit dither. Per-profile tone maps and grade LUTs are not done |
+| 22 | Mostly | Per-octave ridging, rotated octaves, derivative damping, octaves limited by map size. Staged erosion and D8 rivers are not done |
+| 23 | Mostly | `CreateTree` pine and oak, leaf cards with no texture, far models, baked shade. Wind still draws through merged batches, not instances |
+| 30 | Partly | `SetTerrainGrass` blades. Root color does not yet match the ground's macro color |
+| 16, 17, 18, 19, 21, 24-29, 31-34 | Not started | Next by rank: 16 render queues, 17 sky, 18 terrain bake, 19 rock projection, 21 render targets |
+
 ## What not to build
 
 These are the temptations the evidence argues against. Most have a named condition that would reopen them.

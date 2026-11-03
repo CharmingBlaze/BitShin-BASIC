@@ -24,6 +24,8 @@ type instancedMesh struct {
 	// Indexed source: shared corners, a third of the vertices of tris.
 	verts, vnors  []math32.Vector3
 	vidx          []uint32
+	shades        []float32      // baked per vertex; nil shades tree parts by height
+	cardUV        []float32      // leaf cards: u, v per vertex, carried in the color
 	tint          []math32.Color // per copy, multiplied into the color
 	sway          bool           // trees: weight and phase ride in the texcoords
 	swayLo, swayH float32        // template base and height for the weight
@@ -268,7 +270,9 @@ func buildIndexedBatchArrays(im *instancedMesh, pos, nor, uvs *math32.ArrayF32, 
 				sw = f * f
 			}
 			shade := float32(1)
-			if shadeH > 0 {
+			if k < len(im.shades) {
+				shade = im.shades[k]
+			} else if shadeH > 0 {
 				shade = 0.6 + 0.55*(v.Y-shadeLo)/shadeH
 			}
 			v.ApplyMatrix4(&m)
@@ -286,7 +290,11 @@ func buildIndexedBatchArrays(im *instancedMesh, pos, nor, uvs *math32.ArrayF32, 
 				uvs.Append(0, 0)
 			}
 			if col != nil {
-				col.Append(tc.R*shade, tc.G*shade, tc.B*shade)
+				if k*2+1 < len(im.cardUV) {
+					col.Append(im.cardUV[k*2], im.cardUV[k*2+1], shade*(tc.R+tc.G+tc.B)/3)
+				} else {
+					col.Append(tc.R*shade, tc.G*shade, tc.B*shade)
+				}
 			}
 		}
 		for _, ix := range im.vidx {

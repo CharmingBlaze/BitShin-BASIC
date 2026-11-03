@@ -340,6 +340,7 @@ func (w *World) refreshScatter(t *terrain) {
 		return
 	}
 	w.releaseMeshTrees(t)
+	w.resetGrass(t)
 	w.treeParts = nil
 	w.treeImps = nil
 	cw := t.chunkWorld()
@@ -469,8 +470,13 @@ func (w *World) scatterPoints(t *terrain, layer scatterLayer, key chunkKey, salt
 			continue
 		}
 		if forest != nil {
+			if t.clearing > 0 && h < t.waterY+math32.Max(t.blend, 1.2)*2 {
+				continue // the beach stays open
+			}
 			m := forest.fbm(float64(x)*0.0045, float64(z)*0.0045, 3, 0.5, 2)
-			if float64(rng.Float32()) > 0.2+0.8*smoothstep64(-0.15, 0.25, m) {
+			a := float64(t.clearing)
+			keep := 0.2 * (1 - a)
+			if float64(rng.Float32()) > keep+(1-keep)*smoothstep64(-0.15+0.07*a, 0.25-0.2*a, m) {
 				continue
 			}
 		}

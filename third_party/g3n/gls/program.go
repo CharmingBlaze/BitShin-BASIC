@@ -6,12 +6,18 @@ package gls
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"io"
 	"strconv"
 	"strings"
+	"time"
 )
+
+// PROGRAM_BINARY_LENGTH is the size of a program's saved binary.
+const PROGRAM_BINARY_LENGTH = 0x8741
 
 // Program represents an OpenGL program.
 // It must have Vertex and Fragment shaders.
@@ -92,10 +98,22 @@ func (prog *Program) Build() error {
 		return fmt.Errorf("no shaders supplied")
 	}
 
+	start := time.Now()
+	key := prog.sourceKey()
+	if prog.loadCached(key) {
+		if ProgramBuilt != nil {
+			ProgramBuilt(key, time.Since(start), true)
+		}
+		return nil
+	}
+
 	// Create program
 	prog.handle = prog.gs.CreateProgram()
 	if prog.handle == 0 {
 		return fmt.Errorf("error creating program")
+	}
+	if ProgramCache != nil {
+		prog.gs.ProgramRetrievable(prog.handle)
 	}
 
 	// Clean unused GL allocated resources
@@ -126,8 +144,63 @@ func (prog *Program) Build() error {
 		prog.handle = 0
 		return fmt.Errorf("error linking program: %v", log)
 	}
+	if ProgramCache != nil {
+		if data, format := prog.gs.GetProgramBinary(prog.handle); len(data) > 0 {
+			ProgramCache.Store(key, data, format)
+		}
+	}
+	if ProgramBuilt != nil {
+		ProgramBuilt(key, time.Since(start), false)
+	}
 
 	return nil
+}
+
+// ProgramStore keeps compiled programs between runs (moonBASIC patch).
+type ProgramStore interface {
+	Load(key string) (data []byte, format uint32, ok bool)
+	Store(key string, data []byte, format uint32)
+}
+
+// ProgramCache, when set, is asked for a program before compiling it.
+var ProgramCache ProgramStore
+
+// ProgramBuilt, when set, hears what each program cost.
+var ProgramBuilt func(key string, took time.Duration, cached bool)
+
+// sourceKey names a program by its shader stages and sources.
+func (prog *Program) sourceKey() string {
+	h := sha256.New()
+	for _, s := range prog.shaders {
+		fmt.Fprintf(h, "%d:%d:", s.stype, len(s.source))
+		io.WriteString(h, s.source)
+	}
+	return hex.EncodeToString(h.Sum(nil))[:40]
+}
+
+// loadCached tries a stored binary. A driver may refuse one at any time; the
+// caller then compiles from source and the store is overwritten.
+func (prog *Program) loadCached(key string) bool {
+	if ProgramCache == nil {
+		return false
+	}
+	data, format, ok := ProgramCache.Load(key)
+	if !ok || len(data) == 0 {
+		return false
+	}
+	handle := prog.gs.CreateProgram()
+	if handle == 0 {
+		return false
+	}
+	prog.gs.ProgramBinary(handle, format, data)
+	var status int32
+	prog.gs.GetProgramiv(handle, LINK_STATUS, &status)
+	if status == FALSE {
+		prog.gs.DeleteProgram(handle)
+		return false
+	}
+	prog.handle = handle
+	return true
 }
 
 // GetAttribLocation returns the location of the specified attribute

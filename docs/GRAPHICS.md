@@ -137,16 +137,42 @@ Used today: probe SH (`SHEval`), crowd push-apart, `NoiseFBM`, `JobXform`.
 
 `SetLook "modern"` after `CreateCamera` gives a finished picture: tone mapping, bloom, FXAA, ambient occlusion, image-based light, sun shadows, and fog that fades into the sky's horizon. It adds a default sky and a sun only if the scene has none, and leaves your fog alone if you set one. Anything set afterwards wins. The low tier skips the post effects. `SetLook "off"` turns them off.
 
+## A world with no art files
+
+Terrain, forest and grass can all be generated, so a game can start with no assets:
+
+```
+SetLook "modern"
+hm = GenerateHeightmapPreset("mountain-island", 256, 256, seed)
+HydraulicErodeHeightmap(hm, 3200, 24)
+ground = CreateTerrainFromHeightmap(hm, 800, 800, 160)
+ApplyTerrainSplat(ground)
+SetTerrainClearings(ground, 1)
+TerrainTrees(ground, CreateTree("pine", 1), 0.14)
+TerrainTrees(ground, CreateTree("oak", 3), 0.06)
+SetTerrainGrass(ground, 1)
+```
+
+`examples/island_orbit.mb` is this with water and sky. Costs on a Radeon 780M at 1280x720 with scaling off, in frame milliseconds for high / medium / low: 9.4 / 6.8 / 4.7 circling the island, 14.2 / 10.2 / 6.8 standing in the forest.
+
+Three things keep it cheap. Oak crowns are a dark core inside leaf cards that the shader cuts into leaves from noise, so there is no leaf texture and fewer triangles than solid lumps. Each kind has a hand-built far model, and detail is chosen from the camera even when `SetStreamOrigin` fixes the streaming point. Near trees cast their shadow from the far model, because a soft shadow cannot show the difference and four cascades redraw every caster.
+
 ## Staying smooth
 
 Every game, run or compiled, has two steps of protection, in this order:
 
-1. **Dynamic resolution.** When over a quarter of the frames in half a second run late, the 3D scene draws 5% smaller per axis (10% when most are late). AMD FSR 1 upsamples and sharpens it onto the window, and HUD text stays at full size. It tries one step sharper after 4 s of on-time frames, stopping below the scale that last ran late, and that limit relaxes after 15 s. Each tier has a floor: ultra 0.85, high 0.75, medium 0.65, low 0.5.
+1. **Dynamic resolution.** The 3D scene draws smaller when the GPU runs short of time, AMD FSR 1 upsamples and sharpens it onto the window, and HUD text stays at full size. Terrain mips are biased to match, so the smaller picture does not also get blurrier textures. Where the driver has a GPU timer, three frames past 92% of the budget drop 5% per axis (10% past 110%), before any frame is missed. It sharpens after 1.5 s if the next step is predicted under 80%. Without a timer it falls back to missed frames: over a quarter of the frames in half a second running late drops a step, and 4 s on time tries one sharper. Each tier has a floor: ultra 0.85, high 0.75, medium 0.65, low 0.5.
 2. **Quality tiers.** Under `SetGraphicsQuality "auto"`, only once resolution is at its floor does a 26 ms average drop one tier. Tiers never step back up by themselves.
 
 The first second, frames over 250 ms, and frames that spent little time drawing (a script that sleeps or computes for long) are not counted. Use `SetDynamicResolution(False)` when timing the renderer, since it holds frame time steady by changing the picture size.
 
 Every tier keeps the post pass. G3N asks for an 8x multisampled window, so drawing the scene straight to the window was about 3x slower than the low tier's post pass, and switching to it stalled for seconds (Radeon 780M). Low only gives up bloom and ambient occlusion from the pass.
+
+## Pacing and first launch
+
+A fence at each frame's end keeps the GPU within two frames of the CPU, which bounds input lag and stops queued frames ending in a long stall. `StatsFrameMs(99)` gives the 1% low of the last ten seconds and `StatsMissedFrames()` counts frames over 1.5 times the target. Report those, not average FPS, since an average can hide a stutter.
+
+Compiled shaders are saved under the user's cache folder, keyed on GPU and driver, so only a game's first launch on a machine pays to compile them. On the Radeon 780M, shader work on the island went from about 7.2 s to about 15 ms, and the first frames from 7.6 s to 0.3 s. A driver may refuse a saved program, usually after an update; it then compiles from source and saves again. The saved form needs a driver that offers binary formats. Where none does, games compile on every launch as before. `MOON_NO_SHADER_CACHE=1` turns it off, `MOON_SHADER_LOG=1` prints each program's cost, and `StatsShaderMs()` gives the total. Programs moonBASIC builds directly, such as post effects and FSR, are not saved yet.
 
 ## Where the frame goes
 

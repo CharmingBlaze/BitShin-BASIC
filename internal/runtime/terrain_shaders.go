@@ -81,6 +81,7 @@ uniform float TerrainOriginX;
 uniform float TerrainOriginZ;
 uniform int TerrainSplatOn;
 uniform int TerrainCheap;
+uniform float TerrainMipScale;
 uniform int TerrainHasSand;
 uniform int TerrainHasGrass;
 uniform int TerrainHasGrass2;
@@ -186,11 +187,13 @@ vec3 triplanarRGB(sampler2D tex, int has, vec3 fallback, vec3 wp, vec3 n, float 
 }
 
 vec3 heightBlend(vec3 c0, vec3 c1, vec3 c2, vec3 c3, vec3 c4, float w0, float w1, float w2, float w3, float w4) {
-    float h0 = terrainLuma(c0) + w0;
-    float h1 = terrainLuma(c1) + w1;
-    float h2 = terrainLuma(c2) + w2;
-    float h3 = terrainLuma(c3) + w3;
-    float h4 = terrainLuma(c4) + w4;
+    // Luma only breaks ties between materials that are present. A material with
+    // no weight stays out, or bright snow and sand outline every rock edge.
+    float h0 = terrainLuma(c0) * min(w0 * 8.0, 1.0) + w0;
+    float h1 = terrainLuma(c1) * min(w1 * 8.0, 1.0) + w1;
+    float h2 = terrainLuma(c2) * min(w2 * 8.0, 1.0) + w2;
+    float h3 = terrainLuma(c3) * min(w3 * 8.0, 1.0) + w3;
+    float h4 = terrainLuma(c4) * min(w4 * 8.0, 1.0) + w4;
     float m = max(max(max(h0, h1), max(h2, h3)), h4) - 0.22;
     float b0 = max(h0 - m, 0.0);
     float b1 = max(h1 - m, 0.0);
@@ -217,8 +220,10 @@ float terrainSnowMask(float h, float ny) {
 vec4 terrainSplat(inout vec3 n) {
     float h = WorldPos.y;
     vec3 tp = retroTexPos();
-    tpDx = dFdx(tp);
-    tpDy = dFdy(tp);
+    // Rendering smaller picks blurrier mips, then FSR upscales the blur. Scaling the
+    // gradients is the same as Godot's log2(scale) mip bias.
+    tpDx = dFdx(tp) * TerrainMipScale;
+    tpDy = dFdy(tp) * TerrainMipScale;
     float ny = clamp(n.y, 0.0, 1.0);
     float cover = clamp(TerrainGrassCover, 0.0, 1.0);
     float grassLo = mix(0.55, 0.32, cover);
@@ -270,9 +275,12 @@ vec4 terrainSplat(inout vec3 n) {
     }
     if (painted || sandMask > 0.002) {
         sand = mix(sand, triplanarRGB(TerrainSand, TerrainHasSand, sand, tp, n, 0.10), 0.72);
+        if (LinearLight != 0) { sand *= 0.8; } // dry sand is about 0.4: pale sand glares
     }
     if (painted || snowMask > 0.002) {
         snow = mix(snow, triplanarRGB(TerrainSnow, TerrainHasSnow, snow, tp, n, 0.07), 0.55);
+        // Real snow is about 0.8 at most; near 1 it clips to flat white in full sun.
+        if (LinearLight != 0) { snow *= 0.8; }
     }
     // Large dry and lush patches, then a meadow-scale mottle. The fine
     // layer fades with distance before it can shimmer.

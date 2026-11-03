@@ -130,6 +130,8 @@ type terrain struct {
 	snowTex      int
 	rockNrm      int
 	grassCover   float32
+	clearing     float32 // 0 thin stands, 1 bare clearings and an open shore
+	grass        *grassField
 	waterY       float32
 	blend        float32
 	fogFalloff   float32
@@ -671,6 +673,7 @@ func (w *World) tickTerrain() {
 	}
 	w.syncHorizon(t, cw, c)
 	w.syncMeshTrees(t, cw, c)
+	w.syncGrass(t)
 	w.faceTreeCards(t)
 	w.cullTerrainChunks(t, cw)
 }
@@ -1372,6 +1375,25 @@ func (w *World) terrainCommands(n func(func([]value.Value) (value.Value, error))
 			}
 			return z()
 		}),
+		// SetTerrainGrass([t,] amount# [, height#]): grass blades around the camera.
+		// Amount 1 is a full meadow, 0 turns it off; height is in metres.
+		"setterraingrass": n(func(a []value.Value) (value.Value, error) {
+			t := w.pickTerrain(a)
+			if t != nil {
+				off := terrainArgOff(w, a)
+				w.setTerrainGrass(t, float32(argN(a, off, 1)), float32(argN(a, off+1, 0.55)))
+			}
+			return z()
+		}),
+		// SetTerrainClearings([t,] amount#): 0 keeps thin trees between stands, 1
+		// opens bare clearings and keeps trees off the beach. Set before TerrainTrees.
+		"setterrainclearings": n(func(a []value.Value) (value.Value, error) {
+			t := w.pickTerrain(a)
+			if t != nil {
+				t.clearing = math32.Clamp(float32(argN(a, terrainArgOff(w, a), 1)), 0, 1)
+			}
+			return z()
+		}),
 		"setterrainrockcolor": n(func(a []value.Value) (value.Value, error) {
 			// (r, g, b) is three arguments; only a fourth makes the first a
 			// terrain. A red of 1 used to read as terrain 1.
@@ -1806,6 +1828,7 @@ func (m *terrainMat) bindPlainUniforms(gs *gls.GLS) {
 	t := m.t
 	setUni1i(gs, "TerrainSplatOn", bool01(t.splat))
 	setUni1i(gs, "TerrainCheap", bool01(m.w.quality.set && m.w.quality.tier == qualityLow))
+	setUni1f(gs, "TerrainMipScale", float32(m.w.retroScr.scaleOr1()))
 	setUni1f(gs, "TerrainWaterY", t.waterY)
 	setUni1f(gs, "TerrainBlend", t.blend)
 	setUni1f(gs, "TerrainGrassCover", t.grassCover)

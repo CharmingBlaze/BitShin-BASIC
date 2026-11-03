@@ -77,6 +77,8 @@ in vec3 VColor;
 uniform int MeshVertexColor;
 uniform int MeshCutout;
 uniform int MeshWind;
+uniform int MeshLeafCard;
+uniform float MeshGrassFade;
 #include <lights>
 #include <material>
 #include <phong_model>
@@ -186,12 +188,37 @@ vec3 shadeMappedNormal(vec3 n) {
     return normalize(mat3(T, B, N) * tn);
 }
 
+float leafNoise(vec3 p) {
+    vec3 i = floor(p), f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    vec2 k = vec2(0.0, 1.0);
+    #define LH(o) fract(sin(dot(i + o, vec3(127.1, 311.7, 74.7))) * 43758.5453)
+    return mix(mix(mix(LH(k.xxx), LH(k.yxx), f.x), mix(LH(k.xyx), LH(k.yyx), f.x), f.y),
+               mix(mix(LH(k.xxy), LH(k.yxy), f.x), mix(LH(k.xyy), LH(k.yyy), f.x), f.y), f.z);
+    #undef LH
+}
+
 void main() {
     vec2 baseUV = retroUV();
     if (dot(WaterClipPlane.xyz, WaterClipPlane.xyz) > 1e-8) {
         if (dot(WorldPos, WaterClipPlane.xyz) + WaterClipPlane.w < 0.0) {
             discard;
         }
+    }
+    if (MeshGrassFade > 0.0) {
+        // Grass dissolves toward the edge of its field, so no line shows.
+        float gone = smoothstep(MeshGrassFade * 0.6, MeshGrassFade, length(Position.xyz));
+        if (gone > fract(sin(dot(floor(WorldPos.xz * 7.0), vec2(12.9898, 78.233))) * 43758.5453)) { discard; }
+    }
+    float leaves = 1.0;
+    if (MeshLeafCard != 0) {
+        // A card is a round clump of leaves, its pattern seeded by its shade. Past
+        // where the noise would shimmer it settles to a plain disc.
+        vec2 q = VColor.rg * 2.0 - 1.0;
+        vec3 seed = vec3(VColor.rg, VColor.b * 37.0);
+        leaves = leafNoise(seed * vec3(15.0, 15.0, 1.0)) * 0.6 + leafNoise(seed * vec3(38.0, 38.0, 1.0)) * 0.4;
+        leaves = mix(leaves, 0.62, smoothstep(100.0, 260.0, length(Position.xyz)));
+        if (leaves < 0.3 + 0.42 * dot(q, q)) { discard; }
     }
     vec4 texMixed = vec4(1);
     #if MAT_TEXTURES > 0
@@ -244,14 +271,20 @@ void main() {
     vec4 matDiffuse = vec4(MatDiffuseColor, MatOpacity) * texMixed;
     vec4 matAmbient = vec4(MatAmbientColor, MatOpacity) * texMixed;
     // A merged level cell carries each object's color in its vertices.
-    if (MeshVertexColor != 0) {
+    if (MeshLeafCard != 0) {
+        // Gaps between leaves fall darker, so the clump has depth.
+        float k = VColor.b * (0.42 + 0.8 * leaves);
+        matDiffuse.rgb *= k;
+        matAmbient.rgb *= k;
+    } else if (MeshVertexColor != 0) {
         matDiffuse.rgb *= VColor;
         matAmbient.rgb *= VColor;
     }
     matDiffuse.rgb = toLin(matDiffuse.rgb);
     matAmbient.rgb = toLin(matAmbient.rgb);
     vec3 fragNormal = normalize(Normal);
-    if (!gl_FrontFacing) { fragNormal = -fragNormal; }
+    // A card's normal is the crown's, so it lights the same from either side.
+    if (!gl_FrontFacing && MeshLeafCard == 0 && MeshGrassFade == 0.0) { fragNormal = -fragNormal; }
     fragNormal = retroFlatNormal(Position.xyz, fragNormal);
     fragNormal = shadeMappedNormal(fragNormal);
     vec3 camDir = normalize(-Position.xyz);
@@ -269,6 +302,18 @@ void main() {
     vec3 wN = retroFlatNormal(WorldPos, normalize(WorldNormal));
     float sunSh = sunShadowFactor(WorldPos, wN, ShadowSunDir);
     bool leafy = LinearLight != 0 && MeshWind != 0;
+    // Solid foliage is mottled with a jittered normal, so needles and lumps do not
+    // read as plastic. Trunks (brown) stay plain. It fades before the noise would
+    // shimmer, and far trees need none of it.
+    if (leafy && MeshLeafCard == 0 && MeshGrassFade == 0.0 && matDiffuse.g >= matDiffuse.r) {
+        float leafFade = 1.0 - smoothstep(45.0, 160.0, length(Position.xyz));
+        if (leafFade > 0.0) {
+            float l1 = leafNoise(WorldPos * 2.7);
+            float l2 = leafNoise(WorldPos * 1.15 + 9.0);
+            matDiffuse.rgb *= mix(1.0, 0.85 + 0.3 * l1, leafFade);
+            fragNormal = normalize(fragNormal + (vec3(l1, l2, l1 * l2 * 2.0) - 0.5) * 0.4 * leafFade);
+        }
+    }
 
 #if DIR_LIGHTS>0
     for (int i = 0; i < DIR_LIGHTS; ++i) {

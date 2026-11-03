@@ -93,6 +93,7 @@ type Entity struct {
 	lgtKelvin                          float32
 	lgtCookie                          *texture.Texture2D
 	castShadow                         bool
+	shadowProxy bool // drawn only into shadow maps, standing in for a detailed mesh
 	camFollowed                        bool
 	meshNoCast                         bool
 	meshNoRecv                         bool
@@ -123,6 +124,7 @@ type collideRule struct {
 }
 
 type World struct {
+	pace framePacer
 	batch                            batchState
 	pass                             passBinds
 	app                              *g3nHost
@@ -690,6 +692,7 @@ func (w *World) graphics3D(width, height, depth, mode int) (value.Value, error) 
 		return value.Value{}, err
 	}
 	w.app = host
+	startShaderCache(w.app.Gls())
 	if gw, ok := w.app.IWindow.(*window.GlfwWindow); ok {
 		gw.SetSize(width, height)
 		gw.SetTitle(w.title)
@@ -1362,6 +1365,7 @@ func (w *World) render(rend *renderer.Renderer) {
 	w.guiPresent()
 	w.captureShot(fbw, fbh)
 	w.prof.gpuEnd()
+	w.paceFrame()
 	w.prof.rend = smooth(w.prof.rend, ms(time.Since(w.prof.renderStart)))
 	w.presentExtraWindows(rend)
 }

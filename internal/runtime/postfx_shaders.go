@@ -305,6 +305,11 @@ void main() {
 		rgb = retro(rgb, vUV);
 	}
 	rgb += vec3(0.78, 0.84, 0.94) * rainStreaks(vUV);
+	if (uLinear != 0 && uRetroPalN <= 0 && uRetroLevels <= 1.0) {
+		// Half a step of triangular noise before 8 bits: a slow sky gradient bands
+		// without it. Fixed per pixel, so it does not crawl.
+		rgb += (hash12(gl_FragCoord.xy) + hash12(gl_FragCoord.xy + 17.3) - 1.0) / 255.0;
+	}
 	frag = vec4(rgb, 1.0);
 }
 `

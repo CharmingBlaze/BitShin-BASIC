@@ -13,4 +13,10 @@ int glapiLoad(void);
 // Set the internal flag to enable/disable OpenGL error checking
 void glapiCheckError(int check);
 
+// Program binaries (moonBASIC patch)
+int mbBinarySupported(void);
+void mbProgramRetrievable(GLuint program);
+void mbProgramBinary(GLuint program, GLenum format, const void *data, GLsizei length);
+GLsizei mbGetProgramBinary(GLuint program, GLsizei size, GLenum *format, void *data);
+
 #endif

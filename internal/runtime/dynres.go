@@ -11,10 +11,12 @@ import (
 // sharpness instead of effects. Only at the bottom of a tier's range does the
 // tier itself drop. The method follows DBPRO2026's (MIT).
 //
-// Frame time cannot show spare GPU time while vsync waits, so this works from
-// missed frames: drop quickly, remember the scale that was too much, and try
-// higher slowly while frames stay on time. The remembered ceiling relaxes, so a
-// lighter part of the game can sharpen again.
+// Frame time cannot show spare GPU time while vsync waits. So where the driver has
+// a GPU timer this reads it and acts before a frame is missed, with limits scaled
+// from Valve's: drop past 92% of the budget, sharpen only if the next step is
+// predicted under 80%. Without a timer it works from missed frames. Either way it
+// drops quickly, remembers the scale that was too much, and tries higher slowly.
+// The remembered ceiling relaxes, so a lighter part of the game can sharpen again.
 const (
 	dynStep     = 0.05 // scale changes in steps of this, per axis
 	dynWindow   = 0.5  // seconds per judgement
@@ -26,6 +28,14 @@ const (
 	dynFPS      = 60.0 // default target
 	dynLeeway   = 1.15 // a frame is late past this share of the budget
 	dynBusyFrac = 0.6  // render or GPU time must reach this share of the budget
+
+	dynGPUHigh  = 0.92 // GPU share of the budget that drops
+	dynGPUFar   = 1.1  // past this, drop two steps
+	dynGPULow   = 0.8  // the next step must be predicted under this to sharpen
+	dynGPUEasy  = 0.6  // under this, the next step ignores the remembered ceiling
+	dynGPUOver  = 3    // frames in a row over dynGPUHigh before dropping
+	dynGPUHold  = 8    // frames to ignore after a change: timers read old frames
+	dynGPURaise = 1.5  // seconds with room to spare before sharpening
 )
 
 // dynScaleFloor is the lowest scale per tier, per axis. 0.5 is a quarter of
@@ -42,6 +52,8 @@ type dynRes struct {
 	warm                 float64
 	frames, late         int
 	started              bool
+	gpu                  float64 // GPU seconds a frame, 0 if the driver has no timer
+	over, hold           int
 }
 
 func (d *dynRes) budget() float64 {
@@ -81,6 +93,9 @@ func (d *dynRes) frame(dt float64, busy bool) bool {
 	if d.warm > 0 {
 		d.warm -= dt
 		return false
+	}
+	if d.gpu > 0 {
+		return d.frameGPU(dt)
 	}
 	d.elapsed += dt
 	d.frames++
@@ -123,6 +138,56 @@ func (d *dynRes) frame(dt float64, busy bool) bool {
 	return false
 }
 
+// frameGPU judges one frame from GPU time. Pixel work follows the scale squared,
+// which is how it predicts the next step.
+func (d *dynRes) frameGPU(dt float64) bool {
+	d.relax += dt
+	if d.relax >= dynRelax {
+		d.relax = 0
+		d.ceiling = math.Min(dynSnap(d.ceiling+dynStep), 1+dynStep)
+	}
+	if d.hold > 0 {
+		d.hold--
+		return false
+	}
+	use := d.gpu / d.budget()
+	if use > dynGPUHigh {
+		d.over++
+	} else {
+		d.over = 0
+	}
+	if d.over >= dynGPUOver {
+		d.over, d.calm = 0, 0
+		if d.atFloor() {
+			return false
+		}
+		d.ceiling, d.relax = d.scale, 0
+		steps := 1.0
+		if use > dynGPUFar {
+			steps = 2
+		}
+		d.scale = math.Max(dynSnap(d.scale-steps*dynStep), d.floor)
+		d.hold = dynGPUHold
+		return true
+	}
+	next := d.scale + dynStep
+	predicted := use * (next / d.scale) * (next / d.scale)
+	// The ceiling guards a step that was too much, unless there is plainly room now.
+	if predicted >= dynGPULow || (next >= d.ceiling-1e-4 && predicted >= dynGPUEasy) || next > 1+1e-4 {
+		d.calm = 0
+		return false
+	}
+	d.calm += dt
+	if d.calm < dynGPURaise {
+		return false
+	}
+	d.calm = 0
+	d.scale = math.Min(dynSnap(next), 1)
+	d.ceiling = math.Max(d.ceiling, dynSnap(d.scale+dynStep))
+	d.hold = dynGPUHold
+	return true
+}
+
 // dynActive is true while the controller owns the render scale.
 func (w *World) dynActive() bool {
 	return !w.dyn.off && !w.headless && w.post.on && w.retroScr.lowW == 0 && !w.retroScr.userScale
@@ -141,6 +206,7 @@ func (w *World) tickDynRes() {
 	limit := w.dyn.budget() * 1000 * dynBusyFrac
 	// No GPU timer on this driver: judge by the frame alone.
 	busy := w.prof.gpu <= 0 || w.prof.gpu >= limit || w.prof.rend >= limit
+	w.dyn.gpu = w.prof.gpu / 1000
 	if w.dyn.frame(w.delta, busy) || w.dyn.scale != w.retroScr.scaleOr1() {
 		w.retroScr.setScale(w.dyn.scale)
 	}

@@ -166,6 +166,7 @@ func (w *World) applyTerrainQuality(t *terrain, rescatter bool) {
 	if changed {
 		if rescatter {
 			w.releaseMeshTrees(t)
+			w.resetGrass(t)
 		}
 		w.dirtyTerrain(t)
 		return

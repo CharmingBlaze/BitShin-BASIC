@@ -19,15 +19,15 @@ SetClouds(0.32, 0.7, 0.12)
 
 ; 800 m across, peaks up to 160 m, sea at 30% of that.
 sea# = 48
-hm = GenerateHeightmapPreset("mountain-island", 128, 128, 2026)
-HydraulicErodeHeightmap(hm, 800, 24)
+hm = GenerateHeightmapPreset("mountain-island", 256, 256, 2026)
+HydraulicErodeHeightmap(hm, 3200, 24)
 ground = CreateTerrainFromHeightmap(hm, 800, 800, 160)
 ApplyTerrainSplat(ground)
 SetTerrainGrassCoverage(ground, 0.2)
 SetTerrainWaterHeight(ground, sea + 0.8)
-SetTerrainBlend(ground, 2.2)
-SetTerrainRockColor(ground, 122, 116, 106)
-SetTerrainSnow(True, 122)
+SetTerrainBlend(ground, 1.2)
+SetTerrainRockColor(ground, 138, 120, 98)
+SetTerrainSnow(True, 132)
 SetTerrainStreamRadius(ground, 5)
 SetStreamOrigin(0, 0, 0)
 
@@ -35,27 +35,24 @@ water = CreateWater(4096, 4096, 96)
 SetWaterLevel(sea)
 SetWaterStyle("ocean")
 SetWaterColor(30, 54, 96)
-SetWaterShallow(36, 150, 165, 6)
-SetWaterClarity(6)
+SetWaterShallow(36, 150, 165, 4)
+SetWaterClarity(3)
 SetWaterWaves(0)
 EnableWaterReflection(True)
 EnableWaterRefraction(True)
 
-; Trees are planted as real meshes, each part with its own color. Hide() keeps
-; the templates themselves out of the scene.
-pine = CreateCylinder(0.7, 6, 6, 0).Color(62, 44, 28).Hide()
-tier1 = CreateCone(7.5, 10, 9, 1, pine).Position(0, 8, 0).Color(26, 58, 24)
-tier2 = CreateCone(5.7, 9.5, 9, 1, pine).Position(0, 12.5, 0).Color(30, 66, 26)
-tier3 = CreateCone(4, 9, 9, 1, pine).Position(0, 17, 0).Color(36, 74, 30)
-
-oak = CreateCylinder(0.9, 8, 6, 0).Color(68, 48, 30).Hide()
-crown1 = CreateSphere(5, oak).Scale(6, 5.2, 6).Position(0, 12, 0).Color(52, 84, 28)
-crown2 = CreateSphere(5, oak).Scale(4.4, 3.8, 4.4).Position(3.2, 10.4, 1.4).Color(46, 76, 26)
-crown3 = CreateSphere(5, oak).Scale(4.6, 4, 4.6).Position(-2.8, 10.8, -1.6).Color(48, 80, 26)
-crown4 = CreateSphere(5, oak).Scale(4, 3.4, 4).Position(0.4, 15.4, -0.6).Color(60, 94, 32)
-
-TerrainTrees(ground, pine, 0.26)
-TerrainTrees(ground, oak, 0.1)
+; Generated trees, a few shapes of each kind, planted as real meshes, with
+; clearings so the long shadows have open ground to fall on.
+SetTerrainClearings(ground, 1)
+pineA = CreateTree("pine", 1)
+pineB = CreateTree("pine", 2, 24)
+oakA = CreateTree("oak", 3)
+oakB = CreateTree("oak", 4, 17)
+TerrainTrees(ground, pineA, 0.14)
+TerrainTrees(ground, pineB, 0.12)
+TerrainTrees(ground, oakA, 0.06)
+TerrainTrees(ground, oakB, 0.05)
+SetTerrainGrass(ground, 1)
 
 a# = 0
 frames = 0

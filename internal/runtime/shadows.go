@@ -134,6 +134,8 @@ type litMat struct {
 	recvShadow  bool
 	vertexColor bool // multiply by VertexColor (merged level cells)
 	wind        bool // sway by texcoord weight (3D tree batches)
+	leafCard    bool // vertex color is card u, v, shade; the shader cuts out leaves
+	grassFade   float32 // grass: metres from the camera where it has dissolved
 	cutout      int  // 0 auto (cut unless blended), 1 always, 2 never, 3 hard (no soft edge)
 	specMap     *texture.Texture2D
 	emitMap     *texture.Texture2D
@@ -176,6 +178,8 @@ func (m *litMat) RenderSetup(gs *gls.GLS) {
 		}
 		setUni1i(gs, "MeshCutout", cut)
 		setUni1i(gs, "MeshWind", bool01(m.wind))
+		setUni1i(gs, "MeshLeafCard", bool01(m.leafCard))
+		setUni1f(gs, "MeshGrassFade", m.grassFade)
 		if m.wind {
 			m.w.bindWindUniforms(gs)
 		}
@@ -1275,7 +1279,7 @@ func (w *World) shadowCasterList() []*Entity {
 	s.casters = s.casters[:0]
 	for _, m := range w.entityOrder() {
 		e := m.e
-		if w.batchDepthDrawn(e) || shadowSkipMesh(e) || e.mesh == nil || !e.mesh.Visible() {
+		if w.batchDepthDrawn(e) || shadowSkipMesh(e) || e.mesh == nil || (!e.mesh.Visible() && !e.shadowProxy) {
 			continue
 		}
 		s.casters = append(s.casters, e)
@@ -1352,7 +1356,7 @@ func (w *World) drawShadowCasters(gs *gls.GLS, lightVP *math32.Matrix4, mvpLoc i
 		if layer == shadowLayerDynamic && shadowCasterStatic(e) {
 			continue
 		}
-		if e.mesh == nil || (!e.mesh.Renderable() && !batchDrawn(e)) || !e.mesh.Visible() {
+		if e.mesh == nil || (!e.mesh.Renderable() && !batchDrawn(e)) || (!e.mesh.Visible() && !e.shadowProxy) {
 			continue
 		}
 		geom := e.mesh.GetGeometry()

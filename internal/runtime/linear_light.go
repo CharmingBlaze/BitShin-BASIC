@@ -45,7 +45,9 @@ vec3 skyAmbient(vec3 n) {
     vec3 c = textureLod(uEnvCube, n, 5.0).rgb;
     if (HasEnvCube == 1) {
         c = toLin(c);
-        c = mix(c, c * vec3(0.30, 0.27, 0.20), 1.0 - smoothstep(-0.5, 0.15, n.y));
+        // Below the horizon is sunlit ground, not sky. A wall sees half of each,
+        // or every shaded side of a rock or tree comes out sky blue.
+        c = mix(c, vec3(0.20, 0.17, 0.11), 1.0 - smoothstep(-0.35, 0.55, n.y));
     }
     return c;
 }

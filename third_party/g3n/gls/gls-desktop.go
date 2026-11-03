@@ -508,6 +508,41 @@ func (gs *GLS) GetProgramiv(program, pname uint32, params *int32) {
 	C.glGetProgramiv(C.GLuint(program), C.GLenum(pname), (*C.GLint)(params))
 }
 
+// BinarySupported reports whether this driver can save and reload compiled programs.
+func (gs *GLS) BinarySupported() bool {
+
+	return C.mbBinarySupported() != 0
+}
+
+// ProgramRetrievable asks the driver to keep a program's binary for GetProgramBinary.
+func (gs *GLS) ProgramRetrievable(program uint32) {
+
+	C.mbProgramRetrievable(C.GLuint(program))
+}
+
+// ProgramBinary loads a saved program. Check LINK_STATUS: a driver may refuse it.
+func (gs *GLS) ProgramBinary(program uint32, format uint32, data []byte) {
+
+	C.mbProgramBinary(C.GLuint(program), C.GLenum(format), unsafe.Pointer(&data[0]), C.GLsizei(len(data)))
+}
+
+// GetProgramBinary returns a linked program's binary and format, or nil.
+func (gs *GLS) GetProgramBinary(program uint32) ([]byte, uint32) {
+
+	var size int32
+	gs.GetProgramiv(program, PROGRAM_BINARY_LENGTH, &size)
+	if size <= 0 {
+		return nil, 0
+	}
+	data := make([]byte, size)
+	var format C.GLenum
+	got := C.mbGetProgramBinary(C.GLuint(program), C.GLsizei(size), &format, unsafe.Pointer(&data[0]))
+	if got <= 0 {
+		return nil, 0
+	}
+	return data[:got], uint32(format)
+}
+
 // GetProgramInfoLog returns the information log for the specified program object.
 func (gs *GLS) GetProgramInfoLog(program uint32) string {
 

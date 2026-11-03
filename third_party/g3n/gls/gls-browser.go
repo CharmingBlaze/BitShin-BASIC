@@ -618,6 +618,14 @@ func (gs *GLS) LineWidth(width float32) {
 }
 
 // LinkProgram links the specified program object.
+func (gs *GLS) BinarySupported() bool { return false }
+
+func (gs *GLS) ProgramRetrievable(program uint32) {}
+
+func (gs *GLS) ProgramBinary(program uint32, format uint32, data []byte) {}
+
+func (gs *GLS) GetProgramBinary(program uint32) ([]byte, uint32) { return nil, 0 }
+
 func (gs *GLS) LinkProgram(program uint32) {
 
 	gs.gl.Call("linkProgram", gs.programMap[program])

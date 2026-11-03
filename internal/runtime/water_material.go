@@ -149,6 +149,8 @@ func (m *WaterMaterial) Bind(gs *gls.GLS) {
 	bindWaterSampler(gs, unitWaterNormal, nrm, "WaterNormal")
 	setUni1i(gs, "WaterReflectOn", bool01(wb.reflectOn && wb.reflect.color != 0))
 	setUni1i(gs, "WaterRefractOn", bool01(wb.refractOn && wb.refract.color != 0))
+	setUni3f(gs, "WaterSkyTop", m.w.skyTop.R, m.w.skyTop.G, m.w.skyTop.B)
+	setUni3f(gs, "WaterSkyLow", m.w.skyBot.R, m.w.skyBot.G, m.w.skyBot.B)
 	setUni1i(gs, "WaterHasDuDv", bool01(wb.dudvGL != 0))
 	setUni1i(gs, "WaterHasNormal", bool01(wb.normGL != 0))
 	setUni1f(gs, "WaterMove", wb.move)
