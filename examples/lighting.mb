@@ -1,0 +1,93 @@
+; Lighting — sun with cascaded soft shadows, point and spot lights with their own
+; shadows, physically based materials lit by the sky, ambient occlusion, and contact
+; shadows. Rows of spheres go from rough to smooth, left to right, and from plastic
+; to metal, front to back. Esc quits.
+
+Graphics3D(1280, 720)
+SetWindowTitle("moonBASIC — Lighting")
+cam = CreateCamera()
+SetCameraRange(cam, 0.1, 400)
+
+; Sun: a warm, low key light. Its shadow is the cascades, filtered soft.
+sun = CreateDirectionalLight()
+SetLightDirection(sun, 38, 150, 0)
+SetLightColor(sun, 255, 236, 205)
+SetLightIntensity(sun, 0.85)
+
+; Sets linear light, tone mapping, the sky, sky lighting, and ambient occlusion.
+SetLook "modern"
+SetSkyGradient(84, 128, 196, 196, 208, 224)
+ShadowCascades 4
+ShadowMapSize 2048
+SetShadowDistance(70)
+SetShadowFilter "pcf"
+SetShadowPCF 8
+SetContactShadows True
+SetIBL True
+SetIBLIntensity 1
+
+; Floor and a back wall to catch the lights.
+floor = CreatePlane().Scale(60, 1, 60).Position([0, 0, 6])
+SetMaterialPBR(floor, 1)
+SetAlbedo(floor, 92, 88, 82)
+SetRoughness(floor, 0.82)
+wall = CreateCube().Scale(22, 7, 0.5).Position([0, 3.5, 13])
+SetMaterialPBR(wall, 1)
+SetAlbedo(wall, 150, 146, 140)
+SetRoughness(wall, 0.9)
+
+; Metal front to back, roughness left to right.
+For row = 0 To 2
+    For col = 0 To 4
+        s = CreateSphere().Position([-5 + col * 2.5, 0.8, 1 + row * 2.6])
+        SetMaterialPBR(s, 1)
+        If row = 2
+            SetAlbedo(s, 232, 198, 120)
+        Else
+            SetAlbedo(s, 196, 58, 44)
+        EndIf
+        SetMetallic(s, row / 2.0)
+        SetRoughness(s, 0.08 + col * 0.21)
+    Next
+Next
+
+; Things that stand on the floor, for contact shadows and occlusion.
+For i = 0 To 3
+    b = CreateCube().Scale(1, 2 + i, 1).Position([-8.4 + i * 5.6, 1 + i * 0.5, 10.2])
+    SetMaterialPBR(b, 1)
+    SetAlbedo(b, 70, 96, 120)
+    SetRoughness(b, 0.55)
+Next
+
+; A point light in the corner, blue, with its own cube of shadow maps.
+lamp = CreatePointLight().Position([-7, 2.6, 8])
+SetLightColor(lamp, 90, 160, 255)
+SetLightFalloff(lamp, "physical")
+SetLightIntensity(lamp, 14)
+LightRange(lamp, 24)
+SetLightShadow(lamp, True)
+
+; A spot light aimed at the wall, orange, with a soft cone.
+spot = CreateSpotLight().Position([7.5, 5.5, 6])
+SetLightDirection(spot, 42, 30, 0)
+SetLightCone(spot, 18, 30)
+SetLightColor(spot, 255, 160, 70)
+SetLightFalloff(spot, "physical")
+SetLightIntensity(spot, 40)
+LightRange(spot, 30)
+SetLightShadow(spot, True)
+
+a# = 0
+frames = 0
+While 1
+    frames = frames + 1
+    a = a + 5 * Time.Delta()
+    cam.Position(Math.Sin(a) * 4, 5.5, -11 + Math.Cos(a))
+    CameraLookAt(cam, 0, 1.2, 5)
+    RenderWorld
+    Flip
+    If frames > 8
+        If Input.KeyHit(KEY_ESCAPE) Then End
+    EndIf
+Wend
+End

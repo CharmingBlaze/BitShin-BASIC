@@ -162,6 +162,10 @@ SetTerrainGrass(ground, 1)
 
 Three things keep it cheap. Oak crowns are several lobes, each a dark core inside leaf cards that the shader cuts into leaves from noise, so there is no leaf texture and fewer triangles than solid lumps. Each kind has a hand-built far model, and detail is chosen from the camera even when `SetStreamOrigin` fixes the streaming point. Near trees cast their shadow from the far model, because a soft shadow cannot show the difference and four cascades redraw every caster.
 
+## Lighting
+
+`examples/lighting.mb` uses everything together: a sun with four shadow cascades and PCF filtering, point and spot lights with their own shadows, metal-roughness PBR materials lit by the sky (`SetIBL`, with a prefiltered sky cube, and a plain hemisphere when it is off), ambient occlusion, and contact shadows. On the linear path a light of intensity 1 lights a PBR surface as brightly as a non-PBR one. Lights with `SetLightFalloff "physical"` keep their candela values, so about 15 is a lamp a few metres away and about 40 a spot at the same distance.
+
 ## Staying smooth
 
 Every game, run or compiled, has two steps of protection, in this order:

@@ -405,7 +405,9 @@ void main() {
             sh = sunShadowFactor(WorldPos, wN, ShadowSunDir);
             sunOcc = sh;
         }
-        direct += pbrDirect(pbrInputs, n, v, toLin(DirLightColor(i)), lightDirection) * sh;
+        // The BRDF divides diffuse by pi, so a light of 1 lit a white wall a third as
+        // bright as the same light on a lit (non-PBR) mesh.
+        direct += pbrDirect(pbrInputs, n, v, toLin(DirLightColor(i)) * (LinearLight != 0 ? M_PI : 1.0), lightDirection) * sh;
     }
 #endif
 
@@ -415,8 +417,10 @@ void main() {
         float lightDistance = length(lightDirection);
         lightDirection = lightDirection / max(lightDistance, 0.0001);
         float attenuation = shadeAttenuation(lightDistance, PointLightLinearDecay(i), PointLightQuadraticDecay(i), PointLightConstant(i));
-        float psh = pointShadowFactor(i, WorldPos, n);
-        direct += pbrDirect(pbrInputs, n, v, toLin(PointLightColor(i)) * attenuation, lightDirection) * psh;
+        float psh = pointShadowFactor(i, WorldPos, wN); // world space, as it offsets a world point
+        // Physical falloff (constant below 0) is in candela, which already means this.
+        float pscale = (LinearLight != 0 && PointLightConstant(i) >= -0.5) ? M_PI : 1.0;
+        direct += pbrDirect(pbrInputs, n, v, toLin(PointLightColor(i)) * attenuation * pscale, lightDirection) * psh;
     }
 #endif
 
@@ -429,8 +433,9 @@ void main() {
         attenuation *= shadeSpot(lightDirection, SpotLightDirection(i), SpotLightCutoffAngle(i), SpotLightAngularDecay(i), SpotLightConstant(i));
         attenuation *= shadeCookie(i, -lightDirection * lightDistance, SpotLightDirection(i), SpotLightCutoffAngle(i));
         if (attenuation > 0.001) {
-            float ssh = spotShadowFactor(i, WorldPos, n);
-            direct += pbrDirect(pbrInputs, n, v, toLin(SpotLightColor(i)) * attenuation, lightDirection) * ssh;
+            float ssh = spotShadowFactor(i, WorldPos, wN);
+            float sscale = (LinearLight != 0 && SpotLightConstant(i) >= -0.5) ? M_PI : 1.0;
+            direct += pbrDirect(pbrInputs, n, v, toLin(SpotLightColor(i)) * attenuation * sscale, lightDirection) * ssh;
         }
     }
 #endif

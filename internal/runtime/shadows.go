@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/g3n/engine/camera"
+	"github.com/g3n/engine/core"
 	"github.com/g3n/engine/geometry"
 	"github.com/g3n/engine/gls"
 	"github.com/g3n/engine/graphic"
@@ -956,7 +957,7 @@ func (w *World) collectLocalLightViews(cascadeTiles int) int {
 			i := w.shadow.spotN
 			w.shadow.spotN++
 			w.shadow.spotPos[i] = entityWorldPos(e)
-			w.shadow.spotDir[i] = entityWorldDir(e)
+			w.shadow.spotDir[i] = spotShineDir(e.node.GetNode())
 			w.shadow.spotRange[i] = entityLightRange(e)
 			w.shadow.spotCos[i] = entitySpotCos(e)
 			w.shadow.spotTile[i] = tile
@@ -982,6 +983,27 @@ func entityWorldDir(e *Entity) math32.Vector3 {
 	}
 	d.Normalize()
 	return d
+}
+
+// spotShineDir is the way a spot's light travels: the node's direction as it stands,
+// as G3N sends it to the shaders. Negating it, as for a sun, aimed the shadow camera
+// backward, so every lit point counted as outside the cone and spots cast no shadow.
+func spotShineDir(n *core.Node) math32.Vector3 {
+	var d math32.Vector3
+	n.WorldDirection(&d)
+	if d.Length() < 0.01 {
+		d = math32.Vector3{0, -1, 0}
+	}
+	d.Normalize()
+	return d
+}
+
+// localShadowNear is the near plane of a point or spot shadow camera. Depth is packed
+// toward the near plane: at 0.08 m, a sphere and the floor 2 m under it differ by less
+// than the shadow bias, so spot lights cast no shadow at all. A caster closer to the
+// light than this casts none, which matters less than the rest of the range working.
+func localShadowNear(far float32) float32 {
+	return math32.Clamp(far/50, 0.2, 2)
 }
 
 func entityLightRange(e *Entity) float32 {
@@ -1033,7 +1055,7 @@ func (w *World) buildPointViews(i int) {
 	if far < 2 {
 		far = 2
 	}
-	cam := s.perspCam(1, 0.08, far, 90)
+	cam := s.perspCam(1, localShadowNear(far), far, 90)
 	for f := 0; f < 6; f++ {
 		s.tmpTarget.Copy(&pos).Add(&cubeFaceDir[f])
 		cam.SetFar(far)
@@ -1070,7 +1092,7 @@ func (w *World) buildSpotView(i int, e *Entity) {
 	if fov > 160 {
 		fov = 160
 	}
-	cam := s.perspCam(1, 0.08, far, fov)
+	cam := s.perspCam(1, localShadowNear(far), far, fov)
 	cam.SetPosition(pos.X, pos.Y, pos.Z)
 	cam.LookAt(&s.tmpTarget, &s.tmpUp)
 	cam.ViewMatrix(&s.tmpView)
@@ -1259,13 +1281,21 @@ func casterInLightView(lightVP *math32.Matrix4, m *graphic.Mesh) bool {
 	sx := math32.Sqrt(mw[0]*mw[0] + mw[1]*mw[1] + mw[2]*mw[2])
 	sy := math32.Sqrt(mw[4]*mw[4] + mw[5]*mw[5] + mw[6]*mw[6])
 	sz := math32.Sqrt(mw[8]*mw[8] + mw[9]*mw[9] + mw[10]*mw[10])
-	r := sph.Radius * math32.Max(sx, math32.Max(sy, sz))
-	l := lightVP
+	return sphereInClip(lightVP, c, sph.Radius*math32.Max(sx, math32.Max(sy, sz)))
+}
+
+// sphereInClip tests a world sphere against a view's sides, against w and not 1. They
+// are the same for a sun's orthographic cascade. For a point or spot light's perspective
+// view, testing against 1 dropped nearly every caster away from the view's axis.
+func sphereInClip(l *math32.Matrix4, c math32.Vector3, r float32) bool {
 	px := l[0]*c.X + l[4]*c.Y + l[8]*c.Z + l[12]
 	py := l[1]*c.X + l[5]*c.Y + l[9]*c.Z + l[13]
+	pw := l[3]*c.X + l[7]*c.Y + l[11]*c.Z + l[15]
 	rx := r * math32.Sqrt(l[0]*l[0]+l[4]*l[4]+l[8]*l[8])
 	ry := r * math32.Sqrt(l[1]*l[1]+l[5]*l[5]+l[9]*l[9])
-	return px+rx >= -1 && px-rx <= 1 && py+ry >= -1 && py-ry <= 1
+	rw := r * math32.Sqrt(l[3]*l[3]+l[7]*l[7]+l[11]*l[11])
+	w := pw + rw
+	return w > 0 && px+rx >= -w && px-rx <= w && py+ry >= -w && py-ry <= w
 }
 
 // shadowCasterList is the entities that can cast, found once per frame

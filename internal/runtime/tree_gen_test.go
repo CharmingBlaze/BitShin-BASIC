@@ -4,6 +4,8 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/g3n/engine/camera"
+	"github.com/g3n/engine/core"
 	"github.com/g3n/engine/math32"
 )
 
@@ -186,5 +188,61 @@ func TestPineShapeVariesBySeed(t *testing.T) {
 	}
 	if widest(1) == widest(2) {
 		t.Fatal("two seeds gave the same width")
+	}
+}
+
+func TestSpotShadowLooksTheWayTheLightShines(t *testing.T) {
+	n := core.NewNode()
+	n.SetDirection(0, -1, 0)
+	var shine math32.Vector3
+	n.WorldDirection(&shine)
+	d := spotShineDir(n)
+	if d.Dot(&shine) < 0.99 {
+		t.Fatalf("shadow looks along %v, the light shines along %v", d, shine)
+	}
+}
+
+// Two surfaces 2 m apart, 8 m from the light, must differ by more than the shadow
+// bias at its largest, or the bias swallows the shadow.
+func TestLocalShadowDepthSeparatesCasters(t *testing.T) {
+	depth := func(z, near, far float32) float32 {
+		return (1/near - 1/z) / (1/near - 1/far)
+	}
+	const far, bias = 30, 0.002
+	near := localShadowNear(far)
+	if d := depth(10, near, far) - depth(8, near, far); d <= bias {
+		t.Fatalf("near %v: depth gap %v is under the bias %v", near, d, bias)
+	}
+	if near < 0.2 || near > 2 {
+		t.Fatalf("near %v", near)
+	}
+}
+
+func TestCastersInAPerspectiveLightViewAreKept(t *testing.T) {
+	cam := camera.NewPerspective(1, 0.6, 30, 60, camera.Vertical)
+	cam.SetPosition(0, 10, 0)
+	target, up := math32.Vector3{}, math32.Vector3{Z: 1}
+	cam.LookAt(&target, &up)
+	var view, proj, vp math32.Matrix4
+	cam.ViewMatrix(&view)
+	cam.ProjMatrix(&proj)
+	vp.MultiplyMatrices(&proj, &view)
+	// Off axis, but well inside a 60 degree cone from 10 m up.
+	if !sphereInClip(&vp, math32.Vector3{X: 4}, 0.5) {
+		t.Fatal("a caster inside the view was dropped")
+	}
+	if sphereInClip(&vp, math32.Vector3{X: 40}, 0.5) {
+		t.Fatal("a caster far outside the view was kept")
+	}
+	if sphereInClip(&vp, math32.Vector3{Y: 40}, 0.5) {
+		t.Fatal("a caster behind the light was kept")
+	}
+}
+
+func TestCastersInAnOrthographicViewStillCull(t *testing.T) {
+	var vp math32.Matrix4
+	vp.Identity()
+	if !sphereInClip(&vp, math32.Vector3{X: 0.5}, 0.1) || sphereInClip(&vp, math32.Vector3{X: 3}, 0.1) {
+		t.Fatal("orthographic culling changed")
 	}
 }

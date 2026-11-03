@@ -610,11 +610,7 @@ func sphereInPlanes(planes *[6][4]float32, s []float32) bool {
 // sphereInLightBox is casterInLightView for a cached sphere: X and Y only, since
 // a caster behind the box can still throw shadow into it.
 func sphereInLightBox(l *math32.Matrix4, s []float32) bool {
-	px := l[0]*s[0] + l[4]*s[1] + l[8]*s[2] + l[12]
-	py := l[1]*s[0] + l[5]*s[1] + l[9]*s[2] + l[13]
-	rx := s[3] * math32.Sqrt(l[0]*l[0]+l[4]*l[4]+l[8]*l[8])
-	ry := s[3] * math32.Sqrt(l[1]*l[1]+l[5]*l[5]+l[9]*l[9])
-	return px+rx >= -1 && px-rx <= 1 && py+ry >= -1 && py-ry <= 1
+	return sphereInClip(l, math32.Vector3{X: s[0], Y: s[1], Z: s[2]}, s[3])
 }
 
 // batchVertexSource gives a lit vertex shader its instanced variant: with

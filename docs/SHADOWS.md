@@ -56,6 +56,10 @@ SetAmbientLight 40, 50, 65
 | `SetShadowColor r, g, b` / `ShadowColor r, g, b` | Tint mixed into the shadowed term. |
 | `SetShadowFade near, far` | Fade the directional shadow out between two view-space depths. The fade runs when `far` is greater than `near`. |
 
+## Point and spot shadows
+
+`SetLightShadow light, True` gives a point light six map faces and a spot light one, up to two of each, and `examples/lighting.mb` shows both. A shadow stays solid across the light's range and fades only over its last fifth, where the light itself has faded. The shadow camera's near plane is a fiftieth of the range, kept within 0.2 to 2 m, so a caster closer to the light than that casts none. A faint dotted line can show inside a point light's shadow on a wall; its cause is not yet known.
+
 ## Implementation notes
 
 - Directional CSM: one sun, up to **4** cascades fitted to each camera-frustum slice. Atlas tiles (not a `TEXTURE_2D_ARRAY` yet).

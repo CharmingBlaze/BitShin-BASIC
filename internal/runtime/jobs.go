@@ -66,7 +66,9 @@ func (p *jobPool) loop() {
 }
 
 func (p *jobPool) submit(fn func()) int {
-	if p == nil || p.closed.Load() {
+	// Repeatable snapshots run jobs in place: what a worker has finished by a given
+	// frame changes from run to run, which changes the picture.
+	if p == nil || p.closed.Load() || fixedDelta() > 0 {
 		if fn != nil {
 			fn()
 		}

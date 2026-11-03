@@ -365,7 +365,8 @@ float pointShadowFactor(int i, vec3 wp, vec3 nrm) {
     vec3 offsetWP = wp + nrm * (ShadowNormalBias * tw * 1.5);
     vec4 lsp = PointVP[i * 6 + face] * vec4(offsetWP, 1.0);
     float dynamicBias = calcDynamicBias(nrm, ldir, ShadowBias * 1.5);
-    float att = 1.0 - clamp(dist / max(PointRange[i], 0.01), 0.0, 1.0);
+    // Solid across the light's reach, fading only near its end, where its light has.
+    float att = 1.0 - smoothstep(0.8, 1.0, dist / max(PointRange[i], 0.01));
     return mix(1.0, sampleTile(tile, lsp, dynamicBias), att);
 }
 
@@ -382,7 +383,7 @@ float spotShadowFactor(int i, vec3 wp, vec3 nrm) {
     vec3 offsetWP = wp + nrm * (ShadowNormalBias * tw * 1.5);
     vec4 lsp = SpotVP[i] * vec4(offsetWP, 1.0);
     float dynamicBias = calcDynamicBias(nrm, ldir, ShadowBias);
-    float att = 1.0 - clamp(dist / max(SpotRange[i], 0.01), 0.0, 1.0);
+    float att = 1.0 - smoothstep(0.8, 1.0, dist / max(SpotRange[i], 0.01));
     return mix(1.0, sampleTile(SpotTile[i], lsp, dynamicBias), att);
 }
 
