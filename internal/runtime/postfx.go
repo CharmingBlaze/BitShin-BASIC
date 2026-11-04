@@ -45,6 +45,7 @@ type postFX struct {
 	ssaoRadius     float32
 	ssaoIntensity  float32
 	ssaoBias       float32
+	aoSlices       int // horizon directions per sample; 0 is the usual 4
 	fbo            uint32
 	color          uint32
 	depth          uint32
@@ -991,6 +992,11 @@ func (w *World) fillGTAO(ww, hh int) bool {
 	gl.BindTexture(gl.TEXTURE_2D, w.post.depth)
 	gl.Uniform1i(gl.GetUniformLocation(w.post.gtaoProg, gl.Str("uDepth\x00")), 0)
 	gl.Uniform2f(gl.GetUniformLocation(w.post.gtaoProg, gl.Str("uTexel\x00")), 1/float32(ww), 1/float32(hh))
+	slices := w.post.aoSlices
+	if slices <= 0 {
+		slices = 4
+	}
+	gl.Uniform1i(gl.GetUniformLocation(w.post.gtaoProg, gl.Str("uSlices\x00")), int32(slices))
 	gl.Uniform1f(gl.GetUniformLocation(w.post.gtaoProg, gl.Str("uRadius\x00")), rad)
 	gl.Uniform1f(gl.GetUniformLocation(w.post.gtaoProg, gl.Str("uBias\x00")), bias)
 	gl.Uniform1f(gl.GetUniformLocation(w.post.gtaoProg, gl.Str("uIntensity\x00")), inten)
@@ -1379,11 +1385,13 @@ func (w *World) renderSceneCams(rend *renderer.Renderer, ww, hh int) {
 			gl.Clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT | gl.STENCIL_BUFFER_BIT)
 			drainGL("scene")
 			rearmSceneProgram(rend)
+			restore := w.hideOccluded(cam)
 			if err := rend.Render(w.renderRoot(), cam); err != nil {
 				fmt.Println("RenderWorld:", err)
 			} else {
 				w.markShadowPrimed()
 			}
+			restore()
 			w.drawModernPass(cam)
 			w.passEnd(gpuScene)
 			if targetFBO != 0 && targetFBO == w.post.msaaFBO {

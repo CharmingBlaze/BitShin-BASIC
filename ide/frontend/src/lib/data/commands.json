@@ -11898,6 +11898,42 @@
           "category": "Editor / stats"
         },
         {
+          "syntax": "SetTerrainOcclusion(on)",
+          "name": "SetTerrainOcclusion",
+          "description": "Don't draw trees behind hills (on by default, picture unchanged). Stats: tree batches hidden last frame",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "StatsOccluded()",
+          "name": "StatsOccluded",
+          "description": "Don't draw trees behind hills (on by default, picture unchanged). Stats: tree batches hidden last frame",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "LoadTextureAsync(file$)",
+          "name": "LoadTextureAsync",
+          "description": "`LoadTexture` without the wait: decodes on a worker and works at once, grey until the picture arrives. Finished ones upload one a frame, so several together don't stall",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "TextureReady(tex)",
+          "name": "TextureReady",
+          "description": "1 when its picture is in, 0 while loading, -1 if it failed. How many are still on their way",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "TexturesLoading()",
+          "name": "TexturesLoading",
+          "description": "1 when its picture is in, 0 while loading, -1 if it failed. How many are still on their way",
+          "category": "Editor / stats"
+        },
+        {
+          "syntax": "SetTextureLimit(pixels)",
+          "name": "SetTextureLimit",
+          "description": "Largest side a texture keeps when loaded, over the tier's choice (low 1024, medium 2048). 0 is no limit",
+          "category": "Editor / stats"
+        },
+        {
           "syntax": "SetGraphicsQuality(q$)",
           "name": "SetGraphicsQuality",
           "description": "`\"low\"` `\"medium\"` `\"high\"` `\"ultra\"` or `\"auto\"`. One call sets shadow size, water reflection and refraction, post FX, terrain detail window and triangle size, tree/prop/grass count and reach. Low is aimed at a 2016 laptop iGPU at 720p: no water passes, cheap terrain texturing. High adds ambient occlusion and a coarse vista out to the fog; ultra adds soft (PCSS) shadow edges and 4× MSAA. On a fast GPU, `SetMSAA(2)` after this call gives high smooth edges for about 2 ms. Low draws cheaper clouds. `\"auto\"` reads the GPU name, then steps down a tier whenever frames average over 26 ms for 2 s. It never steps up. A setting you change after this call is yours until the next tier change. A script that never calls it gets `\"auto\"` from `Graphics3D`, so post FX, AO, and anti-aliasing are on by default",
@@ -22328,6 +22364,42 @@
       "syntax": "StatsVRAMMB()",
       "name": "StatsVRAMMB",
       "description": "Texture memory. Compressed byte size, otherwise width × height × 4",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "SetTerrainOcclusion(on)",
+      "name": "SetTerrainOcclusion",
+      "description": "Don't draw trees behind hills (on by default, picture unchanged). Stats: tree batches hidden last frame",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "StatsOccluded()",
+      "name": "StatsOccluded",
+      "description": "Don't draw trees behind hills (on by default, picture unchanged). Stats: tree batches hidden last frame",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "LoadTextureAsync(file$)",
+      "name": "LoadTextureAsync",
+      "description": "`LoadTexture` without the wait: decodes on a worker and works at once, grey until the picture arrives. Finished ones upload one a frame, so several together don't stall",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "TextureReady(tex)",
+      "name": "TextureReady",
+      "description": "1 when its picture is in, 0 while loading, -1 if it failed. How many are still on their way",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "TexturesLoading()",
+      "name": "TexturesLoading",
+      "description": "1 when its picture is in, 0 while loading, -1 if it failed. How many are still on their way",
+      "category": "Editor / stats"
+    },
+    {
+      "syntax": "SetTextureLimit(pixels)",
+      "name": "SetTextureLimit",
+      "description": "Largest side a texture keeps when loaded, over the tier's choice (low 1024, medium 2048). 0 is no limit",
       "category": "Editor / stats"
     },
     {

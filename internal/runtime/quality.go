@@ -33,16 +33,19 @@ type tierSettings struct {
 	ao         bool    // screen-space ambient occlusion
 	msaa       int     // scene samples when post is on; 0 is FXAA alone. On a 780M the island pays ~1.8 ms for 2x (10% of frames past 16.7 ms), so high has none; 4x ~4 ms
 	softShadow bool    // PCSS: shadow edges soften with distance from the caster
+	cascades   int     // sun shadow cascades
+	aoSlices   int     // horizon directions per ambient occlusion sample
+	maxTexture int     // largest side a loaded texture keeps; 0 is no limit
 }
 
 var tiers = [...]tierSettings{
 	// Low keeps the post pass. Without it the scene draws into G3N's 8x
 	// multisampled window: about 3x slower on a 780M, with a stall of seconds
 	// on the way there. It only loses bloom (see bloomAllowed).
-	qualityLow:    {shadow: 1024, reflect: 0, refract: 0, post: true, radius: 1, detailPx: 14, scatter: 0.45, treeReachM: 220},
-	qualityMedium: {shadow: 1024, reflect: 512, refract: 512, post: true, radius: 2, detailPx: 10, scatter: 0.7, treeReachM: 320},
-	qualityHigh:   {shadow: 2048, reflect: 1024, refract: 1024, post: true, radius: 2, detailPx: 8, scatter: 1, treeReachM: 420, ao: true},
-	qualityUltra:  {shadow: 2048, reflect: 2048, refract: 1024, post: true, radius: 3, detailPx: 6, scatter: 1, treeReachM: 480, ao: true, softShadow: true, msaa: 4},
+	qualityLow:    {shadow: 1024, reflect: 0, refract: 0, post: true, radius: 1, detailPx: 14, scatter: 0.45, treeReachM: 220, cascades: 2, maxTexture: 1024},
+	qualityMedium: {shadow: 1024, reflect: 512, refract: 512, post: true, radius: 2, detailPx: 10, scatter: 0.7, treeReachM: 320, ao: true, aoSlices: 2, cascades: 3, maxTexture: 2048},
+	qualityHigh:   {shadow: 2048, reflect: 1024, refract: 1024, post: true, radius: 2, detailPx: 8, scatter: 1, treeReachM: 420, ao: true, aoSlices: 4, cascades: 4},
+	qualityUltra:  {shadow: 2048, reflect: 2048, refract: 1024, post: true, radius: 3, detailPx: 6, scatter: 1, treeReachM: 480, ao: true, aoSlices: 6, softShadow: true, msaa: 4, cascades: 4},
 }
 
 type qualityState struct {
@@ -58,16 +61,39 @@ type qualityState struct {
 }
 
 // autoTier guesses a starting tier from the GL renderer string. The frame
-// watch corrects a wrong guess downward within a few seconds.
+// watch corrects a wrong guess downward within a few seconds, but it never goes up,
+// and starting too high costs a stall to step down, so a guess errs low. The families
+// are from their published specs: none of these but the 780M has been run here.
 func autoTier(renderer string) int {
-	r := strings.ToLower(renderer)
+	r := strings.NewReplacer("(tm)", "", "(r)", "").Replace(strings.ToLower(renderer))
+	has := func(names ...string) bool {
+		for _, n := range names {
+			if strings.Contains(r, n) {
+				return true
+			}
+		}
+		return false
+	}
 	switch {
-	case r == "", strings.Contains(r, "llvmpipe"), strings.Contains(r, "softpipe"),
-		strings.Contains(r, "basic render"), strings.Contains(r, "swiftshader"):
+	case r == "", has("llvmpipe", "softpipe", "basic render", "swiftshader"):
 		return qualityLow
-	case strings.Contains(r, "intel") && (strings.Contains(r, "hd graphics") || strings.Contains(r, "gma")):
+	case has("intel"):
+		switch {
+		case has(" arc"):
+			return qualityHigh
+		case has("hd graphics", "gma"):
+			return qualityLow
+		}
+		return qualityMedium
+	case has("mali", "adreno"):
+		return qualityMedium
+	case has("gt 1030", "gtx 6", "gtx 7", "gtx 950", "gtx 960", "940m", "930m", "920m", "mx1", "mx2"):
+		return qualityMedium
+	case has("gt 6", "gt 7", "geforce 9", "geforce 8", "geforce 7", "geforce 6", "gts ", "gtx 2", "gtx 4", "gtx 5", "gt 2", "gt 3", "gt 4", "gt 5"):
 		return qualityLow
-	case strings.Contains(r, "intel"), strings.Contains(r, "mali"), strings.Contains(r, "adreno"):
+	case has("radeon hd 2", "radeon hd 3", "radeon hd 4", "radeon hd 5", "radeon hd 6", "radeon hd 8", "radeon r2", "radeon r3", "radeon r4", "radeon r5"):
+		return qualityLow
+	case has("radeon hd", "radeon r7", "radeon r9", "vega 3", "vega 6", "vega 8", "vega 10"):
 		return qualityMedium
 	}
 	return qualityHigh
@@ -121,6 +147,8 @@ func (w *World) setQuality(tier int) {
 	// A tier can take an effect away, and it can offer one, but what the script turned
 	// off stays off: not every game wants every effect.
 	w.post.ssao = s.ao && s.post && !w.post.noSSAO
+	w.post.aoSlices = s.aoSlices
+	w.shadow.cascades = s.cascades
 	if w.post.noMSAA {
 		w.post.msaa = 0
 	} else {
@@ -269,7 +297,9 @@ func (w *World) applyLook(name string) error {
 	if err := w.require3D(); err != nil {
 		return err
 	}
-	if !w.quality.set || w.quality.tier > qualityLow {
+	// Low too: it keeps the post pass, and an old machine should see the same picture
+	// with less in it, not a different one.
+	if !w.quality.set || tiers[w.quality.tier].post {
 		if _, err := w.Call("enablepostfx", []value.Value{value.Num(1)}); err != nil {
 			return err
 		}

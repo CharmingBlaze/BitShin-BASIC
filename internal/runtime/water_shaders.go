@@ -152,6 +152,8 @@ uniform vec3 WaterSunColor;
 uniform vec3 CamWorldPos;
 uniform sampler2D WaterRefractDepth;
 uniform int WaterHasDepth;
+uniform int WaterShoreOn;
+uniform vec4 WaterShoreRect;
 uniform float CamNear;
 uniform float CamFar;
 uniform int FogMode;
@@ -270,6 +272,15 @@ void main() {
             zScene += (2.0 * n * f) / max(f + n - (2.0 * sceneD - 1.0) * (f - n), 0.001);
         }
         meters = max(zScene * 0.25 - zWater, 0.0);
+    } else if (WaterShoreOn != 0) {
+        vec2 suv = (vec2(WorldPos.x, -WorldPos.z) - WaterShoreRect.xy) / WaterShoreRect.zw;
+        if (suv.x > 0.0 && suv.y > 0.0 && suv.x < 1.0 && suv.y < 1.0) {
+            float baked = texture(WaterRefractDepth, suv).r;
+            if (baked < 0.99) {
+                // The map holds depth straight down; meters is along the view ray.
+                meters = baked * 16.0 / max(normalize(CamWorldPos - WorldPos).y, 0.05);
+            }
+        }
     }
     float contact = 1.0 - smoothstep(0.15, 1.2, meters);
     vec2 distort = vec2(0.0);
@@ -446,7 +457,7 @@ void main() {
     // Surf line: a broken band that laps up and back where the bottom is
     // within a meter. Needs the refraction depth, so low tier has none.
     float surf = 0.0;
-    if (WaterHasDepth != 0) {
+    if (WaterHasDepth != 0 || WaterShoreOn != 0) {
         float lap = 0.5 + 0.5 * sin(meters * 5.0 - WaveTime * 1.7 + foamNoise * 3.0);
         // Far or at a shallow angle, the sine turns over between neighbouring
         // pixels and aliases into stripes. Settle on its average there.
@@ -466,6 +477,12 @@ void main() {
             float reach = 0.45 + 0.3 * pulse + camDist * 0.0022;
             float patchy = texture(WaterNormal, tex * 0.9 + vec2(WaterMove * 0.05, -WaterMove * 0.03)).r;
             float line = 1.0 - smoothstep(0.01, reach, down);
+            // Depth alone is no measure of a beach: over a gently sloping lakebed, the
+            // whole lake is within that depth and it all went white. So foam also stops
+            // a few meters out from the waterline, however shallow it stays.
+            float perM = length(vec2(dFdx(down), dFdy(down))) / max(length(vec2(length(dFdx(WorldPos)), length(dFdy(WorldPos)))), 0.001);
+            line *= 1.0 - smoothstep(0.5, 3.0 + camDist * 0.016, down / max(perM, 0.002));
+            line *= smoothstep(0.004, 0.02, perM); // a bed that is flat has no waterline to break on
             surf = line * smoothstep(0.42, 0.6, foamNoise * 0.55 + patchy * 0.55 + line * 0.35);
             // And a wave rolling in further out, up close, where it can be resolved.
             float roll = sin(down * 9.0 - WaveTime * 0.9 + patchy * 7.0);

@@ -57,11 +57,11 @@ func (w *World) loadTextureFile(file string) (int, error) {
 			tex = texture.NewTexture2DFromRGBA(img.rgba)
 		}
 	default:
-		var err error
-		tex, err = texture.NewTexture2DFromImage(path)
+		img, err := texture.DecodeImage(path)
 		if err != nil {
 			return 0, err
 		}
+		tex = texture.NewTexture2DFromRGBA(shrinkToLimit(img, w.textureLimit()))
 	}
 	if tex == nil {
 		return 0, fmt.Errorf("texture: empty image")

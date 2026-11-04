@@ -181,7 +181,13 @@ func (m *WaterMaterial) Bind(gs *gls.GLS) {
 		depth = dummy
 	}
 	bindWaterSampler(gs, unitWaterRefractDepth, depth, "WaterRefractDepth")
-	setUni1i(gs, "WaterHasDepth", bool01(wb.refract.depth != 0 && wb.refractOn))
+	hasDepth := wb.refract.depth != 0 && wb.refractOn
+	setUni1i(gs, "WaterHasDepth", bool01(hasDepth))
+	if !hasDepth && m.w != nil && m.w.linearActive() {
+		m.w.bindShoreMap(gs, wb)
+	} else {
+		setUni1i(gs, "WaterShoreOn", 0)
+	}
 	sx, sy, sz := float32(0.4), float32(0.8), float32(0.3)
 	if m.w != nil {
 		sx, sy, sz = m.w.waterSunDir()

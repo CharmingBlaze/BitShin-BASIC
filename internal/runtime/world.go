@@ -445,6 +445,10 @@ type World struct {
 	fogHFall                         float32
 	wetness                          float32
 	post                             postFX
+	occlusion                        occlusionState
+	assets                           *assetLoader
+	texLimit                         int
+	texLimitSet                      bool
 	quality                          qualityState
 	treeParts                        map[int]treePartCache
 	treeImps                         map[int]*treeImpostor // side-on pictures of 3D tree templates
@@ -1253,6 +1257,7 @@ func (w *World) tickFX() {
 	}
 	w.tickDynRes()
 	w.tickQuality()
+	w.tickAssets()
 	w.tickBubble()
 	w.tickStream()
 	w.tickTerrain()

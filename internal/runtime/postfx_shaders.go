@@ -402,7 +402,7 @@ void main() {
 }
 `
 
-// Half-resolution GTAO. Four horizon slices, analytic arc, visibility in R.
+// Half-resolution GTAO. A few horizon slices, analytic arc, visibility in R.
 // A flat wall facing the camera stays near 1. Creases and contact drop below 1.
 const mbGTAOFragment = `#version 330 core
 in vec2 vUV;
@@ -418,7 +418,7 @@ uniform float uTanHalf;
 uniform float uAspect;
 
 const float PI = 3.14159265;
-const int SLICES = 4;
+uniform int uSlices;
 const int STEPS = 5;
 
 float viewZ(float d) {
@@ -481,8 +481,8 @@ void main() {
 		frag = vec4(1.0);
 		return;
 	}
-	for (int slice = 0; slice < SLICES; slice++) {
-		float ang = (float(slice) + noise) * PI / float(SLICES);
+	for (int slice = 0; slice < uSlices; slice++) {
+		float ang = (float(slice) + noise) * PI / float(uSlices);
 		vec2 dir = vec2(cos(ang), sin(ang));
 		vec2 stepUV = dir * uvRadius / float(STEPS);
 		float h1 = -1.0;

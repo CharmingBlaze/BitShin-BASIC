@@ -56,6 +56,10 @@ type waterBody struct {
 	clarity      float32 // metres the bottom stays visible through; 0 is the default 70
 	shallow      math32.Color
 	shallowTo    float32 // metres of water before it turns deep; 0 is no custom shallows
+	shoreTex     uint32  // baked depth, for when there is no refraction pass
+	shoreFor     *terrain
+	shoreSea     float32
+	shoreEdit    int
 	refractCopy  bool    // refraction copies the scene instead of redrawing it
 	copyFrame    int     // renderSerial of the last copy
 	normalTex    int

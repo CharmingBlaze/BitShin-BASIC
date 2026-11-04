@@ -170,6 +170,44 @@ Three things keep it cheap. Oak crowns are several lobes, each a dark core insid
 
 `SetStyle` picks a game's look, and `examples/styles.mb` shows them on one scene: `realistic`, `lowpoly`, `toon`, `cel`, `painted`, `flat`, and `unlit` change how surfaces shade, and `ps1`, `n64`, `pixel`, `gameboy`, `pico8`, and `dos` change the whole screen. `SetMaterialShading` sets the first group per object. Scenes can mix them. Terrain, water, and scattered trees and grass keep their own shaders, so a style reaches a game's objects and not its landscape.
 
+## Graphics profiles
+
+`SetGraphicsQuality("low" | "medium" | "high" | "ultra" | "auto")`. A game that never calls it gets auto: a starting guess from the GPU's name, then steps down if frames stay over 26 ms, with resolution giving way first. All tiers show the same picture with less in it.
+
+| | Low | Medium | High | Ultra |
+| --- | --- | --- | --- | --- |
+| Meant for | About ten years old: Intel HD, GT 730 | About seven years old: Iris Xe, GTX 750 Ti, Vega 8 | Current integrated and up | Current discrete card |
+| Sun shadows | 1024, 2 cascades | 1024, 3 cascades | 2048, 4 cascades | 2048, 4 cascades, soft |
+| Ambient occlusion | Off | 2 directions | 4 directions | 6 directions |
+| Bloom | Off | On | On | On |
+| Anti-aliasing | FXAA | FXAA | FXAA | FXAA and 4x MSAA |
+| Water reflection and refraction | Sky color, baked shore | 512 | 1024 | 2048 / 1024 |
+| Trees, grass, and props | 45% | 70% | All | All |
+| Largest texture | 1024 | 2048 | No limit | No limit |
+| Depth of field, motion blur | Skipped | If asked for | If asked for | If asked for |
+
+Frame time on a Radeon 780M at 1280x720: the only GPU these were measured on. The low column's weaker hardware is an estimate: at 2560x1440, four times the pixels, low takes 9 to 12 ms on the same scenes.
+
+| Scene | Low | Medium | High | Ultra |
+| --- | --- | --- | --- | --- |
+| Island, from the air | 4.4 ms | 7.8 ms | 10.6 ms | 20 ms |
+| Forest, on the ground | 6.3 ms | 7.7 ms | 11 ms | 21 ms |
+| Valley | 4.6 ms | 7.3 ms | 13.6 ms | 26 ms |
+
+Low keeps the shoreline without a refraction pass: depth under the water is baked once from the terrain's height field. Materials stay the same on low, because they turned out to be a small cost: the materials scene spends 0.4 ms on them.
+
+## What keeps draw calls and work down
+
+- **Copies:** entities that share a geometry and material draw as one instanced call, with no script changes. 800 separate `CreateCube` calls and 200 `CreateSphere` calls took 8 draws here.
+- **Forests:** trees are planted in merged blocks with far versions. About a million triangles take about 230 draws on the island.
+- **Culling:** frustum culling for each copy and block, and in each shadow cascade.
+- **Terrain occlusion:** trees behind a hill are not drawn, from the height field on the CPU, with no GPU queries and no delay. It saved 10 to 20% of GPU time in most ground-level views here and the picture did not change. `SetTerrainOcclusion(False)` turns it off and `StatsOccluded()` counts what it hid. It covers only trees behind terrain; buildings do not hide anything.
+- **Detail:** batched meshes get simpler versions with distance, and terrain has its own levels.
+- **Textures:** mipmaps come with every loaded texture, `SetTextureLimit` overrides a tier's size limit, and `LoadTextureAsync` decodes on a worker: the texture works at once as a grey pixel, `TextureReady` and `TexturesLoading` report on it. Meshes still load on the main thread.
+- **Shaders:** compiled programs are cached on disk.
+
+Texture atlases are not built. Their use is to merge draws split by texture, and generated trees carry no textures. They would help a game with many small textures on one kind of mesh.
+
 ## Post stack
 
 Each effect has its own switch and works alone: `SetVignette(0.4)` by itself gives a vignette and leaves the rest of the picture as it was, with no tone curve, bloom, or FXAA. What a script turns off stays off through `SetLook` and `SetGraphicsQuality`, although a tier can still take away what it can't afford. `examples/post_stack.mb` has a key for each.
@@ -225,7 +263,7 @@ On:
 - The post pass applies exposure and the tone curve, then encodes sRGB. Grading, LUTs, and retro effects run after that, on display values.
 - Water's Fresnel uses a normal facing the eye. The old path can read the grid as back-facing, which makes it mirror the sky at full strength, so colors tuned for the old path come out much darker here.
 
-Colors tuned for the old path need re-tuning, usually lighter. It needs the post pass, so the low tier stays on the old path, as do extra windows, which have no post step. Shaders from `CreateShader` get `uniform int LinearLight` and are not converted for you. Light probes capture into 8-bit targets, so they can band in dark scenes.
+Colors tuned for the old path need re-tuning, usually lighter. It needs the post pass, which every tier keeps. Extra windows have no post step, so they stay on the old path. Shaders from `CreateShader` get `uniform int LinearLight` and are not converted for you. Light probes capture into 8-bit targets, so they can band in dark scenes.
 
 ## Reference images
 
