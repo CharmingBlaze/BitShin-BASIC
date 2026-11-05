@@ -374,7 +374,7 @@ vec3 iblTerm(PBRInfo pbrInputs, vec3 n, vec3 v) {
             cubeN = toLin(cubeN);
             cubeR = toLin(cubeR);
         }
-        if (HasEnvCube == 1) {
+        if (HasEnvCube != 2) {
             // A sky picture knows nothing of the ground below it. Without
             // this a polished ball mirrors a bright false horizon.
             // The edge blurs with roughness, as the reflection itself does.

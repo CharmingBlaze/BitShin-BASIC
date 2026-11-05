@@ -43,8 +43,8 @@ uniform int HasEnvCube;
 vec3 skyAmbient(vec3 n) {
     if (HasEnvCube == 0) { return mix(vec3(0.03, 0.025, 0.02), vec3(0.20, 0.30, 0.45), n.y * 0.5 + 0.5); }
     vec3 c = textureLod(uEnvCube, n, 5.0).rgb;
-    if (HasEnvCube == 1) {
-        c = toLin(c);
+    if (HasEnvCube == 1) { c = toLin(c); }
+    if (HasEnvCube != 2) {
         // Sky light on a surface is paler than the sky looks, once cloud and haze
         // have mixed in. At full color the whole scene takes a blue cast.
         c = mix(c, vec3(dot(c, vec3(0.2126, 0.7152, 0.0722))), 0.25);

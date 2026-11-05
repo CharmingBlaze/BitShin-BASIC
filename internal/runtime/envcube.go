@@ -20,7 +20,9 @@ const (
 )
 
 var (
-	skyCubeSizes = [...]int{qualityLow: 32, qualityMedium: 64, qualityHigh: 128, qualityUltra: 256}
+	// 64 on low as well: at 32 the last mip is a single texel a face, and a rough metal
+	// ball showed the cube's box.
+	skyCubeSizes = [...]int{qualityLow: 64, qualityMedium: 64, qualityHigh: 128, qualityUltra: 256}
 	probeSizes   = [...]int{qualityLow: 32, qualityMedium: 64, qualityHigh: 128, qualityUltra: 128}
 )
 
@@ -40,13 +42,41 @@ func (w *World) probeFaceSize() int {
 
 func (w *World) ensureSkyCube() {
 	size := w.skyCubeSize()
-	if w.skyCube != 0 && w.skyCubeRev == w.skyRev && w.skyCubeSz == size {
+	linear := w.linearActive()
+	if w.skyCube != 0 && w.skyCubeRev == w.skyRev && w.skyCubeSz == size && w.skyCubeLinear == linear {
 		return
 	}
-	if w.skyCube != 0 {
-		gl.DeleteTextures(1, &w.skyCube)
-		w.skyCube = 0
+	if !w.envGPU.seamless {
+		// Without this each face filters alone, and a rough reflection shows its edges.
+		gl.Enable(gl.TEXTURE_CUBE_MAP_SEAMLESS)
+		w.envGPU.seamless = true
 	}
+	if w.skyCubeSz != size || w.skyCube == 0 || w.skyCubeCPU {
+		if w.skyCube != 0 {
+			gl.DeleteTextures(1, &w.skyCube)
+			w.skyCube = 0
+		}
+		gl.GenTextures(1, &w.skyCube)
+		gl.BindTexture(gl.TEXTURE_CUBE_MAP, w.skyCube)
+		for mip := 0; mip < skyCubeMips; mip++ {
+			sz := size >> mip
+			if sz < 1 {
+				sz = 1
+			}
+			for face := 0; face < 6; face++ {
+				gl.TexImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X+uint32(face), int32(mip), gl.RGBA16F, int32(sz), int32(sz), 0, gl.RGBA, gl.HALF_FLOAT, nil)
+			}
+		}
+		setSkyCubeParams()
+		w.skyCubeCPU = false
+	}
+	w.skyCubeRev, w.skyCubeSz, w.skyCubeLinear = w.skyRev, size, linear
+	if w.prefilterSkyGPU(w.skyCube, size, linear) {
+		return
+	}
+	gl.DeleteTextures(1, &w.skyCube)
+	w.skyCube = 0
+	w.skyCubeCPU = true
 	var cube uint32
 	gl.GenTextures(1, &cube)
 	gl.BindTexture(gl.TEXTURE_CUBE_MAP, cube)
@@ -72,16 +102,18 @@ func (w *World) ensureSkyCube() {
 			gl.TexImage2D(gl.TEXTURE_CUBE_MAP_POSITIVE_X+uint32(face), int32(mip), gl.RGBA8, int32(sz), int32(sz), 0, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(pix))
 		}
 	}
+	setSkyCubeParams()
+	gl.BindTexture(gl.TEXTURE_CUBE_MAP, 0)
+	w.skyCube = cube
+}
+
+func setSkyCubeParams() {
 	gl.TexParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR)
 	gl.TexParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
 	gl.TexParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
 	gl.TexParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
 	gl.TexParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_WRAP_R, gl.CLAMP_TO_EDGE)
 	gl.TexParameteri(gl.TEXTURE_CUBE_MAP, gl.TEXTURE_MAX_LEVEL, skyCubeMips-1)
-	gl.BindTexture(gl.TEXTURE_CUBE_MAP, 0)
-	w.skyCube = cube
-	w.skyCubeRev = w.skyRev
-	w.skyCubeSz = size
 }
 
 func (w *World) prefilterEnv(dx, dy, dz, radius float32) (float32, float32, float32) {
@@ -120,8 +152,12 @@ func (w *World) bindEnvCubeAt(gs *gls.GLS, unit int) {
 		return
 	}
 	w.ensureSkyCube()
-	// HasEnvCube: 0 none, 1 the sky alone, 2 a probe that saw the scene.
+	// HasEnvCube: 0 none, 1 the sky alone, 2 a probe that saw the scene, 3 the sky already
+	// in linear light.
 	cube, kind := w.skyCube, 1
+	if w.skyCubeLinear && !w.skyCubeCPU {
+		kind = 3
+	}
 	if pr := w.nearestReadyProbe(); pr != nil {
 		cube, kind = pr.cube, 2
 	}

@@ -364,6 +364,9 @@ type World struct {
 	skyCube                          uint32
 	skyImgs                          [6]*image.RGBA
 	skyRev                           int
+	skyCubeLinear, skyCubeCPU        bool
+	envGPU                           envGPU
+	envFallback                      [6]*image.RGBA
 	skyCubeRev                       int
 	skyCubeSz                        int
 	skyHazeKey                       math32.Color // fog color the sky was painted with

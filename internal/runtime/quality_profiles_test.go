@@ -274,6 +274,32 @@ func TestLoadedModelPartsGetDetailLevels(t *testing.T) {
 	}
 }
 
+func TestSkyCubeKeepsEnoughDetailWhenRough(t *testing.T) {
+	for tier, size := range skyCubeSizes {
+		if last := size >> (skyCubeMips - 1); last < 2 {
+			t.Errorf("%s: last mip is %d texels a face, and a rough ball shows the box", qualityNames[tier], last)
+		}
+	}
+}
+
+func TestSkyPrefilterMatchesCubeFaces(t *testing.T) {
+	// The shader's faces must agree with envFaceDir, which the fallback sky is drawn with.
+	for _, f := range []string{"vec3(1.0, -q.y, -q.x)", "vec3(-1.0, -q.y, q.x)", "vec3(q.x, 1.0, q.y)", "vec3(q.x, -1.0, -q.y)", "vec3(q.x, -q.y, 1.0)", "vec3(-q.x, -q.y, -1.0)"} {
+		if !strings.Contains(mbEnvPrefilter, f) {
+			t.Errorf("prefilter lacks face %s", f)
+		}
+	}
+	// Each image pixel lands where sampleSkyImages would read it.
+	for face := 0; face < 6; face++ {
+		dx, dy, dz := envFaceDir(face, 3, 5, 16)
+		got, u, v := skyDirToFace(dx, dy, dz)
+		wantU, wantV := 2*(3.5)/16-1, 2*(5.5)/16-1
+		if got != face || math.Abs(float64(u)-wantU) > 1e-4 || math.Abs(float64(v)-wantV) > 1e-4 {
+			t.Errorf("face %d: went to face %d at %v, %v, want %v, %v", face, got, u, v, wantU, wantV)
+		}
+	}
+}
+
 func TestPushOutOfTrunks(t *testing.T) {
 	tr := []trunk{{10, 10, 1}}
 	x, z, moved := pushOutOfTrunks(10.5, 10, 0.5, tr)

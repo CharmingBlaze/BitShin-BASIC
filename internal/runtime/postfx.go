@@ -1417,6 +1417,7 @@ func (w *World) renderSceneCams(rend *renderer.Renderer, ww, hh int) {
 	}
 	w.prepareWaterFFT()
 	w.post.lens.split = split
+	w.ensureSkyCube() // here, between passes, as it draws
 	if !split {
 		targetFBO = w.sceneTarget(ww, hh)
 		cam := w.cam
