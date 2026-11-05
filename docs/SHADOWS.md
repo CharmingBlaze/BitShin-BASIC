@@ -6,7 +6,7 @@ G3N 0.2 has no shadow, CSM, or shadow-map API. moonBASIC owns a **dedicated shad
 
 Shadows are **on by default** (World construction and `Graphics3D`), like Blitz3D. Meshes cast and receive by default, and the first directional light automatically becomes the shadow-casting sun. Use `EnableShadows False`, `EntityCastShadow entity, False`, or `EntityReceiveShadow entity, False` to opt out. The first two valid depth frames stay fully lit so a follow-cam ease cannot stamp a cascade-sized umbra.
 
-**PCF on `DEPTH_COMPONENT`**, 4-cascade directional CSM fitted to the **camera frustum** (not a play-plane disc). Default quality is **High**: 4 × 2048, 3×3 PCF (Poisson 16-tap when `SetShadowPCF` ≥ 4). EVSM/MSM remain optional filters; they must not be the Platform 64 default (they can self-shadow a whole plane).
+**PCF on `DEPTH_COMPONENT`**, 4-cascade directional CSM fitted to the **camera frustum** (not a play-plane disc). Default quality is **High**: 4 × 2048 with PCSS, and PCF on lower tiers: 5 hardware-compared samples on a Vogel disk (9 when `SetShadowPCF` ≥ 4). EVSM/MSM remain optional filters; they must not be the Platform 64 default (they can self-shadow a whole plane).
 
 `examples/platform64.mb` uses `SetShadowQuality "high"`. `examples/claw.mb` uses PCF (`SetShadowQuality 0, 4`). `SetShadowEVSM` / `SetShadowFilter "evsm"` still work.
 
@@ -32,7 +32,7 @@ Out-of-cascade / failed samples are **lit (1.0)**. Cascades blend across the las
 | Mode | Name | What you see |
 | --- | --- | --- |
 | 0 | PCF | **Default.** 3×3 or Poisson on the depth atlas. |
-| 1 | PCSS | Blocker search, then PCF with a wider radius. `SetShadowLightSize` scales it. |
+| 1 | PCSS | Blocker search, then PCF as wide as the gap to the blocker, in meters: sharp at a tree's foot, soft at its tip. `SetShadowLightSize` scales it. The widest edge is about 28 texels of the nearest cascade, the same width in every cascade. |
 | 2 | EVSM | Exponential variance on a blurred moment map. Optional; can crush large receivers if moments are wrong. |
 | 3 | MSM | Four-moment maps. Same moment-pass + blur idea. |
 
@@ -47,7 +47,7 @@ SetAmbientLight 40, 50, 65
 
 | `ShadowMapSize n` / `SetShadowResolution(n)` | Depth tile resolution (256–8192). `SetLightShadowRes(light, n)` stores per-light; CSM sun also updates this. |
 | `SetLightShadow light, True` | Directional light aims the CSM (same vector as G3N position / sky sun). Point and spot lights each get their own map (cubemap faces / perspective). |
-| `SetShadowLightSize n` | PCSS light size (penumbra scale). Default `0.04`. |
+| `SetShadowLightSize n` | How wide the sun looks for PCSS: the edge widens by this many meters per meter from the blocker. Default `0.04`; the real sun is about `0.005`. |
 | `EnableShadowCache` / `SetShadowCache` / `EnableShadowCaching` | Two maps: **static** vs **dynamic**. |
 | `EnableShadowAtlas` / `SetShadowAtlas` | Pack directional cascades + point faces + spot maps into a square-ish atlas. |
 | `EnableContactShadows` / `SetContactShadows` | Tight shadow-map search. Darkens receivers whose neighbor texels are only slightly closer (feet, props on the ground). |

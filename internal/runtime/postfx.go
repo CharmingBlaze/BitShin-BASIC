@@ -1174,6 +1174,7 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 	}
 	restore := saveModernGL(gs)
 	defer restore()
+	unbindShadowCompare() // the post pass uses that unit
 	gtao := w.post.ssao && w.fillGTAO(ww, hh)
 	picture := w.applyLens(ww, hh)
 	chain := w.fillBloomChain(ww, hh, picture)

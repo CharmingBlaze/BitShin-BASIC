@@ -5,8 +5,7 @@ package runtime
 // slope-scaled bias against light normal, per-light shadow isolation, and distance fade.
 
 const mbshadowSampleGLSL = `
-uniform sampler2D ShadowMapDyn;
-uniform int ShadowCacheSplit;
+uniform sampler2DShadow ShadowCompare;
 uniform float ShadowNormalBias;
 uniform vec4 ShadowTexelWorld;
 uniform mat4 LightVP[4];
@@ -89,59 +88,66 @@ vec2 clampTile(vec2 center, vec2 uv) {
     return clamp(uv, base + inset, base + tile - inset);
 }
 
-float pcf3x3(sampler2D map, vec2 uv, float z, float bias, vec2 texel) {
-    float s = 0.0;
-    for (int x = -1; x <= 1; x++) {
-        for (int y = -1; y <= 1; y++) {
-            float d = sampleDepth(map, clampTile(uv, uv + vec2(float(x), float(y)) * texel));
-            if (emptyDepth(d)) {
-                s += 1.0;
-                continue;
-            }
-            s += (z - bias > d) ? 0.0 : 1.0;
-        }
-    }
-    return s / 9.0;
+// Depth change per atlas UV across the receiver. A wide filter tests each sample against
+// the receiver's own plane at that spot, or a sloped surface shadows itself.
+vec2 shadowPlane = vec2(0.0);
+
+// A sample on a Vogel disk: even coverage at any count, and turned per pixel so that what
+// is left of the banding becomes noise, which FXAA and the eye forgive more easily.
+vec2 vogelDisk(int i, int n, float angle) {
+    float r = sqrt((float(i) + 0.5) / float(n));
+    float t = float(i) * 2.39996323 + angle;
+    return vec2(cos(t), sin(t)) * r;
 }
 
-float pcfAt(sampler2D map, vec2 uv, float z, float bias, int k, vec2 texel) {
+// Each sample is a hardware comparison, four depths filtered bilinearly for one fetch, so a
+// few of them are smoother than many hand-made yes-or-no tests.
+float vogelPCF(vec2 uv, float z, float bias, float radius, int n, vec2 texel) {
     float angle = gradientNoise(gl_FragCoord.xy) * 6.2831853;
-    float soft = ShadowSoftness;
-    if (soft <= 0.001) { soft = 1.0; }
-    float radius = max(float(k) * 0.42 * soft, 1.0);
     float s = 0.0;
-    for (int i = 0; i < 16; i++) {
-        vec2 offset = rotateDisk(POISSON_DISK[i], angle) * texel * radius;
-        float d = sampleDepth(map, clampTile(uv, uv + offset));
-        if (emptyDepth(d)) {
-            s += 1.0;
-            continue;
-        }
-        s += (z - bias > d) ? 0.0 : 1.0;
+    for (int i = 0; i < n; i++) {
+        vec2 o = vogelDisk(i, n, angle) * texel * radius;
+        s += texture(ShadowCompare, vec3(clampTile(uv, uv + o), z - bias + dot(o, shadowPlane)));
     }
-    return s * 0.0625;
+    return s / float(n);
 }
 
-float pcssAt(sampler2D map, vec2 uv, float z, float bias, vec2 texel) {
+float pcfAt(vec2 uv, float z, float bias, int k, vec2 texel) {
     float soft = ShadowSoftness;
     if (soft <= 0.001) { soft = 1.0; }
-    float search = max(ShadowLightSize * 10.0 * texel.x * soft, texel.x * 2.0);
+    if (k <= 3) { return vogelPCF(uv, z, bias, 1.4 * soft, 5, texel); }
+    return vogelPCF(uv, z, bias, max(float(k) * 0.42 * soft, 1.0), 9, texel);
+}
+
+// Percentage-closer soft shadows with the sun as a disk: how far the blockers are above
+// this point, in meters, sets how wide its shadow edge is, in meters. So a shadow is sharp
+// at the foot of a tree and soft at the tip. perZ is meters per unit of shadow depth and
+// texelM meters per texel, for this cascade; 0 is a local light, which has neither.
+float pcssAt(vec2 uv, float z, float bias, vec2 texel, float perZ, float texelM) {
+    float soft = ShadowSoftness;
+    if (soft <= 0.001) { soft = 1.0; }
+    if (perZ <= 0.0 || texelM <= 0.0) { return vogelPCF(uv, z, bias, 2.0 * soft, 9, texel); }
+    float size = ShadowLightSize * soft;
+    // The widest edge is set in meters by the sharpest cascade, whatever cascade this is:
+    // limited in texels, the edge would jump in width where one cascade meets the next.
+    float nearM = ShadowTexelWorld.x > 1e-5 ? ShadowTexelWorld.x : texelM;
+    float maxM = nearM * 28.0;
+    float search = clamp(min(size * 30.0, maxM) / texelM, 2.0, 28.0);
+    float angle = gradientNoise(gl_FragCoord.xy) * 6.2831853;
     float blk = 0.0;
     float cnt = 0.0;
-    float angle = gradientNoise(gl_FragCoord.xy) * 6.2831853;
-    for (int i = 0; i < 16; i++) {
-        vec2 offset = rotateDisk(POISSON_DISK[i], angle) * search;
-        float d = sampleDepth(map, clampTile(uv, uv + offset));
-        if (!emptyDepth(d) && d < z - bias) {
+    for (int i = 0; i < 8; i++) {
+        vec2 o = vogelDisk(i, 8, angle) * texel * search;
+        float d = sampleDepth(ShadowMap, clampTile(uv, uv + o));
+        if (d < z - bias + dot(o, shadowPlane)) {
             blk += d;
             cnt += 1.0;
         }
     }
     if (cnt < 1.0) { return 1.0; }
     blk /= cnt;
-    float penumbra = ((z - blk) * ShadowLightSize * 16.0) / max(blk, 0.01);
-    int k = int(clamp(penumbra * 24.0, 2.0, 8.0));
-    return pcfAt(map, uv, z, bias, k, texel);
+    float radius = clamp(min((z - blk) * perZ * size, maxM) / texelM, 1.0, 28.0);
+    return vogelPCF(uv, z, bias, radius, radius > 10.0 ? 16 : 12, texel);
 }
 
 float evsmAt(sampler2D map, vec2 uv, float z, float bias) {
@@ -174,18 +180,13 @@ float msmAt(sampler2D map, vec2 uv, float z, float bias) {
     return clamp(p, 0.0, 1.0);
 }
 
-float filterMap(sampler2D map, vec2 uv, float z, float bias, vec2 texel) {
+float filterAt(vec2 uv, float z, float bias, vec2 texel, float perZ, float texelM) {
     int k = ShadowPCF;
     if (k < 3) { k = 3; }
-    if (ShadowFilter == 1) { return pcssAt(map, uv, z, bias, texel); }
-    if (ShadowFilter == 2) { return evsmAt(map, uv, z, bias); }
-    if (ShadowFilter == 3) { return msmAt(map, uv, z, bias); }
-    if (k <= 3) { return pcf3x3(map, uv, z, bias, texel); }
-    return pcfAt(map, uv, z, bias, k, texel);
-}
-
-float filterAt(vec2 uv, float z, float bias, vec2 texel) {
-    return filterMap(ShadowMap, uv, z, bias, texel);
+    if (ShadowFilter == 1) { return pcssAt(uv, z, bias, texel, perZ, texelM); }
+    if (ShadowFilter == 2) { return evsmAt(ShadowMap, uv, z, bias); }
+    if (ShadowFilter == 3) { return msmAt(ShadowMap, uv, z, bias); }
+    return pcfAt(uv, z, bias, k, texel);
 }
 
 float sampleTile(int tile, vec4 lsp, float bias) {
@@ -196,7 +197,8 @@ float sampleTile(int tile, vec4 lsp, float bias) {
     }
     vec2 uv = tileUV(tile, proj.xy);
     vec2 texel = 1.0 / vec2(textureSize(ShadowMap, 0));
-    return filterAt(uv, proj.z, bias, texel);
+    shadowPlane = vec2(0.0);
+    return filterAt(uv, proj.z, bias, texel, 0.0, 0.0);
 }
 
 int cubeFace(vec3 d) {
@@ -274,7 +276,17 @@ float casAt(int cas, vec3 wp, vec3 n, vec3 ldir, float bias, out float inside) {
     inside = 1.0;
     vec2 uv = tileUV(cas, proj.xy);
     float dynamicBias = receiverDepthBias(proj, n, ldir, bias);
-    float sh = filterAt(uv, proj.z, dynamicBias, texel);
+    // The receiver's plane in atlas space, from how UV and depth change across this pixel.
+    // Where the surface is too steep or ends here, the answer is no use: go without.
+    vec3 dx = vec3(dFdx(uv), dFdx(proj.z));
+    vec3 dy = vec3(dFdy(uv), dFdy(proj.z));
+    float det = dx.x * dy.y - dx.y * dy.x;
+    shadowPlane = abs(det) > 1e-12 ? vec2(dy.y * dx.z - dx.y * dy.z, dx.x * dy.z - dy.x * dx.z) / det : vec2(0.0);
+    if (dot(shadowPlane, shadowPlane) > 16.0) { shadowPlane = vec2(0.0); }
+    // The third row of an orthographic matrix: depth units per meter along the light.
+    vec3 depthRow = vec3(LightVP[cas][0][2], LightVP[cas][1][2], LightVP[cas][2][2]);
+    float perZ = 2.0 / max(length(depthRow), 1e-6);
+    float sh = filterAt(uv, proj.z, dynamicBias, texel, perZ, tw);
     if (ShadowFilter < 2) {
         if (ShadowContact != 0) { sh *= contactAt(uv, proj.z, texel); }
         if (ShadowSSS != 0) { sh *= sssAt(uv, proj.z, texel); }

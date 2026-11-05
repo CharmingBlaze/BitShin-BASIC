@@ -62,6 +62,7 @@ type shadowMap struct {
 	pcf                                                                       int
 	bias                                                                      float32
 	lightSize                                                                 float32
+	compareSampler, dummyDepth                                                uint32
 	cache                                                                     bool
 	atlas                                                                     bool
 	contact                                                                   bool
@@ -272,29 +273,24 @@ func (w *World) bindShadowUniforms(gs *gls.GLS) {
 	if !w.shadowSampleOK() {
 		dummy := w.ensureDummyShadowTex()
 		w.bindShadowSampler(gs, dummy, unitShadow, "ShadowMap")
-		w.bindShadowSampler(gs, dummy, unitShadowDyn, "ShadowMapDyn")
+		w.bindShadowCompare(gs, w.ensureDummyShadowDepth())
 		setUni1i(gs, "ShadowEnabled", 0)
 		setUni1i(gs, "MeshReceiveShadow", 0)
-		setUni1i(gs, "ShadowCacheSplit", 0)
 		setUni1i(gs, "ShadowContact", 0)
 		setUni1i(gs, "ShadowSSS", 0)
 		return
 	}
 	w.bindShadowSampler(gs, w.shadow.tex, unitShadow, "ShadowMap")
 	first := w.firstInPass(gs, passShadow)
-	split := 0
-	dyn := w.shadow.dynTex
-	if w.shadow.cache && dyn != 0 && dyn != w.ensureDummyShadowTex() {
-		w.bindShadowSampler(gs, dyn, unitShadowDyn, "ShadowMapDyn")
-		split = 1
+	if w.shadow.filter >= shadowFilterEVSM {
+		w.bindShadowCompare(gs, w.ensureDummyShadowDepth()) // the moments have no depth to compare
 	} else {
-		w.bindShadowSampler(gs, w.ensureDummyShadowTex(), unitShadowDyn, "ShadowMapDyn")
+		w.bindShadowCompare(gs, w.shadow.tex)
 	}
 	setUni1i(gs, "MeshReceiveShadow", 1)
 	if !first {
 		return
 	}
-	setUni1i(gs, "ShadowCacheSplit", split)
 	setUni1i(gs, "ShadowEnabled", 1)
 	setUni1i(gs, "ShadowCascades", w.shadow.cascades)
 	setUni1i(gs, "ShadowFilter", w.shadow.filter)
@@ -364,6 +360,53 @@ func (w *World) bindShadowSampler(gs *gls.GLS, tex uint32, unit uint32, name str
 	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.NONE)
 	setUni1i(gs, name, int(unit))
 	gs.ActiveTexture(gls.TEXTURE0)
+}
+
+// bindShadowCompare binds the depth map a second time, read through a sampler object that
+// compares and filters. The same texture stays readable as plain depth on unitShadow,
+// which the blocker search needs. A sampler object stays on its unit until removed, and
+// water and the post pass use this unit too, so they call unbindShadowCompare.
+func (w *World) bindShadowCompare(gs *gls.GLS, tex uint32) {
+	if gs == nil || tex == 0 {
+		return
+	}
+	s := &w.shadow
+	if s.compareSampler == 0 {
+		gl.GenSamplers(1, &s.compareSampler)
+		gl.SamplerParameteri(s.compareSampler, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE)
+		gl.SamplerParameteri(s.compareSampler, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL)
+		gl.SamplerParameteri(s.compareSampler, gl.TEXTURE_MIN_FILTER, gl.LINEAR)
+		gl.SamplerParameteri(s.compareSampler, gl.TEXTURE_MAG_FILTER, gl.LINEAR)
+		gl.SamplerParameteri(s.compareSampler, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+		gl.SamplerParameteri(s.compareSampler, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+	}
+	gs.ActiveTexture(gls.TEXTURE0 + unitShadowCompare)
+	gs.BindTexture(gls.TEXTURE_2D, tex)
+	gl.BindSampler(unitShadowCompare, s.compareSampler)
+	setUni1i(gs, "ShadowCompare", unitShadowCompare)
+	gs.ActiveTexture(gls.TEXTURE0)
+}
+
+func unbindShadowCompare() {
+	gl.BindSampler(unitShadowCompare, 0)
+}
+
+// ensureDummyShadowDepth is the compare sampler's stand-in: a shadow sampler reading
+// anything but a depth texture is undefined, even in a branch that never runs.
+func (w *World) ensureDummyShadowDepth() uint32 {
+	if w.shadow.dummyDepth != 0 {
+		return w.shadow.dummyDepth
+	}
+	var tex uint32
+	gl.GenTextures(1, &tex)
+	gl.BindTexture(gl.TEXTURE_2D, tex)
+	far := []float32{1}
+	gl.TexImage2D(gl.TEXTURE_2D, 0, gl.DEPTH_COMPONENT24, 1, 1, 0, gl.DEPTH_COMPONENT, gl.FLOAT, gl.Ptr(far))
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+	gl.TexParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
+	w.shadow.dummyDepth = tex
+	return tex
 }
 
 // ensureDummyShadowTex creates a 1x1 white (depth=1) sampler so unused

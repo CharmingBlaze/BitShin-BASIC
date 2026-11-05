@@ -339,7 +339,7 @@ func TestShadowCacheInvalidatesDeformers(t *testing.T) {
 }
 
 func TestShadowShaderHasTechniques(t *testing.T) {
-	for _, needle := range []string{"evsmAt", "msmAt", "contactAt", "sssAt", "localShadows", "PointVP", "SpotVP", "tileUV", "WorldNormal", "casAt", "smoothstep", "ShadowNormalBias", "ignoise", "gradientNoise", "ShadowMapDyn", "MomentMode", "POISSON_DISK", "sunShadowFactor", "pointShadowFactor", "spotShadowFactor", "ShadowSoftness", "ShadowColor", "calcDynamicBias", "pcf3x3", "MeshReceiveShadow", "emptyDepth"} {
+	for _, needle := range []string{"evsmAt", "msmAt", "contactAt", "sssAt", "localShadows", "PointVP", "SpotVP", "tileUV", "WorldNormal", "casAt", "smoothstep", "ShadowNormalBias", "ignoise", "gradientNoise", "ShadowCompare", "MomentMode", "POISSON_DISK", "sunShadowFactor", "pointShadowFactor", "spotShadowFactor", "ShadowSoftness", "ShadowColor", "calcDynamicBias", "vogelPCF", "MeshReceiveShadow", "emptyDepth"} {
 		src := mbshadowFragment
 		if needle == "MomentMode" {
 			src = depthFragmentSrc

@@ -44,7 +44,7 @@ var tiers = [...]tierSettings{
 	// on the way there. It only loses bloom (see bloomAllowed).
 	qualityLow:    {shadow: 1024, reflect: 0, refract: 0, post: true, radius: 1, detailPx: 14, scatter: 0.45, treeReachM: 220, cascades: 2, maxTexture: 1024},
 	qualityMedium: {shadow: 1024, reflect: 512, refract: 512, post: true, radius: 2, detailPx: 10, scatter: 0.7, treeReachM: 320, ao: true, aoSlices: 2, cascades: 3, maxTexture: 2048},
-	qualityHigh:   {shadow: 2048, reflect: 1024, refract: 1024, post: true, radius: 2, detailPx: 8, scatter: 1, treeReachM: 420, ao: true, aoSlices: 4, cascades: 4},
+	qualityHigh:   {shadow: 2048, reflect: 1024, refract: 1024, post: true, radius: 2, detailPx: 8, scatter: 1, treeReachM: 420, ao: true, aoSlices: 4, softShadow: true, cascades: 4},
 	qualityUltra:  {shadow: 2048, reflect: 2048, refract: 1024, post: true, radius: 3, detailPx: 6, scatter: 1, treeReachM: 480, ao: true, aoSlices: 6, softShadow: true, msaa: 4, cascades: 4},
 }
 

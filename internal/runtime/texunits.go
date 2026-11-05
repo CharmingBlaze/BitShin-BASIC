@@ -7,16 +7,16 @@ package runtime
 // programUnits against every program's GLSL.
 const (
 	// Lit (bsshadow), PBR (mbphysical), and terrain share the light units.
-	unitShadow    = 8
-	unitShadowDyn = 9
-	unitSpec      = 10
-	unitEmit      = 11
-	unitCookie0   = 12
-	unitCookie1   = 13
-	unitNorm      = 14
-	unitCaustic   = 15
-	unitEnvCube   = 10 // PBR has no SpecMap
-	unitPBRHeight = 11 // PBR has no EmitMap
+	unitShadow        = 8
+	unitShadowCompare = 9
+	unitSpec          = 10
+	unitEmit          = 11
+	unitCookie0       = 12
+	unitCookie1       = 13
+	unitNorm          = 14
+	unitCaustic       = 15
+	unitEnvCube       = 10 // PBR has no SpecMap
+	unitPBRHeight     = 11 // PBR has no EmitMap
 	// Linear lighting's sky map, where 10 is taken. A samplerCube and a
 	// sampler2D on one unit is a GL error. G3N's lit shader samples three
 	// textures at most, and terrain has no NormMap.
@@ -58,18 +58,18 @@ var programUnits = map[string]struct {
 }{
 	"bsshadow": {7, map[string]int{
 		"uEnvCube":  unitEnvCubeLit,
-		"ShadowMap": unitShadow, "ShadowMapDyn": unitShadowDyn, "SpecMap": unitSpec, "EmitMap": unitEmit,
+		"ShadowMap": unitShadow, "ShadowCompare": unitShadowCompare, "SpecMap": unitSpec, "EmitMap": unitEmit,
 		"SpotCookie0": unitCookie0, "SpotCookie1": unitCookie1, "NormMap": unitNorm, "WaterCaustic": unitCaustic,
 	}},
 	// Base color, metal-roughness, normal, emissive, occlusion, equirect env
 	"mbphysical": {6, map[string]int{
-		"ShadowMap": unitShadow, "ShadowMapDyn": unitShadowDyn, "uEnvCube": unitEnvCube, "uHeightMap": unitPBRHeight,
+		"ShadowMap": unitShadow, "ShadowCompare": unitShadowCompare, "uEnvCube": unitEnvCube, "uHeightMap": unitPBRHeight,
 		"SpotCookie0": unitCookie0, "SpotCookie1": unitCookie1, "WaterCaustic": unitCaustic,
 	}},
 	"mbterrain": {2, map[string]int{
 		"TerrainSand": unitTerrainSand, "TerrainGrass": unitTerrainGrass, "TerrainGrass2": unitTerrainGrass2,
 		"TerrainRock": unitTerrainRock, "TerrainSnow": unitTerrainSnow, "TerrainRockN": unitTerrainRockN,
-		"TerrainBlendMap": unitTerrainBlend, "TerrainBake": unitTerrainBake, "ShadowMap": unitShadow, "ShadowMapDyn": unitShadowDyn,
+		"TerrainBlendMap": unitTerrainBlend, "TerrainBake": unitTerrainBake, "ShadowMap": unitShadow, "ShadowCompare": unitShadowCompare,
 		"uEnvCube":    unitEnvCubeTerrain,
 		"SpotCookie0": unitCookie0, "SpotCookie1": unitCookie1, "WaterCaustic": unitCaustic,
 	}},

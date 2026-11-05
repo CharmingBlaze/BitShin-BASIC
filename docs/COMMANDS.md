@@ -127,7 +127,7 @@ See `docs/SHADOWS.md`. All of these change rendering (or skip a redundant depth 
 | `SetShadowPCSS on` | Filter `pcss` / `pcf` |
 | `SetShadowEVSM [on]` | Exponential variance (Chebyshev) |
 | `SetShadowMSM [on]` | Four-moment MSM |
-| `SetShadowLightSize n` | PCSS penumbra scale |
+| `SetShadowLightSize n` | How wide the sun looks for `pcss`: a shadow's edge widens by this many meters per meter from the blocker (default 0.04, the real sun is about 0.005) |
 | `EnableShadowCache` / `SetShadowCache` / `EnableShadowCaching` | Split static (terrain / static bodies) vs dynamic maps; static redraws when sun/dir or static key changes |
 | `EnableShadowAtlas` / `SetShadowAtlas` | Packed atlas (cascades + point/spot) |
 | `EnableContactShadows` / `SetContactShadows` | Tight shadow-map search. Darkens receivers whose neighbor texels are only slightly closer (feet, props on the ground) |

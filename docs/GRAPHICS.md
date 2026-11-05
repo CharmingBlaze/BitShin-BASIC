@@ -177,7 +177,7 @@ Three things keep it cheap. Oak crowns are several lobes, each a dark core insid
 | | Low | Medium | High | Ultra |
 | --- | --- | --- | --- | --- |
 | Meant for | About ten years old: Intel HD, GT 730 | About seven years old: Iris Xe, GTX 750 Ti, Vega 8 | Current integrated and up | Current discrete card |
-| Sun shadows | 1024, 2 cascades | 1024, 3 cascades | 2048, 4 cascades | 2048, 4 cascades, soft |
+| Sun shadows | 1024, 2 cascades | 1024, 3 cascades | 2048, 4 cascades, soft | 2048, 4 cascades, soft |
 | Ambient occlusion | Off | 2 directions | 4 directions | 6 directions |
 | Bloom | Off | On | On | On |
 | Anti-aliasing | FXAA | FXAA | FXAA | FXAA and 4x MSAA |

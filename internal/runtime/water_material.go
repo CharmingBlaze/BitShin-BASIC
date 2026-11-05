@@ -146,6 +146,7 @@ func (m *WaterMaterial) Bind(gs *gls.GLS) {
 	bindWaterSampler(gs, unitWaterRefract, refr, "WaterRefract")
 	bindWaterSampler(gs, unitWaterReflect, refl, "WaterReflect")
 	bindWaterSampler(gs, unitWaterDuDv, dudv, "WaterDuDv")
+	unbindShadowCompare() // water's normals share that unit
 	bindWaterSampler(gs, unitWaterNormal, nrm, "WaterNormal")
 	setUni1i(gs, "WaterReflectOn", bool01(wb.reflectOn && wb.reflect.color != 0))
 	setUni1i(gs, "WaterRefractOn", bool01(wb.refractOn && wb.refract.color != 0))

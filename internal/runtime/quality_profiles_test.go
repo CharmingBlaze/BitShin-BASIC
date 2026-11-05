@@ -69,6 +69,16 @@ func TestProfilesStepUp(t *testing.T) {
 	}
 }
 
+func TestSoftShadowsFromHighUp(t *testing.T) {
+	for tier, want := range []int{qualityLow: shadowFilterPCF, qualityMedium: shadowFilterPCF, qualityHigh: shadowFilterPCSS, qualityUltra: shadowFilterPCSS} {
+		w := New(".")
+		w.setQuality(tier)
+		if w.shadow.filter != want {
+			t.Errorf("%s: filter %d, want %d", qualityNames[tier], w.shadow.filter, want)
+		}
+	}
+}
+
 func TestTextureLimitShrinksOnlyWhatIsTooBig(t *testing.T) {
 	big := image.NewRGBA(image.Rect(0, 0, 4096, 2048))
 	got := shrinkToLimit(big, 1024)

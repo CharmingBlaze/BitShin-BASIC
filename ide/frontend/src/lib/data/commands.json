@@ -1084,7 +1084,7 @@
         {
           "syntax": "SetShadowLightSize n",
           "name": "SetShadowLightSize",
-          "description": "PCSS penumbra scale",
+          "description": "How wide the sun looks for `pcss`: a shadow's edge widens by this many meters per meter from the blocker (default 0.04, the real sun is about 0.005)",
           "category": "Shadows (G3N has no built-in CSM)"
         },
         {
@@ -13705,7 +13705,7 @@
     {
       "syntax": "SetShadowLightSize n",
       "name": "SetShadowLightSize",
-      "description": "PCSS penumbra scale",
+      "description": "How wide the sun looks for `pcss`: a shadow's edge widens by this many meters per meter from the blocker (default 0.04, the real sun is about 0.005)",
       "category": "Shadows (G3N has no built-in CSM)"
     },
     {
