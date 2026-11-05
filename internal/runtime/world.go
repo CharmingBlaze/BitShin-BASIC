@@ -2,6 +2,7 @@
 package runtime
 
 import (
+	"bufio"
 	"fmt"
 	"image"
 	"math"
@@ -448,6 +449,9 @@ type World struct {
 	occlusion                        occlusionState
 	assets                           *assetLoader
 	noTreeCollision                  bool
+	frameLog                         *bufio.Writer
+	frameLast                        time.Time
+	frameLogged                      int
 	texLimit                         int
 	texLimitSet                      bool
 	quality                          qualityState

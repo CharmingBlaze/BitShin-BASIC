@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"bufio"
 	"fmt"
 	"os"
 	"runtime/pprof"
@@ -8,6 +9,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/go-gl/glfw/v3.3/glfw"
 )
@@ -21,6 +23,7 @@ import (
 //	MOON_SHOT=n:path     save frame n as a PNG (docs and visual checks)
 //	MOON_FIXED_DT=s      every frame lasts s seconds (repeatable snapshots)
 //	MOON_CPUPROFILE=path write a Go CPU profile of a smoke run's frames
+//	MOON_FRAMELOG=path   write every frame's time, for `moon bench`
 
 // glErrCount counts GL errors drainGL has seen, logged or not.
 var glErrCount atomic.Int64
@@ -88,6 +91,43 @@ func hideWindow() {
 	glfw.WindowHint(glfw.Focused, glfw.False)
 }
 
+// logFrame appends a line for the frame just shown: its milliseconds, tier, render
+// scale, and the GL errors so far. Flushed often, as a script's End exits at once.
+func (w *World) logFrame() {
+	path := os.Getenv("MOON_FRAMELOG")
+	if path == "" {
+		return
+	}
+	now := time.Now()
+	if w.frameLog == nil {
+		f, err := os.Create(path)
+		if err != nil {
+			fmt.Println("MOON_FRAMELOG:", err)
+			os.Unsetenv("MOON_FRAMELOG")
+			return
+		}
+		w.frameLog = bufio.NewWriter(f)
+		w.detectModernGL()
+		fmt.Fprintf(w.frameLog, "gpu %s\ngl %s\n", w.glmod.caps.renderer, w.glmod.caps.version)
+		w.frameLast = now
+		return
+	}
+	tier := "none"
+	if w.quality.set {
+		tier = qualityNames[w.quality.tier]
+	}
+	scale := 1.0
+	if w.dynActive() && w.dyn.scale > 0 {
+		scale = w.dyn.scale
+	}
+	fmt.Fprintf(w.frameLog, "%.3f %s %.3f %d\n", now.Sub(w.frameLast).Seconds()*1000, tier, scale, glErrCount.Load())
+	w.frameLast = now
+	w.frameLogged++
+	if w.frameLogged%30 == 0 {
+		w.frameLog.Flush()
+	}
+}
+
 // tickSmoke ends a smoke run once its frames are done.
 func (w *World) tickSmoke() {
 	if at, path, ok := strings.Cut(os.Getenv("MOON_SHOT"), ":"); ok {
@@ -96,6 +136,7 @@ func (w *World) tickSmoke() {
 		}
 	}
 	startCPUProfile()
+	w.logFrame()
 	if w.smokeLeft <= 0 {
 		return
 	}

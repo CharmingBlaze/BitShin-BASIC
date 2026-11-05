@@ -266,6 +266,12 @@ On:
 
 Colors tuned for the old path need re-tuning, usually lighter. It needs the post pass, which every tier keeps. Extra windows have no post step, so they stay on the old path. Shaders from `CreateShader` get `uniform int LinearLight` and are not converted for you. Light probes capture into 8-bit targets, so they can band in dark scenes.
 
+## Benchmarking another computer
+
+`moon bench` walks the island along its track on each tier, then once as a game that never picks a tier would, and writes `bench-report.txt`: the GPU and OpenGL version, then each tier's average, median, 95th and 99th percentile, worst frame, hitches, frame count, load time, and GL errors. It names the highest tier whose 95th percentile holds 20 ms, and says where auto started and ended. It takes about three minutes, with the window showing. Ultra runs only if high has plenty of room, and it stops early if a tier is hopeless.
+
+`moon bench -pack bench.zip` writes a zip for a computer with nothing installed: unzip it, double-click `run-bench.bat`, and send back the report.
+
 ## Reference images
 
 `moon snapshot` draws each scene in `cmd/moon/testdata/render` with time fixed and the window hidden, then compares frame 90 with the PNG beside it. A pixel differs when a channel moves more than 24 of 255, and a scene fails when over 2% of its pixels differ, so driver rounding passes and a real change does not. Failures leave the new picture and a diff in `moon-snapshots` under the temp folder.
