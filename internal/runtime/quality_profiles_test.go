@@ -1,10 +1,17 @@
 package runtime
 
 import (
+	"fmt"
+	"github.com/g3n/engine/geometry"
+	"github.com/g3n/engine/gls"
+	"github.com/g3n/engine/math32"
 	"image"
 	"image/png"
+	"math"
+	"moonbasic/internal/meshsimplify"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -111,6 +118,159 @@ func TestScriptTextureLimitWins(t *testing.T) {
 	}
 	if w.textureLimit() != 0 {
 		t.Fatal("a script's limit should win over the tier")
+	}
+}
+
+func TestLargeLoneMeshesGetDetailLevels(t *testing.T) {
+	big := geometry.NewSphere(1, 64, 32)
+	small := geometry.NewBox(1, 1, 1)
+	if !wantsOwnLOD(&batchGroup{key: batchKey{geom: big}, members: make([]batchMember, 1)}) {
+		t.Fatal("a large mesh on its own should be batched for its detail levels")
+	}
+	if wantsOwnLOD(&batchGroup{key: batchKey{geom: small}, members: make([]batchMember, 1)}) {
+		t.Fatal("a small mesh on its own has nothing to gain")
+	}
+	if wantsOwnLOD(&batchGroup{key: batchKey{geom: big}}) {
+		t.Fatal("no members, no batch")
+	}
+}
+
+func TestPlantedTreeBlocksKeepTheirOwnDetail(t *testing.T) {
+	big := geometry.NewSphere(1, 64, 32)
+	g := &batchGroup{key: batchKey{geom: big}, members: []batchMember{{e: &Entity{name: "scatter"}}}}
+	if wantsOwnLOD(g) {
+		t.Fatal("a planted tree block has its own far versions")
+	}
+	g.members[0].e.name = "rock"
+	if !wantsOwnLOD(g) {
+		t.Fatal("any other large mesh should get levels")
+	}
+}
+
+func TestSimplifyGoesDeepOnASmoothMesh(t *testing.T) {
+	g := geometry.NewSphere(1, 128, 64)
+	mesh := meshsimplify.Mesh{Positions: positionSlice(g), Indices: append([]uint32(nil), g.Indices()...)}
+	out := simplifyForLOD(mesh)
+	if len(out) != len(batchLODRatios) {
+		t.Fatalf("got %d levels, want %d", len(out), len(batchLODRatios))
+	}
+	for i := 1; i < len(out); i++ {
+		if out[i].OutputTriangles >= out[i-1].OutputTriangles || out[i].MaxCollapseError < out[i-1].MaxCollapseError {
+			t.Fatalf("level %d: %d triangles, error %v, after %d, error %v", i, out[i].OutputTriangles, out[i].MaxCollapseError, out[i-1].OutputTriangles, out[i-1].MaxCollapseError)
+		}
+	}
+}
+
+func TestPickLODTakesTheSimplestThatFits(t *testing.T) {
+	l := []lodLevel{{err: 0.001}, {err: 0.01}, {err: 0.1}, {err: 1}}
+	if got := pickLOD(l, 1, 10000); got != 0 {
+		t.Fatalf("close up should be full detail, got %d", got)
+	}
+	if got := pickLOD(l, 1, 50); got != 2 {
+		t.Fatalf("got %d, want level 2", got)
+	}
+	if got := pickLOD(l, 1, 0.5); got != 4 {
+		t.Fatalf("far off should be the simplest, got %d", got)
+	}
+}
+
+func TestWeldSharesEqualVertices(t *testing.T) {
+	// Two triangles of a quad, written out in full, with a material group over them.
+	g := geometry.NewGeometry()
+	pos := math32.NewArrayF32(0, 18)
+	pos.Append(0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 1, 1, 0, 0, 1, 0)
+	g.AddVBO(gls.NewVBO(pos).AddAttrib(gls.VertexPosition))
+	g.AddGroup(0, 6, 3)
+	w := weldGeometry(g)
+	if w == nil {
+		t.Fatal("four of six vertices are unique: worth welding")
+	}
+	if got := len(*w.VBOs()[0].Buffer()); got != 12 {
+		t.Fatalf("got %d floats, want 4 vertices", got)
+	}
+	idx := w.Indices()
+	if len(idx) != 6 || idx[3] != idx[0] || idx[4] != idx[2] {
+		t.Fatalf("indices %v should reuse the shared corners", idx)
+	}
+	if w.GroupCount() != 1 || w.GroupAt(0).Count != 6 || w.GroupAt(0).Matindex != 3 {
+		t.Fatal("the material group should carry over")
+	}
+	if weldGeometry(w) != nil {
+		t.Fatal("already indexed: nothing to do")
+	}
+}
+
+func TestWeldLeavesHardEdgesAlone(t *testing.T) {
+	g := geometry.NewGeometry()
+	pos := math32.NewArrayF32(0, 18)
+	pos.Append(0, 0, 0, 1, 0, 0, 1, 1, 0, 5, 0, 0, 6, 0, 0, 6, 1, 0)
+	g.AddVBO(gls.NewVBO(pos).AddAttrib(gls.VertexPosition))
+	if weldGeometry(g) != nil {
+		t.Fatal("nothing shared, nothing to gain")
+	}
+}
+
+// A smooth ball, in the form an OBJ file gives: smooth normals, no shared vertices once loaded.
+func writeBallOBJ(t *testing.T, path string, n int) {
+	t.Helper()
+	var b strings.Builder
+	for j := 0; j <= n; j++ {
+		th := math.Pi * float64(j) / float64(n)
+		for i := 0; i < n; i++ {
+			ph := 2 * math.Pi * float64(i) / float64(n)
+			x, y, z := math.Sin(th)*math.Cos(ph), math.Cos(th), math.Sin(th)*math.Sin(ph)
+			fmt.Fprintf(&b, "v %f %f %f\nvn %f %f %f\n", x, y, z, x, y, z)
+		}
+	}
+	for j := 0; j < n; j++ {
+		for i := 0; i < n; i++ {
+			p := j*n + i + 1
+			q := j*n + (i+1)%n + 1
+			r, s := p+n, q+n
+			fmt.Fprintf(&b, "f %d//%d %d//%d %d//%d\nf %d//%d %d//%d %d//%d\n", p, p, q, q, r, r, q, q, s, s, r, r)
+		}
+	}
+	if err := os.WriteFile(path, []byte(b.String()), 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestLoadedModelPartsGetDetailLevels(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "ball.obj")
+	writeBallOBJ(t, path, 64)
+	w := New(filepath.Dir(path))
+	w.ready = true
+	id, err := w.loadObjAt(path, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	w.findPartLODs()
+	if len(w.batch.parts) != 1 {
+		t.Fatalf("found %d parts, want 1", len(w.batch.parts))
+	}
+	p := w.batch.parts[0]
+	// The file has 64*65, and each pole is one point written 64 times.
+	if got := len(*p.full.VBO(gls.VertexPosition).Buffer()) / 3; got > 64*65 || got < 64*63 {
+		t.Fatalf("got %d vertices, want about the OBJ file's %d, not three per triangle", got, 64*65)
+	}
+	var l *geomLOD
+	deadline := time.Now().Add(20 * time.Second)
+	for time.Now().Before(deadline) && l == nil {
+		w.lodFor(p.full)
+		w.collectLODs()
+		l = w.lodFor(p.full)
+		time.Sleep(5 * time.Millisecond)
+	}
+	if l == nil || len(l.levels) < 2 {
+		t.Fatalf("got %+v, want at least two simpler levels", l)
+	}
+	last := l.levels[len(l.levels)-1].geom
+	if geomTriangles(last) >= geomTriangles(p.full)/4 {
+		t.Fatalf("simplest level has %d of %d triangles", geomTriangles(last), geomTriangles(p.full))
+	}
+	w.restorePartLODs(w.ents[id])
+	if len(w.batch.parts) != 0 {
+		t.Fatal("freeing should drop the part")
 	}
 }
 

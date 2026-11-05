@@ -1,0 +1,33 @@
+; Detail Stress — eighty different high-detail meshes, each one of a kind, so nothing
+; here can share a draw. About five million triangles at full detail. Distance detail
+; is what keeps it moving. The numbers show how many triangles are really drawn.
+
+Graphics3D(1280, 720)
+SetWindowTitle("moonBASIC — Detail Stress")
+cam = CreateCamera()
+SetCameraRange(cam, 0.25, 1500)
+SetLook "modern"
+
+ground = CreatePlane().Scale(600, 1, 600).Position([0, 0, 0]).Color(96, 110, 92)
+For i = 0 To 79
+    b = CreateSphere(150 + i).Scale(4, 4, 4)
+    b.Position([(i Mod 10) * 40 - 180, 4, (i / 10) * 40 - 140])
+    b.Color(90 + (i * 37) Mod 150, 90 + (i * 53) Mod 150, 90 + (i * 71) Mod 150)
+Next
+
+a# = 0
+frames = 0
+While 1
+    frames = frames + 1
+    a = a + 6 * Time.Delta()
+    cam.Position(Math.Sin(a) * 240, 60 + Math.Sin(a * 0.7) * 40, Math.Cos(a) * 240)
+    CameraLookAt(cam, 0, 4, 0)
+    RenderWorld
+    Text(12, 12, "Triangles drawn: view " + Str(StatsDrawnTriangles("view")) + "   shadow " + Str(StatsDrawnTriangles("shadow")))
+    Text(12, 30, "Full detail would be " + Str(StatsTriangles()) + "   Frame " + Str(Int(StatsFrameMs())) + " ms")
+    Flip
+    If frames > 8
+        If Input.KeyHit(KEY_ESCAPE) Then End
+    EndIf
+Wend
+End

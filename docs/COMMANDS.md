@@ -1656,6 +1656,7 @@ ImGui panels use the existing `Gui*` commands. These query live numbers:
 | --- | --- | --- |
 | `StatsFPS()` / `GetStatsFPS()` | `1 / DeltaTime` | `fps = Int(StatsFPS())` |
 | `ShowProfiler [on]` | Overlay in the top-right corner, 2D and 3D: FPS, frame time (average and worst of the last 120 frames), script / physics / render CPU time, GPU time, draws, triangles, entities, Go heap, GC, and allocation per frame, over a frame-time graph (green under 16.7 ms, yellow under 33.3, red above) | `ShowProfiler(True)` |
+| `StatsDrawnTriangles([pass$])` | `"view"` (default) or `"shadow"`: triangles really drawn last frame, after culling and distance detail. `StatsTriangles()` counts everything at full detail. In shadows it covers batched meshes only | `Print StatsDrawnTriangles()` |
 | `StatsFrameMs()`, `StatsWorstMs()` | Average and worst frame time over the last 120 frames | `If StatsWorstMs() > 33 Then ...` |
 | `StatsScriptMs()`, `StatsPhysicsMs()`, `StatsRenderMs()` | CPU time per frame in the script, the physics step, and drawing (smoothed) | `p = StatsPhysicsMs()` |
 | `StatsGPUMs()` | GPU time of the frame from timestamp queries, a frame late; 0 in 2D | `g = StatsGPUMs()` |

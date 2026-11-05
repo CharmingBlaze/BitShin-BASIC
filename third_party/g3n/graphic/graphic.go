@@ -94,6 +94,12 @@ func (gr *Graphic) IGeometry() geometry.IGeometry {
 	return gr.igeom
 }
 
+// SetIGeometry draws this graphic with another geometry, for distance detail.
+func (gr *Graphic) SetIGeometry(igeom geometry.IGeometry) {
+
+	gr.igeom = igeom
+}
+
 // Dispose overrides the embedded Node Dispose method.
 func (gr *Graphic) Dispose() {
 

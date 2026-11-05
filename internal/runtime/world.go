@@ -1948,6 +1948,7 @@ func (w *World) loadObjAt(path string, parent int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
+	w.weldLoadedMeshes(group)
 	id := w.addEntity(&Entity{node: group, radius: 1}, parent)
 	w.attachLoadedPBR(w.ents[id])
 	return id, nil

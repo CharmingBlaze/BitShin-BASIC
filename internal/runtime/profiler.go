@@ -1,6 +1,7 @@
 package runtime
 
 import (
+	"strings"
 	"encoding/json"
 	"fmt"
 	"image/color"
@@ -167,7 +168,31 @@ func (w *World) triangleCount() int {
 			}
 		})
 	}
+	// Parts of loaded models at a distance hold a simpler geometry; this counts them whole.
+	for _, part := range w.batch.parts {
+		n += geomTriangles(part.full) - geomTriangles(part.mesh.GetGeometry())
+	}
 	p.tris = n
+	return n
+}
+
+// drawnTriangles is what this frame's view really drew, or its shadow tiles. Meshes
+// outside batches count whole, as G3N culls them later; in shadows, they do not count.
+func (w *World) drawnTriangles(shadow bool) int {
+	if shadow {
+		return w.batch.drawnShadow
+	}
+	n := w.batch.drawnView
+	for _, e := range w.ents {
+		if e == nil || e.node == nil || !e.node.GetNode().Visible() {
+			continue
+		}
+		w.walkMeshes(e.node, func(m *graphic.Mesh) {
+			if g := m.GetGeometry(); g != nil && m.Renderable() {
+				n += geomTriangles(g)
+			}
+		})
+	}
 	return n
 }
 
@@ -320,6 +345,11 @@ func (w *World) profilerCommands(n func(func([]value.Value) (value.Value, error)
 		// StatsGPUMs(): 0 until the GPU has timed a frame (or in 2D).
 		"statsgpums":     num(func() float64 { return p.gpu }),
 		"statstriangles": num(func() float64 { return float64(w.triangleCount()) }),
+		// StatsDrawnTriangles([pass$]): "view" (default) or "shadow". What was really drawn
+		// last frame, after culling and distance detail, where StatsTriangles is all of it.
+		"statsdrawntriangles": n(func(a []value.Value) (value.Value, error) {
+			return value.Num(float64(w.drawnTriangles(strings.EqualFold(argS(a, 0), "shadow")))), nil
+		}),
 		"statsmemorymb": num(func() float64 {
 			p.memAt = time.Time{}
 			p.sampleMemory(w.loopFrames)

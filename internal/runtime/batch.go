@@ -71,10 +71,10 @@ type batchKey struct {
 	coat, coatRough, sub, heightScale float32
 	subColor                          math32.Color
 	heightTex                         *texture.Texture2D
-	ao, toonBands, toonRim, toonSpec float32
-	ibl, shading                     int
-	envTex                           *texture.Texture2D
-	noFog                            bool
+	ao, toonBands, toonRim, toonSpec  float32
+	ibl, shading                      int
+	envTex                            *texture.Texture2D
+	noFog                             bool
 }
 
 // batchEntity is one entity's standing with the batcher.
@@ -117,14 +117,20 @@ type batchState struct {
 	checks  int
 	// Every entity by id. Walking the map visits memory at random, which at
 	// 50,000 entities cost more than everything else here together.
-	root    *sceneRoot
-	merges  map[mergeKey]*mergeGroup
-	lods    map[*geometry.Geometry]*geomLOD
-	lodDone chan *lodJob
-	lodBins [len(batchLODRatios) + 1][]float32
-	order   []batchMember
-	orderAt int
-	orderN  int
+	root     *sceneRoot
+	merges   map[mergeKey]*mergeGroup
+	lods     map[*geometry.Geometry]*geomLOD
+	lodDone  chan *lodJob
+	lodSlots chan struct{}
+	parts    []*partLOD
+	// Triangles drawn through batches this frame: the view (with its reflections) and
+	// the shadow tiles. Unlike StatsTriangles, this is after culling and detail.
+	drawnView, drawnShadow int
+	inDepth                bool
+	lodBins                [len(batchLODRatios) + 1][]float32
+	order                  []batchMember
+	orderAt                int
+	orderN                 int
 	// Above 0, a water pass has hidden entities just for itself, so shown is
 	// out of date and each node must be asked.
 	passHides int
@@ -219,6 +225,11 @@ func (w *World) drawBatchInstances(geom *geometry.Geometry, n int) {
 		gl.VertexAttribPointerWithOffset(batchAttrib+c, 4, gl.FLOAT, false, batchFloats*4, uintptr(c*16))
 		gl.VertexAttribDivisor(batchAttrib+c, 1)
 	}
+	if b.inDepth {
+		b.drawnShadow += geomTriangles(geom) * n
+	} else {
+		b.drawnView += geomTriangles(geom) * n
+	}
 	if idx := geom.Indices(); len(idx) > 0 {
 		gl.DrawElementsInstanced(gl.TRIANGLES, int32(len(idx)), gl.UNSIGNED_INT, nil, int32(n))
 	} else {
@@ -272,6 +283,8 @@ func (w *World) updateBatches() {
 	}
 	w.collectLODs()
 	w.scene.UpdateMatrixWorld()
+	b.drawnView, b.drawnShadow = 0, 0
+	w.tickPartLODs()
 	if b.groups == nil {
 		b.groups = map[batchKey]*batchGroup{}
 	}
@@ -309,7 +322,7 @@ func (w *World) updateBatches() {
 	}
 	b.active = b.active[:0]
 	for key, g := range b.groups {
-		if len(g.members) < batchMinCopies {
+		if len(g.members) < batchMinCopies && !wantsOwnLOD(g) {
 			g.detach(w)
 			for _, m := range g.members {
 				if st := m.e.batch; st.drawn && st.merged == nil {
@@ -726,6 +739,8 @@ func (w *World) drawBatchDepth(gs *gls.GLS, lightVP *math32.Matrix4, layer int) 
 	if s.filter == shadowFilterEVSM || s.filter == shadowFilterMSM {
 		moment = 1
 	}
+	b.inDepth = true
+	defer func() { b.inDepth = false }()
 	drew := 0
 	for _, g := range b.active {
 		if g.key.cutTex != nil && w.batchCutsOut(g.members[0].e) {

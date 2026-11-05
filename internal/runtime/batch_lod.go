@@ -1,8 +1,14 @@
 package runtime
 
 import (
+	"math"
+	"runtime"
+	"unsafe"
+
+	"github.com/g3n/engine/core"
 	"github.com/g3n/engine/geometry"
 	"github.com/g3n/engine/gls"
+	"github.com/g3n/engine/graphic"
 	"github.com/g3n/engine/math32"
 	"github.com/go-gl/gl/v3.3-core/gl"
 
@@ -13,15 +19,21 @@ import (
 // to two simpler versions, built once on a worker. Each view then draws a copy
 // with the simplest version whose error covers at most a pixel at its distance,
 // and each cascade with the simplest whose error fits in one shadow texel.
-// A single mesh with no copies keeps its full detail.
+// A large single mesh gets the same treatment, as a group of one. A large part inside a
+// loaded model is not an entity and cannot join a group, so it swaps its geometry
+// instead, once a frame, for the whole of that frame's passes.
 
 const (
 	batchLODMinTris = 256
 	batchLODMaxTris = 500000
 	batchLODMaxErr  = 1.0 // pixels
+	// Below this a lone mesh is not worth a batch of its own.
+	singleLODMinTris = 2000
 )
 
-var batchLODRatios = [...]float64{0.5, 0.25}
+// Each level is built from the full mesh, on a worker, so more of them cost load time
+// and no frame time. A far mesh would otherwise stop at a quarter of its triangles.
+var batchLODRatios = [...]float64{0.5, 0.25, 0.125, 0.0625}
 
 type lodLevel struct {
 	geom *geometry.Geometry
@@ -73,6 +85,12 @@ func (w *World) lodFor(geom *geometry.Geometry) *geomLOD {
 	if b.lods == nil {
 		b.lods = map[*geometry.Geometry]*geomLOD{}
 		b.lodDone = make(chan *lodJob, 16)
+		// A quarter of the cores: on integrated graphics, a busy CPU also slows the GPU.
+		n := runtime.NumCPU() / 4
+		if n < 1 {
+			n = 1
+		}
+		b.lodSlots = make(chan struct{}, n)
 	}
 	b.lods[geom] = nil
 	if tris := geomTriangles(geom); tris < batchLODMinTris || tris > batchLODMaxTris {
@@ -81,24 +99,257 @@ func (w *World) lodFor(geom *geometry.Geometry) *geomLOD {
 	mesh := meshsimplify.Mesh{Positions: positionSlice(geom), Indices: append([]uint32(nil), geom.Indices()...)}
 	job := &lodJob{geom: geom, indexN: len(geom.Indices()), pos: posV.Buffer(), vertN: len(*posV.Buffer())}
 	done := b.lodDone
+	slots := b.lodSlots
 	go func() {
+		// A scene of many large meshes queues here, leaving cores for the game.
+		slots <- struct{}{}
 		job.results = simplifyForLOD(mesh)
+		<-slots
 		done <- job
 	}()
 	return nil
 }
 
+// weldGeometry returns a copy of a geometry sharing each vertex that is the same in every
+// attribute, or nil if it would gain nothing. OBJ files load with three vertices for every
+// triangle, whatever their indices say: more to shade, and to the simplifier, a pile of
+// separate triangles with nothing it can collapse. The index order is kept, so a material
+// group's range still covers the same triangles.
+func weldGeometry(g *geometry.Geometry) *geometry.Geometry {
+	vbos := g.VBOs()
+	if len(vbos) == 0 {
+		return nil
+	}
+	strides := make([]int, len(vbos))
+	verts := -1
+	for i, v := range vbos {
+		if v.Buffer() == nil || v.Stride() <= 0 {
+			return nil
+		}
+		strides[i] = v.Stride()
+		// A model with no texture coordinates has an empty buffer for them.
+		if c := len(*v.Buffer()) / strides[i]; c > 0 && (verts < 0 || c < verts) {
+			verts = c
+		}
+	}
+	source := g.Indices()
+	n := len(source)
+	if n == 0 {
+		n = g.Items()
+	}
+	if n < 3 || verts < 3 {
+		return nil
+	}
+	seen := make(map[string]uint32, verts/2)
+	indices := make([]uint32, n)
+	keep := make([]int, 0, verts/2)
+	var key []byte
+	for at := 0; at < n; at++ {
+		i := at
+		if len(source) > 0 {
+			i = int(source[at])
+		}
+		if i >= verts {
+			return nil
+		}
+		key = key[:0]
+		for b, v := range vbos {
+			if len(*v.Buffer()) == 0 {
+				continue
+			}
+			for _, f := range (*v.Buffer())[i*strides[b] : (i+1)*strides[b]] {
+				u := math.Float32bits(f)
+				key = append(key, byte(u), byte(u>>8), byte(u>>16), byte(u>>24))
+			}
+		}
+		to, ok := seen[string(key)]
+		if !ok {
+			to = uint32(len(keep))
+			seen[string(key)] = to
+			keep = append(keep, i)
+		}
+		indices[at] = to
+	}
+	if len(keep)*4 > verts*3 {
+		return nil // hard edges everywhere: little to share
+	}
+	out := geometry.NewGeometry()
+	for b, v := range vbos {
+		src := *v.Buffer()
+		buf := make([]float32, 0, len(keep)*strides[b])
+		for _, i := range keep {
+			if len(src) > 0 {
+				buf = append(buf, src[i*strides[b]:(i+1)*strides[b]]...)
+			}
+		}
+		nv := gls.NewVBO(math32.ArrayF32(buf))
+		for _, a := range v.Attributes() {
+			if a.Type != gls.Undefined {
+				nv.AddAttribOffset(a.Type, a.ByteOffset)
+			} else {
+				nv.AddCustomAttribOffset(a.Name, a.NumElements, a.ByteOffset)
+			}
+		}
+		out.AddVBO(nv)
+	}
+	out.SetIndices(math32.ArrayU32(indices))
+	for i := 0; i < g.GroupCount(); i++ {
+		gr := g.GroupAt(i)
+		out.AddGroup(gr.Start, gr.Count, gr.Matindex)
+	}
+	return out
+}
+
+// weldLoadedMeshes indexes a loaded model's large meshes.
+func (w *World) weldLoadedMeshes(node core.INode) {
+	w.walkMeshes(node, func(m *graphic.Mesh) {
+		g := m.GetGeometry()
+		if g == nil || geomTriangles(g) < singleLODMinTris {
+			return
+		}
+		if _, morph := m.IGeometry().(*geometry.MorphGeometry); morph {
+			return
+		}
+		if welded := weldGeometry(g); welded != nil {
+			m.SetIGeometry(welded)
+			g.Dispose()
+		}
+	})
+}
+
+// wantsOwnLOD says a mesh with no copies should still be drawn through a batch.
+func wantsOwnLOD(g *batchGroup) bool {
+	if len(g.members) != 1 || geomTriangles(g.key.geom) < singleLODMinTris {
+		return false
+	}
+	// Planted trees come in blocks that already have their own far versions, and come
+	// and go as the camera moves: simplifying them would never end.
+	return g.members[0].e == nil || g.members[0].e.name != "scatter"
+}
+
+type partLOD struct {
+	mesh *graphic.Mesh
+	full *geometry.Geometry
+	at   *geometry.Geometry
+}
+
+// tickPartLODs picks the detail of large parts inside loaded models.
+func (w *World) tickPartLODs() {
+	b := &w.batch
+	if w.cam == nil {
+		return
+	}
+	// What is in a model rarely changes, so look for parts once a second.
+	if w.loopFrames%60 == 0 || b.parts == nil {
+		w.findPartLODs()
+	}
+	if len(b.parts) == 0 {
+		return
+	}
+	var proj math32.Matrix4
+	w.cam.ProjMatrix(&proj)
+	if proj[15] != 0 || proj[5] <= 0 {
+		return
+	}
+	var vp [4]int32
+	gl.GetIntegerv(gl.VIEWPORT, &vp[0])
+	focal := proj[5] * float32(vp[3]) * 0.5
+	eye := worldPos(w.cam.GetNode())
+	for _, p := range b.parts {
+		target := p.full
+		if l := w.lodFor(p.full); l != nil {
+			sph := p.full.BoundingSphere()
+			mw := p.mesh.GetNode().MatrixWorld()
+			c := sph.Center
+			c.ApplyMatrix4(&mw)
+			scale := math32.Sqrt(math32.Max(mw[0]*mw[0]+mw[1]*mw[1]+mw[2]*mw[2], math32.Max(mw[4]*mw[4]+mw[5]*mw[5]+mw[6]*mw[6], mw[8]*mw[8]+mw[9]*mw[9]+mw[10]*mw[10])))
+			if dist := c.DistanceTo(&eye) - sph.Radius*scale; dist > 0 {
+				if i := pickLOD(l.levels, scale, focal/dist); i > 0 {
+					target = l.levels[i-1].geom
+				}
+			}
+		}
+		if target != p.at {
+			if target != p.full {
+				target.Incref() // the mesh disposes what it holds
+			}
+			p.mesh.SetIGeometry(target)
+			p.at = target
+		}
+	}
+}
+
+// findPartLODs lists meshes under loaded models that can change detail: one plain
+// material over a whole, static, indexed geometry.
+func (w *World) findPartLODs() {
+	b := &w.batch
+	old := map[*graphic.Mesh]*partLOD{}
+	for _, p := range b.parts {
+		old[p.mesh] = p
+	}
+	b.parts = make([]*partLOD, 0, len(old))
+	for _, e := range w.ents {
+		if e == nil || e.node == nil || e.skin != nil {
+			continue
+		}
+		if _, plain := e.node.(*graphic.Mesh); plain {
+			continue // an entity's own mesh: batching looks after it
+		}
+		w.walkMeshes(e.node, func(m *graphic.Mesh) {
+			if p := old[m]; p != nil {
+				b.parts = append(b.parts, p)
+				return
+			}
+			if _, morph := m.IGeometry().(*geometry.MorphGeometry); morph || !partCanSwap(m) {
+				return
+			}
+			if g := m.GetGeometry(); g != nil && len(g.Indices()) >= 3 && geomTriangles(g) >= singleLODMinTris {
+				b.parts = append(b.parts, &partLOD{mesh: m, full: g, at: g})
+			}
+		})
+	}
+}
+
+// partCanSwap: a material over part of the indices would read past a simpler version.
+func partCanSwap(m *graphic.Mesh) bool {
+	mats := m.Materials()
+	return len(mats) == 1 && *(*int)(unsafe.Add(unsafe.Pointer(&mats[0]), batchLayout.matCount)) == 0
+}
+
+// restorePartLODs gives an entity's parts back their full geometry before it is freed,
+// so the mesh disposes what it came with.
+func (w *World) restorePartLODs(e *Entity) {
+	b := &w.batch
+	if len(b.parts) == 0 || e == nil || e.node == nil {
+		return
+	}
+	w.walkMeshes(e.node, func(m *graphic.Mesh) {
+		for i, p := range b.parts {
+			if p.mesh == m {
+				m.SetIGeometry(p.full)
+				b.parts = append(b.parts[:i], b.parts[i+1:]...)
+				return
+			}
+		}
+	})
+}
+
 // simplifyForLOD runs on a worker: no GL, and nothing shared with the world.
+//
+// Each level is made from the one before, so its Sources point there. Starting each from
+// the full mesh took about three times the work, and a scene of many large meshes spent
+// minutes on it.
 func simplifyForLOD(mesh meshsimplify.Mesh) []meshsimplify.Result {
 	var out []meshsimplify.Result
 	input := len(mesh.Indices) / 3
 	for _, ratio := range batchLODRatios {
-		r := meshsimplify.Simplify(mesh, meshsimplify.Options{TargetRatio: ratio})
+		r := meshsimplify.Simplify(mesh, meshsimplify.Options{TargetTriangles: int(float64(input) * ratio)})
 		// A version that barely saves anything is not worth a draw call.
 		if r.OutputTriangles < 1 || len(r.Sources) == 0 || float64(r.OutputTriangles) > float64(input)*ratio*1.5 {
 			break
 		}
 		out = append(out, r)
+		mesh = r.Mesh
 	}
 	return out
 }
@@ -126,12 +377,17 @@ func (w *World) adoptLOD(job *lodJob) {
 		return
 	}
 	l := &geomLOD{indexN: job.indexN, vertN: job.vertN, pos: job.pos}
+	from := geom
+	var err float32
 	for _, r := range job.results {
-		g := lodGeometry(geom, r)
+		g := lodGeometry(from, r)
 		if g == nil {
 			break
 		}
-		l.levels = append(l.levels, lodLevel{g, float32(r.MaxCollapseError)})
+		// Each pass measures only its own step away from the last, so errors add up.
+		err += float32(r.MaxCollapseError)
+		l.levels = append(l.levels, lodLevel{g, err})
+		from = g
 	}
 	if len(l.levels) > 0 {
 		b.lods[geom] = l

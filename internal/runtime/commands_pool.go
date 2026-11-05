@@ -177,6 +177,7 @@ func (w *World) poolOf(id int) (*userPool, error) {
 }
 
 func (w *World) freeEntityID(id int) {
+	w.restorePartLODs(w.ents[id])
 	for ropeID, rope := range w.ropes {
 		if rope != nil && (rope.a == id || rope.b == id) {
 			w.freeRope(ropeID)
