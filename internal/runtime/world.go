@@ -447,6 +447,7 @@ type World struct {
 	post                             postFX
 	occlusion                        occlusionState
 	assets                           *assetLoader
+	noTreeCollision                  bool
 	texLimit                         int
 	texLimitSet                      bool
 	quality                          qualityState

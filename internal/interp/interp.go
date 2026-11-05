@@ -220,6 +220,9 @@ func (e *env) coerce(k string, v value.Value) value.Value {
 			return coerceAs(typ, v)
 		}
 	}
+	if v.Kind == value.KindArray {
+		return v // Dim a#(5): the suffix is for its elements, not the array
+	}
 	for cur := e; cur != nil; cur = cur.parent {
 		kind, ok := cur.kinds[k]
 		if !ok {

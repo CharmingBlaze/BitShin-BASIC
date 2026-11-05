@@ -205,6 +205,7 @@ Low keeps the shoreline without a refraction pass: depth under the water is bake
 - **Detail:** batched meshes get simpler versions with distance, and terrain has its own levels.
 - **Textures:** mipmaps come with every loaded texture, `SetTextureLimit` overrides a tier's size limit, and `LoadTextureAsync` decodes on a worker: the texture works at once as a grey pixel, `TextureReady` and `TexturesLoading` report on it. Meshes still load on the main thread.
 - **Shaders:** compiled programs are cached on disk.
+- **Auto exposure:** brightness is read back in the background every four frames. Reading it directly made the CPU wait for the GPU every frame, which caused most of the over-budget frames on a walk through the island: 100 to 240 of 1,800 before, 2 to 5 after.
 
 Texture atlases are not built. Their use is to merge draws split by texture, and generated trees carry no textures. They would help a game with many small textures on one kind of mesh.
 

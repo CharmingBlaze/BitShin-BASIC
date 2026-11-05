@@ -73,6 +73,10 @@ type postFX struct {
 	lumProg        uint32
 	lumTex         uint32
 	lumFBO         uint32
+	lumPBO         uint32 // the read in flight
+	lumFence       uintptr
+	lumLast        float32
+	lumFrame       int
 	lut            lutState
 	outline        outlineState
 	lens           lensState
@@ -1084,12 +1088,57 @@ func (w *World) measureLuma(ww, hh int) (float32, bool) {
 	gl.Uniform1i(gl.GetUniformLocation(w.post.lumProg, gl.Str("uTex\x00")), 0)
 	gl.BindVertexArray(w.post.vao)
 	gl.DrawArrays(gl.TRIANGLE_STRIP, 0, 4)
-	var pix [4]byte
-	gl.ReadPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(&pix[0]))
 	gl.BindVertexArray(0)
 	gl.UseProgram(0)
+	lum := w.readLuma()
 	drainGL("exposure")
-	return float32(pix[0]) / 255, true
+	return lum, true
+}
+
+// lumaEvery is how many frames apart brightness is read. Exposure adapts over a second
+// or two, so this cannot be seen.
+const lumaEvery = 4
+
+// readLuma gets the 1x1 brightness from the bound target without waiting for the GPU.
+// A plain glReadPixels here made the CPU wait for the whole frame to finish, every
+// frame: in a walk on a 780M it was two thirds of the main thread's time. The first
+// read and repeatable runs still wait, so nothing starts at the wrong exposure.
+func (w *World) readLuma() float32 {
+	p := &w.post
+	if !p.adaptedOK || fixedDelta() > 0 {
+		var pix [4]byte
+		gl.ReadPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, gl.Ptr(&pix[0]))
+		p.lumLast = float32(pix[0]) / 255
+		return p.lumLast
+	}
+	if p.lumPBO == 0 {
+		gl.GenBuffers(1, &p.lumPBO)
+		gl.BindBuffer(gl.PIXEL_PACK_BUFFER, p.lumPBO)
+		gl.BufferData(gl.PIXEL_PACK_BUFFER, 4, nil, gl.STREAM_READ)
+		gl.BindBuffer(gl.PIXEL_PACK_BUFFER, 0)
+	}
+	if p.lumFence != 0 {
+		st := gl.ClientWaitSync(p.lumFence, 0, 0)
+		if st != gl.ALREADY_SIGNALED && st != gl.CONDITION_SATISFIED {
+			return p.lumLast // not back yet; last frame's answer is close enough
+		}
+		gl.DeleteSync(p.lumFence)
+		p.lumFence = 0
+		gl.BindBuffer(gl.PIXEL_PACK_BUFFER, p.lumPBO)
+		if m := gl.MapBufferRange(gl.PIXEL_PACK_BUFFER, 0, 4, gl.MAP_READ_BIT); m != nil {
+			p.lumLast = float32(*(*byte)(m)) / 255
+			gl.UnmapBuffer(gl.PIXEL_PACK_BUFFER)
+		}
+		gl.BindBuffer(gl.PIXEL_PACK_BUFFER, 0)
+	}
+	p.lumFrame++
+	if p.lumFrame%lumaEvery == 0 {
+		gl.BindBuffer(gl.PIXEL_PACK_BUFFER, p.lumPBO)
+		gl.ReadPixels(0, 0, 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, gl.PtrOffset(0))
+		gl.BindBuffer(gl.PIXEL_PACK_BUFFER, 0)
+		p.lumFence = gl.FenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0)
+	}
+	return p.lumLast
 }
 
 func adaptExposure(current float32, have bool, lum, key, speed float32, dt float64) (float32, bool) {

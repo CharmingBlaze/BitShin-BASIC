@@ -149,6 +149,7 @@ type terrain struct {
 	treePending  map[chunkKey]bool  // blocks a worker is building
 	treeGen      int                // bumps when trees are released
 	treeFar      map[chunkKey]bool  // block was planted with the simplified parts
+	trunks       map[chunkKey][]trunk
 	built        map[chunkKey]int
 	simOn        map[chunkKey]bool
 	morphOff     bool

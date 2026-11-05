@@ -374,7 +374,7 @@ vec4 terrainSplat(inout vec3 n) {
     if (paintedDirt > 0.002) {
         // Worn earth with stones in it, and an edge that frays into what is around it.
         vec3 earth = mix(vec3(0.66, 0.54, 0.4), vec3(0.5, 0.39, 0.28), terrainNoise(WorldPos.xz * 0.7));
-        earth = mix(earth, rock, smoothstep(0.62, 0.8, terrainNoise(WorldPos.xz * 2.3)) * 0.5);
+        earth = mix(earth, rock, smoothstep(0.66, 0.84, terrainNoise(WorldPos.xz * 3.1)) * 0.28);
         albedo = mix(albedo, earth, smoothstep(0.3, 0.62, paintedDirt + (terrainNoise(WorldPos.xz * 0.9) - 0.5) * 0.35));
     }
     float b0 = terrainNoise(WorldPos.xz * 1.6);

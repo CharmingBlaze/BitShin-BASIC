@@ -132,7 +132,12 @@ func (w *World) physCommands(n func(func([]value.Value) (value.Value, error)) cm
 		"createbodyheightfield": need(func(a []value.Value) (value.Value, error) {
 			w.ensurePhys3()
 			id := argI(a, 0, 0)
+			// As fine as the terrain, unless asked. A fixed 64 put an 800 m island's
+			// samples 12.5 m apart, and a walker sank meters into its hills.
 			n := argI(a, 1, 64)
+			if t := w.terrains[id]; len(a) < 2 && t != nil && t.hf.gw > n {
+				n = t.hf.gw
+			}
 			w.addHeightFieldBody(id, n)
 			if e := w.ents[id]; e != nil {
 				e.bodyType = 2

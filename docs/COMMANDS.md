@@ -1636,6 +1636,8 @@ Wend
 | `CreateFPSController(e, cam [, height, radius, walk, sprint, jump])` | Defaults `1.8`, `0.4`, `6`, `10.5`, `9.5`. Mouse look, pitch clamped to ±89, ignored while ImGui has the pointer. Crouch shortens the capsule to `0.55` of its height |
 | `UpdateFPS(e, x, z, jump, sprint, crouch [, sens])` | `x`/`z` are about `-1`..`1`. `sens` defaults to `0.15` degrees per mouse pixel |
 | `GetFPSPitch(e)` / `GetFPSYaw(e)` / `IsFPSGrounded(e)` | Look angles and ground |
+| `SetFPSLook(e, yaw [, pitch])` | Point the view, for a start, a respawn, or a cut |
+| `SetTreeCollision(on)` | FPS and TPS characters can't walk through trees planted as 3D meshes. On by default. Trunks only: crowns and grass don't block |
 | `CreateTPSController(e, cam [, height, radius, move, sprint, jump])` | Defaults `1.8`, `0.45`, `6.5`, `11`, `10`. Aim slows the walk to `0.65` |
 | `UpdateTPS(e, x, z, jump, sprint, aim, camDist, camPitch, camYaw)` | Move is relative to `camYaw`. Defaults if you omit the camera args: distance `4.5`, pitch `16`, yaw `0` |
 | `GetTPSYaw(e)` / `IsTPSGrounded(e)` | Facing and ground |

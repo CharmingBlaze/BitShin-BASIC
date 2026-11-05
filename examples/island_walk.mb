@@ -1,0 +1,124 @@
+; Island Walk — a small game: land on the beach and find the five beacons.
+; WASD move, Shift run, Space jump, mouse look. Follow the dirt track. Esc quits.
+
+Graphics3D(1280, 720)
+SetWindowTitle("moonBASIC — Island Walk")
+HidePointer()
+cam = CreateCamera()
+SetCameraRange(cam, 0.15, 1800)
+sun = CreateDirectionalLight()
+SetLightDirection(sun, 42, 30, 0)
+SetLightColor(sun, 255, 240, 214)
+SetLook "modern"
+SetShadowDistance(500)
+SetBloom 0.12
+SetSkyGradient(128, 178, 222, 196, 218, 236)
+SetFog(196, 218, 236, 300, 1400)
+SetClouds(0.32, 0.7, 0.12)
+
+sea# = 48
+hm = GenerateHeightmapPreset("mountain-island", 256, 256, 2026)
+HydraulicErodeHeightmap(hm, 3200, 24)
+ground = CreateTerrainFromHeightmap(hm, 800, 800, 160)
+ApplyTerrainSplat(ground)
+BakeTerrain(ground)
+SetTerrainGrassCoverage(ground, 0.2)
+SetTerrainWaterHeight(ground, sea + 0.8)
+SetTerrainBlend(ground, 1.2)
+SetTerrainRockColor(ground, 138, 120, 98)
+SetTerrainSnow(True, 132)
+SetTerrainStreamRadius(ground, 5)
+CreateBodyHeightfield(ground)
+
+water = CreateWater(4096, 4096, 96)
+SetWaterLevel(sea)
+SetWaterStyle("ocean")
+SetWaterColor(30, 54, 96)
+SetWaterShallow(30, 178, 178, 12)
+SetWaterClarity(3)
+SetWaterWaves(0)
+EnableWaterReflection(True)
+EnableWaterRefraction(True)
+
+; The beacons, in the order the track reaches them. The track goes down first, so
+; the grass and trees planted after it stay off.
+Dim bx(5)
+Dim bz(5)
+bx(0) = 40 : bz(0) = 262
+bx(1) = 20 : bz(1) = 190
+bx(2) = -40 : bz(2) = 110
+bx(3) = -60 : bz(3) = 20
+bx(4) = -40 : bz(4) = -90
+For i = 0 To 3
+    PaintTerrainPath(ground, bx(i), bz(i), bx(i + 1), bz(i + 1), 4)
+Next
+
+SetTerrainClearings(ground, 1)
+TerrainTrees(ground, CreateTree("pine", 1), 0.14)
+TerrainTrees(ground, CreateTree("pine", 2, 24), 0.12)
+TerrainTrees(ground, CreateTree("oak", 3), 0.06)
+TerrainTrees(ground, CreateTree("oak", 4, 17), 0.05)
+SetTerrainGrass(ground, 1)
+
+Dim beacon(5)
+Dim found(5)
+For i = 0 To 4
+    beacon(i) = CreateSphere().Scale(0.5, 0.5, 0.5).Position([bx(i), TerrainHeight(ground, bx(i), bz(i)) + 1.6, bz(i)])
+    SetAlbedo(beacon(i), 30, 20, 10)
+    SetEmissive(beacon(i), 800, 480, 180)
+Next
+
+; Start at the waterline, looking up the track.
+sx# = 40
+sz# = 292
+player = CreatePivot().Position([sx, TerrainHeight(ground, sx, sz) + 2, sz])
+CreateFPSController(player, cam, 1.75, 0.4, 5, 10, 7)
+SetFPSLook(player, Math.ATan2(bx(0) - sx, bz(0) - sz), 0)
+SetPlayer(player)
+
+got = 0
+t# = 0
+safeX# = sx
+safeZ# = sz
+frames = 0
+While 1
+    frames = frames + 1
+    If frames > 8 And Input.KeyHit(KEY_ESCAPE) Then End
+    UpdateFPS(player, GetAxis(KEY_A, KEY_D), GetAxis(KEY_S, KEY_W), Input.KeyHit(KEY_SPACE), Input.KeyDown(KEY_LEFT_SHIFT), False, 0.15)
+
+    ; The sea is for looking at: wading out to the waist turns you back.
+    px# = EntityX(player)
+    pz# = EntityZ(player)
+    If TerrainHeight(ground, px, pz) < sea - 1.1
+        PositionEntity(player, safeX, TerrainHeight(ground, safeX, safeZ) + 1, safeZ)
+    Else
+        safeX = px
+        safeZ = pz
+    EndIf
+
+    t = t + Time.Delta()
+    For i = 0 To 4
+        If found(i) = 0
+            b = beacon(i)
+            PositionEntity(b, bx(i), TerrainHeight(ground, bx(i), bz(i)) + 1.6 + Math.Sin(t * 90 + i * 70) * 0.2, bz(i))
+            dx# = EntityX(player) - bx(i)
+            dz# = EntityZ(player) - bz(i)
+            If dx * dx + dz * dz < 9
+                found(i) = 1
+                HideEntity(b)
+                got = got + 1
+            EndIf
+        EndIf
+    Next
+
+    UpdateWorld
+    RenderWorld
+    If got < 5
+        Text(16, 14, "Beacons: " + Str(got) + " of 5    Follow the track")
+    Else
+        Text(16, 14, "You found them all. Keep exploring, or Esc to quit.")
+    EndIf
+    Text(16, 34, "WASD move   Shift run   Space jump   Mouse look")
+    Flip
+Wend
+End

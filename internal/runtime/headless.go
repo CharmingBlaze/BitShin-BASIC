@@ -57,6 +57,7 @@ func (w *World) headlessStubTables(n func(func([]value.Value) (value.Value, erro
 		w.lensCommands(n, z),
 		w.occlusionCommands(n, z),
 		w.assetCommands(n, need),
+		w.trunkCommands(n, z),
 		w.shaderCommands(n, z, need),
 		w.lutCommands(n, z),
 		w.retroCommands(n, z),

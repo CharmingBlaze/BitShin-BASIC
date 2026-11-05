@@ -339,6 +339,7 @@ func (w *World) releaseMeshTrees(t *terrain) {
 	}
 	t.treeGen++ // blocks still on a worker were built for the old layers
 	t.treeFar = nil
+	t.trunks = nil
 	for k, ids := range t.treeMesh {
 		for _, id := range ids {
 			w.releaseInstance(id)

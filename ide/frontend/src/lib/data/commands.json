@@ -11719,6 +11719,18 @@
           "category": "Characters"
         },
         {
+          "syntax": "SetFPSLook(e, yaw [, pitch])",
+          "name": "SetFPSLook",
+          "description": "Point the view, for a start, a respawn, or a cut",
+          "category": "Characters"
+        },
+        {
+          "syntax": "SetTreeCollision(on)",
+          "name": "SetTreeCollision",
+          "description": "FPS and TPS characters can't walk through trees planted as 3D meshes. On by default. Trunks only: crowns and grass don't block",
+          "category": "Characters"
+        },
+        {
           "syntax": "CreateTPSController(e, cam [, height, radius, move, sprint, jump])",
           "name": "CreateTPSController",
           "description": "Defaults `1.8`, `0.45`, `6.5`, `11`, `10`. Aim slows the walk to `0.65`",
@@ -22196,6 +22208,18 @@
       "syntax": "IsFPSGrounded(e)",
       "name": "IsFPSGrounded",
       "description": "Look angles and ground",
+      "category": "Characters"
+    },
+    {
+      "syntax": "SetFPSLook(e, yaw [, pitch])",
+      "name": "SetFPSLook",
+      "description": "Point the view, for a start, a respawn, or a cut",
+      "category": "Characters"
+    },
+    {
+      "syntax": "SetTreeCollision(on)",
+      "name": "SetTreeCollision",
+      "description": "FPS and TPS characters can't walk through trees planted as 3D meshes. On by default. Trunks only: crowns and grass don't block",
       "category": "Characters"
     },
     {

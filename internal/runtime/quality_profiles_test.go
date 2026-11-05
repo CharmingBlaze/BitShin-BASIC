@@ -104,6 +104,20 @@ func TestScriptTextureLimitWins(t *testing.T) {
 	}
 }
 
+func TestPushOutOfTrunks(t *testing.T) {
+	tr := []trunk{{10, 10, 1}}
+	x, z, moved := pushOutOfTrunks(10.5, 10, 0.5, tr)
+	if !moved || x != 11.5 || z != 10 {
+		t.Fatalf("got %v, %v, %v", x, z, moved)
+	}
+	if _, _, moved := pushOutOfTrunks(20, 10, 0.5, tr); moved {
+		t.Fatal("far from the trunk nothing moves")
+	}
+	if x, z, moved := pushOutOfTrunks(10, 10, 0.5, tr); !moved || (x-10)*(x-10)+(z-10)*(z-10) < 2.2 {
+		t.Fatalf("dead center should still come out: %v, %v", x, z)
+	}
+}
+
 func TestLineUnderGround(t *testing.T) {
 	hill := func(x, z float32) float32 {
 		if x > 40 && x < 60 {

@@ -241,6 +241,14 @@ func (w *World) characterCommands(n func(func([]value.Value) (value.Value, error
 			}
 			return value.Num(float64(id)), nil
 		}),
+		// SetFPSLook(e, yaw [, pitch]): point the view, for a start, a respawn, or a cut.
+		"setfpslook": n(func(a []value.Value) (value.Value, error) {
+			if c := w.fpsControllers[argI(a, 0, 0)]; c != nil {
+				c.yaw = float32(argN(a, 1, float64(c.yaw)))
+				c.pitch = float32(argN(a, 2, float64(c.pitch)))
+			}
+			return z()
+		}),
 		"updatefps": n(func(a []value.Value) (value.Value, error) {
 			id := argI(a, 0, 0)
 			c := w.fpsControllers[id]
@@ -342,6 +350,7 @@ func (w *World) characterCommands(n func(func([]value.Value) (value.Value, error
 
 			// Move physical character
 			w.phys3.SetVelocity(id, c.vx, c.vy, c.vz)
+			w.keepOutOfTrees(id, c.radius)
 			w.driveLocomotion(id, c.vx, c.vz)
 			w.footstep(id, c.vx, c.vz)
 
@@ -506,6 +515,7 @@ func (w *World) characterCommands(n func(func([]value.Value) (value.Value, error
 			}
 
 			w.phys3.SetVelocity(id, c.vx, c.vy, c.vz)
+			w.keepOutOfTrees(id, c.radius)
 			w.driveLocomotion(id, c.vx, c.vz)
 			w.footstep(id, c.vx, c.vz)
 

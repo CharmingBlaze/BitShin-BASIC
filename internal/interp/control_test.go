@@ -1,6 +1,7 @@
 package interp
 
 import (
+	"strings"
 	"testing"
 
 	"moonbasic/internal/parse"
@@ -110,5 +111,19 @@ Work()
 	}
 	if !found {
 		t.Fatalf("stats %+v", in.FuncStats())
+	}
+}
+
+func TestDimWithATypeSuffixIsStillAnArray(t *testing.T) {
+	out := run(t, `Dim a#(3)
+a(1) = 1.5
+a#(2) = 2.5
+Dim n$(1)
+n(0) = "hi"
+Print a(1) + a(2)
+Print n$(0)
+`)
+	if !strings.Contains(out, "4") || !strings.Contains(out, "hi") {
+		t.Fatalf("got %q", out)
 	}
 }
