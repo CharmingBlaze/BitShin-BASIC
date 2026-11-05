@@ -1,0 +1,22 @@
+; Reference scene: small objects must keep shadows that touch them. A depth bias of most of
+; a meter once lifted these away entirely, or left them floating.
+Graphics3D(1280, 720)
+SetGraphicsQuality("high")
+cam = CreateCamera()
+SetCameraRange(cam, 0.1, 400)
+sun = CreateDirectionalLight()
+SetLightDirection(sun, 38, 30, 0)
+SetLook "modern"
+SetAutoExposure(0)
+SetExposure(0.8)
+ground = CreatePlane().Scale(100, 1, 100).Position([0, 0, 8]).Color(150, 150, 135)
+For i = 0 To 6
+    s = CreateSphere().Scale(0.25 + i * 0.05, 0.25 + i * 0.05, 0.25 + i * 0.05).Position([(i - 3) * 1.2, 0.25 + i * 0.05, 3]).Color(200, 80 + i * 20, 60)
+    c = CreateCube().Scale(0.3, 0.05 + i * 0.1, 0.3).Position([(i - 3) * 1.2, 0.05 + i * 0.1, 5]).Color(90, 140, 190)
+Next
+PositionEntity(cam, 0, 2.2, -2)
+CameraLookAt(cam, 0, 0.3, 4)
+While 1
+    RenderWorld
+    Flip
+Wend

@@ -275,7 +275,14 @@ float casAt(int cas, vec3 wp, vec3 n, vec3 ldir, float bias, out float inside) {
     }
     inside = 1.0;
     vec2 uv = tileUV(cas, proj.xy);
-    float dynamicBias = receiverDepthBias(proj, n, ldir, bias);
+    // The third row of an orthographic matrix: depth units per meter along the light.
+    vec3 depthRow = vec3(LightVP[cas][0][2], LightVP[cas][1][2], LightVP[cas][2][2]);
+    float perZ = 2.0 / max(length(depthRow), 1e-6);
+    // Bias in meters, a texel and a half, with 0.0025 as SetShadowBias's neutral value. A
+    // fixed fraction of depth meant most of a meter here, as a cascade's depth range is
+    // padded by hundreds of meters, and it lifted small objects' shadows away entirely.
+    float biasM = tw * 1.5 * (bias / 0.0025);
+    float dynamicBias = receiverDepthBias(proj, n, ldir, biasM / perZ);
     // The receiver's plane in atlas space, from how UV and depth change across this pixel.
     // Where the surface is too steep or ends here, the answer is no use: go without.
     vec3 dx = vec3(dFdx(uv), dFdx(proj.z));
@@ -283,9 +290,6 @@ float casAt(int cas, vec3 wp, vec3 n, vec3 ldir, float bias, out float inside) {
     float det = dx.x * dy.y - dx.y * dy.x;
     shadowPlane = abs(det) > 1e-12 ? vec2(dy.y * dx.z - dx.y * dy.z, dx.x * dy.z - dy.x * dx.z) / det : vec2(0.0);
     if (dot(shadowPlane, shadowPlane) > 16.0) { shadowPlane = vec2(0.0); }
-    // The third row of an orthographic matrix: depth units per meter along the light.
-    vec3 depthRow = vec3(LightVP[cas][0][2], LightVP[cas][1][2], LightVP[cas][2][2]);
-    float perZ = 2.0 / max(length(depthRow), 1e-6);
     float sh = filterAt(uv, proj.z, dynamicBias, texel, perZ, tw);
     if (ShadowFilter < 2) {
         if (ShadowContact != 0) { sh *= contactAt(uv, proj.z, texel); }

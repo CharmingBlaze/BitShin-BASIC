@@ -6,6 +6,8 @@ G3N 0.2 has no shadow, CSM, or shadow-map API. moonBASIC owns a **dedicated shad
 
 Shadows are **on by default** (World construction and `Graphics3D`), like Blitz3D. Meshes cast and receive by default, and the first directional light automatically becomes the shadow-casting sun. Use `EnableShadows False`, `EntityCastShadow entity, False`, or `EntityReceiveShadow entity, False` to opt out. The first two valid depth frames stay fully lit so a follow-cam ease cannot stamp a cascade-sized umbra.
 
+The sun's depth bias is a texel and a half of each cascade, in meters, so small objects keep shadows that touch them at any depth range. `SetShadowBias` scales it, with `0.0025` as neutral: raise it if a surface speckles, lower it if a shadow floats.
+
 **PCF on `DEPTH_COMPONENT`**, 4-cascade directional CSM fitted to the **camera frustum** (not a play-plane disc). Default quality is **High**: 4 × 2048 with PCSS, and PCF on lower tiers: 5 hardware-compared samples on a Vogel disk (9 when `SetShadowPCF` ≥ 4). EVSM/MSM remain optional filters; they must not be the Platform 64 default (they can self-shadow a whole plane).
 
 `examples/platform64.mb` uses `SetShadowQuality "high"`. `examples/claw.mb` uses PCF (`SetShadowQuality 0, 4`). `SetShadowEVSM` / `SetShadowFilter "evsm"` still work.
