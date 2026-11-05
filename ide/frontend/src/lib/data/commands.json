@@ -9250,6 +9250,12 @@
           "category": "Terrain"
         },
         {
+          "syntax": "BakeSkyVolume([t,] [cell, strength])",
+          "name": "BakeSkyVolume",
+          "description": "Shades ambient light by how much sky each point can see through the ground and planted trees: forest floors and tree lowers sit a little darker than open ground. Call it after planting. Bakes in the background in under a second on an 800 m island, and stays right as the sun moves. `cell` is meters between samples (default 8), `strength` 0 to 1 (default 0.7). It knows only terrain and planted trees, not buildings. `BakeTerrain` must have run for the ground to take part; run this after it. `SkyVolumeReady()` reports when it is in use",
+          "category": "Terrain"
+        },
+        {
           "syntax": "TerrainTrees(t, mesh [, density])",
           "name": "TerrainTrees",
           "description": "Copies on flat ground, in stands with thinner clearings. A textured mesh becomes a card. An untextured one is planted as 3D meshes, with its child meshes (crown on a trunk) and their colors. Blocks are built on worker threads, and far blocks use a simplified copy of each part (about 40% of the triangles). Past the 3D reach, out to the fog, the same trees stand as cards of a side-on picture drawn from the template, so a forest does not stop short of the haze. `0` clears that mesh",
@@ -20708,6 +20714,12 @@
       "syntax": "SetTerrainTessMultiplier(m)",
       "name": "SetTerrainTessMultiplier",
       "description": "CPU vertex density (not GL tess)",
+      "category": "Terrain"
+    },
+    {
+      "syntax": "BakeSkyVolume([t,] [cell, strength])",
+      "name": "BakeSkyVolume",
+      "description": "Shades ambient light by how much sky each point can see through the ground and planted trees: forest floors and tree lowers sit a little darker than open ground. Call it after planting. Bakes in the background in under a second on an 800 m island, and stays right as the sun moves. `cell` is meters between samples (default 8), `strength` 0 to 1 (default 0.7). It knows only terrain and planted trees, not buildings. `BakeTerrain` must have run for the ground to take part; run this after it. `SkyVolumeReady()` reports when it is in use",
       "category": "Terrain"
     },
     {

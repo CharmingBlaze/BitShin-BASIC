@@ -59,6 +59,7 @@ TerrainTrees(ground, CreateTree("pine", 2, 24), 0.12)
 TerrainTrees(ground, CreateTree("oak", 3), 0.06)
 TerrainTrees(ground, CreateTree("oak", 4, 17), 0.05)
 SetTerrainGrass(ground, 1)
+BakeSkyVolume(ground)
 
 Dim beacon(5)
 Dim found(5)

@@ -367,6 +367,7 @@ type World struct {
 	skyCubeLinear, skyCubeCPU        bool
 	envGPU                           envGPU
 	envFallback                      [6]*image.RGBA
+	skyVol                           skyVolume
 	skyCubeRev                       int
 	skyCubeSz                        int
 	skyHazeKey                       math32.Color // fog color the sky was painted with
@@ -1266,6 +1267,7 @@ func (w *World) tickFX() {
 	w.tickDynRes()
 	w.tickQuality()
 	w.tickAssets()
+	w.tickSkyVolume()
 	w.tickBubble()
 	w.tickStream()
 	w.tickTerrain()

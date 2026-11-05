@@ -146,7 +146,7 @@ uniform vec3 PointAmb[8];
 uniform vec3 SpotSpec[8];
 uniform vec3 SpotAmb[8];
 out vec4 FragColor;
-` + retroFragGLSL + linearGLSL + skyAmbientGLSL + `
+` + retroFragGLSL + linearGLSL + skyAmbientGLSL + skyVolumeGLSL + `
 `
 
 const mbshadowFragmentTail = shadeLightGLSL + areaLightGLSL + `
@@ -420,14 +420,14 @@ void main() {
     vec3 hemi = mix(hemiLo, hemiHi, sky) * vec3(matDiffuse);
     float hemiK = 0.45;
     if (LinearLight != 0) {
-        hemi = skyAmbient(wN) * vec3(matDiffuse);
+        hemi = skyAmbient(wN) * vec3(matDiffuse) * skyVisibility(WorldPos, wN);
         hemiK = 1.0;
         if (leafy) {
             // Sky from above, leaf-green bounce from below, about 2:1 as in
             // Crysis. More ambient would flatten the shape, so it stays modest.
             vec3 up = skyAmbient(normalize(wN + vec3(0.0, 0.8, 0.0)));
             vec3 bounce = vec3(0.16, 0.20, 0.09);
-            hemi = mix(bounce, up, clamp(wN.y * 0.5 + 0.5, 0.0, 1.0)) * vec3(matDiffuse) * 1.6;
+            hemi = mix(bounce, up, clamp(wN.y * 0.5 + 0.5, 0.0, 1.0)) * vec3(matDiffuse) * skyVisibility(WorldPos, wN) * 1.6;
         }
     }
     vec3 finalRGB = ambientColor + hemi * hemiK + totalDiffuse + totalSpec;

@@ -854,6 +854,9 @@ func (w *World) commandTable() map[string]cmd {
 	for k, v := range w.cloudCommands(n, z, need) {
 		m[k] = v
 	}
+	for k, v := range w.skyVolumeCommands(n, z) {
+		m[k] = v
+	}
 	for k, v := range w.trunkCommands(n, z) {
 		m[k] = v
 	}

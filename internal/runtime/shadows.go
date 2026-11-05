@@ -162,6 +162,7 @@ func (m *litMat) RenderSetup(gs *gls.GLS) {
 		if m.w.linearActive() {
 			m.w.bindEnvCubeAt(gs, unitEnvCubeLit)
 		}
+		m.w.bindSkyVolume(gs)
 		recv := 1
 		if !m.recvShadow {
 			recv = 0

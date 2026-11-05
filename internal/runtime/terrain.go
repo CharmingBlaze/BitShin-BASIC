@@ -133,6 +133,8 @@ type terrain struct {
 	clearing     float32 // 0 thin stands, 1 bare clearings and an open shore
 	grass        *grassField
 	bakeTex      int // BakeTerrain: normal X, Z, occlusion, flow
+	bakeImg      *image.RGBA
+	bakeAOPlain  []uint8 // the ground's own occlusion, before the sky volume shades it
 	waterY       float32
 	blend        float32
 	fogFalloff   float32

@@ -120,6 +120,7 @@ uniform int UseIBL;
 uniform float IBLIntensity;
 uniform vec3 IBLSky;
 uniform vec3 IBLGround;
+` + skyVolumeGLSL + `
 uniform samplerCube uEnvCube;
 uniform int HasEnvCube;
 uniform vec3 CamWorldPos;
@@ -385,6 +386,9 @@ vec3 iblTerm(PBRInfo pbrInputs, vec3 n, vec3 v) {
         }
         irr = mix(irr, cubeN, 0.85);
         specEnv = mix(specEnv, cubeR, 0.85);
+        float seen = skyVisibility(WorldPos, wn);
+        irr *= seen;
+        specEnv *= mix(seen, 1.0, 0.25);
     }
     // Clamped: facing the camera exactly, nv was 1.001 and pow() of a
     // negative base is NaN in GLSL. That was the black dot in the middle of

@@ -293,7 +293,8 @@ func (w *World) bakeTerrain(t *terrain, size int) {
 		}
 	}
 	w.dropTerrainBake(t)
-	tex := texture.NewTexture2DFromRGBA(bakeTerrainMap(g, size, hf.seed))
+	t.bakeImg, t.bakeAOPlain = bakeTerrainMap(g, size, hf.seed), nil
+	tex := texture.NewTexture2DFromRGBA(t.bakeImg)
 	tex.SetWrapS(gls.CLAMP_TO_EDGE)
 	tex.SetWrapT(gls.CLAMP_TO_EDGE)
 	id := w.nextTex
