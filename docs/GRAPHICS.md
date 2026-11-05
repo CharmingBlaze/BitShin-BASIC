@@ -217,6 +217,8 @@ The order: the scene in HDR, with MSAA resolved; depth of field; motion blur; bl
 
 Not built, on purpose: general screen-space reflections, which the report found cost about 5 ms on this class of GPU (water has its own reflection); and a depth prepass, which sources disagree on and which has not been tested here.
 
+Tone curves, from `SetTonemap`: `aces` is the modern look: rich color, with very bright lights staying saturated and shifting hue. `hill` is a little darker and more contrasty, and takes bright lights to white as a camera does. `agx` has the gentlest highlights but looks flat on a landscape, so pair it with `SetColorGrade`. `neutral` keeps base colors closest to what was asked for. Sunlit scenes favor `aces`; bright emissive scenes favor `hill`.
+
 ## Staying smooth
 
 Every game, run or compiled, has two steps of protection, in this order:

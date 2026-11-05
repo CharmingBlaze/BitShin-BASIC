@@ -31,7 +31,7 @@ type postFX struct {
 	userOn         bool
 	rainOnly       bool
 	exposure       float32
-	tonemap        int // 0 Reinhard, 1 Khronos PBR Neutral, 2 ACES fitted, 3 clamp only
+	tonemap        int // 0 Reinhard, 1 Khronos PBR Neutral, 2 ACES fitted, 3 clamp only, 4 Hill ACES, 5 AgX
 	bloom          float32
 	fxaa           bool
 	grain          float32
@@ -167,8 +167,12 @@ func tonemapMode(name string, n int) int {
 		return 2
 	case "none", "clamp", "3":
 		return 3
+	case "hill", "aceshill", "aces-hill", "4":
+		return 4
+	case "agx", "5":
+		return 5
 	case "reinhard", "0", "":
-		if name == "" && n >= 1 && n <= 3 {
+		if name == "" && n >= 1 && n <= 5 {
 			return n
 		}
 		return 0

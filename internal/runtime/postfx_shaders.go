@@ -100,11 +100,61 @@ vec3 tonemapACES(vec3 x) {
 	return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
 }
 
+// Stephen Hill's fit of the ACES transforms, which works in ACES's own color space. Bright
+// colors bend toward white as film does, where the one-channel fit above stays saturated
+// and shifts hue. The 1/0.6 and the matrices are as in three.js (MIT).
+vec3 tonemapHill(vec3 c) {
+	const mat3 toACES = mat3(
+		vec3(0.59719, 0.07600, 0.02840),
+		vec3(0.35458, 0.90834, 0.13383),
+		vec3(0.04823, 0.01566, 0.83777));
+	const mat3 fromACES = mat3(
+		vec3(1.60475, -0.10208, -0.00327),
+		vec3(-0.53108, 1.10813, -0.07276),
+		vec3(-0.07367, -0.00605, 1.07602));
+	vec3 v = toACES * (c / 0.6);
+	v = (v * (v + 0.0245786) - 0.000090537) / (v * (0.983729 * v + 0.4329510) + 0.238081);
+	return clamp(fromACES * v, 0.0, 1.0);
+}
+
+// AgX, after Blender and Filament by way of three.js (MIT). It has the gentlest highlights
+// of these: bright lights keep detail and go to white without shifting hue, at the cost of
+// a flatter picture, which a grade can bring back.
+vec3 tonemapAgX(vec3 c) {
+	const mat3 toRec2020 = mat3(
+		vec3(0.6274, 0.0691, 0.0164),
+		vec3(0.3293, 0.9195, 0.0880),
+		vec3(0.0433, 0.0113, 0.8956));
+	const mat3 fromRec2020 = mat3(
+		vec3(1.6605, -0.1246, -0.0182),
+		vec3(-0.5876, 1.1329, -0.1006),
+		vec3(-0.0728, -0.0083, 1.1187));
+	const mat3 inset = mat3(
+		vec3(0.856627153315983, 0.137318972929847, 0.11189821299995),
+		vec3(0.0951212405381588, 0.761241990602591, 0.0767994186031903),
+		vec3(0.0482516061458583, 0.101439036467562, 0.811302368396859));
+	const mat3 outset = mat3(
+		vec3(1.1271005818144368, -0.1413297634984383, -0.14132976349843826),
+		vec3(-0.11060664309660323, 1.157823702216272, -0.11060664309660294),
+		vec3(-0.016493938717834573, -0.016493938717834257, 1.2519364065950405));
+	const float minEv = -12.47393;
+	const float maxEv = 4.026069;
+	vec3 x = inset * (toRec2020 * c);
+	x = clamp((log2(max(x, vec3(1e-10))) - minEv) / (maxEv - minEv), 0.0, 1.0);
+	vec3 x2 = x * x;
+	vec3 x4 = x2 * x2;
+	x = 15.5 * x4 * x2 - 40.14 * x4 * x + 31.96 * x4 - 6.868 * x2 * x + 0.4298 * x2 + 0.1191 * x - 0.00232;
+	x = pow(max(outset * x, vec3(0.0)), vec3(2.2));
+	return clamp(fromRec2020 * x, 0.0, 1.0);
+}
+
 vec3 tonemap(vec3 c) {
 	c *= max(uExposure, 0.05);
 	if (uTonemap == 1) { return tonemapNeutral(c); }
 	if (uTonemap == 2) { return tonemapACES(c); }
 	if (uTonemap == 3) { return clamp(c, 0.0, 1.0); }
+	if (uTonemap == 4) { return tonemapHill(c); }
+	if (uTonemap == 5) { return tonemapAgX(c); }
 	return tonemapReinhard(c);
 }
 

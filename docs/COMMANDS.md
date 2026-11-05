@@ -95,7 +95,7 @@ How to light a scene, from one sun through falloff, materials, indoor / outdoor,
 | `SetAreaLightIntensity light, n` / `SetAreaLightSize light, w, h` | |
 | `SetAreaLightRange light, m` | Smooth cut-off distance; 0 (default) is unlimited |
 | `SetAreaLightTwoSided light [, on]` / `ShowAreaLightPanel light, on` | Emit from both faces / hide the glowing rectangle |
-| `SetTonemap mode$` | `reinhard` (default with `EnablePostFX`), `neutral`, `aces`, `none`. Turns the stack on. Pair with `SetExposure`. |
+| `SetTonemap mode$` | `reinhard` (default with `EnablePostFX`), `neutral` (keeps base colors), `aces` (the modern look's curve), `hill` (ACES in its own color space: bright colors bend toward white), `agx` (gentlest highlights, flatter), `none`. Turns the stack on. Each sits at a different brightness, so pair with `SetExposure`. |
 | `SetGammaCorrection 0\|1` | Phong sRGB encode when post FX is off. Leave off if `EnablePostFX` is on. |  
 `CameraRange cam, near, far`, `CameraZoom cam, z`, `CameraViewport cam, x, y, w, h`  
 `CameraFollow cam, target, dist, height [, damp, yaw, pitch]` — Lakitu-style ease toward an orbit point (yaw/pitch in degrees; damp is follow stiffness)  

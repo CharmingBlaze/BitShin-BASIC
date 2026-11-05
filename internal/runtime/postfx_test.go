@@ -20,6 +20,27 @@ func TestPostAndShaderCommandsRegistered(t *testing.T) {
 	}
 }
 
+func TestToneCurveNames(t *testing.T) {
+	for name, want := range map[string]int{"reinhard": 0, "neutral": 1, "aces": 2, "none": 3, "hill": 4, "AgX": 5, " agx ": 5, "nonsense": 0} {
+		if got := tonemapMode(name, 0); got != want {
+			t.Errorf("%q: got %d, want %d", name, got, want)
+		}
+	}
+	for n := 1; n <= 5; n++ {
+		if got := tonemapMode("", n); got != n {
+			t.Errorf("number %d: got %d", n, got)
+		}
+	}
+	if tonemapMode("", 9) != 0 {
+		t.Error("an unknown number should fall back")
+	}
+	for _, f := range []string{"tonemapHill", "tonemapAgX", "uTonemap == 4", "uTonemap == 5"} {
+		if !containsStr(mbpostFragment, f) {
+			t.Errorf("post shader lacks %s", f)
+		}
+	}
+}
+
 func TestBloomChainIsGLSL330(t *testing.T) {
 	if containsVersion45(mbpostFragment) || containsVersion45(mbBloomDownFragment) {
 		t.Fatal("post shaders must stay GLSL 330")

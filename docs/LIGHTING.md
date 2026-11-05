@@ -281,6 +281,8 @@ SetTonemap "neutral"
 | `"reinhard"` | Default. `c / (c + 1)`. |
 | `"neutral"` | Khronos PBR Neutral. Highlights compress and desaturate a little. |
 | `"aces"` | Fitted ACES film curve. |
+| `"hill"` | ACES in its own color space. Bright colors bend toward white. |
+| `"agx"` | Gentlest highlights, and flatter. Pair with `SetColorGrade`. |
 | `"none"` / `"clamp"` | Exposure only, then a hard clamp. |
 
 `SetExposure` is a multiplier before that curve. Bloom, FXAA, and grade are in `docs/POSTFX.md`.

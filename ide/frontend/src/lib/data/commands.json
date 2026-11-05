@@ -869,7 +869,7 @@
         {
           "syntax": "SetTonemap mode$",
           "name": "SetTonemap",
-          "description": "`reinhard` (default with `EnablePostFX`), `neutral`, `aces`, `none`. Turns the stack on. Pair with `SetExposure`.",
+          "description": "`reinhard` (default with `EnablePostFX`), `neutral` (keeps base colors), `aces` (the modern look's curve), `hill` (ACES in its own color space: bright colors bend toward white), `agx` (gentlest highlights, flatter), `none`. Turns the stack on. Each sits at a different brightness, so pair with `SetExposure`.",
           "category": "3D scene (G3N)"
         },
         {
@@ -13525,7 +13525,7 @@
     {
       "syntax": "SetTonemap mode$",
       "name": "SetTonemap",
-      "description": "`reinhard` (default with `EnablePostFX`), `neutral`, `aces`, `none`. Turns the stack on. Pair with `SetExposure`.",
+      "description": "`reinhard` (default with `EnablePostFX`), `neutral` (keeps base colors), `aces` (the modern look's curve), `hill` (ACES in its own color space: bright colors bend toward white), `agx` (gentlest highlights, flatter), `none`. Turns the stack on. Each sits at a different brightness, so pair with `SetExposure`.",
       "category": "3D scene (G3N)"
     },
     {
