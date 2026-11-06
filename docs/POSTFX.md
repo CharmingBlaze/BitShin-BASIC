@@ -18,7 +18,7 @@ OpenGL **3.3** fullscreen blit. After the G3N scene (and water FBO / shadows), t
 
 ImGui draws **after** the blit so editor panels stay unprocessed.
 
-Commands: `EnablePostFX`, `SetExposure`, `SetAutoExposure`, `SetTonemap`, `SetBloom`, `SetFXAA`, `SetColorGrade`, `SetFilmGrain`, `SetVignette`, `SetChromaticAberration`, `SetSharpen`, `SetLUT`, `SetLUTAmount`, `ClearLUT`, `SetOutline`, `EnableSSAO`, `SetSSAORadius`, `SetSSAOIntensity`, `SetSSAOBias`. `GetAutoExposure` is on or off. `GetExposure` is the current exposure. Outdoor and indoor lighting presets store an exposure and the neutral tonemap; they do not enable this stack. See `docs/LIGHTING.md` and `docs/COMMANDS.md`.
+Commands: `EnablePostFX`, `SetExposure`, `SetAutoExposure`, `SetTonemap`, `SetBloom`, `SetFXAA`, `SetSMAA`, `SetColorGrade`, `SetFilmGrain`, `SetVignette`, `SetChromaticAberration`, `SetSharpen`, `SetLUT`, `SetLUTAmount`, `ClearLUT`, `SetOutline`, `EnableSSAO`, `SetSSAORadius`, `SetSSAOIntensity`, `SetSSAOBias`. `GetAutoExposure` is on or off. `GetExposure` is the current exposure. Outdoor and indoor lighting presets store an exposure and the neutral tonemap; they do not enable this stack. See `docs/LIGHTING.md` and `docs/COMMANDS.md`.
 
 ```powershell
 .\moon.exe examples\postfx.mb

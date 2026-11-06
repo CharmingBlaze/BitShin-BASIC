@@ -34,6 +34,7 @@ type postFX struct {
 	tonemap        int // 0 Reinhard, 1 Khronos PBR Neutral, 2 ACES fitted, 3 clamp only, 4 Hill ACES, 5 AgX
 	bloom          float32
 	fxaa           bool
+	smaa           bool // edge smoothing by SMAA instead of FXAA
 	grain          float32
 	vignette       float32
 	chroma         float32
@@ -86,6 +87,7 @@ type postFX struct {
 	plain bool
 	// the script turned these off; a tier or a look does not turn them back on.
 	noBloom, noFXAA, noSSAO, noMSAA bool
+	aaChosen                        bool // SetFXAA or SetSMAA picked the edge smoothing; tiers leave it
 }
 
 // wantPost turns the stack on for an effect a script asked for, so each works alone.
@@ -259,10 +261,25 @@ func (w *World) postCommands(n func(func([]value.Value) (value.Value, error)) cm
 		"setfxaa": n(func(a []value.Value) (value.Value, error) {
 			w.post.fxaa = argI(a, 0, 1) != 0
 			w.post.noFXAA = !w.post.fxaa
+			w.post.aaChosen = true
 			if w.post.fxaa {
+				w.post.smaa = false
 				w.wantPost()
 			}
 			return value.Num(float64(b01(w.post.fxaa))), nil
+		}),
+		// SetSMAA(on): smooth edges with SMAA instead of FXAA. It reads each edge whole,
+		// so long trunks, roofs and the horizon come out straighter and surfaces stay
+		// sharper. SetSMAA(False) goes back to FXAA; SetFXAA(False) turns both off.
+		"setsmaa": n(func(a []value.Value) (value.Value, error) {
+			w.post.smaa = argI(a, 0, 1) != 0
+			w.post.aaChosen = true
+			if w.post.smaa {
+				w.post.fxaa = true
+				w.post.noFXAA = false
+				w.wantPost()
+			}
+			return value.Num(float64(b01(w.post.smaa))), nil
 		}),
 		"setfilmgrain": n(func(a []value.Value) (value.Value, error) {
 			w.post.grain = clamp01n(float32(argN(a, 0, 0)))
@@ -546,6 +563,7 @@ func (w *World) ensurePostFX(ww, hh int) error {
 	w.disposeGTAO()
 	w.disposeLens()
 	w.disposeShafts()
+	w.disposeSMAA()
 	return w.ensurePostBlit()
 }
 
@@ -567,6 +585,7 @@ func (w *World) disposePostFBO() {
 	w.disposeGTAO()
 	w.disposeLens()
 	w.disposeShafts()
+	w.disposeSMAA()
 }
 
 func (w *World) disposeMSAA() {
@@ -1318,12 +1337,12 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 	case fxaa && fsr && w.fsr.mid.ensure(ww, hh):
 		gl.BindFramebuffer(gl.FRAMEBUFFER, w.fsr.mid.fbo)
 		gl.Viewport(0, 0, int32(ww), int32(hh))
-		w.drawFXAA(w.fsr.small.tex, ww, hh)
+		w.drawEdgeAA(w.fsr.small.tex, ww, hh)
 		w.endFSR(w.fsr.mid.tex, ww, hh, fsrW, fsrH)
 	case fxaa && !fsr:
 		gl.BindFramebuffer(gl.FRAMEBUFFER, 0)
 		gl.Viewport(0, 0, int32(fsrW), int32(fsrH))
-		w.drawFXAA(w.fsr.small.tex, ww, hh)
+		w.drawEdgeAA(w.fsr.small.tex, ww, hh)
 	case fsr:
 		w.endFSR(w.fsr.small.tex, ww, hh, fsrW, fsrH)
 	}

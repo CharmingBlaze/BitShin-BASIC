@@ -1726,7 +1726,8 @@ Scene renders to a color FBO, then one blit: tonemap (`reinhard`, `neutral`, `ac
 | `SetSSAOIntensity n` / `GetSSAOIntensity()` | Darkening. Floor `0`. Getter returns `1.8` until set | `SetSSAOIntensity(1.2)` |
 | `SetSSAOBias n` / `GetSSAOBias()` | Depth bias. Getter returns `0.02` until set | `SetSSAOBias(0.03)` |
 | `SetBloom n` / `GetBloom()` | Glow around what is bright, in HDR, with a soft threshold and a smooth falloff (0 off). Turns the stack on | `SetBloom(0.35)` |
-| `SetFXAA [on]` | Edge-walking FXAA on the finished picture. Turns the stack on | `SetFXAA(True)` |
+| `SetFXAA [on]` | Edge-walking FXAA on the finished picture. Turns the stack on. `SetFXAA(False)` turns edge smoothing off, SMAA included | `SetFXAA(True)` |
+| `SetSMAA [on]` | SMAA instead of FXAA: reads each edge whole, so long trunks, roofs and the horizon come out straight and surfaces stay sharp. High and Ultra use it unless the script picks; `SetSMAA(False)` goes back to FXAA | `SetSMAA(True)` |
 | `SetMSAA n` | Multisampled scene target: `0`, `2`, `4`, or `8` samples (other values round up; no argument is 4). Needs post FX on; resolved before it. Falls back to none if the driver refuses. 4× costs about 2–4 ms at 720p on a mid GPU | `SetMSAA(4)` |
 | `SetColorGrade contrast, sat [, r, g, b]` | Grade + optional RGB tint 0–255 or 0–1 | `SetColorGrade(1.05, 1.1, 255, 240, 230)` |
 | `SetLightShafts on [, strength]` | Beams of sunlight past trees, peaks and buildings in front of the sun, when it is in or near the view. Drawn from the sun's place on screen, so none with the sun behind you. Strength defaults to 1. Not on low tier | `SetLightShafts(True)` |

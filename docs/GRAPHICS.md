@@ -180,7 +180,7 @@ Three things keep it cheap. Oak crowns are several lobes, each a dark core insid
 | Sun shadows | 1024, 2 cascades | 1024, 3 cascades | 2048, 4 cascades, soft | 2048, 4 cascades, soft |
 | Ambient occlusion | Off | 2 directions | 4 directions | 6 directions |
 | Bloom | Off | On | On | On |
-| Anti-aliasing | FXAA | FXAA | FXAA | FXAA and 4x MSAA |
+| Anti-aliasing | FXAA | FXAA | SMAA | SMAA and 4x MSAA |
 | Water reflection and refraction | Sky color, baked shore | 512 | 1024 | 2048 / 1024 |
 | Trees, grass, and props | 45% | 70% | All | All |
 | Largest texture | 1024 | 2048 | No limit | No limit |
@@ -253,7 +253,7 @@ Compiled shaders are saved under the user's cache folder, keyed on GPU and drive
 | Medium | 2.40 | 0.12 | 0 | 5.35 | 0.68 | 9.4 |
 | Low (before the refraction copy, which it does not use) | 1.81 | 0 | 0 | 2.77 | 0.45 | 5.7 |
 
-Later changes on the same path brought High to 9.6 ms, Medium to 6.9 ms, and Low to 4.8 ms: far shadow cascades redrawing in turn (`SetShadowTurns`), terrain sampling only the materials that show, and no multisampled window (a patch in `third_party/g3n`). A script that calls `EnablePostFX(False)` now gets no anti-aliasing, since the window has no samples. `SetFXAA` is real edge-directed FXAA, after tone mapping; retro looks skip it.
+Later changes on the same path brought High to 9.6 ms, Medium to 6.9 ms, and Low to 4.8 ms: far shadow cascades redrawing in turn (`SetShadowTurns`), terrain sampling only the materials that show, and no multisampled window (a patch in `third_party/g3n`). A script that calls `EnablePostFX(False)` now gets no anti-aliasing, since the window has no samples. `SetFXAA` is real edge-directed FXAA, after tone mapping; retro looks skip it. High and Ultra use SMAA 1x instead (`SetSMAA`): the reference shader and lookup tables (Jimenez et al., MIT), run as they are. It reads each edge whole and blends only across it, so foliage and terrain stay sharper than under FXAA, which blurs to be safe; on steep, short steps it leaves a little more stair than FXAA does. It costs 0.1 to 0.2 ms more than FXAA on the 780M at 720p. A script's own `SetFXAA` or `SetSMAA` stays through tier changes.
 
 With post effects on, water refraction copies the finished scene when the water is reached instead of drawing the world again. Without a scene target it falls back to the old redraw. Things above the water can then show in a distorted edge of the refraction, a small artifact the redraw did not have.
 

@@ -996,7 +996,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] Gamma correction — `SetGammaCorrection`
 - [x] Tone mapping — `SetTonemap` reinhard/neutral/aces, `SetExposure`, `SetAutoExposure`
 - [x] MSAA — `SetMSAA`
-- [x] FXAA — `SetFXAA`
+- [x] FXAA — `SetFXAA`; SMAA 1x — `SetSMAA` (High and Ultra)
 - [ ] TAA — Missing
 - [ ] Anisotropic filtering — Missing
 - [x] Mipmapping — G3N texture mipmaps by default; prefiltered cubemaps (envcube.go)

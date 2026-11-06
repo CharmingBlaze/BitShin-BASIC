@@ -35,6 +35,7 @@ type tierSettings struct {
 	softShadow bool    // PCSS: shadow edges soften with distance from the caster
 	cascades   int     // sun shadow cascades
 	aoSlices   int     // horizon directions per ambient occlusion sample
+	smaa       bool    // SMAA instead of FXAA: about 0.1-0.2 ms more on a 780M at 720p
 	maxTexture int     // largest side a loaded texture keeps; 0 is no limit
 }
 
@@ -44,8 +45,8 @@ var tiers = [...]tierSettings{
 	// on the way there. It only loses bloom (see bloomAllowed).
 	qualityLow:    {shadow: 1024, reflect: 0, refract: 0, post: true, radius: 1, detailPx: 14, scatter: 0.45, treeReachM: 220, cascades: 2, maxTexture: 1024},
 	qualityMedium: {shadow: 1024, reflect: 512, refract: 512, post: true, radius: 2, detailPx: 10, scatter: 0.7, treeReachM: 320, ao: true, aoSlices: 2, cascades: 3, maxTexture: 2048},
-	qualityHigh:   {shadow: 2048, reflect: 1024, refract: 1024, post: true, radius: 2, detailPx: 8, scatter: 1, treeReachM: 420, ao: true, aoSlices: 4, softShadow: true, cascades: 4},
-	qualityUltra:  {shadow: 2048, reflect: 2048, refract: 1024, post: true, radius: 3, detailPx: 6, scatter: 1, treeReachM: 480, ao: true, aoSlices: 6, softShadow: true, msaa: 4, cascades: 4},
+	qualityHigh:   {shadow: 2048, reflect: 1024, refract: 1024, post: true, radius: 2, detailPx: 8, scatter: 1, treeReachM: 420, ao: true, aoSlices: 4, softShadow: true, cascades: 4, smaa: true},
+	qualityUltra:  {shadow: 2048, reflect: 2048, refract: 1024, post: true, radius: 3, detailPx: 6, scatter: 1, treeReachM: 480, ao: true, aoSlices: 6, softShadow: true, msaa: 4, cascades: 4, smaa: true},
 }
 
 type qualityState struct {
@@ -153,6 +154,9 @@ func (w *World) setQuality(tier int) {
 		w.post.msaa = 0
 	} else {
 		w.post.msaa = s.msaa
+	}
+	if !w.post.aaChosen {
+		w.post.smaa = s.smaa
 	}
 	if w.post.ssao {
 		if w.post.ssaoRadius <= 0 {

@@ -12288,7 +12288,13 @@
         {
           "syntax": "SetFXAA [on]",
           "name": "SetFXAA",
-          "description": "Edge-walking FXAA on the finished picture. Turns the stack on",
+          "description": "Edge-walking FXAA on the finished picture. Turns the stack on. `SetFXAA(False)` turns edge smoothing off, SMAA included",
+          "category": "Post-processing (GL 3.3 fullscreen blit)"
+        },
+        {
+          "syntax": "SetSMAA [on]",
+          "name": "SetSMAA",
+          "description": "SMAA instead of FXAA: reads each edge whole, so long trunks, roofs and the horizon come out straight and surfaces stay sharp. High and Ultra use it unless the script picks; `SetSMAA(False)` goes back to FXAA",
           "category": "Post-processing (GL 3.3 fullscreen blit)"
         },
         {
@@ -22747,7 +22753,13 @@
     {
       "syntax": "SetFXAA [on]",
       "name": "SetFXAA",
-      "description": "Edge-walking FXAA on the finished picture. Turns the stack on",
+      "description": "Edge-walking FXAA on the finished picture. Turns the stack on. `SetFXAA(False)` turns edge smoothing off, SMAA included",
+      "category": "Post-processing (GL 3.3 fullscreen blit)"
+    },
+    {
+      "syntax": "SetSMAA [on]",
+      "name": "SetSMAA",
+      "description": "SMAA instead of FXAA: reads each edge whole, so long trunks, roofs and the horizon come out straight and surfaces stay sharp. High and Ultra use it unless the script picks; `SetSMAA(False)` goes back to FXAA",
       "category": "Post-processing (GL 3.3 fullscreen blit)"
     },
     {

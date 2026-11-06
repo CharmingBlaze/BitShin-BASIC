@@ -378,6 +378,7 @@ type World struct {
 	dyn                              dynRes
 	passes                           gpuPasses
 	fsr                              fsrState
+	smaa                             smaaState
 	linearLight                      bool         // SetLinearLight: light in linear space
 	linearHold                       bool         // a pass with no post step after it (extra windows)
 	smokeLeft                        int          // MOON_SMOKE_FRAMES countdown; 0 is off
