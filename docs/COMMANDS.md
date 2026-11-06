@@ -126,9 +126,11 @@ See `docs/SHADOWS.md`. All of these change rendering (or skip a redundant depth 
 | `SetShadowFilter "pcf"\|"pcss"\|"evsm"\|"msm"` | Filter (also `0`–`3`) |
 | `SetShadowPCSS on` | Filter `pcss` / `pcf` |
 | `SetShadowEVSM [on]` | Exponential variance (Chebyshev) |
-| `SetShadowMSM [on]` | Four-moment MSM |
+| `SetShadowMSM [on]` | Moment shadows. Writes four moments and reads two for now, so it behaves as variance shadows |
+
 | `SetShadowLightSize n` | How wide the sun looks for `pcss`: a shadow's edge widens by this many meters per meter from the blocker (default 0.04, the real sun is about 0.005) |
-| `EnableShadowCache` / `SetShadowCache` / `EnableShadowCaching` | Split static (terrain / static bodies) vs dynamic maps; static redraws when sun/dir or static key changes |
+| `EnableShadowCache` / `SetShadowCache` / `EnableShadowCaching` | Far cascades redraw in turns, not every frame. On by default; off redraws them all. The same as `SetShadowTurns` |
+
 | `EnableShadowAtlas` / `SetShadowAtlas` | Packed atlas (cascades + point/spot) |
 | `EnableContactShadows` / `SetContactShadows` | Tight shadow-map search. Darkens receivers whose neighbor texels are only slightly closer (feet, props on the ground) |
 | `EnableScreenSpaceShadows` / `SetScreenSpaceShadows` / `SetSSS n` | Wider search. `n` is quality 1–4 (radius and depth window). `0` is off |
@@ -1396,7 +1398,8 @@ See `docs/WATER.md`. Two techniques, one shader: **Gerstner** vertex ocean + **s
 | `SetUnderwaterFog(r, g, b [, density])` | When camera is under. By default the color comes from `SetWaterShallow`, or else the water color, with density 0.022 | `SetUnderwaterFog(8, 35, 50, 0.09)` |
 | `SetWaterStreamRadius(n)` | Large ocean: follow + far radius | `SetWaterStreamRadius(2)` |
 | `SetWaterCaustics([id,] on)` / `GetWaterCaustics` / `EnableWaterCaustics` | Animated caustics on terrain / underwater | `SetWaterCaustics(water, True)` |
-| `SetWaterSSR([id,] on)` / `GetWaterSSR` / `EnableWaterSSR` | Lite planar-FBO screen march (**Partial**) | `SetWaterSSR(water, True)` |
+| `SetWaterSSR([id,] on)` / `GetWaterSSR` / `EnableWaterSSR` | Steps inside the water reflection texture with no depth test, to stretch reflections. Not true screen-space reflection | `SetWaterSSR(water, True)` |
+
 | `SetWaterAmbientSound([id,] path$ [, vol])` / `SetWaterAmbient` | Loop Oto clip; missing file is silent | `SetWaterAmbientSound(water, "sea.ogg", GetWeatherIntensity())` |
 
 ## Instancing
@@ -1478,7 +1481,8 @@ Water/terrain stay on a **dense regular mesh** on 3.3. This only compiles a tiny
 
 | Command | Meaning | Example |
 | --- | --- | --- |
-| `EnableTessellation([on])` / `SetTessellation` | Try compile tess shaders. **0** if driver lacks tess | `EnableTessellation(True)` |
+| `EnableTessellation([on])` / `SetTessellation` | Compiles tessellation shaders and reports whether they work: **0** if the driver has none. Nothing in the renderer draws with them yet | `EnableTessellation(True)` |
+
 | `Tessellation()` | 1 if tess program is live | `If Tessellation() Then` |
 
 ### GLSL validate / SPIR-V (no Vulkan)

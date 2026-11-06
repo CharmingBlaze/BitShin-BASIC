@@ -368,6 +368,21 @@ float sunShadowFactor(vec3 wp, vec3 nrm, vec3 ldir) {
     return sh;
 }
 
+// A local light's depth is not linear, so no fixed depth bias means the same distance at
+// its near and far ends: as a fraction of depth it hid every shadow past a short range.
+// So the point being tested moves instead, in meters, by a little more than a texel of the
+// shadow map at this distance. across is the width the shadow map covers there.
+const float LOCAL_DEPTH_BIAS = 0.00002;
+vec3 localBiased(vec3 wp, vec3 n, vec3 ldir, float across) {
+    int cols = max(AtlasCols, 1);
+    float texelM = across * float(cols) / float(textureSize(ShadowMap, 0).x);
+    float scale = ShadowBias / 0.0025;
+    float nb = ShadowNormalBias;
+    if (nb < 0.15) { nb = 1.0; }
+    float grazing = 1.0 - clamp(dot(n, ldir), 0.0, 1.0);
+    return wp + ldir * (texelM * 1.2 * scale) + n * (nb * texelM * grazing);
+}
+
 float pointShadowFactor(int i, vec3 wp, vec3 nrm) {
     if (ShadowEnabled == 0 || i >= ShadowPoints || i >= 2) { return 1.0; }
     vec3 L = wp - PointPos[i];
@@ -376,11 +391,9 @@ float pointShadowFactor(int i, vec3 wp, vec3 nrm) {
     vec3 ldir = -normalize(L);
     int face = cubeFace(L);
     int tile = PointTile[i] + face;
-    float tw = ShadowTexelWorld.x;
-    if (tw < 1e-5) { tw = 0.05; }
-    vec3 offsetWP = wp + nrm * (ShadowNormalBias * tw * 1.5);
-    vec4 lsp = PointVP[i * 6 + face] * vec4(offsetWP, 1.0);
-    float dynamicBias = calcDynamicBias(nrm, ldir, ShadowBias * 1.5);
+    // A 90 degree face is twice the distance across.
+    vec4 lsp = PointVP[i * 6 + face] * vec4(localBiased(wp, nrm, ldir, dist * 2.0), 1.0);
+    float dynamicBias = LOCAL_DEPTH_BIAS;
     // Solid across the light's reach, fading only near its end, where its light has.
     float att = 1.0 - smoothstep(0.8, 1.0, dist / max(PointRange[i], 0.01));
     return mix(1.0, sampleTile(tile, lsp, dynamicBias), att);
@@ -394,11 +407,9 @@ float spotShadowFactor(int i, vec3 wp, vec3 nrm) {
     vec3 ld = normalize(L);
     if (dot(ld, normalize(SpotDir[i])) < SpotCos[i]) { return 1.0; }
     vec3 ldir = -ld;
-    float tw = ShadowTexelWorld.x;
-    if (tw < 1e-5) { tw = 0.05; }
-    vec3 offsetWP = wp + nrm * (ShadowNormalBias * tw * 1.5);
-    vec4 lsp = SpotVP[i] * vec4(offsetWP, 1.0);
-    float dynamicBias = calcDynamicBias(nrm, ldir, ShadowBias);
+    float tanCone = sqrt(max(1.0 - SpotCos[i] * SpotCos[i], 0.0)) / max(SpotCos[i], 0.05);
+    vec4 lsp = SpotVP[i] * vec4(localBiased(wp, nrm, ldir, dist * 2.0 * min(tanCone, 4.0)), 1.0);
+    float dynamicBias = LOCAL_DEPTH_BIAS;
     float att = 1.0 - smoothstep(0.8, 1.0, dist / max(SpotRange[i], 0.01));
     return mix(1.0, sampleTile(SpotTile[i], lsp, dynamicBias), att);
 }

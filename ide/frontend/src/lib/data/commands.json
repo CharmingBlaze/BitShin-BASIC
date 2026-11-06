@@ -1078,7 +1078,7 @@
         {
           "syntax": "SetShadowMSM [on]",
           "name": "SetShadowMSM",
-          "description": "Four-moment MSM",
+          "description": "Moment shadows. Writes four moments and reads two for now, so it behaves as variance shadows",
           "category": "Shadows (G3N has no built-in CSM)"
         },
         {
@@ -1090,19 +1090,19 @@
         {
           "syntax": "EnableShadowCache",
           "name": "EnableShadowCache",
-          "description": "Split static (terrain / static bodies) vs dynamic maps; static redraws when sun/dir or static key changes",
+          "description": "Far cascades redraw in turns, not every frame. On by default; off redraws them all. The same as `SetShadowTurns`",
           "category": "Shadows (G3N has no built-in CSM)"
         },
         {
           "syntax": "SetShadowCache",
           "name": "SetShadowCache",
-          "description": "Split static (terrain / static bodies) vs dynamic maps; static redraws when sun/dir or static key changes",
+          "description": "Far cascades redraw in turns, not every frame. On by default; off redraws them all. The same as `SetShadowTurns`",
           "category": "Shadows (G3N has no built-in CSM)"
         },
         {
           "syntax": "EnableShadowCaching",
           "name": "EnableShadowCaching",
-          "description": "Split static (terrain / static bodies) vs dynamic maps; static redraws when sun/dir or static key changes",
+          "description": "Far cascades redraw in turns, not every frame. On by default; off redraws them all. The same as `SetShadowTurns`",
           "category": "Shadows (G3N has no built-in CSM)"
         },
         {
@@ -10221,19 +10221,19 @@
         {
           "syntax": "SetWaterSSR([id,] on)",
           "name": "SetWaterSSR",
-          "description": "Lite planar-FBO screen march (**Partial**)",
+          "description": "Steps inside the water reflection texture with no depth test, to stretch reflections. Not true screen-space reflection",
           "category": "Water"
         },
         {
           "syntax": "GetWaterSSR",
           "name": "GetWaterSSR",
-          "description": "Lite planar-FBO screen march (**Partial**)",
+          "description": "Steps inside the water reflection texture with no depth test, to stretch reflections. Not true screen-space reflection",
           "category": "Water"
         },
         {
           "syntax": "EnableWaterSSR",
           "name": "EnableWaterSSR",
-          "description": "Lite planar-FBO screen march (**Partial**)",
+          "description": "Steps inside the water reflection texture with no depth test, to stretch reflections. Not true screen-space reflection",
           "category": "Water"
         },
         {
@@ -10537,13 +10537,13 @@
         {
           "syntax": "EnableTessellation([on])",
           "name": "EnableTessellation",
-          "description": "Try compile tess shaders. **0** if driver lacks tess",
+          "description": "Compiles tessellation shaders and reports whether they work: **0** if the driver has none. Nothing in the renderer draws with them yet",
           "category": "Modern OpenGL (3.3 required, 4.x optional)"
         },
         {
           "syntax": "SetTessellation",
           "name": "SetTessellation",
-          "description": "Try compile tess shaders. **0** if driver lacks tess",
+          "description": "Compiles tessellation shaders and reports whether they work: **0** if the driver has none. Nothing in the renderer draws with them yet",
           "category": "Modern OpenGL (3.3 required, 4.x optional)"
         },
         {
@@ -13711,7 +13711,7 @@
     {
       "syntax": "SetShadowMSM [on]",
       "name": "SetShadowMSM",
-      "description": "Four-moment MSM",
+      "description": "Moment shadows. Writes four moments and reads two for now, so it behaves as variance shadows",
       "category": "Shadows (G3N has no built-in CSM)"
     },
     {
@@ -13723,19 +13723,19 @@
     {
       "syntax": "EnableShadowCache",
       "name": "EnableShadowCache",
-      "description": "Split static (terrain / static bodies) vs dynamic maps; static redraws when sun/dir or static key changes",
+      "description": "Far cascades redraw in turns, not every frame. On by default; off redraws them all. The same as `SetShadowTurns`",
       "category": "Shadows (G3N has no built-in CSM)"
     },
     {
       "syntax": "SetShadowCache",
       "name": "SetShadowCache",
-      "description": "Split static (terrain / static bodies) vs dynamic maps; static redraws when sun/dir or static key changes",
+      "description": "Far cascades redraw in turns, not every frame. On by default; off redraws them all. The same as `SetShadowTurns`",
       "category": "Shadows (G3N has no built-in CSM)"
     },
     {
       "syntax": "EnableShadowCaching",
       "name": "EnableShadowCaching",
-      "description": "Split static (terrain / static bodies) vs dynamic maps; static redraws when sun/dir or static key changes",
+      "description": "Far cascades redraw in turns, not every frame. On by default; off redraws them all. The same as `SetShadowTurns`",
       "category": "Shadows (G3N has no built-in CSM)"
     },
     {
@@ -21409,19 +21409,19 @@
     {
       "syntax": "SetWaterSSR([id,] on)",
       "name": "SetWaterSSR",
-      "description": "Lite planar-FBO screen march (**Partial**)",
+      "description": "Steps inside the water reflection texture with no depth test, to stretch reflections. Not true screen-space reflection",
       "category": "Water"
     },
     {
       "syntax": "GetWaterSSR",
       "name": "GetWaterSSR",
-      "description": "Lite planar-FBO screen march (**Partial**)",
+      "description": "Steps inside the water reflection texture with no depth test, to stretch reflections. Not true screen-space reflection",
       "category": "Water"
     },
     {
       "syntax": "EnableWaterSSR",
       "name": "EnableWaterSSR",
-      "description": "Lite planar-FBO screen march (**Partial**)",
+      "description": "Steps inside the water reflection texture with no depth test, to stretch reflections. Not true screen-space reflection",
       "category": "Water"
     },
     {
@@ -21697,13 +21697,13 @@
     {
       "syntax": "EnableTessellation([on])",
       "name": "EnableTessellation",
-      "description": "Try compile tess shaders. **0** if driver lacks tess",
+      "description": "Compiles tessellation shaders and reports whether they work: **0** if the driver has none. Nothing in the renderer draws with them yet",
       "category": "Modern OpenGL (3.3 required, 4.x optional)"
     },
     {
       "syntax": "SetTessellation",
       "name": "SetTessellation",
-      "description": "Try compile tess shaders. **0** if driver lacks tess",
+      "description": "Compiles tessellation shaders and reports whether they work: **0** if the driver has none. Nothing in the renderer draws with them yet",
       "category": "Modern OpenGL (3.3 required, 4.x optional)"
     },
     {

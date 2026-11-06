@@ -6,7 +6,7 @@ G3N 0.2 has no shadow, CSM, or shadow-map API. moonBASIC owns a **dedicated shad
 
 Shadows are **on by default** (World construction and `Graphics3D`), like Blitz3D. Meshes cast and receive by default, and the first directional light automatically becomes the shadow-casting sun. Use `EnableShadows False`, `EntityCastShadow entity, False`, or `EntityReceiveShadow entity, False` to opt out. The first two valid depth frames stay fully lit so a follow-cam ease cannot stamp a cascade-sized umbra.
 
-The sun's depth bias is a texel and a half of each cascade, in meters, so small objects keep shadows that touch them at any depth range. `SetShadowBias` scales it, with `0.0025` as neutral: raise it if a surface speckles, lower it if a shadow floats.
+The depth bias is a texel and a half in meters, of each sun cascade, and of a spot or point light's map at that distance, so small objects keep shadows that touch them at any range. `SetShadowBias` scales it, with `0.0025` as neutral: raise it if a surface speckles, lower it if a shadow floats.
 
 **PCF on `DEPTH_COMPONENT`**, 4-cascade directional CSM fitted to the **camera frustum** (not a play-plane disc). Default quality is **High**: 4 × 2048 with PCSS, and PCF on lower tiers: 5 hardware-compared samples on a Vogel disk (9 when `SetShadowPCF` ≥ 4). EVSM/MSM remain optional filters; they must not be the Platform 64 default (they can self-shadow a whole plane).
 
@@ -50,7 +50,8 @@ SetAmbientLight 40, 50, 65
 | `ShadowMapSize n` / `SetShadowResolution(n)` | Depth tile resolution (256–8192). `SetLightShadowRes(light, n)` stores per-light; CSM sun also updates this. |
 | `SetLightShadow light, True` | Directional light aims the CSM (same vector as G3N position / sky sun). Point and spot lights each get their own map (cubemap faces / perspective). |
 | `SetShadowLightSize n` | How wide the sun looks for PCSS: the edge widens by this many meters per meter from the blocker. Default `0.04`; the real sun is about `0.005`. |
-| `EnableShadowCache` / `SetShadowCache` / `EnableShadowCaching` | Two maps: **static** vs **dynamic**. |
+| `EnableShadowCache` / `SetShadowCache` / `EnableShadowCaching` | Far cascades redraw in turns, not every frame. On by default; off redraws them all. The same as `SetShadowTurns`. |
+
 | `EnableShadowAtlas` / `SetShadowAtlas` | Pack directional cascades + point faces + spot maps into a square-ish atlas. |
 | `EnableContactShadows` / `SetContactShadows` | Tight shadow-map search. Darkens receivers whose neighbor texels are only slightly closer (feet, props on the ground). |
 | `EnableScreenSpaceShadows` / `SetScreenSpaceShadows` / `SetSSS n` | Wider search. The integer is quality 1–4 (radius and depth window). `0` is off. |
@@ -60,7 +61,7 @@ SetAmbientLight 40, 50, 65
 
 ## Point and spot shadows
 
-`SetLightShadow light, True` gives a point light six map faces and a spot light one, up to two of each, and `examples/lighting.mb` shows both. A shadow stays solid across the light's range and fades only over its last fifth, where the light itself has faded. The shadow camera's near plane is a fiftieth of the range, kept within 0.2 to 2 m, so a caster closer to the light than that casts none. A faint dotted line can show inside a point light's shadow on a wall; its cause is not yet known.
+`SetLightShadow light, True` gives a point light six map faces and a spot light one, up to two of each, and `examples/lighting.mb` shows both. A shadow stays solid across the light's range and fades only over its last fifth, where the light itself has faded. The shadow camera's near plane is a fiftieth of the range, kept within 0.2 to 2 m, so a caster closer to the light than that casts none. A faint dotted line that once showed inside a point light's shadow on a wall went with the bias fix in November 2026, in `examples/lighting.mb`.
 
 ## Implementation notes
 

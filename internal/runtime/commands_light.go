@@ -314,18 +314,21 @@ func (w *World) lightCommands(n func(func([]value.Value) (value.Value, error)) c
 			return z()
 		}),
 		"enableshadowcache": n(func(a []value.Value) (value.Value, error) {
+			// Far cascades redrawing in turns is the cache: what stays still is not redrawn.
 			w.shadow.cache = argI(a, 0, 1) != 0
-			w.shadow.staticReady = false
+			w.shadow.turnsOff = !w.shadow.cache
 			return z()
 		}),
 		"setshadowcache": n(func(a []value.Value) (value.Value, error) {
+			// Far cascades redrawing in turns is the cache: what stays still is not redrawn.
 			w.shadow.cache = argI(a, 0, 1) != 0
-			w.shadow.staticReady = false
+			w.shadow.turnsOff = !w.shadow.cache
 			return z()
 		}),
 		"enableshadowcaching": n(func(a []value.Value) (value.Value, error) {
+			// Far cascades redrawing in turns is the cache: what stays still is not redrawn.
 			w.shadow.cache = argI(a, 0, 1) != 0
-			w.shadow.staticReady = false
+			w.shadow.turnsOff = !w.shadow.cache
 			return z()
 		}),
 		"enableshadowatlas": n(func(a []value.Value) (value.Value, error) {

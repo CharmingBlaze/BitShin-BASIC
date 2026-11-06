@@ -300,6 +300,19 @@ func TestSkyPrefilterMatchesCubeFaces(t *testing.T) {
 	}
 }
 
+func TestShadowCacheIsFarCascadesInTurns(t *testing.T) {
+	w := New(".")
+	w.ready = true
+	w.Call("enableshadowcache", []value.Value{value.Num(0)})
+	if !w.shadow.turnsOff {
+		t.Fatal("off should redraw every cascade each frame")
+	}
+	w.Call("enableshadowcache", []value.Value{value.Num(1)})
+	if w.shadow.turnsOff {
+		t.Fatal("on should let far cascades take turns")
+	}
+}
+
 func TestPushOutOfTrunks(t *testing.T) {
 	tr := []trunk{{10, 10, 1}}
 	x, z, moved := pushOutOfTrunks(10.5, 10, 0.5, tr)
