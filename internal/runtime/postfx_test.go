@@ -1,6 +1,10 @@
 package runtime
 
 import (
+	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
 	"testing"
 
 	"moonbasic/internal/value"
@@ -92,5 +96,27 @@ func TestSSAOCommands(t *testing.T) {
 	}
 	if w.post.ssao {
 		t.Fatal("expected SSAO disabled")
+	}
+}
+
+// gl.PtrOffset(n) makes a Go pointer of value n. If the stack grows while one is live,
+// Go stops with "invalid pointer found on stack": a crash about once in thirty launches of
+// examples/island_orbit.mb. Offsets go in as uintptr, through the WithOffset calls.
+func TestNoFakePointerOffsets(t *testing.T) {
+	files, _ := filepath.Glob("*.go")
+	re := regexp.MustCompile(`PtrOffset\(([^)]*)\)`)
+	for _, f := range files {
+		if strings.HasSuffix(f, "_test.go") {
+			continue
+		}
+		src, err := os.ReadFile(f)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range re.FindAllStringSubmatch(string(src), -1) {
+			if strings.TrimSpace(m[1]) != "0" {
+				t.Errorf("%s: gl.PtrOffset(%s) can crash the garbage collector; use a WithOffset call", f, m[1])
+			}
+		}
 	}
 }

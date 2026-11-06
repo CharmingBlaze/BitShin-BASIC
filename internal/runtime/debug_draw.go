@@ -1100,9 +1100,9 @@ func (s *debugDrawState) ensureProgram() bool {
 	gl.BindBuffer(gl.ARRAY_BUFFER, s.vbo)
 	stride := int32(dbgFloatsPerVert * 4)
 	gl.EnableVertexAttribArray(0)
-	gl.VertexAttribPointer(0, 3, gl.FLOAT, false, stride, gl.PtrOffset(0))
+	gl.VertexAttribPointerWithOffset(0, 3, gl.FLOAT, false, stride, uintptr(0))
 	gl.EnableVertexAttribArray(1)
-	gl.VertexAttribPointer(1, 4, gl.FLOAT, false, stride, gl.PtrOffset(3*4))
+	gl.VertexAttribPointerWithOffset(1, 4, gl.FLOAT, false, stride, uintptr(3*4))
 	gl.BindVertexArray(0)
 	drainGL("DebugDraw init")
 	return true

@@ -92,13 +92,13 @@ func (w *World) ensureHUDOverlay() error {
 
 	stride := int32(8 * 4) // 2 floats pos, 2 floats uv, 4 floats color
 	gl.EnableVertexAttribArray(0)
-	gl.VertexAttribPointer(0, 2, gl.FLOAT, false, stride, gl.PtrOffset(0))
+	gl.VertexAttribPointerWithOffset(0, 2, gl.FLOAT, false, stride, uintptr(0))
 
 	gl.EnableVertexAttribArray(1)
-	gl.VertexAttribPointer(1, 2, gl.FLOAT, false, stride, gl.PtrOffset(2*4))
+	gl.VertexAttribPointerWithOffset(1, 2, gl.FLOAT, false, stride, uintptr(2*4))
 
 	gl.EnableVertexAttribArray(2)
-	gl.VertexAttribPointer(2, 4, gl.FLOAT, false, stride, gl.PtrOffset(4*4))
+	gl.VertexAttribPointerWithOffset(2, 4, gl.FLOAT, false, stride, uintptr(4*4))
 
 	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 	gl.BindVertexArray(0)

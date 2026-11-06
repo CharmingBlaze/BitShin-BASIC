@@ -79,9 +79,9 @@ func (w *World) ensureRainOverlay() error {
 	gl.BindBuffer(gl.ARRAY_BUFFER, w.rainVBO)
 	gl.BufferData(gl.ARRAY_BUFFER, len(quad)*4, gl.Ptr(quad), gl.STATIC_DRAW)
 	gl.EnableVertexAttribArray(0)
-	gl.VertexAttribPointer(0, 2, gl.FLOAT, false, 4*4, gl.PtrOffset(0))
+	gl.VertexAttribPointerWithOffset(0, 2, gl.FLOAT, false, 4*4, uintptr(0))
 	gl.EnableVertexAttribArray(1)
-	gl.VertexAttribPointer(1, 2, gl.FLOAT, false, 4*4, gl.PtrOffset(2*4))
+	gl.VertexAttribPointerWithOffset(1, 2, gl.FLOAT, false, 4*4, uintptr(2*4))
 	gl.BindVertexArray(0)
 	gl.BindBuffer(gl.ARRAY_BUFFER, 0)
 	w.rainBlitOK = true
