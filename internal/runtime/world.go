@@ -455,6 +455,7 @@ type World struct {
 	assets                           *assetLoader
 	noTreeCollision                  bool
 	frameLog                         *bufio.Writer
+	treePushX, treePushZ             float32 // TreePush result
 	frameLast                        time.Time
 	frameLogged                      int
 	texLimit                         int

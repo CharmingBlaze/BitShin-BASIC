@@ -11737,6 +11737,30 @@
           "category": "Characters"
         },
         {
+          "syntax": "TreePush(x, z, radius)",
+          "name": "TreePush",
+          "description": "For a script's own movement: pushes a circle out of 3D trees' trunks. Returns 1 if it moved; `TreePushX/Z` are where it ends up",
+          "category": "Characters"
+        },
+        {
+          "syntax": "TreePushX()",
+          "name": "TreePushX",
+          "description": "For a script's own movement: pushes a circle out of 3D trees' trunks. Returns 1 if it moved; `TreePushX/Z` are where it ends up",
+          "category": "Characters"
+        },
+        {
+          "syntax": "TreePushZ()",
+          "name": "TreePushZ",
+          "description": "For a script's own movement: pushes a circle out of 3D trees' trunks. Returns 1 if it moved; `TreePushX/Z` are where it ends up",
+          "category": "Characters"
+        },
+        {
+          "syntax": "TreeHit(x, z [, radius])",
+          "name": "TreeHit",
+          "description": "1 if the point, grown by `radius`, is inside a 3D tree's trunk. For arrows, and for animals choosing where to run",
+          "category": "Characters"
+        },
+        {
           "syntax": "CreateTPSController(e, cam [, height, radius, move, sprint, jump])",
           "name": "CreateTPSController",
           "description": "Defaults `1.8`, `0.45`, `6.5`, `11`, `10`. Aim slows the walk to `0.65`",
@@ -22256,6 +22280,30 @@
       "syntax": "CreateTPSController(e, cam [, height, radius, move, sprint, jump])",
       "name": "CreateTPSController",
       "description": "Defaults `1.8`, `0.45`, `6.5`, `11`, `10`. Aim slows the walk to `0.65`",
+      "category": "Characters"
+    },
+    {
+      "syntax": "TreePush(x, z, radius)",
+      "name": "TreePush",
+      "description": "For a script's own movement: pushes a circle out of 3D trees' trunks. Returns 1 if it moved; `TreePushX/Z` are where it ends up",
+      "category": "Characters"
+    },
+    {
+      "syntax": "TreePushX()",
+      "name": "TreePushX",
+      "description": "For a script's own movement: pushes a circle out of 3D trees' trunks. Returns 1 if it moved; `TreePushX/Z` are where it ends up",
+      "category": "Characters"
+    },
+    {
+      "syntax": "TreePushZ()",
+      "name": "TreePushZ",
+      "description": "For a script's own movement: pushes a circle out of 3D trees' trunks. Returns 1 if it moved; `TreePushX/Z` are where it ends up",
+      "category": "Characters"
+    },
+    {
+      "syntax": "TreeHit(x, z [, radius])",
+      "name": "TreeHit",
+      "description": "1 if the point, grown by `radius`, is inside a 3D tree's trunk. For arrows, and for animals choosing where to run",
       "category": "Characters"
     },
     {

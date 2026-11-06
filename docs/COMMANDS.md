@@ -1643,6 +1643,8 @@ Wend
 | `GetFPSPitch(e)` / `GetFPSYaw(e)` / `IsFPSGrounded(e)` | Look angles and ground |
 | `SetFPSLook(e, yaw [, pitch])` | Point the view, for a start, a respawn, or a cut |
 | `SetTreeCollision(on)` | FPS and TPS characters can't walk through trees planted as 3D meshes. On by default. Trunks only: crowns and grass don't block |
+| `TreePush(x, z, radius)` / `TreePushX()` / `TreePushZ()` | For a script's own movement: pushes a circle out of 3D trees' trunks. Returns 1 if it moved; `TreePushX/Z` are where it ends up | `If TreePush(nx, nz, 0.4) Then nx = TreePushX() : nz = TreePushZ()` |
+| `TreeHit(x, z [, radius])` | 1 if the point, grown by `radius`, is inside a 3D tree's trunk. For arrows, and for animals choosing where to run | `If TreeHit(ax, az, 0.05) Then StickArrow()` |
 | `CreateTPSController(e, cam [, height, radius, move, sprint, jump])` | Defaults `1.8`, `0.45`, `6.5`, `11`, `10`. Aim slows the walk to `0.65` |
 | `UpdateTPS(e, x, z, jump, sprint, aim, camDist, camPitch, camYaw)` | Move is relative to `camYaw`. Defaults if you omit the camera args: distance `4.5`, pitch `16`, yaw `0` |
 | `GetTPSYaw(e)` / `IsTPSGrounded(e)` | Facing and ground |
