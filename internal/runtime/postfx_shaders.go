@@ -49,6 +49,8 @@ uniform vec3 uOutlineColor;
 uniform float uOutlineDepth;
 
 uniform int uShafts;
+uniform int uBeams;
+uniform sampler2D uBeamTex;
 uniform sampler2D uShaftTex;
 uniform vec3 uShaftColor;
 uniform int uSSAO;
@@ -316,6 +318,9 @@ void main() {
 	if (uShafts != 0) {
 		// Added after occlusion, which would otherwise darken light that is in the air.
 		rgb += uShaftColor * texture(uShaftTex, vUV).r;
+	}
+	if (uBeams != 0) {
+		rgb += texture(uBeamTex, vUV).rgb; // light in the air from LightBeam lamps
 	}
 	rgb = tonemap(rgb + bloom);
 	if (uLinear != 0) {

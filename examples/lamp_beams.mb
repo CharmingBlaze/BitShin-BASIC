@@ -1,0 +1,74 @@
+; Lamp beams — a pine forest at night. A searchlight shines back through the trunks
+; and a street lamp glows by the path. LightBeam shows their light in the air, and
+; trunks and branches cut the beams into shafts. B turns the beams on and off. Esc quits.
+
+Graphics3D(1280, 720)
+SetWindowTitle("moonBASIC — Lamp beams")
+cam = CreateCamera()
+SetCameraRange(cam, 0.1, 400)
+
+; A dim blue moon, so the lamps carry the scene.
+moon = CreateDirectionalLight()
+SetLightDirection(moon, 50, 210, 0)
+SetLightColor(moon, 120, 140, 200)
+SetLightIntensity(moon, 0.12)
+
+SetLook "modern"
+SetSkyGradient(6, 9, 20, 18, 24, 40)
+SetFog(18, 24, 40, 40, 220)
+SetAmbientLight(18, 22, 34)
+ShadowMapSize 2048
+SetShadowFilter "pcf"
+
+; Nearly flat ground under a pine forest, with a path through a clearing.
+hm = GenerateHeightmap(128, 128, 5, 4, 60, 0.45, 2.1)
+ground = CreateTerrainFromHeightmap(hm, 220, 220, 3)
+ApplyTerrainSplat(ground)
+SetTerrainSnow(False)
+SetTerrainWaterHeight(ground, -20)
+SetTerrainClearings(ground, 0)
+TerrainTrees(ground, CreateTree("pine", 1, 18), 0.3)
+TerrainTrees(ground, CreateTree("pine", 2, 22), 0.25)
+SetTerrainGrass(ground, 1)
+
+; The searchlight, above the trees ahead, shining down and back through the crowns.
+search = CreateSpotLight().Position([3, TerrainHeight(ground, 3, 18) + 26, 18])
+SetLightCone(search, 12, 20)
+SetLightColor(search, 255, 236, 200)
+SetLightFalloff(search, "physical")
+SetLightIntensity(search, 90)
+LightRange(search, 60)
+SetLightShadow(search, True)
+SetLightDirection(search, 62, 0, 0)
+LightBeam(search, 6)
+
+; A street lamp by the path: a post and a warm point light.
+gy# = TerrainHeight(ground, -3, 2)
+post = CreateCylinder().Scale(0.12, 4, 0.12).Position([-3, gy + 2, 2])
+SetMaterialPBR(post, 1)
+SetAlbedo(post, 40, 40, 44)
+lamp = CreatePointLight().Position([-3, gy + 4.2, 2])
+SetLightColor(lamp, 255, 170, 90)
+SetLightFalloff(lamp, "physical")
+SetLightIntensity(lamp, 10)
+LightRange(lamp, 14)
+LightBeam(lamp, 1)
+
+beams = True
+frames = 0
+While 1
+    frames = frames + 1
+    cam.Position(1.5, TerrainHeight(ground, 1.5, -9) + 1.7, -9)
+    CameraLookAt(cam, 0, 6, 14)
+    If Input.KeyHit(KEY_B)
+        beams = Not beams
+        LightBeam(search, beams * 6)
+        LightBeam(lamp, beams)
+    EndIf
+    RenderWorld
+    Flip
+    If frames > 8
+        If Input.KeyHit(KEY_ESCAPE) Then End
+    EndIf
+Wend
+End

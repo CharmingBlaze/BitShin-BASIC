@@ -1010,7 +1010,7 @@ Plugins, visual shader editor, visual scripting, networking beyond hosted rooms 
 - [x] Colour grading — `SetColorGrade`, `SetLUT` (.cube/PNG/presets)
 - [x] Vignette — `SetVignette`
 - [ ] Lens effects — **Partial:** `SetChromaticAberration`, `SetFilmGrain` / no lens flare or dirt
-- [ ] Volumetric effects — **Partial:** height fog, cloud sheet, atmosphere LUT, screen-space light shafts (`SetLightShafts`) / no volumetric fog
+- [ ] Volumetric effects — **Partial:** height fog, cloud sheet, atmosphere LUT, screen-space light shafts (`SetLightShafts`), lamp beams with shadows (`LightBeam`) / no volumetric fog
 - [x] Custom shaders — `CreateShader`, `LoadShader`, `SetShaderUniform`
 - [x] Shader variants — G3N `ShaderDefines` per program (e.g. `MB_REBIND`)
 - [ ] Render-to-texture — Missing as user command (internal FBOs for water, extra windows)

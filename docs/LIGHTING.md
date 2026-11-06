@@ -250,6 +250,16 @@ SetLightCookie spot, gobo
 
 The mask is only drawn inside the outer cone. Spots after the second ignore `SetLightCookie`.
 
+### Beams in the air
+
+`LightBeam light, strength` shows a spot or point light's light in the air, as in fog, dust or smoke: a cone under a street lamp, a searchlight over the trees. With `SetLightShadow light, True`, what stands in the light cuts the beam into shafts. 1 is a light haze; 4 to 6 suits a bright searchlight on a dark night. The four lights nearest the camera with a beam draw, and none on the low tier. Aim a spot with `SetLightDirection`. See `examples/lamp_beams.mb`.
+
+```basic
+SetLightShadow search, True
+LightBeam search, 6
+LightBeam lamp, 1
+```
+
 ### Area lights
 
 A soft box, a window, a strip light, or a screen is a rectangle, not a point. `CreateAreaLight` makes one. It is an entity, so position, turn, parent, and aim it like any other: it shines along its −Z, the way `PointEntity` points it.

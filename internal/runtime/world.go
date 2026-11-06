@@ -81,6 +81,7 @@ type Entity struct {
 	lgtKind                            int // 0 ambient/none, 1 directional, 2 point, 3 spot
 	lgtFalloff                         int // 0 smooth, 1 classic polynomial, 2 physical inverse-square
 	lgtRange                           float32
+	beam                               float32 // LightBeam strength; 0 is none
 	lgtC, lgtLin, lgtQuad              float32
 	lgtSpec                            math32.Color
 	lgtSpecOn                          bool
@@ -454,8 +455,8 @@ type World struct {
 	occlusion                        occlusionState
 	assets                           *assetLoader
 	noTreeCollision                  bool
-	frameLog                         *bufio.Writer
 	treePushX, treePushZ             float32 // TreePush result
+	frameLog                         *bufio.Writer
 	frameLast                        time.Time
 	frameLogged                      int
 	texLimit                         int

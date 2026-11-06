@@ -82,6 +82,7 @@ type postFX struct {
 	outline        outlineState
 	lens           lensState
 	shafts         shaftState
+	beams          beamState
 	bloomUpProg    uint32
 	// on for one effect, not the whole look: the picture is otherwise untouched.
 	plain bool
@@ -563,6 +564,7 @@ func (w *World) ensurePostFX(ww, hh int) error {
 	w.disposeGTAO()
 	w.disposeLens()
 	w.disposeShafts()
+	w.disposeBeams()
 	w.disposeSMAA()
 	return w.ensurePostBlit()
 }
@@ -585,6 +587,7 @@ func (w *World) disposePostFBO() {
 	w.disposeGTAO()
 	w.disposeLens()
 	w.disposeShafts()
+	w.disposeBeams()
 	w.disposeSMAA()
 }
 
@@ -1203,6 +1206,7 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 	unbindShadowCompare() // the post pass uses that unit
 	gtao := w.post.ssao && w.fillGTAO(ww, hh)
 	shafts := w.fillShafts(ww, hh, w.post.color)
+	beams := w.fillBeams(ww, hh)
 	picture := w.applyLens(ww, hh)
 	chain := w.fillBloomChain(ww, hh, picture)
 	var lum float32
@@ -1249,6 +1253,13 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 		gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uShaftTex\x00")), 3)
 		r, g, b := w.shaftColor()
 		gl.Uniform3f(gl.GetUniformLocation(w.post.prog, gl.Str("uShaftColor\x00")), r, g, b)
+		gl.ActiveTexture(gl.TEXTURE0)
+	}
+	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uBeams\x00")), int32(b01(beams)))
+	if beams {
+		gl.ActiveTexture(gl.TEXTURE4)
+		gl.BindTexture(gl.TEXTURE_2D, w.post.beams.tex[0])
+		gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uBeamTex\x00")), 4)
 		gl.ActiveTexture(gl.TEXTURE0)
 	}
 	gl.Uniform1i(gl.GetUniformLocation(w.post.prog, gl.Str("uSSAO\x00")), int32(b01(gtao)))
@@ -1346,6 +1357,8 @@ func (w *World) blitPostFX(gs *gls.GLS, ww, hh int) {
 	case fsr:
 		w.endFSR(w.fsr.small.tex, ww, hh, fsrW, fsrH)
 	}
+	gl.ActiveTexture(gl.TEXTURE4)
+	gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.ActiveTexture(gl.TEXTURE3)
 	gl.BindTexture(gl.TEXTURE_2D, 0)
 	gl.ActiveTexture(gl.TEXTURE2)

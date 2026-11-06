@@ -12340,6 +12340,12 @@
           "category": "Post-processing (GL 3.3 fullscreen blit)"
         },
         {
+          "syntax": "LightBeam light, strength",
+          "name": "LightBeam",
+          "description": "The light of a spot or point light seen in the air, as in fog or dust, cut into shafts by its shadows when `SetLightShadow` is on. 1 is a light haze; 0 is off. The four nearest lights with a beam draw. Not on low tier",
+          "category": "Post-processing (GL 3.3 fullscreen blit)"
+        },
+        {
           "syntax": "SetDepthOfField focus, range [, blur]",
           "name": "SetDepthOfField",
           "description": "Sharp at `focus` meters, fully blurred `range` meters either side of it, up to `blur` pixels at 720p (default 10, at most 32). No arguments or range 0 is off. Not on low tier. Cost grows with blur",
@@ -22277,12 +22283,6 @@
       "category": "Characters"
     },
     {
-      "syntax": "CreateTPSController(e, cam [, height, radius, move, sprint, jump])",
-      "name": "CreateTPSController",
-      "description": "Defaults `1.8`, `0.45`, `6.5`, `11`, `10`. Aim slows the walk to `0.65`",
-      "category": "Characters"
-    },
-    {
       "syntax": "TreePush(x, z, radius)",
       "name": "TreePush",
       "description": "For a script's own movement: pushes a circle out of 3D trees' trunks. Returns 1 if it moved; `TreePushX/Z` are where it ends up",
@@ -22304,6 +22304,12 @@
       "syntax": "TreeHit(x, z [, radius])",
       "name": "TreeHit",
       "description": "1 if the point, grown by `radius`, is inside a 3D tree's trunk. For arrows, and for animals choosing where to run",
+      "category": "Characters"
+    },
+    {
+      "syntax": "CreateTPSController(e, cam [, height, radius, move, sprint, jump])",
+      "name": "CreateTPSController",
+      "description": "Defaults `1.8`, `0.45`, `6.5`, `11`, `10`. Aim slows the walk to `0.65`",
       "category": "Characters"
     },
     {
@@ -22826,6 +22832,12 @@
       "syntax": "SetLightShafts on [, strength]",
       "name": "SetLightShafts",
       "description": "Beams of sunlight past trees, peaks and buildings in front of the sun, when it is in or near the view. Drawn from the sun's place on screen, so none with the sun behind you. Strength defaults to 1. Not on low tier",
+      "category": "Post-processing (GL 3.3 fullscreen blit)"
+    },
+    {
+      "syntax": "LightBeam light, strength",
+      "name": "LightBeam",
+      "description": "The light of a spot or point light seen in the air, as in fog or dust, cut into shafts by its shadows when `SetLightShadow` is on. 1 is a light haze; 0 is off. The four nearest lights with a beam draw. Not on low tier",
       "category": "Post-processing (GL 3.3 fullscreen blit)"
     },
     {

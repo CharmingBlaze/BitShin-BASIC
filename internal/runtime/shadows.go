@@ -128,6 +128,8 @@ type shadowMap struct {
 	spotCos                                                                   [maxShadowSpots]float32
 	spotTile                                                                  [maxShadowSpots]int
 	spotVP                                                                    [maxShadowSpots]math32.Matrix4
+	spotE                                                                     [maxShadowSpots]*Entity // whose tile each slot is, for LightBeam
+	pointE                                                                    [maxShadowPoints]*Entity
 }
 
 type litMat struct {
@@ -992,6 +994,7 @@ func (w *World) collectLocalLightViews(cascadeTiles int) int {
 			w.shadow.pointPos[i] = entityWorldPos(e)
 			w.shadow.pointRange[i] = entityLightRange(e)
 			w.shadow.pointTile[i] = tile
+			w.shadow.pointE[i] = e
 			w.buildPointViews(i)
 			tile += 6
 		case 3:
@@ -1005,6 +1008,7 @@ func (w *World) collectLocalLightViews(cascadeTiles int) int {
 			w.shadow.spotRange[i] = entityLightRange(e)
 			w.shadow.spotCos[i] = entitySpotCos(e)
 			w.shadow.spotTile[i] = tile
+			w.shadow.spotE[i] = e
 			w.buildSpotView(i, e)
 			tile++
 		}
