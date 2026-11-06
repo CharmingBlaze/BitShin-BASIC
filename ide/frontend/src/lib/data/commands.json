@@ -12304,6 +12304,12 @@
           "category": "Post-processing (GL 3.3 fullscreen blit)"
         },
         {
+          "syntax": "SetLightShafts on [, strength]",
+          "name": "SetLightShafts",
+          "description": "Beams of sunlight past trees, peaks and buildings in front of the sun, when it is in or near the view. Drawn from the sun's place on screen, so none with the sun behind you. Strength defaults to 1. Not on low tier",
+          "category": "Post-processing (GL 3.3 fullscreen blit)"
+        },
+        {
           "syntax": "SetDepthOfField focus, range [, blur]",
           "name": "SetDepthOfField",
           "description": "Sharp at `focus` meters, fully blurred `range` meters either side of it, up to `blur` pixels at 720p (default 10, at most 32). No arguments or range 0 is off. Not on low tier. Cost grows with blur",
@@ -22754,6 +22760,12 @@
       "syntax": "SetColorGrade contrast, sat [, r, g, b]",
       "name": "SetColorGrade",
       "description": "Grade + optional RGB tint 0–255 or 0–1",
+      "category": "Post-processing (GL 3.3 fullscreen blit)"
+    },
+    {
+      "syntax": "SetLightShafts on [, strength]",
+      "name": "SetLightShafts",
+      "description": "Beams of sunlight past trees, peaks and buildings in front of the sun, when it is in or near the view. Drawn from the sun's place on screen, so none with the sun behind you. Strength defaults to 1. Not on low tier",
       "category": "Post-processing (GL 3.3 fullscreen blit)"
     },
     {

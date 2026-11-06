@@ -12,6 +12,7 @@ SetLightColor(sun, 255, 240, 214)
 SetLook "modern"
 SetShadowDistance(500)
 SetBloom 0.12
+SetLightShafts(True)
 SetSkyGradient(128, 178, 222, 196, 218, 236)
 SetFog(196, 218, 236, 300, 1400)
 SetClouds(0.32, 0.7, 0.12)

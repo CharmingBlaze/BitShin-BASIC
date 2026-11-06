@@ -1729,6 +1729,7 @@ Scene renders to a color FBO, then one blit: tonemap (`reinhard`, `neutral`, `ac
 | `SetFXAA [on]` | Edge-walking FXAA on the finished picture. Turns the stack on | `SetFXAA(True)` |
 | `SetMSAA n` | Multisampled scene target: `0`, `2`, `4`, or `8` samples (other values round up; no argument is 4). Needs post FX on; resolved before it. Falls back to none if the driver refuses. 4× costs about 2–4 ms at 720p on a mid GPU | `SetMSAA(4)` |
 | `SetColorGrade contrast, sat [, r, g, b]` | Grade + optional RGB tint 0–255 or 0–1 | `SetColorGrade(1.05, 1.1, 255, 240, 230)` |
+| `SetLightShafts on [, strength]` | Beams of sunlight past trees, peaks and buildings in front of the sun, when it is in or near the view. Drawn from the sun's place on screen, so none with the sun behind you. Strength defaults to 1. Not on low tier | `SetLightShafts(True)` |
 | `SetDepthOfField focus, range [, blur]` | Sharp at `focus` meters, fully blurred `range` meters either side of it, up to `blur` pixels at 720p (default 10, at most 32). No arguments or range 0 is off. Not on low tier. Cost grows with blur | `SetDepthOfField(12, 30)` |
 | `SetMotionBlur amount [, maxPixels]` | Blur from the camera's movement. 1 is a 1/60 s shutter at any frame rate; 0 is off. Objects moving on their own are not blurred, and one fixed to the camera is blurred as if it were not. Skipped on a camera cut, in split screen, and on low tier | `SetMotionBlur(1)` |
 | `SetFilmGrain n` | 0–1 grain, after FXAA so it stays sharp. Turns the stack on | `SetFilmGrain(0.15)` |

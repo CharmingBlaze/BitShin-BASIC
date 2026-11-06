@@ -48,6 +48,9 @@ uniform float uOutlineWidth;
 uniform vec3 uOutlineColor;
 uniform float uOutlineDepth;
 
+uniform int uShafts;
+uniform sampler2D uShaftTex;
+uniform vec3 uShaftColor;
 uniform int uSSAO;
 uniform sampler2D uAOTex;
 uniform int uBloomChain;
@@ -309,6 +312,10 @@ void main() {
 			float b = max(luma(acc) - 0.72, 0.0);
 			bloom = acc * b * uBloom * 2.4;
 		}
+	}
+	if (uShafts != 0) {
+		// Added after occlusion, which would otherwise darken light that is in the air.
+		rgb += uShaftColor * texture(uShaftTex, vUV).r;
 	}
 	rgb = tonemap(rgb + bloom);
 	if (uLinear != 0) {
