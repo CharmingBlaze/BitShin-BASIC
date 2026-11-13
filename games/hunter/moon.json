@@ -1,0 +1,13 @@
+{
+  "name": "Greenwood",
+  "assets": "assets",
+  "build": {
+    "icon": "icon.png",
+    "version": "1.0.0",
+    "company": "moonBASIC",
+    "profile": "release",
+    "profiles": {
+      "release": { "strict": true }
+    }
+  }
+}

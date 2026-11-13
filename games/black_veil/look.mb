@@ -1,0 +1,471 @@
+; The look: cold grading, the high stealth camera, the HUD, and the autopilot.
+
+Dim eAlert(16)
+Dim eMark(16)
+sparkE = 0
+sparkT# = 0
+closeCam = 0
+
+; ---------- grading ----------
+; Every painted colour is pulled toward the poster's indigo; warmth stays rare
+Function Paint(e, r, g, b)
+    Global curTex
+    avg# = (r + g + b) / 3
+    nr# = r * 0.9 + avg * 0.1
+    ng# = g * 0.9 + avg * 0.1
+    nb# = b * 0.9 + avg * 0.1
+    EntityColor(e, nr, ng, nb)
+    If curTex Then EntityTexture(e, curTex)
+    Return e
+End Function
+
+Function Zone(z)
+    Global cam
+    If z = 0 Then
+        SetSky(24, 22, 92, 136, 74, 152)
+        SetAmbientLight(78, 76, 118)
+        CameraFogMode(cam, 1)
+        CameraFogColor(cam, 96, 62, 136)
+        CameraFogRange(cam, 40, 130)
+    Else
+        SetCameraClsColor(6, 4, 14)
+        SetAmbientLight(84, 76, 104)
+        CameraFogMode(cam, 1)
+        CameraFogColor(cam, 10, 6, 22)
+        CameraFogRange(cam, 18, 60)
+    EndIf
+End Function
+
+; ---------- camera ----------
+Function UpdateCamera()
+    Global cam : Global focus : Global px : Global pz : Global camYaw : Global camX : Global camY : Global camZ : Global shake : Global gameT
+    Global targeting : Global target : Global targetMark : Global barH : Global outX : Global outZ : Global closeCam : Global yaw : Global gs
+    Global camPitch : Global inCellar
+    dt# = DeltaTime()
+    If dt > 0.05 Then dt = 0.05
+
+    locked = targeting And target <> 0
+    d# = 6.6
+    pit# = camPitch
+    If inCellar Then
+        d = 10.5
+        pit = Max(camPitch, 38)
+    EndIf
+    If locked Then
+        d = 7.6
+        pit = 20
+    EndIf
+    If gs = 2 Then
+        d = 5.6
+        pit = 13
+    EndIf
+    ; Pull in rather than pass through a wall
+    If pit < 34 And closeCam = 0 Then
+        For s = 1 To 12
+            t# = d * s / 12
+            If InWall(px - Math.Sin(camYaw) * t, pz - Math.Cos(camYaw) * t, 0.3) Then
+                d = Max(1.8, t - d / 12)
+                Exit
+            EndIf
+        Next
+    EndIf
+    If closeCam Then
+        d = closeCam
+        pit = 9
+    EndIf
+    useYaw# = camYaw
+    If closeCam Then useYaw = yaw + 148
+
+    cp# = Math.Cos(pit)
+    wx# = px - Math.Sin(useYaw) * cp * d
+    wz# = pz - Math.Cos(useYaw) * cp * d
+    wy# = 1.45 + Math.Sin(pit) * d
+    k# = Min(1, 6 * dt)
+    If closeCam Then k = 1
+    camX = camX + (wx - camX) * k
+    camY = camY + (wy - camY) * k
+    camZ = camZ + (wz - camZ) * k
+    sh# = shake * shake
+    PositionEntity(cam, camX + Rnd(-0.26, 0.26) * sh, camY + Rnd(-0.26, 0.26) * sh, camZ)
+
+    fy# = 1.95
+    If closeCam Then fy = 2.05
+    If closeCam > 3 Then fy = 1.5
+    PositionEntity(focus, px, fy, pz)
+    If locked Then
+        TargetPos(target)
+        PositionEntity(focus, px + (outX - px) * 0.36, 1.35, pz + (outZ - pz) * 0.36)
+        my# = 2.7
+        If target > 0 Then
+            If eType(target) = 3 Then my = 5.8
+        EndIf
+        PositionEntity(targetMark, outX, my + Math.Sin(gameT * 300) * 0.16, outZ)
+        SetRotation(targetMark, 180, gameT * 220, 0)
+        ShowEntity(targetMark)
+    Else
+        HideEntity(targetMark)
+    EndIf
+    PointEntity(cam, focus)
+    shake = Max(0, shake - 2.6 * dt)
+    want# = 0
+    If locked Or gs = 2 Then want = 72
+    barH = Approach(barH, want, 300 * dt)
+End Function
+
+; ---------- limb acting beyond the base walk ----------
+Function ActHero(moving, spd#)
+    Global kneeL : Global kneeR : Global elbL : Global elbR : Global tailB : Global tailL : Global tailR : Global walkT : Global attackT : Global gameT
+    bendL# = Max(0, Math.Sin(walkT + 90)) * 54
+    bendR# = Max(0, Math.Sin(walkT - 90)) * 54
+    If moving = 0 Then
+        bendL = 3
+        bendR = 3
+    EndIf
+    SetRotation(kneeL, bendL, 0, 0)
+    SetRotation(kneeR, bendR, 0, 0)
+    SetRotation(elbL, -22 - moving * 26, 0, 0)
+    If attackT < 0 Then SetRotation(elbR, -16 - moving * 22, 0, 0) Else SetRotation(elbR, -8, 0, 0)
+    ; The coat trails on the run, and settles
+    tr# = moving * 26 + Math.Sin(walkT * 2) * 4 * moving + Math.Sin(gameT * 70) * 1.5
+    SetRotation(tailB, -tr, 0, 0)
+    SetRotation(tailL, -tr * 0.65 + Math.Sin(walkT) * 16 * moving, 0, -5)
+    SetRotation(tailR, -tr * 0.65 - Math.Sin(walkT) * 16 * moving, 0, 5)
+End Function
+
+; Red "!" over a foe that has just seen you
+Function AlertFoe(i)
+    Global testMode
+    eState(i) = 1
+    eAlert(i) = 0.8
+    PlaySfx(5)
+End Function
+
+Function ShowAlerts()
+    Global nEnemy
+    dt# = DeltaTime()
+    For i = 1 To nEnemy
+        If eMark(i) Then
+            If eAlert(i) > 0 And eState(i) < 6 Then
+                eAlert(i) = eAlert(i) - dt
+                my# = 2.9
+                If eType(i) = 3 Then my = 6.2
+                PositionEntity(eMark(i), eX(i), my, eZ(i))
+                ShowEntity(eMark(i))
+            Else
+                HideEntity(eMark(i))
+            EndIf
+        EndIf
+    Next
+End Function
+
+Function MakeMarks()
+    Global nEnemy
+    For i = 1 To nEnemy
+        p = CreatePivot()
+        a = CreateCube(p)
+        ScaleEntity(a, 0.13, 0.42, 0.13)
+        PositionEntity(a, 0, 0.3, 0)
+        EntityColor(a, 255, 26, 36)
+        SetUnlit(a)
+        b = CreateCube(p)
+        ScaleEntity(b, 0.13, 0.13, 0.13)
+        PositionEntity(b, 0, -0.32, 0)
+        EntityColor(b, 255, 26, 36)
+        SetUnlit(b)
+        HideEntity(p)
+        eMark(i) = p
+    Next
+End Function
+
+Function Spark(x#, z#)
+    Global sparkE : Global sparkT
+    If sparkE = 0 Then
+        sparkE = CreatePyramid(0.7)
+        EntityColor(sparkE, 255, 236, 180)
+        SetUnlit(sparkE)
+    EndIf
+    PositionEntity(sparkE, x, 1.3, z)
+    TurnEntity(sparkE, 40, 70, 30)
+    ShowEntity(sparkE)
+    sparkT = 0.09
+End Function
+
+Function UpdateSpark()
+    Global sparkE : Global sparkT
+    If sparkT > 0 Then
+        sparkT = sparkT - DeltaTime()
+        If sparkT <= 0 Then HideEntity(sparkE)
+    EndIf
+End Function
+
+; ---------- HUD ----------
+Function DrawHud()
+    Global gs : Global hp : Global maxHP : Global barH : Global fade : Global ammo : Global hasKey : Global msg : Global msgT
+    Global px : Global pz : Global gameT : Global endT : Global titleT : Global bossAwake : Global bossDead : Global nEnemy
+
+    If barH > 0 Then
+        Color 0, 0, 0
+        Rect 0, 0, 1280, barH, 1
+        Rect 0, 720 - barH, 1280, barH, 1
+    EndIf
+
+    If gs = 0 Then
+        Color 0, 0, 0
+        SetAlpha(0.6)
+        Rect 0, 200, 1280, 170, 1
+        SetAlpha(1)
+        BigText("THE BLACK VEIL", 640, 226, 10, 226, 232, 228, 120, 12, 24)
+        BigText("BLACK HOLLOW", 640, 322, 3, 196, 44, 52, 0, 0, 0)
+        If Int(titleT * 2) Mod 2 = 0 Then BigText("PRESS E", 640, 610, 3, 150, 190, 170, 0, 0, 0)
+    ElseIf gs = 5 Then
+        If endT > 1 Then BigText("THE WEREWOLF IS A CHILD", 640, 250, 5, 226, 232, 228, 120, 12, 24)
+        If endT > 3 Then BigText("TO BE CONTINUED", 640, 340, 3, 196, 44, 52, 0, 0, 0)
+        If endT > 5 Then Say("RULE ONE: NEVER KILL SOMETHING SIMPLY BECAUSE IT IS DIFFERENT.", 262, 410, 2, 190, 202, 196)
+    ElseIf gs <> 2 Then
+        ; LIFE, top left
+        Say("LIFE", 34, 24, 2, 170, 214, 190)
+        Color 4, 8, 8
+        SetAlpha(0.75)
+        Rect 34, 44, 244, 12, 1
+        SetAlpha(1)
+        k# = hp / maxHP
+        If k > 0.34 Then Color 64, 204, 132 Else Color 224, 50, 50
+        Rect 36, 46, 240 * k, 8, 1
+        Color 170, 214, 190
+        Rect 34, 44, 244, 12, 0
+        If hasKey Then Say("MILL KEY", 296, 42, 2, 226, 196, 110)
+
+        DrawRadar()
+
+        ; Item boxes, bottom corners
+        DrawBox(34, 620, 214, 66, "ASHEN BLADE", "LMB / J", "")
+        am$ = Str(ammo)
+        If ammo < 10 Then am = "0" + am
+        DrawBox(1032, 620, 214, 66, "MOURNING STAR", "F", am)
+
+        lab$ = ActionLabel$()
+        If lab <> "Roll" And gs = 1 Then
+            Color 0, 0, 0
+            SetAlpha(0.65)
+            Rect 560, 628, 160, 34, 1
+            SetAlpha(1)
+            Say("[E] " + lab, 584, 636, 2, 226, 232, 228)
+        EndIf
+
+        If bossAwake And bossDead = 0 And eHP(nEnemy) > 0 Then
+            Say("THE MOONSICK MOTHER", 526, 72, 2, 226, 232, 228)
+            Color 4, 8, 8
+            Rect 340, 90, 600, 12, 1
+            Color 214, 30, 44
+            Rect 342, 92, 596 * eHP(nEnemy) / 16, 8, 1
+            Color 170, 214, 190
+            Rect 340, 90, 600, 12, 0
+        EndIf
+
+        If msgT > 0 Then
+            msgT = msgT - DeltaTime()
+            Color 0, 0, 0
+            SetAlpha(0.6)
+            Rect 360, 560, 560, 34, 1
+            SetAlpha(1)
+            Say(msg, 380, 570, 2, 226, 232, 228)
+        EndIf
+    EndIf
+
+    If gs = 2 Then DrawDialogue()
+
+    If gs = 4 Then
+        BigText("YOU DIED", 640, 280, 9, 214, 30, 44, 0, 0, 0)
+        If endT > 1 Then BigText("PRESS E", 640, 382, 3, 226, 232, 228, 0, 0, 0)
+    EndIf
+
+    If fade > 0.01 Then
+        Color 0, 0, 0
+        SetAlpha(fade)
+        Rect 0, 0, 1280, 720, 1
+        SetAlpha(1)
+    EndIf
+End Function
+
+Function DrawBox(x, y, w, h, title$, hint$, big$)
+    Color 3, 7, 8
+    SetAlpha(0.72)
+    Rect x, y, w, h, 1
+    SetAlpha(1)
+    Color 110, 160, 136
+    Rect x, y, w, h, 0
+    Say(title, x + 12, y + 12, 1, 202, 226, 212)
+    Say(hint, x + 12, y + 40, 1, 110, 160, 136)
+    If Len(big) > 0 Then Say(big, x + w - 48, y + 28, 3, 202, 226, 212)
+End Function
+
+; Overhead radar: walls in dim green, foes as red points with a cone of sight
+Function DrawRadar()
+    Global px : Global pz : Global yaw : Global nWall : Global nEnemy : Global inCellar : Global gameT
+    x0 = 1040 : y0 = 24 : w = 206 : h = 146
+    sc# = 2.3
+    cx = x0 + w / 2
+    cy = y0 + h / 2
+    Color 2, 12, 10
+    SetAlpha(0.84)
+    Rect x0, y0, w, h, 1
+    SetAlpha(1)
+    Color 20, 66, 50
+    For i = 1 To 5
+        Line x0 + i * w / 6, y0, x0 + i * w / 6, y0 + h
+    Next
+    For i = 1 To 3
+        Line x0, y0 + i * h / 4, x0 + w, y0 + i * h / 4
+    Next
+    ; Walls, clipped to the panel
+    Color 76, 176, 130
+    For i = 1 To nWall
+        If wMinX(i) < 8000 Then
+            ax# = cx + (wMinX(i) - px) * sc
+            bx# = cx + (wMaxX(i) - px) * sc
+            ay# = cy - (wMaxZ(i) - pz) * sc
+            by# = cy - (wMinZ(i) - pz) * sc
+            If bx > x0 And ax < x0 + w And by > y0 And ay < y0 + h Then
+                If ax < x0 Then ax = x0
+                If bx > x0 + w Then bx = x0 + w
+                If ay < y0 Then ay = y0
+                If by > y0 + h Then by = y0 + h
+                Rect ax, ay, Max(1, bx - ax), Max(1, by - ay), 1
+            EndIf
+        EndIf
+    Next
+    ; Foes
+    For i = 1 To nEnemy
+        If eState(i) < 6 And ((i <= 5) <> (inCellar = 1)) Then
+            fx# = cx + (eX(i) - px) * sc
+            fy# = cy - (eZ(i) - pz) * sc
+            If fx > x0 + 6 And fx < x0 + w - 6 And fy > y0 + 6 And fy < y0 + h - 6 Then
+                Color 90, 90, 40
+                For s = -1 To 1 Step 2
+                    a# = eYaw(i) + s * 28
+                    tipX# = Clamp(fx + Math.Sin(a) * 26, x0, x0 + w)
+                    tipY# = Clamp(fy - Math.Cos(a) * 26, y0, y0 + h)
+                    Line fx, fy, tipX, tipY
+                Next
+                Color 255, 44, 44
+                Rect fx - 3, fy - 3, 6, 6, 1
+            EndIf
+        EndIf
+    Next
+    ; You
+    Color 236, 244, 236
+    Rect cx - 3, cy - 3, 6, 6, 1
+    Line cx, cy, cx + Math.Sin(yaw) * 11, cy - Math.Cos(yaw) * 11
+    Color 110, 160, 136
+    Rect x0, y0, w, h, 0
+End Function
+
+; A radio call: two panels, a signal meter between them
+Function DrawDialogue()
+    Global dlgI : Global dlgChars : Global gameT
+    y = 556
+    Color 2, 10, 9
+    SetAlpha(0.92)
+    Rect 150, y, 980, 140, 1
+    SetAlpha(1)
+    Color 76, 176, 130
+    Rect 150, y, 980, 140, 0
+
+    ; Signal meter
+    typing = dlgChars < Len(dlgA(dlgI)) + Len(dlgB(dlgI))
+    For i = 0 To 11
+        v = 1
+        If typing Then v = 1 + Int(Abs(Math.Sin(gameT * 700 + i * 83)) * 9)
+        For b = 0 To 8
+            If b < v Then Color 96, 232, 166 Else Color 16, 50, 40
+            Rect 172 + i * 8, y + 106 - b * 9, 6, 7, 1
+        Next
+    Next
+    Say("SIGNAL", 172, y + 118, 1, 120, 190, 158)
+
+    tx = 296
+    ty = y + 42
+    sp$ = dlgSpk(dlgI)
+    If Len(sp) > 0 Then
+        Say(sp, tx, y + 16, 2, 96, 232, 166)
+    Else
+        ty = y + 28
+    EndIf
+    a$ = dlgA(dlgI)
+    b$ = dlgB(dlgI)
+    n = Int(dlgChars)
+    Say(Left$(a, Min(n, Len(a))), tx, ty, 2, 226, 240, 232)
+    If n > Len(a) Then Say(Left$(b, Min(n - Len(a), Len(b))), tx, ty + 28, 2, 226, 240, 232)
+    If n >= Len(a) + Len(b) And Int(gameT * 3) Mod 2 = 0 Then
+        Color 96, 232, 166
+        Rect 1096, y + 112, 16, 10, 1
+    EndIf
+End Function
+
+
+; Left-aligned block text, case-insensitive
+Function Say(s$, x, y, sc, r, g, b)
+    u$ = Upper$(s)
+    Color r, g, b
+    For i = 1 To Len(u)
+        g2$ = Glyph$(Mid$(u, i, 1))
+        If Len(g2) = 35 Then
+            ox = x + (i - 1) * 6 * sc
+            For k = 0 To 34
+                If Mid$(g2, k + 1, 1) = "1" Then Rect ox + (k Mod 5) * sc, y + Int(k / 5) * sc, sc, sc, 1
+            Next
+        EndIf
+    Next
+End Function
+
+Function Glyph$(c$)
+    Select c
+        Case "A" : Return "01110100011000111111100011000110001"
+        Case "B" : Return "11110100011000111110100011000111110"
+        Case "C" : Return "01110100011000010000100001000101110"
+        Case "D" : Return "11110100011000110001100011000111110"
+        Case "E" : Return "11111100001000011110100001000011111"
+        Case "F" : Return "11111100001000011110100001000010000"
+        Case "G" : Return "01110100011000010111100011000101110"
+        Case "H" : Return "10001100011000111111100011000110001"
+        Case "I" : Return "01110001000010000100001000010001110"
+        Case "J" : Return "00111000100001000010000101001001100"
+        Case "K" : Return "10001100101010011000101001001010001"
+        Case "L" : Return "10000100001000010000100001000011111"
+        Case "M" : Return "10001110111010110101100011000110001"
+        Case "N" : Return "10001110011010110011100011000110001"
+        Case "O" : Return "01110100011000110001100011000101110"
+        Case "P" : Return "11110100011000111110100001000010000"
+        Case "Q" : Return "01110100011000110001101011001001101"
+        Case "R" : Return "11110100011000111110101001001010001"
+        Case "S" : Return "01111100001000001110000010000111110"
+        Case "T" : Return "11111001000010000100001000010000100"
+        Case "U" : Return "10001100011000110001100011000101110"
+        Case "V" : Return "10001100011000110001100010101000100"
+        Case "W" : Return "10001100011000110101101011101110001"
+        Case "X" : Return "10001100010101000100010101000110001"
+        Case "Y" : Return "10001100010101000100001000010000100"
+        Case "Z" : Return "11111000010001000100010001000011111"
+        Case "0" : Return "01110100011001110101110011000101110"
+        Case "1" : Return "00100011000010000100001000010001110"
+        Case "2" : Return "01110100010000100110010001000011111"
+        Case "3" : Return "11110000010000101110000010000111110"
+        Case "4" : Return "00010001100101010010111110001000010"
+        Case "5" : Return "11111100001111000001000011000101110"
+        Case "6" : Return "01110100001000011110100011000101110"
+        Case "7" : Return "11111000010001000100010000100001000"
+        Case "8" : Return "01110100011000101110100011000101110"
+        Case "9" : Return "01110100011000101111000010000101110"
+        Case "." : Return "00000000000000000000000000110001100"
+        Case "," : Return "00000000000000000000001100010001000"
+        Case "!" : Return "00100001000010000100001000000000100"
+        Case "?" : Return "01110100010000100110001000000000100"
+        Case "'" : Return "00100001000100000000000000000000000"
+        Case ":" : Return "00000011000110000000011000110000000"
+        Case "-" : Return "00000000000000011111000000000000000"
+        Case "/" : Return "00001000100001000100010001000010000"
+        Case "[" : Return "01110010000100001000010000100001110"
+        Case "]" : Return "01110000100001000010000100001001110"
+    End Select
+    Return ""
+End Function

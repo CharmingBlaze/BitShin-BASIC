@@ -1,0 +1,1410 @@
+; THE BLACK VEIL — a 3D action-adventure slice in the PlayStation tradition.
+; WASD move, mouse look, LMB/J sword, RMB/Q hold to target, Space roll, E talk/open, F Mourning Star.
+
+SetWindowTitle("The Black Veil")
+Graphics3D(1280, 720, 0, 2)
+SetBuffer(BackBuffer())
+HidePointer()
+MoveMouse(640, 360)
+SeedRnd(1987)
+Include "chars.mb"
+Include "look.mb"
+
+; ---------- world tables ----------
+Dim wMinX(220)
+Dim wMaxX(220)
+Dim wMinZ(220)
+Dim wMaxZ(220)
+nWall = 0
+
+Dim eE(16)
+Dim eType(16)
+Dim eHP(16)
+Dim eX(16)
+Dim eZ(16)
+Dim eYaw(16)
+Dim eState(16)
+Dim eT(16)
+Dim eVX(16)
+Dim eVZ(16)
+Dim eHomeX(16)
+Dim eHomeZ(16)
+Dim eR(16)
+Dim eHitBy(16)
+Dim eLegA(16)
+Dim eLegB(16)
+nEnemy = 0
+
+Dim potE(12)
+Dim potX(12)
+Dim potZ(12)
+Dim potOn(12)
+nPot = 0
+
+Dim itemE(12)
+Dim itemX(12)
+Dim itemZ(12)
+Dim itemKind(12)
+Dim itemOn(12)
+nItem = 0
+
+Dim dlgSpk(16)
+Dim dlgA(16)
+Dim dlgB(16)
+dlgN = 0
+dlgI = 0
+dlgChars# = 0
+dlgAfter = 0
+
+; ---------- game state ----------
+gs = 0            ; 0 title, 1 play, 2 dialogue, 3 warp, 4 game over, 5 ending
+hp = 12
+maxHP = 12
+ammo = 6
+hasKey = 0
+inCellar = 0
+chestOpen = 0
+gateOpen = 0
+gateY# = 3
+bossAwake = 0
+bossDead = 0
+metMarta = 0
+msg$ = ""
+msgT# = 0
+fade# = 1
+fadeTarget# = 0
+warpT# = 0
+
+px# = 0
+pz# = -31
+yaw# = 0
+camYaw# = 0
+camPitch# = 9
+camDist# = 8.5
+camX# = 0
+camY# = 5
+camZ# = -40
+walkT# = 0
+attackT# = -1
+combo = 0
+comboWindow# = 0
+attackHitDone = 0
+rollT# = -1
+rollDX# = 0
+rollDZ# = 0
+invuln# = 0
+kbX# = 0
+kbZ# = 0
+shake# = 0
+hitStop# = 0
+shotCD# = 0
+tracerT# = 0
+target = 0        ; enemy index, or -1 for the crystal switch
+targeting = 0
+barH# = 0
+frame = 0
+gameT# = 0
+endT# = 0
+titleT# = 0
+
+; Inputs are gathered here so the autopilot can press the same buttons
+inFwd# = 0
+inSide# = 0
+btnSword = 0
+btnAct = 0
+btnGun = 0
+btnLock = 0
+
+; ---------- look ----------
+; Clean full-resolution picture with no screen effects
+
+tGround = LoadTexture("assets/ground.png")
+tStone = LoadTexture("assets/stone.png")
+tWood = LoadTexture("assets/wood.png")
+tPlaster = LoadTexture("assets/plaster.png")
+tShingle = LoadTexture("assets/shingle.png")
+tCloth = LoadTexture("assets/cloth.png")
+tFur = LoadTexture("assets/fur.png")
+tBark = LoadTexture("assets/bark.png")
+curTex = 0
+tCloth = 0
+tFur = 0
+
+cam = CreateCamera()
+SetCameraRange(cam, 0.1, 1200)
+focus = CreatePivot()
+Zone(0)
+
+moonLight = CreateDirectionalLight()
+SetLightDirection(moonLight, 58, 205, 0)
+SetLightColor(moonLight, 184, 188, 228)
+SetLightIntensity(moonLight, 0.8)
+SetLightShadow(moonLight, True)
+EnableShadows(True)
+SetShadowQuality("medium")
+
+BuildVillage()
+BuildCellar()
+hero = BuildHero()
+heroFill = CreatePointLight(hero)
+PositionEntity(heroFill, 0.8, 3.2, -2.2)
+SetLightColor(heroFill, 190, 190, 230)
+LightRange(heroFill, 8)
+SetLightIntensity(heroFill, 0.3)
+PositionEntity(hero, px, 0, pz)
+targetMark = CreatePyramid(0.45).Color(255, 40, 60)
+SetUnlit(targetMark)
+HideEntity(targetMark)
+tracer = CreateBox(0.05, 0.05, 1).Color(255, 228, 150)
+SetUnlit(tracer)
+HideEntity(tracer)
+
+MakeMarks()
+Sfx()
+
+; ---------- main loop ----------
+While 1
+    frame = frame + 1
+    If frame > 8 And Input.KeyHit(KEY_ESCAPE) Then Exit
+    dt# = Time.Delta()
+    If dt <= 0 Then dt = 0.016
+    If dt > 0.05 Then dt = 0.05
+    gameT = gameT + dt
+
+    ReadInput()
+
+    Select gs
+        Case 0
+            titleT = titleT + dt
+            camYaw = 180 + Math.Sin(titleT * 8) * 10
+            PositionEntity(cam, Math.Sin(titleT * 6) * 3, 2.2, 15)
+            PointEntity(cam, moonE)
+            If btnAct Or btnSword Then
+                gs = 1
+                camYaw = 0
+                StartDlg(1)
+            EndIf
+        Case 1
+            If hitStop > 0 Then
+                hitStop = hitStop - dt
+            Else
+                UpdateHero()
+                UpdateEnemies()
+                UpdateItems()
+            EndIf
+            UpdateCamera()
+        Case 2
+            UpdateDialogue()
+            UpdateCamera()
+        Case 3
+            warpT = warpT + dt
+            fadeTarget = 1
+            If warpT > 0.7 And inCellar = 0 Then
+                inCellar = 1
+                px = 200
+                pz = -12
+                yaw = 0
+                camYaw = 0
+                camX = px
+                camZ = pz - 7
+                Zone(1)
+                fadeTarget = 0
+                gs = 2
+                StartDlg(6)
+            EndIf
+            UpdateCamera()
+        Case 4
+            endT = endT + dt
+            fadeTarget = 0.72
+            If endT > 1 And (btnAct Or btnSword) Then
+                hp = maxHP
+                endT = 0
+                fadeTarget = 0
+                invuln = 2
+                If inCellar Then
+                    px = 200
+                    pz = -12
+                Else
+                    px = 0
+                    pz = -31
+                EndIf
+                ResetFoes()
+                gs = 1
+            EndIf
+            UpdateCamera()
+        Case 5
+            endT = endT + dt
+            camYaw = camYaw + 4 * dt
+            UpdateCamera()
+            If endT > 7 Then fadeTarget = 0.8
+    End Select
+
+    fade = Approach(fade, fadeTarget, 1.6 * dt)
+    Cls
+    UpdateWorld
+    RenderWorld
+    DrawHud()
+    Flip
+Wend
+End
+
+; ---------- input ----------
+Function ReadInput()
+    Global inFwd : Global inSide : Global btnSword : Global btnAct : Global btnGun : Global btnLock
+    Global camYaw : Global camPitch : Global gs
+    inFwd = GetAxis(KEY_S, KEY_W)
+    inSide = GetAxis(KEY_A, KEY_D)
+    btnSword = Input.MouseHit(1) Or Input.KeyHit(KEY_J)
+    btnAct = Input.KeyHit(KEY_E) Or Input.KeyHit(KEY_SPACE)
+    btnGun = Input.KeyHit(KEY_F)
+    btnLock = Input.MouseDown(2) Or Input.KeyDown(KEY_Q)
+    If gs > 0 Then
+        camYaw = camYaw + MouseDeltaX() * 0.16
+        camPitch = Clamp(camPitch + MouseDeltaY() * 0.12, 2, 55)
+        MoveMouse(640, 360)
+    EndIf
+    camYaw = camYaw + GetAxis(KEY_LEFT, KEY_RIGHT) * 110 * DeltaTime()
+End Function
+
+; ---------- hero ----------
+Function UpdateHero()
+    Global px : Global pz : Global yaw : Global walkT : Global attackT : Global combo : Global comboWindow
+    Global attackHitDone : Global rollT : Global rollDX : Global rollDZ : Global invuln : Global kbX : Global kbZ
+    Global shotCD : Global tracerT : Global target : Global targeting : Global camYaw : Global ammo
+    Global hero : Global heroBody : Global legL : Global legR : Global armL : Global armR : Global trail
+    Global inFwd : Global inSide : Global btnSword : Global btnAct : Global btnGun : Global btnLock
+    Global gameT : Global outX : Global outZ : Global tracer : Global gs : Global barH
+
+    dt# = DeltaTime()
+    If dt > 0.05 Then dt = 0.05
+    invuln = Max(0, invuln - dt)
+    shotCD = Max(0, shotCD - dt)
+    If comboWindow > 0 Then comboWindow = comboWindow - dt Else combo = 0
+
+    ; Target lock is held
+    If btnLock Then
+        If targeting = 0 Then
+            target = FindTarget()
+            targeting = 1
+        ElseIf target > 0 Then
+            If eState(target) >= 6 Then target = FindTarget()
+        EndIf
+    Else
+        targeting = 0
+        target = 0
+    EndIf
+    locked = targeting And target <> 0
+
+    ; Camera-relative wish direction
+    mx# = 0
+    mz# = 0
+    If locked Then
+        tx# = 0 : tz# = 0
+        TargetPos(target)
+        tx = outX : tz = outZ
+        want# = Math.ATan2(tx - px, tz - pz)
+        yaw = LerpAngle(yaw, want, Min(1, 16 * dt))
+        camYaw = LerpAngle(camYaw, want, Min(1, 7 * dt))
+        mx = Math.Sin(yaw) * inFwd + Math.Sin(yaw + 90) * inSide
+        mz = Math.Cos(yaw) * inFwd + Math.Cos(yaw + 90) * inSide
+    Else
+        mx = Math.Sin(camYaw) * inFwd + Math.Sin(camYaw + 90) * inSide
+        mz = Math.Cos(camYaw) * inFwd + Math.Cos(camYaw + 90) * inSide
+    EndIf
+    ml# = Math.Sqr(mx * mx + mz * mz)
+    If ml > 1 Then
+        mx = mx / ml
+        mz = mz / ml
+    EndIf
+
+    ; The action button does whatever is nearest; with nothing there it rolls
+    If btnAct And rollT < 0 And attackT < 0 Then
+        If TryInteract() = 0 And ml > 0.1 Then
+            rollT = 0
+            rollDX = mx
+            rollDZ = mz
+            invuln = Max(invuln, 0.42)
+        EndIf
+        If gs <> 1 Then Return
+    EndIf
+
+    ; Sword: three-hit combo
+    If btnSword And rollT < 0 And (attackT < 0 Or attackT > 0.2) Then
+        combo = combo + 1
+        If combo > 3 Then combo = 1
+        attackT = 0
+        attackHitDone = 0
+        comboWindow = 0.55
+        If ml > 0.1 And locked = 0 Then yaw = Math.ATan2(mx, mz)
+        If locked = 0 Then
+            near = NearestFoe(5)
+            If near > 0 Then yaw = Math.ATan2(eX(near) - px, eZ(near) - pz)
+        EndIf
+        PlaySfx(1)
+    EndIf
+
+    ; Mourning Star: finite rounds, as in the bible
+    If btnGun And shotCD <= 0 And rollT < 0 Then
+        If ammo > 0 Then FireGun() Else ShowMsg("Out of knell rounds.")
+    EndIf
+
+    spd# = 7.4
+    If locked Then spd = 5.2
+    If attackT >= 0 Then spd = 1.2
+    vx# = mx * spd
+    vz# = mz * spd
+
+    If rollT >= 0 Then
+        rollT = rollT + dt
+        vx = rollDX * 12.5
+        vz = rollDZ * 12.5
+        yaw = Math.ATan2(rollDX, rollDZ)
+        If rollT > 0.42 Then rollT = -1
+    ElseIf ml > 0.05 And locked = 0 And attackT < 0 Then
+        yaw = LerpAngle(yaw, Math.ATan2(mx, mz), Min(1, 14 * dt))
+    EndIf
+
+    kbX = Approach(kbX, 0, 30 * dt)
+    kbZ = Approach(kbZ, 0, 30 * dt)
+    Collide(px + (vx + kbX) * dt, pz + (vz + kbZ) * dt, 0.55)
+    px = outX
+    pz = outZ
+    PositionEntity(hero, px, 0, pz)
+    SetRotation(hero, 0, yaw, 0)
+
+    ; Limb animation
+    moving = ml > 0.05
+    If moving Then walkT = walkT + dt * 620 Else walkT = walkT * 0.8
+    swing# = Math.Sin(walkT) * 38
+    If moving = 0 Then swing = Math.Sin(gameT * 90) * 2
+    SetRotation(legL, swing, 0, 0)
+    SetRotation(legR, -swing, 0, 0)
+    SetRotation(armL, -swing * 0.7, 0, -7)
+    ActHero(moving, spd)
+    If rollT >= 0 Then
+        SetRotation(heroBody, rollT / 0.42 * 360, 0, 0)
+        PositionEntity(heroBody, 0, 0.95 - Math.Sin(rollT / 0.42 * 180) * 0.5, 0)
+    Else
+        SetRotation(heroBody, 0, 0, 0)
+        PositionEntity(heroBody, 0, Math.Abs(Math.Sin(walkT)) * 0.05, 0)
+    EndIf
+
+    If attackT >= 0 Then
+        attackT = attackT + dt
+        k# = Min(1, attackT / 0.2)
+        If combo = 1 Then
+            SetRotation(armR, -70, -90 + k * 170, 0)
+        ElseIf combo = 2 Then
+            SetRotation(armR, -70, 90 - k * 170, 0)
+        Else
+            SetRotation(armR, -150 + k * 130, 0, 0)
+        EndIf
+        If attackT > 0.05 And attackT < 0.17 Then ShowEntity(trail) Else HideEntity(trail)
+        If attackT > 0.08 And attackHitDone = 0 Then
+            attackHitDone = 1
+            SwordHit()
+        EndIf
+        If attackT > 0.3 Then
+            attackT = -1
+            HideEntity(trail)
+        EndIf
+    Else
+        SetRotation(armR, swing * 0.7, 0, 7)
+    EndIf
+
+    ; Blink while invulnerable
+    If invuln > 0 And rollT < 0 And Int(gameT * 18) Mod 2 = 0 Then HideEntity(heroBody) Else ShowEntity(heroBody)
+
+    If tracerT > 0 Then
+        tracerT = tracerT - dt
+        If tracerT <= 0 Then HideEntity(tracer)
+    EndIf
+End Function
+
+Function SwordHit()
+    Global px : Global pz : Global yaw : Global combo : Global nEnemy : Global nPot
+    Global gateOpen : Global shake : Global hitStop
+    dmg = 1
+    If combo = 3 Then dmg = 2
+    reach# = 3.1
+    For i = 1 To nEnemy
+        If eState(i) < 6 And eHP(i) > 0 Then
+            d# = Distance2D(px, pz, eX(i), eZ(i))
+            If d < reach + eR(i) Then
+                If d < 1.2 Or Math.Abs(AngleDiff(yaw, Math.ATan2(eX(i) - px, eZ(i) - pz))) < 85 Then
+                    HurtFoe(i, dmg, Math.ATan2(eX(i) - px, eZ(i) - pz))
+                EndIf
+            EndIf
+        EndIf
+    Next
+    For i = 1 To nPot
+        If potOn(i) Then
+            If Distance2D(px, pz, potX(i), potZ(i)) < reach Then BreakPot(i)
+        EndIf
+    Next
+End Function
+
+Function FireGun()
+    Global px : Global pz : Global yaw : Global ammo : Global shotCD : Global tracerT : Global tracer
+    Global target : Global shake : Global outX : Global outZ : Global gateOpen : Global inCellar
+    ammo = ammo - 1
+    shotCD = 0.55
+    tracerT = 0.07
+    shake = 0.4
+    PlaySfx(2)
+    t = target
+    If t = 0 Then t = FindTarget()
+    hx# = px + Math.Sin(yaw) * 30
+    hz# = pz + Math.Cos(yaw) * 30
+    If t <> 0 Then
+        TargetPos(t)
+        hx = outX
+        hz = outZ
+        If t = -1 Then
+            If gateOpen = 0 Then OpenGate()
+        Else
+            HurtFoe(t, 4, Math.ATan2(hx - px, hz - pz))
+        EndIf
+    EndIf
+    midX# = (px + hx) / 2
+    midZ# = (pz + hz) / 2
+    PositionEntity(tracer, midX, 1.3, midZ)
+    SetRotation(tracer, 0, Math.ATan2(hx - px, hz - pz), 0)
+    ScaleEntity(tracer, 1, 1, Distance2D(px, pz, hx, hz))
+    ShowEntity(tracer)
+End Function
+
+Function HurtHero(amount, fromYaw#)
+    Global hp : Global invuln : Global kbX : Global kbZ : Global shake : Global gs : Global endT
+    Global hitStop : Global rollT
+    If invuln > 0 Or rollT >= 0 Or gs <> 1 Then Return
+    hp = hp - amount
+    invuln = 1.1
+    kbX = Math.Sin(fromYaw) * 13
+    kbZ = Math.Cos(fromYaw) * 13
+    shake = 0.8
+    hitStop = 0.06
+    PlaySfx(4)
+    If hp <= 0 Then
+        hp = 0
+        gs = 4
+        endT = 0
+    EndIf
+End Function
+
+; ---------- foes ----------
+Function HurtFoe(i, dmg, ang#)
+    Global hitStop : Global shake : Global bossDead : Global gs
+    eHP(i) = eHP(i) - dmg
+    hitStop = 0.05
+    shake = Max(shake, 0.35)
+    PlaySfx(3)
+    If eType(i) <> 3 Then
+        eVX(i) = Math.Sin(ang) * 11
+        eVZ(i) = Math.Cos(ang) * 11
+    EndIf
+    Spark(eX(i), eZ(i))
+    If eHP(i) <= 0 Then
+        eState(i) = 6
+        eT(i) = 0
+    Else
+        If eType(i) <> 3 Then
+            eState(i) = 5
+            eT(i) = 0.32
+        EndIf
+    EndIf
+End Function
+
+Function UpdateEnemies()
+    Global nEnemy
+    For i = 1 To nEnemy
+        UpdateFoe(i)
+    Next
+    ShowAlerts()
+    UpdateSpark()
+End Function
+
+Function UpdateFoe(i)
+    Global px : Global pz : Global inCellar : Global gameT : Global bossAwake : Global bossDead : Global gs
+    Global outX : Global outZ : Global invuln
+    dt# = DeltaTime()
+    If dt > 0.05 Then dt = 0.05
+        If eState(i) = 7 Then Return
+        ty = eType(i)
+        If (i <= 5 And inCellar) Or (i > 5 And inCellar = 0) Then Return
+        If ty = 3 And bossAwake = 0 Then Return
+
+        d# = Distance2D(px, pz, eX(i), eZ(i))
+        ang# = Math.ATan2(px - eX(i), pz - eZ(i))
+        spd# = 4.8
+        wind# = 0.42
+        lunge# = 13
+        lungeT# = 0.26
+        rest# = 0.6
+        range# = 3.2
+        dmg = 2
+        If ty = 2 Then
+            spd = 2.6 : wind = 0.8 : lunge = 10 : lungeT = 0.3 : rest = 0.9 : range = 3.4
+        ElseIf ty = 3 Then
+            spd = 5.4 : wind = 0.7 : lunge = 17 : lungeT = 0.5 : rest = 1.2 : range = 7 : dmg = 3
+        EndIf
+
+        eT(i) = eT(i) - dt
+        vx# = 0
+        vz# = 0
+        Select eState(i)
+            Case 0
+                If Int(gameT + i) Mod 4 < 2 Then
+                    wa# = i * 73 + Int(gameT / 4) * 57
+                    vx = Math.Sin(wa) * 1.2
+                    vz = Math.Cos(wa) * 1.2
+                    eYaw(i) = LerpAngle(eYaw(i), wa, Min(1, 4 * dt))
+                EndIf
+                If d < 12 Then AlertFoe(i)
+            Case 1
+                vx = Math.Sin(ang) * spd
+                vz = Math.Cos(ang) * spd
+                eYaw(i) = LerpAngle(eYaw(i), ang, Min(1, 10 * dt))
+                If d < range + eR(i) Then
+                    eState(i) = 2
+                    eT(i) = wind
+                    PlaySfx(5)
+                EndIf
+                If d > 26 And ty < 3 Then eState(i) = 0
+            Case 2
+                eYaw(i) = LerpAngle(eYaw(i), ang, Min(1, 8 * dt))
+                If eT(i) <= 0 Then
+                    eState(i) = 3
+                    eT(i) = lungeT
+                    eVX(i) = Math.Sin(eYaw(i)) * lunge
+                    eVZ(i) = Math.Cos(eYaw(i)) * lunge
+                EndIf
+            Case 3
+                vx = eVX(i)
+                vz = eVZ(i)
+                If d < 1.0 + eR(i) Then HurtHero(dmg, ang + 180)
+                If eT(i) <= 0 Then
+                    eState(i) = 4
+                    eT(i) = rest
+                EndIf
+            Case 4
+                If eT(i) <= 0 Then eState(i) = 1
+            Case 5
+                vx = eVX(i)
+                vz = eVZ(i)
+                eVX(i) = Approach(eVX(i), 0, 34 * dt)
+                eVZ(i) = Approach(eVZ(i), 0, 34 * dt)
+                If eT(i) <= 0 Then
+                    eState(i) = 1
+                    RestoreFoeColor(i)
+                EndIf
+            Case 6
+                sc# = Max(0.01, 1 + eT(i) * 1.6)
+                ScaleEntity(eE(i), sc, sc, sc)
+                If eT(i) < -0.55 Then
+                    eState(i) = 7
+                    HideEntity(eE(i))
+                    If ty < 3 Then
+                        If i Mod 2 = 0 Then DropItem(eX(i), eZ(i), 1) Else DropItem(eX(i), eZ(i), 2)
+                    Else
+                        bossDead = 1
+                        PlaySfx(6)
+                        StartDlg(7)
+                    EndIf
+                EndIf
+                Return
+        End Select
+        If eState(i) = 4 And eType(i) = 3 And eT(i) < rest - 0.15 Then RestoreFoeColor(i)
+        If eState(i) = 1 Or eState(i) = 3 Then
+            If eType(i) <> 3 Then RestoreFoeColor(i)
+        EndIf
+
+        Collide(eX(i) + vx * dt, eZ(i) + vz * dt, eR(i))
+        eX(i) = outX
+        eZ(i) = outZ
+
+        ; A held windup pose, then a leg cycle at low frame rate
+        h# = 0
+        If ty = 2 Then h = 0.25 + Math.Sin(gameT * 120 + i * 40) * 0.12
+        pose# = 0
+        If eState(i) = 2 Then pose = -16
+        If eState(i) = 3 Then pose = 14
+        PositionEntity(eE(i), eX(i), h, eZ(i))
+        SetRotation(eE(i), pose, eYaw(i), 0)
+        If eLegA(i) Then
+            sw# = Math.Sin(Int(gameT * 12) * 75 + i * 30) * 26
+            If Math.Abs(vx) + Math.Abs(vz) < 0.2 Then sw = 0
+            SetRotation(eLegA(i), sw, 0, 0)
+            SetRotation(eLegB(i), -sw, 0, 0)
+        EndIf
+End Function
+
+Function RestoreFoeColor(i)
+End Function
+
+Function ResetFoes()
+    Global nEnemy : Global inCellar : Global bossAwake
+    For i = 1 To nEnemy
+        If eState(i) <> 7 Then
+            eX(i) = eHomeX(i)
+            eZ(i) = eHomeZ(i)
+            eState(i) = 0
+            RestoreFoeColor(i)
+        EndIf
+    Next
+End Function
+
+Function FindTarget()
+    Global nEnemy : Global px : Global pz : Global camYaw : Global inCellar : Global gateOpen : Global sw : Global bossAwake
+    best = 0
+    bestS# = 99999
+    For i = 1 To nEnemy
+        If eState(i) < 6 And (eType(i) <> 3 Or bossAwake) Then
+            If (i <= 5 And inCellar = 0) Or (i > 5 And inCellar = 1) Then
+                d# = Distance2D(px, pz, eX(i), eZ(i))
+                If d < 20 Then
+                    s# = d + Math.Abs(AngleDiff(camYaw, Math.ATan2(eX(i) - px, eZ(i) - pz))) * 0.15
+                    If s < bestS Then
+                        bestS = s
+                        best = i
+                    EndIf
+                EndIf
+            EndIf
+        EndIf
+    Next
+    If inCellar And gateOpen = 0 Then
+        d = Distance2D(px, pz, 208, 3)
+        If d < 22 And d + 2 < bestS Then best = -1
+    EndIf
+    Return best
+End Function
+
+Function TargetPos(t)
+    Global outX : Global outZ
+    If t = -1 Then
+        outX = 208
+        outZ = 3
+    ElseIf t > 0 Then
+        outX = eX(t)
+        outZ = eZ(t)
+    EndIf
+End Function
+
+Function NearestFoe(maxD#)
+    Global nEnemy : Global px : Global pz : Global inCellar : Global bossAwake
+    best = 0
+    bd# = maxD
+    For i = 1 To nEnemy
+        If eState(i) < 6 And (eType(i) <> 3 Or bossAwake) And ((i <= 5) <> (inCellar = 1)) Then
+            d# = Distance2D(px, pz, eX(i), eZ(i))
+            If d < bd Then
+                bd = d
+                best = i
+            EndIf
+        EndIf
+    Next
+    Return best
+End Function
+
+Function OpenGate()
+    Global gateOpen
+    gateOpen = 1
+    PlaySfx(6)
+    ShowMsg("The gate grinds open.")
+End Function
+
+; ---------- interaction, items ----------
+Function ActionLabel$()
+    Global px : Global pz : Global chestOpen : Global hasKey : Global inCellar : Global bossDead : Global gs
+    If gs = 2 Then Return "Next"
+    If inCellar = 0 Then
+        If Distance2D(px, pz, -5, -4) < 3.2 Then Return "Talk"
+        If Distance2D(px, pz, 3.5, -25) < 2.6 Then Return "Read"
+        If Distance2D(px, pz, -13, 13) < 3 Then Return "Talk"
+        If chestOpen = 0 And Distance2D(px, pz, -25, 27) < 3 Then Return "Open"
+        If Distance2D(px, pz, 0, 29) < 3.4 Then Return "Open"
+    ElseIf bossDead And Distance2D(px, pz, 200, 32) < 4 Then
+        Return "Look"
+    EndIf
+    Return "Roll"
+End Function
+
+Function TryInteract()
+    Global px : Global pz : Global chestOpen : Global hasKey : Global inCellar : Global gs : Global bossDead : Global metMarta
+    Global warpT : Global lid : Global yaw
+    lb$ = ActionLabel$()
+    If lb = "Roll" Then Return 0
+    If inCellar = 0 Then
+        If Distance2D(px, pz, -5, -4) < 3.2 Then
+            If hasKey Then
+                StartDlg(9)
+            Else
+                StartDlg(2)
+            EndIf
+            Return 1
+        EndIf
+        If Distance2D(px, pz, 3.5, -25) < 2.6 Then
+            StartDlg(3)
+            Return 1
+        EndIf
+        If Distance2D(px, pz, -13, 13) < 3 Then
+            StartDlg(8)
+            Return 1
+        EndIf
+        If chestOpen = 0 And Distance2D(px, pz, -25, 27) < 3 Then
+            chestOpen = 1
+            hasKey = 1
+            SetRotation(lid, -105, 0, 0)
+            PlaySfx(6)
+            StartDlg(4)
+            Return 1
+        EndIf
+        If Distance2D(px, pz, 0, 29) < 3.4 Then
+            If hasKey Then
+                gs = 3
+                warpT = 0
+                PlaySfx(6)
+            Else
+                StartDlg(5)
+            EndIf
+            Return 1
+        EndIf
+    ElseIf bossDead Then
+        StartDlg(10)
+        Return 1
+    EndIf
+    Return 0
+End Function
+
+Function BreakPot(i)
+    potOn(i) = 0
+    HideEntity(potE(i))
+    PlaySfx(3)
+    If i Mod 3 = 0 Then DropItem(potX(i), potZ(i), 2) Else DropItem(potX(i), potZ(i), 1)
+End Function
+
+; kind 1 heart, 2 knell round
+Function DropItem(x#, z#, kind)
+    Global nItem
+    If nItem >= 12 Then Return
+    nItem = nItem + 1
+    If kind = 1 Then
+        e = CreateSphere(0.34, 8, 0).Color(255, 40, 70)
+    Else
+        e = CreateCylinder(0.17, 0.62, 8).Color(226, 188, 96)
+    EndIf
+    SetUnlit(e)
+    itemE(nItem) = e
+    itemX(nItem) = x
+    itemZ(nItem) = z
+    itemKind(nItem) = kind
+    itemOn(nItem) = 1
+    PositionEntity(e, x, 0.8, z)
+End Function
+
+Function UpdateItems()
+    Global nItem : Global px : Global pz : Global gameT : Global hp : Global maxHP : Global ammo
+    Global bossAwake : Global inCellar : Global gateY : Global gateOpen : Global gate : Global switchE
+    For i = 1 To nItem
+        If itemOn(i) Then
+            PositionEntity(itemE(i), itemX(i), 0.8 + Math.Sin(gameT * 200 + i * 50) * 0.16, itemZ(i))
+            TurnEntity(itemE(i), 0, 120 * DeltaTime(), 0)
+            If Distance2D(px, pz, itemX(i), itemZ(i)) < 1.5 Then
+                itemOn(i) = 0
+                HideEntity(itemE(i))
+                If itemKind(i) = 1 Then hp = Min(maxHP, hp + 4) Else ammo = Min(11, ammo + 1)
+                PlaySfx(7)
+            EndIf
+        EndIf
+    Next
+    If gateOpen And gateY < 8 Then
+        gateY = gateY + 2.4 * DeltaTime()
+        PositionEntity(gate, 200, gateY, 5)
+        If gateY > 7 Then wMinX(gateWall()) = 9000
+        EntityColor(switchE, 60, 220, 120)
+    EndIf
+    If gateOpen And gateY >= 7 Then wMinX(gateWall()) = 9000
+    If inCellar And bossAwake = 0 And pz > 11 Then
+        bossAwake = 1
+        PlaySfx(5)
+        ShowMsg("It knows the code better than you do.")
+    EndIf
+End Function
+
+Function gateWall()
+    Global gateWallId
+    Return gateWallId
+End Function
+
+Function ShowMsg(s$)
+    Global msg : Global msgT
+    msg = s
+    msgT = 3
+End Function
+
+; ---------- dialogue ----------
+Function L(sp$, a$, b$)
+    Global dlgN
+    dlgN = dlgN + 1
+    dlgSpk(dlgN) = sp
+    dlgA(dlgN) = a
+    dlgB(dlgN) = b
+End Function
+
+Function StartDlg(id)
+    Global dlgN : Global dlgI : Global dlgChars : Global gs : Global dlgAfter
+    dlgN = 0
+    dlgAfter = 0
+    Select id
+        Case 1
+            L("Adrian Vale", "A contract on a wolf. A village that wants a body.", "")
+            L("Adrian Vale", "Find out who benefits. Then decide.", "")
+        Case 2
+            L("Marta, innkeeper", "You're the hunter. It's taken four men since the thaw.", "Everyone knows where it lairs: under the old mill.")
+            L("Adrian Vale", "Four men. What did they have in common?", "")
+            L("Marta, innkeeper", "...Nothing. They drank here. That's all.", "The priest keeps the mill key in the graveyard, north-west.")
+        Case 3
+            L("Parish notice", "BLACK HOLLOW. BOUNTY ON THE BEAST.", "Paid on sight of the body. No questions asked.")
+        Case 4
+            L("", "You found the CELLAR KEY!", "The Bell in your coat begins to shiver.")
+            L("", "Scratched inside the lid: 'We all swore. God forgive", "the hunt.' Then seven names. Four are crossed out.")
+        Case 5
+            L("", "The mill door is locked.", "")
+        Case 6
+            L("Adrian Vale", "This wasn't dug by a wolf.", "")
+            L("", "A crystal glows behind the iron grate. You can't reach it", "with a blade. Hold TARGET, then fire the Mourning Star (F).")
+        Case 7
+            L("", "The great wolf folds to the floor. It was a Hollow,", "still guarding something after its own death.")
+            L("Adrian Vale", "She's been dead since winter. Who shot her?", "")
+        Case 8
+            L("Father August", "Ah, Adrian! Soup? No? Your loss. As Petrarch told me,", "tediously, nothing in a village stays buried.")
+            L("Father August", "Ask them what they were hunting last winter.", "Ask them who told them to stop.")
+        Case 9
+            L("Marta, innkeeper", "You've got the key. Then you read the lid.", "...I'd like you to leave, now, please.")
+        Case 10
+            L("", "Behind the dead wolf, something small is hiding in the", "straw. Eleven years old, perhaps. Frightened. Alive.")
+            L("Tam", "Is she asleep?", "")
+            L("Adrian Vale", "...Yes. Come on. I know a priest who makes bad soup.", "")
+            dlgAfter = 1
+    End Select
+    dlgI = 1
+    dlgChars = 0
+    gs = 2
+End Function
+
+Function UpdateDialogue()
+    Global dlgI : Global dlgN : Global dlgChars : Global btnAct : Global btnSword : Global gs : Global dlgAfter
+    Global endT : Global fadeTarget
+    dlgChars = dlgChars + 46 * DeltaTime()
+    total = Len(dlgA(dlgI)) + Len(dlgB(dlgI))
+    If btnAct Or btnSword Then
+        If dlgChars < total Then
+            dlgChars = total
+        Else
+            dlgI = dlgI + 1
+            dlgChars = 0
+            If dlgI > dlgN Then
+                If dlgAfter = 1 Then
+                    gs = 5
+                    endT = 0
+                    fadeTarget = 0.45
+                Else
+                    gs = 1
+                EndIf
+            EndIf
+        EndIf
+    EndIf
+End Function
+
+; ---------- camera ----------
+; ---------- collision ----------
+Function AddWall(minX#, maxX#, minZ#, maxZ#)
+    Global nWall
+    nWall = nWall + 1
+    wMinX(nWall) = minX
+    wMaxX(nWall) = maxX
+    wMinZ(nWall) = minZ
+    wMaxZ(nWall) = maxZ
+    Return nWall
+End Function
+
+Function Collide(x#, z#, r#)
+    Global nWall : Global outX : Global outZ
+    For pass = 1 To 2
+        For i = 1 To nWall
+            If x > wMinX(i) - r And x < wMaxX(i) + r And z > wMinZ(i) - r And z < wMaxZ(i) + r Then
+                cx# = Clamp(x, wMinX(i), wMaxX(i))
+                cz# = Clamp(z, wMinZ(i), wMaxZ(i))
+                ox# = x - cx
+                oz# = z - cz
+                dd# = Math.Sqr(ox * ox + oz * oz)
+                If dd > 0.0001 Then
+                    If dd < r Then
+                        x = cx + ox / dd * r
+                        z = cz + oz / dd * r
+                    EndIf
+                Else
+                    ; Centre inside the box: leave by the nearest face
+                    l# = x - wMinX(i)
+                    rr# = wMaxX(i) - x
+                    b# = z - wMinZ(i)
+                    t# = wMaxZ(i) - z
+                    m# = Min(l, Min(rr, Min(b, t)))
+                    If m = l Then
+                        x = wMinX(i) - r
+                    ElseIf m = rr Then
+                        x = wMaxX(i) + r
+                    ElseIf m = b Then
+                        z = wMinZ(i) - r
+                    Else
+                        z = wMaxZ(i) + r
+                    EndIf
+                EndIf
+            EndIf
+        Next
+    Next
+    outX = x
+    outZ = z
+End Function
+
+Function InWall(x#, z#, r#)
+    Global nWall
+    For i = 1 To nWall
+        If x > wMinX(i) - r And x < wMaxX(i) + r And z > wMinZ(i) - r And z < wMaxZ(i) + r Then Return 1
+    Next
+    Return 0
+End Function
+
+; ---------- atmosphere ----------
+; ---------- construction helpers ----------
+Function Block(x#, y#, z#, hx#, hy#, hz#, r, g, b)
+    e = CreateCube()
+    ScaleEntity(e, hx, hy, hz)
+    PositionEntity(e, x, y, z)
+    Paint(e, r, g, b)
+    Return e
+End Function
+
+Function Solid(x#, y#, z#, hx#, hy#, hz#, r, g, b)
+    AddWall(x - hx, x + hx, z - hz, z + hz)
+    Return Block(x, y, z, hx, hy, hz, r, g, b)
+End Function
+
+Function Glow(x#, y#, z#, hx#, hy#, hz#, r, g, b)
+    e = CreateCube()
+    ScaleEntity(e, hx, hy, hz)
+    PositionEntity(e, x, y, z)
+    EntityColor(e, r, g, b)
+    SetUnlit(e)
+    Return e
+End Function
+
+Function Lamp(x#, y#, z#, r, g, b, range#)
+    l = CreatePointLight()
+    PositionEntity(l, x, y, z)
+    SetLightColor(l, r, g, b)
+    LightRange(l, range)
+    SetLightIntensity(l, 0.9)
+    Return l
+End Function
+
+Function Roof(x#, y#, z#, hx#, rise#, hz#, r, g, b)
+    Global curTex : Global tShingle
+    keep = curTex
+    curTex = tShingle
+    e = CreatePyramid(1)
+    ScaleEntity(e, hx * 2.3, rise, hz * 2.3)
+    PositionEntity(e, x, y, z)
+    Paint(e, 92, 62, 116)
+    curTex = keep
+End Function
+
+Function House(x#, z#, hx#, hz#, h#, r, g, b, doorSide)
+    Solid(x, h, z, hx, h, hz, r, g, b)
+    Roof(x, h * 2 + 1.4, z, hx, 3, hz, 66, 28, 52)
+    ; Lit windows: warmth is scarce and means safety or a trap
+    Glow(x - hx * 0.5, h * 1.15, z - hz - 0.03, 0.55, 0.65, 0.05, 255, 186, 86)
+    Glow(x + hx * 0.5, h * 1.15, z - hz - 0.03, 0.55, 0.65, 0.05, 255, 186, 86)
+    Glow(x - hx - 0.03, h * 1.15, z, 0.05, 0.65, 0.55, 255, 186, 86)
+    Glow(x + hx + 0.03, h * 1.15, z, 0.05, 0.65, 0.55, 255, 186, 86)
+    Block(x, 1.1, z - hz - 0.04, 0.8, 1.1, 0.06, 44, 24, 26)
+End Function
+
+Function Tree(x#, z#, s#)
+    Global curTex : Global tBark
+    curTex = tBark
+    trunkH# = (3.4 + Rnd(0, 2)) * s
+    t = CreateCylinder(0.34 * s, trunkH * 2, 6)
+    PositionEntity(t, x, trunkH, z)
+    TurnEntity(t, Rnd(-5, 5), 0, Rnd(-5, 5))
+    Paint(t, 34, 22, 48)
+    For i = 1 To 5
+        len# = Rnd(1.6, 3.2) * s
+        b = CreateCylinder(0.13 * s, len * 2, 5)
+        a# = i * 72 + Rnd(-25, 25)
+        tilt# = Rnd(35, 72)
+        hb# = trunkH * Rnd(1.1, 1.9)
+        PositionEntity(b, x + Math.Sin(a) * Math.Sin(tilt) * len, hb + Math.Cos(tilt) * len, z + Math.Cos(a) * Math.Sin(tilt) * len)
+        SetRotation(b, tilt, a, 0)
+        Paint(b, 30, 20, 46)
+    Next
+    AddWall(x - 0.45 * s, x + 0.45 * s, z - 0.45 * s, z + 0.45 * s)
+End Function
+
+Function AddPot(x#, z#)
+    Global nPot
+    nPot = nPot + 1
+    e = CreateCylinder(0.42, 1, 8)
+    PositionEntity(e, x, 0.5, z)
+    Paint(e, 150, 86, 58)
+    potE(nPot) = e
+    potX(nPot) = x
+    potZ(nPot) = z
+    potOn(nPot) = 1
+End Function
+
+; ---------- village ----------
+Function BuildVillage()
+    Global moonE : Global lid : Global curTex : Global tGround : Global tPlaster : Global tStone : Global tWood : Global tCloth : Global tFur : Global tShingle
+    ; Tile the ground: vertex snapping prefers small polygons
+    curTex = tGround
+    For ix = -6 To 6
+        For iz = -6 To 6
+            x# = ix * 7
+            z# = iz * 7
+            ; Dead grass under a violet night
+            r = 40 + Rnd(0, 2)
+            g = 58 + Rnd(0, 2)
+            b = 66 + Rnd(0, 2)
+            If (Math.Abs(x) < 4) Or (Math.Abs(z) < 4 And Math.Abs(x) < 25) Then
+                r = 82 + Rnd(0, 2) : g = 78 + Rnd(0, 2) : b = 88 + Rnd(0, 2)
+            EndIf
+            Block(x, -0.1, z, 3.5, 0.1, 3.5, r, g, b)
+        Next
+    Next
+    ; The blood moon and a castle against it, the show's oldest promise
+    moonE = CreateSphere(62, 24, 0).Color(226, 42, 44)
+    PositionEntity(moonE, 60, 170, 520)
+    EntityFX(moonE, 9)
+    halo = CreateSphere(82, 18, 0).Color(120, 18, 60)
+    PositionEntity(halo, 60, 170, 526)
+    EntityFX(halo, 9)
+    EntityAlpha(halo, 0.28)
+    For i = 0 To 8
+        cr = CreateCube().Scale(Rnd(5, 13), Rnd(1, 2), 1).Color(16, 8, 34)
+        PositionEntity(cr, 60 + Rnd(-70, 70), 170 + Rnd(-40, 40), 505)
+        EntityFX(cr, 9)
+    Next
+    BuildCastle(60, 330)
+    ; Far hills, then a wall of night forest
+    For i = 0 To 40
+        a# = i * 9
+        hill = CreateSphere(Rnd(34, 58), 8, 0).Color(14, 9, 34)
+        PositionEntity(hill, Math.Sin(a) * 180, -12, Math.Cos(a) * 180)
+        EntityFX(hill, 9)
+    Next
+
+    AddWall(-47, 47, 45, 48)
+    AddWall(-47, 47, -48, -45)
+    AddWall(-48, -45, -47, 47)
+    AddWall(45, 48, -47, 47)
+
+    curTex = tPlaster
+    House(-17, -7, 6, 5, 2.8, 112, 92, 104, 0)
+    House(17, -12, 5, 5, 2.4, 96, 86, 112, 0)
+    House(19, 9, 5.5, 4.5, 2.6, 118, 96, 96, 0)
+    House(-30, -22, 4.5, 4.5, 2.2, 88, 80, 104, 0)
+    House(30, -28, 4.5, 4, 2.2, 104, 88, 96, 0)
+
+    ; Well
+    curTex = tStone
+    Solid(0, 0.55, -2, 1.4, 0.55, 1.4, 92, 92, 112)
+    Block(0, 1.2, -2, 1.0, 0.1, 1.0, 12, 10, 30)
+    Block(-1.2, 2.2, -2, 0.12, 1.2, 0.12, 60, 36, 40)
+    Block(1.2, 2.2, -2, 0.12, 1.2, 0.12, 60, 36, 40)
+    Roof(0, 4.1, -2, 1.7, 1.2, 1.7, 66, 28, 52)
+
+    ; Chapel with spire
+    Solid(-16, 3.4, 20, 5, 3.4, 7, 126, 118, 138)
+    Roof(-16, 8.2, 20, 5, 3, 7, 50, 26, 58)
+    Solid(-16, 6, 11.4, 1.8, 6, 1.8, 126, 118, 138)
+    Roof(-16, 14.8, 11.4, 1.8, 5.2, 1.8, 50, 26, 58)
+    Glow(-16, 7, 9.55, 0.7, 1.2, 0.05, 255, 120, 90)
+    Block(-16, 1.2, 9.54, 0.9, 1.2, 0.06, 40, 24, 30)
+
+    ; Graveyard
+    For i = 0 To 8
+        gx# = -33 + (i Mod 3) * 4.5
+        gz# = 15 + Int(i / 3) * 5
+        Solid(gx, 0.7, gz, 0.55, 0.7, 0.18, 104, 104, 126)
+    Next
+    ; Key chest
+    curTex = tWood
+    Solid(-25, 0.45, 27, 0.9, 0.45, 0.6, 118, 66, 36)
+    lid = CreatePivot()
+    PositionEntity(lid, -25, 0.9, 27.6)
+    lb = CreateCube(lid)
+    ScaleEntity(lb, 0.95, 0.2, 0.62)
+    PositionEntity(lb, 0, 0.1, -0.6)
+    Paint(lb, 150, 88, 44)
+    Glow(-25, 0.72, 26.38, 0.14, 0.14, 0.03, 255, 216, 92)
+
+    ; The mill, with sails against the moon
+    curTex = tStone
+    Solid(0, 6, 36, 6, 6, 6, 100, 88, 106)
+    Roof(0, 14.6, 36, 6, 4.6, 6, 60, 26, 48)
+    Block(0, 1.7, 29.92, 1.4, 1.7, 0.1, 42, 24, 26)
+    Glow(0.9, 1.7, 29.8, 0.12, 0.12, 0.03, 255, 216, 92)
+    curTex = tWood
+    hub = CreatePivot()
+    PositionEntity(hub, 0, 9.5, 29.4)
+    TurnEntity(hub, 0, 0, 24)
+    For i = 0 To 3
+        spoke = CreateCube(hub)
+        ScaleEntity(spoke, 0.16, 5.4, 0.08)
+        SetRotation(spoke, 0, 0, i * 90)
+        PositionEntity(spoke, Math.Sin(i * 90) * -5.4, Math.Cos(i * 90) * 5.4, 0)
+        Paint(spoke, 62, 44, 54)
+        sail = CreateCube(hub)
+        ScaleEntity(sail, 0.9, 4.2, 0.04)
+        SetRotation(sail, 0, 0, i * 90)
+        PositionEntity(sail, Math.Sin(i * 90) * -6 + Math.Cos(i * 90) * 0.9, Math.Cos(i * 90) * 6 + Math.Sin(i * 90) * 0.9, 0)
+        Paint(sail, 136, 118, 124)
+    Next
+
+    ; Road lamps. Few, because warmth is scarce
+    For i = 0 To 3
+        lx# = 4.6
+        If i Mod 2 Then lx = -4.6
+        lz# = -36 + i * 12
+        Solid(lx, 1.8, lz, 0.1, 1.8, 0.1, 38, 28, 40)
+        Glow(lx, 3.8, lz, 0.2, 0.26, 0.2, 255, 196, 96)
+    Next
+    Lamp(-4.6, 3.6, -12, 255, 170, 88, 17)
+    Lamp(-9, 3.5, -5, 255, 170, 88, 14)
+    Lamp(3, 3.4, 26, 255, 110, 70, 16)
+    Lamp(-23, 3, 26, 120, 150, 255, 15)
+
+    ; Parish notice board
+    Solid(3.5, 1, -25, 0.1, 1, 0.1, 58, 40, 40)
+    Block(3.5, 1.9, -25, 0.9, 0.55, 0.06, 182, 164, 118)
+
+    ; Forest, kept out of the streets
+    For i = 1 To 48
+        a# = Rnd(0, 360)
+        r# = Rnd(32, 44)
+        tx# = Math.Sin(a) * r
+        tz# = Math.Cos(a) * r
+        If Math.Abs(tx) > 7 Or tz > 0 Then Tree(tx, tz, Rnd(1, 1.7))
+    Next
+    Tree(-9, 6, 1)
+    Tree(9, 2, 1.2)
+    Tree(9, 24, 1.3)
+    Tree(-24, 7, 1.2)
+    Tree(26, -6, 1.2)
+    Tree(-34, 32, 1.4)
+
+    ; Pots to break, beside the inn and chapel
+    curTex = tCloth
+    AddPot(-10, -3)
+    AddPot(-10.2, -4.6)
+    AddPot(-11.6, -3.4)
+    AddPot(-9.6, 13)
+    AddPot(-9.4, 15)
+    AddPot(11, -6.8)
+
+    ; Marta and Father August
+    Person(-5, -4, 130, 48, 70, 228, 186, 150, 54, 36, 30, 180)
+    Person(-13, 13, 20, 18, 26, 214, 176, 140, 196, 196, 196, 135)
+
+    ; The pack: Hollow wolves on the road and among the graves
+    AddFoe(1, 7, 6, 3)
+    AddFoe(1, -6, 5, 3)
+    AddFoe(1, 12, 20, 3)
+    AddFoe(1, -26, 20, 3)
+    AddFoe(1, -20, 30, 3)
+End Function
+
+Function BuildCastle(cx#, cz#)
+    For i = -3 To 3
+        h# = 62 - Math.Abs(i) * 11 + Rnd(-6, 6)
+        w# = 8 + Rnd(0, 6)
+        t = CreateCube().Color(18, 10, 40)
+        ScaleEntity(t, w, h, w)
+        PositionEntity(t, cx + i * 25, h - 10, cz + Rnd(-6, 6))
+        EntityFX(t, 9)
+        sp = CreateCone(w * 1.25, 34 + Rnd(0, 30), 8).Color(14, 8, 32)
+        PositionEntity(sp, cx + i * 25, h * 2 - 10 + 16, cz)
+        EntityFX(sp, 9)
+        If i Mod 2 Then
+            wn = CreateCube().Color(238, 40, 44)
+            ScaleEntity(wn, 1.3, 3, 0.2)
+            PositionEntity(wn, cx + i * 25, h * 1.4 - 10, cz - w - 7)
+            EntityFX(wn, 9)
+        EndIf
+    Next
+End Function
+
+; ---------- cellar ----------
+Function BuildCellar()
+    Global gate : Global gateWallId : Global switchE : Global curTex : Global tStone
+    cx# = 200
+    curTex = tStone
+    ; Floors
+    For ix = -2 To 2
+        For iz = -3 To 7
+            sh = 62 + (Abs(ix + iz) Mod 2) * 12
+            Block(cx + ix * 6, -0.1, iz * 6, 3, 0.1, 3, sh + 6, sh, sh + 14)
+        Next
+    Next
+    ; Outer walls, first chamber
+    wc = 96
+    Solid(cx - 13, 4, -5, 1, 4, 11, wc, wc - 8, wc + 18)
+    Solid(cx + 13, 4, -5, 1, 4, 11, wc, wc - 8, wc + 18)
+    Solid(cx, 4, -16, 14, 4, 1, wc, wc - 8, wc + 18)
+    Solid(cx - 8, 4, 5, 6, 4, 0.8, wc, wc - 8, wc + 18)
+    Solid(cx + 8, 4, 5, 6, 4, 0.8, wc, wc - 8, wc + 18)
+    ; Boss chamber
+    Solid(cx - 16, 4, 21, 1, 4, 17, wc, wc - 8, wc + 18)
+    Solid(cx + 16, 4, 21, 1, 4, 17, wc, wc - 8, wc + 18)
+    Solid(cx, 4, 38, 17, 4, 1, wc, wc - 8, wc + 18)
+    Solid(cx - 13, 4, 5, 3, 4, 0.8, wc, wc - 8, wc + 18)
+    Solid(cx + 13, 4, 5, 3, 4, 0.8, wc, wc - 8, wc + 18)
+
+    ; Pillars
+    For i = 0 To 3
+        px2# = cx - 8 + (i Mod 2) * 16
+        pz2# = 14 + Int(i / 2) * 12
+        Solid(px2, 4, pz2, 1.1, 4, 1.1, 78, 68, 88)
+    Next
+    ; Gate: visible bars plus one wall removed when it rises
+    gate = CreatePivot()
+    PositionEntity(gate, cx, 3, 5)
+    For i = -2 To 2
+        bar = CreateCube(gate)
+        ScaleEntity(bar, 0.14, 3, 0.14)
+        PositionEntity(bar, i * 0.8, 0, 0)
+        Paint(bar, 48, 44, 56)
+    Next
+    gateWallId = AddWall(cx - 2, cx + 2, 4.4, 5.6)
+
+    ; Crystal behind a grate: blades cannot reach it, the Mourning Star can
+    switchE = CreateSphere(0.5, 8, 0).Color(255, 40, 70)
+    PositionEntity(switchE, 208, 2.1, 3)
+    SetUnlit(switchE)
+    Solid(208, 2.4, 1, 3, 2.4, 0.15, 30, 28, 36)
+    For i = -2 To 2
+        Block(208 + i * 1.1, 2.4, 0.8, 0.1, 2.4, 0.1, 48, 44, 56)
+    Next
+
+    ; Torches
+    Torch(cx - 11.6, -6)
+    Torch(cx + 11.6, -6)
+    Torch(cx - 14.6, 20)
+    Torch(cx + 14.6, 20)
+
+    ; A straw bed and a small, frightened figure, never harmed
+    Block(cx, 0.1, 33, 3, 0.15, 2, 150, 118, 62)
+    BuildTam(cx, 34.5, 180)
+    AddFoe(2, cx - 6, -1, 4)
+    AddFoe(2, cx + 5, -3, 4)
+    AddFoe(1, cx - 7, 3, 3)
+    AddFoe(3, cx, 25, 16)
+End Function
+
+Function Torch(x#, z#)
+    Block(x, 3.4, z, 0.1, 0.6, 0.1, 40, 28, 28)
+    Glow(x, 4.25, z, 0.17, 0.26, 0.17, 255, 150, 60)
+    Lamp(x, 4.4, z, 255, 138, 66, 20)
+End Function
+
+; ---------- characters ----------
+Function AddFoe(ty, x#, z#, hpv)
+    Global nEnemy
+    nEnemy = nEnemy + 1
+    i = nEnemy
+    eType(i) = ty
+    eHP(i) = hpv
+    eX(i) = x
+    eZ(i) = z
+    eHomeX(i) = x
+    eHomeZ(i) = z
+    eYaw(i) = Rnd(0, 360)
+    eState(i) = 0
+    eR(i) = 0.8
+    If ty = 2 Then eR(i) = 0.7
+    If ty = 3 Then eR(i) = 2
+    s# = 1
+    If ty = 3 Then s = 2.5
+    If ty = 2 Then
+        eE(i) = BuildGhost(i)
+    Else
+        eE(i) = BuildWolf(i, s)
+    EndIf
+    RestoreFoeColor(i)
+    PositionEntity(eE(i), x, 0, z)
+End Function
+
+; ---------- sound ----------
+Function Sfx()
+    Global sfxOn : Global snd1 : Global snd2 : Global snd3 : Global snd4 : Global snd5 : Global snd6 : Global snd7
+    sfxOn = FileType("assets/swing.wav") = 1
+    If sfxOn = 0 Then Return
+    snd1 = Sound.Load("assets/swing.wav")
+    snd2 = Sound.Load("assets/gun.wav")
+    snd3 = Sound.Load("assets/hit.wav")
+    snd4 = Sound.Load("assets/hurt.wav")
+    snd5 = Sound.Load("assets/growl.wav")
+    snd6 = Sound.Load("assets/chime.wav")
+    snd7 = Sound.Load("assets/pickup.wav")
+    If FileType("assets/night.wav") = 1 Then
+        snd8 = Sound.Load("assets/night.wav")
+        LoopSound(snd8)
+        Sound.Play(snd8)
+    EndIf
+End Function
+
+Function PlaySfx(n)
+    Global sfxOn : Global snd1 : Global snd2 : Global snd3 : Global snd4 : Global snd5 : Global snd6 : Global snd7
+    If sfxOn = 0 Then Return
+    Select n
+        Case 1 : Sound.Play(snd1)
+        Case 2 : Sound.Play(snd2)
+        Case 3 : Sound.Play(snd3)
+        Case 4 : Sound.Play(snd4)
+        Case 5 : Sound.Play(snd5)
+        Case 6 : Sound.Play(snd6)
+        Case 7 : Sound.Play(snd7)
+    End Select
+End Function
+
+; ---------- HUD ----------
+; A blocky heart, filled by quarters
+; A 5x7 bitmap font, because the debug font cannot be scaled up
+Function BigText(s$, cx, y, sc, r, g, b, sr, sg, sb)
+    total = Len(s) * 6 * sc
+    x0 = cx - total / 2
+    For pass = 0 To 1
+        If pass = 0 Then
+            Color sr, sg, sb
+            off = sc / 2 + 1
+        Else
+            Color r, g, b
+            off = 0
+        EndIf
+        If pass = 1 Or sr + sg + sb > 0 Then
+            For i = 1 To Len(s)
+                g$ = Glyph$(Mid$(s, i, 1))
+                If Len(g) = 35 Then
+                    For k = 0 To 34
+                        If Mid$(g, k + 1, 1) = "1" Then
+                            Rect x0 + (i - 1) * 6 * sc + (k Mod 5) * sc + off, y + Int(k / 5) * sc + off, sc, sc, 1
+                        EndIf
+                    Next
+                EndIf
+            Next
+        EndIf
+    Next
+End Function
+
+; ---------- autopilot: plays through the slice and saves proof ----------
