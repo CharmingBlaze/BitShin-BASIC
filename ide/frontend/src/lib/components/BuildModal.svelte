@@ -43,8 +43,8 @@
   <div class="ide-modal md">
     <div class="ide-modal-head">
       <div>
-        <h2>Compile native executable</h2>
-        <p>Compile Blitz source code directly to a native machine-code binary (AOT) or Web export</p>
+        <h2>Build standalone game</h2>
+        <p>Makes a folder with your game's .exe and files. Zip it and share it: players need nothing else installed.</p>
       </div>
       <button class="ide-iconbtn" onclick={() => editorStore.showBuildModal = false}><X size={15} /></button>
     </div>
@@ -54,16 +54,19 @@
       {/if}
       <div>
         <div class="ide-label">Target platform</div>
-        <div class="grid grid-cols-4 gap-2">
-          {#each ['windows', 'linux', 'darwin', 'wasm'] as os}
+        <div class="grid grid-cols-3 gap-2">
+          {#each ['windows', 'linux', 'darwin'] as os}
             <button
               class="ide-btn {targetOS === os ? 'ide-choice is-on' : ''}"
               onclick={() => targetOS = os}
             >
-              {os === 'darwin' ? 'macOS' : (os === 'wasm' ? 'Web (WASM)' : os)}
+              {os === 'darwin' ? 'macOS' : (os === 'linux' ? 'Linux' : 'Windows')}
             </button>
           {/each}
         </div>
+        {#if targetOS !== 'windows'}
+          <p style="opacity: 0.7; margin-top: 6px">Build for Linux or macOS on that system, with moonBASIC for it.</p>
+        {/if}
       </div>
       <div>
         <label for="out-dir" class="ide-label">Output folder</label>

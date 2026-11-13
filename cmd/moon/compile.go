@@ -73,8 +73,12 @@ func runCompile(args []string) error {
 	if !ok {
 		// The SDK has no Go toolchain or source: package the game instead
 		fmt.Println("moon compile: no Go toolchain or moonBASIC source here; packaging with moon build instead")
-		name := strings.TrimSuffix(filepath.Base(absOut), filepath.Ext(absOut))
-		return runBuild([]string{src, "-o", filepath.Dir(absOut), "-name", name, "-os", targetOS, "-arch", targetArch})
+		args := []string{src, "-o", filepath.Dir(absOut), "-os", targetOS, "-arch", targetArch}
+		// A name other than the script's own wins over moon.json's
+		if name := strings.TrimSuffix(filepath.Base(absOut), filepath.Ext(absOut)); name != baseName {
+			args = append(args, "-name", name)
+		}
+		return runBuild(args)
 	}
 
 	// 1. Parse & expand includes

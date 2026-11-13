@@ -1,0 +1,35 @@
+GREENWOOD
+=========
+
+A hunting game. Hunt the forest island with your bow: four hares, three deer
+and two boar. When the hunt is done, the white stag comes out on the high ground.
+
+To play, double-click Greenwood.exe. Keep every file in this folder together.
+
+CONTROLS
+
+  W A S D, mouse       Move, turn the camera
+  Shift                Run (animals hear you from farther off)
+  C or Left Ctrl       Sneak: slow and quiet
+  Space                Roll
+  Right mouse or Q     Hold to lock on to the nearest animal ahead
+  Left mouse or F      Hold to draw the bow, let go to shoot
+  E                    Take what you hunted
+  Esc                  Quit
+
+TIPS
+
+  - A full draw flies faster and hits twice as hard.
+  - Locked on, your arrow leads a running animal for you.
+  - Deer bolt when they hear you, and the herd goes with them. Sneak up.
+  - Boar don't run. They charge. Roll out of the way.
+  - Missed arrows stick in the ground and trees: walk over them to pick them up.
+  - Sit by the campfire to heal.
+
+NEEDS
+
+  Windows 10 or 11 (64-bit) and a graphics driver with OpenGL 3.3.
+  If Windows says "Windows protected your PC", click More info, then Run anyway.
+  If the game closes at once, Greenwood.log in this folder says why.
+
+Made with moonBASIC.

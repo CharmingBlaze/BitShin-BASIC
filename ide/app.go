@@ -27,6 +27,7 @@ type App struct {
 	debugIn    io.WriteCloser
 	breaks     string
 	repoRoot   string
+	settings   string // preferences file; empty is .ide_settings.json in repoRoot
 	lspMu      sync.Mutex
 	lspCmd     *exec.Cmd
 	lspStdin   io.WriteCloser
@@ -41,6 +42,7 @@ func NewApp() *App {
 	return &App{
 		hub:      newEventHub(),
 		repoRoot: repoRoot,
+		settings: settingsPath(),
 	}
 }
 
@@ -228,14 +230,14 @@ func (a *App) RunProgram(code string, filePath string, debug bool) error {
 
 	moonExe := a.findMoonExecutable()
 	if moonExe == "" {
-		return fmt.Errorf("moon.exe not found. Build it with go build -o moon.exe ./cmd/moon")
+		return fmt.Errorf("moon.exe not found: it belongs in the bin folder beside moonBASIC.exe")
 	}
 
 	var runPath string
 	var workDir string
 
 	if strings.HasPrefix(filePath, "example://") || strings.HasPrefix(filePath, "temp://") {
-		tempDir := filepath.Join(a.repoRoot, "scratch")
+		tempDir := scratchDir()
 		_ = os.MkdirAll(tempDir, 0o755)
 		runPath = filepath.Join(tempDir, "_temp_run.mb")
 		if err := os.WriteFile(runPath, []byte(code), 0o644); err != nil {
@@ -250,7 +252,7 @@ func (a *App) RunProgram(code string, filePath string, debug bool) error {
 		}
 	} else {
 		// Temporary scratch file
-		tempDir := filepath.Join(a.repoRoot, "scratch")
+		tempDir := scratchDir()
 		_ = os.MkdirAll(tempDir, 0o755)
 		runPath = filepath.Join(tempDir, "_temp_run.mb")
 		if err := os.WriteFile(runPath, []byte(code), 0o644); err != nil {
@@ -465,6 +467,8 @@ func (a *App) BuildExecutable(filePath string, outputDir string, targetOS string
 
 func (a *App) findMoonExecutable() string {
 	candidates := []string{
+		filepath.Join(a.repoRoot, "bin", "moon.exe"),
+		filepath.Join(exeDir(), "bin", "moon.exe"),
 		filepath.Join(a.repoRoot, "moon.exe"),
 		filepath.Join(a.repoRoot, "moon"),
 		filepath.Join(a.repoRoot, "cmd", "moon", "moon.exe"),
@@ -509,9 +513,12 @@ type UserSettings struct {
 }
 
 func (a *App) GetSettings() UserSettings {
-	settingsFile := filepath.Join(a.repoRoot, ".ide_settings.json")
 	var s UserSettings
-	data, err := os.ReadFile(settingsFile)
+	data, err := os.ReadFile(a.settingsFile())
+	if err != nil && a.settings != "" {
+		// Settings from before they moved out of the install folder
+		data, err = os.ReadFile(filepath.Join(a.repoRoot, ".ide_settings.json"))
+	}
 	if err == nil {
 		_ = json.Unmarshal(data, &s)
 		return s
@@ -542,12 +549,15 @@ func (a *App) SaveSettings(s UserSettings) error {
 }
 
 func (a *App) writeSettings(s UserSettings) error {
-	settingsFile := filepath.Join(a.repoRoot, ".ide_settings.json")
 	data, err := json.MarshalIndent(s, "", "  ")
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(settingsFile, data, 0o644)
+	path := a.settingsFile()
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o644)
 }
 
 // scriptName is the name DebugLog, Assert, and the call stack report for an IDE run.

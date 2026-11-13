@@ -83,6 +83,8 @@ func (a *App) IsLspRunning() bool {
 
 func (a *App) resolveLanguageServer() (string, []string) {
 	candidates := []string{
+		filepath.Join(a.repoRoot, "bin", "moonsls.exe"),
+		filepath.Join(exeDir(), "bin", "moonsls.exe"),
 		filepath.Join(a.repoRoot, "moonsls.exe"),
 		filepath.Join(a.repoRoot, "moonsls"),
 		filepath.Join(".", "moonsls.exe"),

@@ -30,7 +30,21 @@ What prebuilt packaging cannot do: build for another OS or architecture, change 
 
 ## The SDK
 
-`scripts\package_sdk.ps1` writes `dist\moonBASIC-<version>-windows-amd64\` (stripped `moon.exe` and `moonsls.exe`, the IDE as a GUI program, the DLLs, `docs`, `examples`, `games`, `editors`) plus each game in `games\` as a standalone release build, and a zip of each. It needs Go with MinGW-w64 `gcc`, Node.js for the IDE frontend, and `ide\bin\neutralino-win_x64.exe` (`scripts\build_ide.ps1` fetches it).
+`scripts\package_sdk.ps1` writes `dist\moonBASIC-<version>-windows-amd64\`, laid out for someone who has never seen moonBASIC:
+
+```text
+moonBASIC.exe        the IDE, a GUI program: the one thing to open
+Start Here.html      GETTING_STARTED.md as a page
+LICENSE.txt
+docs\                every page here as HTML, with an index
+examples\  games\
+extras\vscode\       the VS Code extension
+bin\                 moon.exe and moonsls.exe (stripped), the DLLs, Neutralino and its config
+```
+
+The IDE finds its tools in `bin\` and writes nothing into its own folder: settings go to `%AppData%\moonBASIC`, the copy of an unsaved tab to `%Temp%\moonBASIC`, new projects to `Documents\moonBASIC Projects`. So the SDK runs from anywhere, Program Files included.
+
+The script also builds each game in `games\` as a standalone release build with the SDK's own `moon.exe` (prebuilt, as a user would), adds the game's `HOW_TO_PLAY.txt`, and zips every folder. It needs Go with MinGW-w64 `gcc`, Node.js for the IDE frontend, Python with `markdown` (`pip install markdown`) for the pages, and `ide\bin\neutralino-win_x64.exe` (`scripts\build_ide.ps1` fetches it).
 
 ### Flags
 

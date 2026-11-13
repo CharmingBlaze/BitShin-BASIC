@@ -32,6 +32,11 @@ Wend
 
 ## Install
 
+**Just want to make games?** Download the SDK zip from the releases, unzip it, and open `moonBASIC.exe`. [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) walks you from there to a game you can share. No Go or compiler needed.
+
+### From source
+
+
 Need Go 1.25+ and, to **build the windowed CLI**, a C compiler plus **OpenGL 3.3 core** (4.x optional — never required). See [docs/COMPAT.md](docs/COMPAT.md).
 
 ```powershell

@@ -85,7 +85,7 @@ func findNeutralinoConfig() (string, error) {
 		candidates = append(candidates, filepath.Join(root, "ide"))
 	}
 	if exe, err := os.Executable(); err == nil {
-		candidates = append(candidates, filepath.Dir(exe))
+		candidates = append(candidates, filepath.Join(filepath.Dir(exe), "bin"), filepath.Dir(exe))
 	}
 	for _, dir := range candidates {
 		if _, err := os.Stat(filepath.Join(dir, "neutralino.config.json")); err == nil {

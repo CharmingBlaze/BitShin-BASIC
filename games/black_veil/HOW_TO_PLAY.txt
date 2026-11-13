@@ -1,0 +1,25 @@
+THE BLACK VEIL
+==============
+
+An action-adventure. A night in the village of Black Hollow, a blade, a gun
+with few rounds, and something under the mill.
+
+To play, double-click "The Black Veil.exe". Keep every file in this folder together.
+
+CONTROLS
+
+  W A S D, mouse       Move, turn the camera
+  Left mouse or J      Ashen Blade (sword)
+  Right mouse or Q     Hold to target the nearest enemy
+  F                    Mourning Star (gun): rounds are few, so count them
+  Space                Roll
+  E                    Talk, open doors
+  Esc                  Quit
+
+NEEDS
+
+  Windows 10 or 11 (64-bit) and a graphics driver with OpenGL 3.3.
+  If Windows says "Windows protected your PC", click More info, then Run anyway.
+  If the game closes at once, "The Black Veil.log" in this folder says why.
+
+Made with moonBASIC.

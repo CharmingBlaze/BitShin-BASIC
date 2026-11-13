@@ -3,14 +3,22 @@
 #   .\scripts\package_sdk.ps1            # everything, into dist\
 #   .\scripts\package_sdk.ps1 -NoZip     # folders only
 #
-# Writes:
-#   dist\moonBASIC-<version>-windows-amd64\   compiler, language server, IDE, docs, examples, games
-#   dist\Greenwood-<version>-windows\         standalone game (release profile)
-#   dist\TheBlackVeil-<version>-windows\      standalone game (release profile)
-#   and a .zip of each.
+# The SDK folder a user unzips:
 #
-# Needs Go with a C compiler (MinGW-w64 gcc), and Node.js for the IDE frontend.
-# The SDK itself needs neither: its moon.exe packages games without Go (see docs/RELEASE.md).
+#   moonBASIC.exe        the IDE: the one thing to open
+#   Start Here.html      docs\GETTING_STARTED.md as a page
+#   LICENSE.txt
+#   docs\                every docs\*.md as a page, and an index
+#   examples\  games\    programs and games with source
+#   extras\vscode\       VS Code extension
+#   bin\                 moon.exe, moonsls.exe, the DLLs, the IDE's window (Neutralino)
+#
+# and each game in games\ as a standalone release build with its HOW_TO_PLAY.txt,
+# plus a .zip of each folder.
+#
+# Needs Go with a C compiler (MinGW-w64 gcc), Node.js for the IDE frontend,
+# Python with the markdown package for the pages, and ide\bin\neutralino-win_x64.exe
+# (.\scripts\build_ide.ps1 fetches it). The SDK itself needs none of these.
 
 param([switch]$NoZip)
 
@@ -20,8 +28,8 @@ Set-Location $root
 
 $version = (Select-String -Path "cmd\moon\main.go" -Pattern 'const version = "([^"]+)"').Matches[0].Groups[1].Value
 $distRoot = Join-Path $root "dist"
-$sdkName = "moonBASIC-$version-windows-amd64"
-$sdk = Join-Path $distRoot $sdkName
+$sdk = Join-Path $distRoot "moonBASIC-$version-windows-amd64"
+$bin = Join-Path $sdk "bin"
 
 function Invoke-Checked([string]$what, [scriptblock]$block) {
     & $block
@@ -43,7 +51,7 @@ function Copy-Clean([string]$from, [string]$to) {
     $skipDirs = @("shots", "node_modules", "dist")
     $skipFiles = @("*.flag", "run.out.txt", "run.err.txt", "*.log", "imgui.ini", ".moonbasic_run.mb")
     $base = (Resolve-Path $from).Path
-    Get-ChildItem $base -Recurse -File | ForEach-Object {
+    Get-ChildItem $base -Recurse -File -Force | ForEach-Object {
         $rel = $_.FullName.Substring($base.Length + 1)
         $parts = $rel.Split([IO.Path]::DirectorySeparatorChar)
         if ($parts.Count -gt 1 -and ($parts[0..($parts.Count - 2)] | Where-Object { $skipDirs -contains $_ })) { return }
@@ -56,12 +64,13 @@ function Copy-Clean([string]$from, [string]$to) {
 
 New-Item -ItemType Directory -Force -Path $distRoot | Out-Null
 Reset-Folder $sdk
+New-Item -ItemType Directory -Force -Path $bin | Out-Null
 
-Write-Host "1. Compiler and language server (stripped)..."
+Write-Host "1. Compiler and language server (stripped), into bin\..."
 $env:CGO_ENABLED = "1"
-Invoke-Checked "go build moon" { go build -trimpath -ldflags "-s -w" -o (Join-Path $sdk "moon.exe") ./cmd/moon }
-Invoke-Checked "go build moonsls" { go build -trimpath -ldflags "-s -w" -o (Join-Path $sdk "moonsls.exe") ./cmd/moonsls }
-Copy-Item "third_party\windows\*.dll" $sdk
+Invoke-Checked "go build moon" { go build -trimpath -ldflags "-s -w" -o (Join-Path $bin "moon.exe") ./cmd/moon }
+Invoke-Checked "go build moonsls" { go build -trimpath -ldflags "-s -w" -o (Join-Path $bin "moonsls.exe") ./cmd/moonsls }
+Copy-Item "third_party\windows\*.dll" $bin
 
 Write-Host "2. IDE..."
 $neu = Join-Path $root "ide\bin\neutralino-win_x64.exe"
@@ -74,18 +83,17 @@ try {
 Push-Location "ide"
 try {
     # A GUI program: no console window behind the IDE
-    Invoke-Checked "go build ide" { go build -trimpath -ldflags "-s -w -H windowsgui" -o (Join-Path $sdk "moonbasic.exe") . }
+    Invoke-Checked "go build ide" { go build -trimpath -ldflags "-s -w -H windowsgui" -o (Join-Path $sdk "moonBASIC.exe") . }
 } finally { Pop-Location }
-Copy-Item $neu $sdk
-Copy-Item "ide\neutralino.config.json" $sdk
+Copy-Item $neu $bin
+Copy-Item "ide\neutralino.config.json" $bin
 
-Write-Host "3. Docs, examples, games, editor support..."
-Copy-Clean "docs" (Join-Path $sdk "docs")
+Write-Host "3. Pages, examples, games, extras..."
+Invoke-Checked "docs_to_html" { python scripts\docs_to_html.py docs $sdk }
 Copy-Clean "examples" (Join-Path $sdk "examples")
 Copy-Clean "games" (Join-Path $sdk "games")
-Copy-Clean "editors" (Join-Path $sdk "editors")
-Copy-Item README.md, LICENSE $sdk
-Copy-Item "scripts\SDK_README.txt" (Join-Path $sdk "START_HERE.txt")
+Copy-Clean "editors\vscode" (Join-Path $sdk "extras\vscode")
+Copy-Item LICENSE (Join-Path $sdk "LICENSE.txt")
 
 Write-Host "4. Standalone games, packaged by the SDK's own moon.exe (no Go)..."
 $games = @(
@@ -98,8 +106,10 @@ foreach ($g in $games) {
     Reset-Folder $out
     $env:MOON_BUILD_PREBUILT = "1"
     try {
-        Invoke-Checked "moon build $($g.Name)" { & (Join-Path $sdk "moon.exe") build (Join-Path $g.Dir "main.mb") -o $out -profile release }
+        Invoke-Checked "moon build $($g.Name)" { & (Join-Path $bin "moon.exe") build (Join-Path $g.Dir "main.mb") -o $out -profile release }
     } finally { Remove-Item Env:MOON_BUILD_PREBUILT }
+    $howTo = Join-Path $g.Dir "HOW_TO_PLAY.txt"
+    if (Test-Path $howTo) { Copy-Item $howTo $out }
     $outputs += $out
 }
 
