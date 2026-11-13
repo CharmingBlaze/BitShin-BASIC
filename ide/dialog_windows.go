@@ -11,6 +11,7 @@ import (
 
 func runDialog(script string, env []string) (string, error) {
 	cmd := exec.Command("powershell", "-STA", "-NoProfile", "-Command", "-")
+	noConsole(cmd)
 	cmd.Stdin = strings.NewReader(script)
 	cmd.Env = append(os.Environ(), env...)
 	var out bytes.Buffer

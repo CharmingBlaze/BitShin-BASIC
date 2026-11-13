@@ -409,3 +409,9 @@ func (a *App) WindowClose() {
 		_ = a.neuCmd.Process.Kill()
 	}
 }
+
+// noConsole starts a console program (moon, the language server, PowerShell)
+// without a console window, since the IDE itself is a GUI program.
+func noConsole(cmd *exec.Cmd) {
+	cmd.SysProcAttr = &syscall.SysProcAttr{CreationFlags: 0x08000000} // CREATE_NO_WINDOW
+}

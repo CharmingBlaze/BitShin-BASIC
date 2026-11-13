@@ -17,6 +17,7 @@ func (a *App) startLanguageServer() {
 		return
 	}
 	cmd := exec.Command(exe, args...)
+	noConsole(cmd)
 	cmd.Dir = a.repoRoot
 	stdin, err := cmd.StdinPipe()
 	if err != nil {

@@ -69,12 +69,12 @@ func runCompile(args []string) error {
 		return err
 	}
 
-	root := findGoModRoot(".")
-	if root == "" {
-		root = findGoModRoot(exeDir())
-	}
-	if root == "" {
-		root = "."
+	root, ok := canCompileFromSource()
+	if !ok {
+		// The SDK has no Go toolchain or source: package the game instead
+		fmt.Println("moon compile: no Go toolchain or moonBASIC source here; packaging with moon build instead")
+		name := strings.TrimSuffix(filepath.Base(absOut), filepath.Ext(absOut))
+		return runBuild([]string{src, "-o", filepath.Dir(absOut), "-name", name, "-os", targetOS, "-arch", targetArch})
 	}
 
 	// 1. Parse & expand includes

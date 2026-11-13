@@ -12,7 +12,7 @@ On the **same OS** you want to ship:
 moon build game.mb -o dist
 ```
 
-Run it from the moonBASIC source root (it runs `go build ./cmd/moon`). That writes:
+With Go and the moonBASIC source (run from anywhere inside the source tree) it runs `go build ./cmd/moon`. Without them, as in the SDK, it packages its own binary instead: see [Prebuilt packaging](#prebuilt-packaging). Either way it writes:
 
 - `moon` / `moon.exe`, or `<name>.exe` with `-name` or a `moon.json` name: the interpreter (CGO: G3N, ImGui, Flecs, Jolt) with the game's script stamped in, so a double-click runs it. `game.exe other.mb` still runs another script
 - `game.mb` and every `.mb` it names (`Include`), always as loose files
@@ -21,6 +21,16 @@ Run it from the moonBASIC source root (it runs `go build ./cmd/moon`). That writ
 - Linux/macOS: optional `.so` / `.dylib` from `third_party/linux` or `third_party/darwin`
 
 Cross-compiling CGO usually **fails** without a target toolchain; `moon build` no longer copies the host binary as a fake. Build on Windows for Windows, on Linux for Linux, on a Mac for macOS.
+
+### Prebuilt packaging
+
+The SDK has no Go toolchain and no source, so its `moon build` (and `moon compile`) copies the running `moon.exe` and stamps the game into it: the boot script and profile go into a short trailer at the end of the file, and on Windows the icon and version info are written into the exe's resources, and the console window is dropped for the `release` profile. The game runs the same as a compiled one.
+
+What prebuilt packaging cannot do: build for another OS or architecture, change build tags (`-tags enet`), or strip a binary that was not already stripped (the SDK's is). Those need Go and the source. `MOON_BUILD_PREBUILT=1` forces prebuilt packaging in a source tree, to try it.
+
+## The SDK
+
+`scripts\package_sdk.ps1` writes `dist\moonBASIC-<version>-windows-amd64\` (stripped `moon.exe` and `moonsls.exe`, the IDE as a GUI program, the DLLs, `docs`, `examples`, `games`, `editors`) plus each game in `games\` as a standalone release build, and a zip of each. It needs Go with MinGW-w64 `gcc`, Node.js for the IDE frontend, and `ide\bin\neutralino-win_x64.exe` (`scripts\build_ide.ps1` fetches it).
 
 ### Flags
 

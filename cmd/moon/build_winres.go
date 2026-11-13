@@ -12,7 +12,6 @@ import (
 	"strings"
 
 	"github.com/tc-hib/winres"
-	winver "github.com/tc-hib/winres/version"
 )
 
 // sysoName is the resource object moon build drops into cmd/moon for one
@@ -45,26 +44,7 @@ func windowsResources(o buildOpts) ([]byte, error) {
 			return nil, fmt.Errorf("icon %s: %w", o.icon, err)
 		}
 	}
-	vi := winver.Info{}
-	exe := o.exeName + ".exe"
-	fields := map[string]string{
-		winver.ProductName:      o.appName,
-		winver.FileDescription:  o.appName,
-		winver.CompanyName:      o.company,
-		winver.InternalName:     o.exeName,
-		winver.OriginalFilename: exe,
-		winver.Comments:         "Made with moonBASIC",
-	}
-	for k, v := range fields {
-		if v != "" {
-			if err := vi.Set(winver.LangDefault, k, v); err != nil {
-				return nil, err
-			}
-		}
-	}
-	vi.SetFileVersion(o.version)
-	vi.SetProductVersion(o.version)
-	rs.SetVersionInfo(vi)
+	rs.SetVersionInfo(versionInfo(o))
 	var buf bytes.Buffer
 	if err := rs.WriteObject(&buf, arch); err != nil {
 		return nil, err
@@ -74,12 +54,12 @@ func windowsResources(o buildOpts) ([]byte, error) {
 
 // writeWindowsResources writes the resource object into cmd/moon and returns
 // its path; the caller removes it after go build.
-func writeWindowsResources(o buildOpts) (string, error) {
+func writeWindowsResources(o buildOpts, root string) (string, error) {
 	obj, err := windowsResources(o)
 	if err != nil {
 		return "", err
 	}
-	path := filepath.Join("cmd", "moon", sysoName(o.targetArch))
+	path := filepath.Join(root, "cmd", "moon", sysoName(o.targetArch))
 	if err := os.WriteFile(path, obj, 0o644); err != nil {
 		return "", fmt.Errorf("resources: %w (run moon build from the moonBASIC source root)", err)
 	}

@@ -25,6 +25,9 @@ var (
 
 func main() {
 	args := os.Args[1:]
+	if bootScript == "" {
+		readBootTrailer()
+	}
 	if bootScript != "" && (len(args) == 0 || args[0] == "-headless" || args[0] == "-debug") {
 		os.Exit(runBoot(args))
 	}

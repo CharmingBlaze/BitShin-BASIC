@@ -56,46 +56,23 @@ func runBuild(args []string) error {
 	if o.targetOS == "wasm" {
 		return buildWasmBundle(o.src, o.outDir)
 	}
-	if o.targetOS == "linux" || o.targetOS == "darwin" {
-		root, err := os.Getwd()
-		if err != nil {
-			return err
-		}
-		if err := joltstage.Stage(root); err != nil {
-			return fmt.Errorf("moon build: %w", err)
-		}
-	}
-	if o.targetOS == "windows" {
-		syso, err := writeWindowsResources(o)
-		if err != nil {
-			return fmt.Errorf("moon build: %w", err)
-		}
-		defer os.Remove(syso)
-	} else if o.icon != "" {
-		fmt.Fprintln(os.Stderr, "moon build: -icon is embedded on Windows only")
-	}
 	binName := o.exeName
 	if o.targetOS == "windows" {
 		binName += ".exe"
 	}
-	binPath := filepath.Join(o.outDir, binName)
-	cmd := exec.Command("go", goBuildArgs(o, binPath)...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	env := append([]string{}, os.Environ()...)
-	env = append(env, "CGO_ENABLED=1")
-	if o.targetOS != runtime.GOOS {
-		env = append(env, "GOOS="+o.targetOS)
+	binPath, err := filepath.Abs(filepath.Join(o.outDir, binName))
+	if err != nil {
+		return err
 	}
-	if o.targetArch != runtime.GOARCH {
-		env = append(env, "GOARCH="+o.targetArch)
-	}
-	cmd.Env = env
-	if err := cmd.Run(); err != nil {
-		if o.targetOS != runtime.GOOS || o.targetArch != runtime.GOARCH {
-			return fmt.Errorf("moon build: CGO cross-compile failed for %s/%s — build on that OS (see docs/RELEASE.md): %w", o.targetOS, o.targetArch, err)
+	if root, ok := canCompileFromSource(); ok {
+		if err := compileGameBinary(o, root, binPath); err != nil {
+			return err
 		}
-		return fmt.Errorf("moon build: compile: %w", err)
+	} else {
+		if err := writePrebuiltBinary(o, binPath); err != nil {
+			return err
+		}
+		fmt.Println("moon build: packaged this moon binary (prebuilt: no go build)")
 	}
 	base := filepath.Dir(o.src)
 	for _, rel := range scan.scripts {
@@ -134,6 +111,45 @@ func runBuild(args []string) error {
 	}
 	fmt.Printf("Wrote %s (%s profile: %s, %s)\n", o.outDir, o.profile, binName, how)
 	fmt.Println("Zip that folder and send it. Run the binary from that folder (natives stay next to it).")
+	return nil
+}
+
+// compileGameBinary runs go build in the moonBASIC source root, with the
+// boot script, profile, icon, and version stamped in.
+func compileGameBinary(o buildOpts, root, binPath string) error {
+	if o.targetOS == "linux" || o.targetOS == "darwin" {
+		if err := joltstage.Stage(root); err != nil {
+			return fmt.Errorf("moon build: %w", err)
+		}
+	}
+	if o.targetOS == "windows" {
+		syso, err := writeWindowsResources(o, root)
+		if err != nil {
+			return fmt.Errorf("moon build: %w", err)
+		}
+		defer os.Remove(syso)
+	} else if o.icon != "" {
+		fmt.Fprintln(os.Stderr, "moon build: -icon is embedded on Windows only")
+	}
+	cmd := exec.Command("go", goBuildArgs(o, binPath)...)
+	cmd.Dir = root
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	env := append([]string{}, os.Environ()...)
+	env = append(env, "CGO_ENABLED=1")
+	if o.targetOS != runtime.GOOS {
+		env = append(env, "GOOS="+o.targetOS)
+	}
+	if o.targetArch != runtime.GOARCH {
+		env = append(env, "GOARCH="+o.targetArch)
+	}
+	cmd.Env = env
+	if err := cmd.Run(); err != nil {
+		if o.targetOS != runtime.GOOS || o.targetArch != runtime.GOARCH {
+			return fmt.Errorf("moon build: CGO cross-compile failed for %s/%s — build on that OS (see docs/RELEASE.md): %w", o.targetOS, o.targetArch, err)
+		}
+		return fmt.Errorf("moon build: compile: %w", err)
+	}
 	return nil
 }
 
@@ -308,6 +324,8 @@ func windowsDLLSearchDirs() []string {
 			add(filepath.Join(root, "third_party", "windows"))
 		}
 	}
+	// The SDK keeps the DLLs beside moon.exe
+	add(exeDir())
 	if p, err := exec.LookPath("gcc"); err == nil {
 		add(filepath.Dir(p))
 	}

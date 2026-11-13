@@ -65,6 +65,7 @@ func (a *App) OpenSceneEditor(file, projectRoot string) (SceneEditorResult, erro
 		args = append(args, "-project", root)
 	}
 	cmd := exec.Command(moonExe, args...)
+	noConsole(cmd)
 	// MOON_IDE makes the editor hand Play to the IDE (an @editor play line)
 	// instead of starting the game itself.
 	cmd.Env = append(os.Environ(), "MOON_IDE=1")

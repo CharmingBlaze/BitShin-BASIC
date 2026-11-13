@@ -270,6 +270,7 @@ func (a *App) RunProgram(code string, filePath string, debug bool) error {
 		}
 	}
 	cmd := exec.Command(moonExe, runArgs...)
+	noConsole(cmd)
 	cmd.Dir = workDir
 	// DebugLog shows in the Output panel for every IDE run; errors name the tab, not the temp file.
 	cmd.Env = append(os.Environ(), "MOON_DEBUG=1", "MOON_SCRIPT_NAME="+scriptName(filePath, runPath))
@@ -453,6 +454,7 @@ func (a *App) BuildExecutable(filePath string, outputDir string, targetOS string
 	}
 
 	cmd := exec.Command(moonExe, args...)
+	noConsole(cmd)
 	cmd.Dir = filepath.Dir(filePath)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
