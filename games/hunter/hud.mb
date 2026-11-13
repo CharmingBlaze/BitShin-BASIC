@@ -1,0 +1,314 @@
+; Greenwood HUD: hearts, the hunt, the quiver, a compass, and a blocky font drawn from rects.
+
+Function DrawHud()
+    Global gs : Global hearts : Global maxHearts : Global barH : Global fade : Global arrows : Global msg : Global msgT
+    Global msgBig : Global gameT : Global titleT : Global endT : Global storyI : Global drawT : Global targeting
+    Global target : Global crouch : Global camYaw : Global px : Global pz : Global whiteOut : Global whiteI
+
+    If barH > 0.5 Then
+        Color 0, 0, 0
+        Rect 0, 0, 1280, barH, 1
+        Rect 0, 720 - barH, 1280, barH, 1
+    EndIf
+
+    If gs = 0 Then
+        Color 0, 0, 0
+        SetAlpha(0.45)
+        Rect 0, 196, 1280, 176, 1
+        SetAlpha(1)
+        BigText("GREENWOOD", 640, 214, 12, 236, 228, 196, 34, 52, 30)
+        BigText("A HUNTING TALE", 640, 316, 3, 200, 222, 170, 0, 0, 0)
+        If Int(titleT * 2) Mod 2 = 0 Then BigText("PRESS E OR CLICK", 640, 600, 3, 236, 228, 196, 20, 30, 18)
+    ElseIf gs = 2 Then
+        StoryBox()
+    ElseIf gs = 4 Then
+        If endT > 1.5 Then BigText("THE WHITE STAG", 640, 230, 7, 248, 246, 236, 40, 52, 46)
+        If endT > 3 Then BigText("IS GONE INTO THE LIGHT", 640, 312, 3, 226, 222, 196, 0, 0, 0)
+        If endT > 5 Then BigText("YOU ARE THE HUNTER OF GREENWOOD", 640, 372, 3, 214, 196, 120, 0, 0, 0)
+        If endT > 7 Then BigText("THANK YOU FOR PLAYING", 640, 620, 2, 200, 210, 190, 0, 0, 0)
+    Else
+        DrawHearts(34, 30)
+        DrawTally()
+        DrawQuiver()
+        DrawCompass()
+
+        ; Crosshair and draw strength when aiming by hand
+        If drawT >= 0 Then
+            p# = Min(1, drawT / 0.65)
+            If targeting = 0 Or target = 0 Then
+                Color 255, 255, 255
+                SetAlpha(0.85)
+                Rect 639, 352, 2, 6, 1
+                Rect 639, 362, 2, 6, 1
+                Rect 632, 359, 6, 2, 1
+                Rect 642, 359, 6, 2, 1
+            EndIf
+            Color 0, 0, 0
+            SetAlpha(0.5)
+            Rect 590, 392, 100, 6, 1
+            SetAlpha(1)
+            If p >= 1 Then Color 255, 226, 120 Else Color 226, 236, 210
+            Rect 590, 392, 100 * p, 6, 1
+        EndIf
+
+        If crouch Then Say("SNEAKING", 34, 84, 2, 186, 210, 170)
+
+        lab$ = ""
+        i = TakeableNear()
+        If i > 0 Then lab = "[E] TAKE"
+        If Len(lab) > 0 Then
+            Color 0, 0, 0
+            SetAlpha(0.6)
+            Rect 560, 600, 160, 34, 1
+            SetAlpha(1)
+            Say(lab, 588, 609, 2, 248, 240, 214)
+        EndIf
+
+        If msgT > 0 Then
+            msgT = msgT - DeltaTime()
+            w = Len(msg) * 18 + 60
+            Color 6, 14, 8
+            SetAlpha(0.7)
+            Rect 640 - w / 2, 520, w, 50, 1
+            SetAlpha(1)
+            Color 214, 196, 120
+            Rect 640 - w / 2, 520, w, 50, 0
+            BigText(msg, 640, 535, 3, 248, 240, 214, 0, 0, 0)
+        EndIf
+    EndIf
+
+    If gs = 3 Then
+        BigText("YOU FAINTED", 640, 270, 8, 226, 214, 190, 40, 20, 10)
+        If endT > 1.4 Then BigText("PRESS E TO WAKE BY THE FIRE", 640, 370, 3, 226, 232, 228, 0, 0, 0)
+    EndIf
+
+    If fade > 0.01 Then
+        Color 0, 0, 0
+        SetAlpha(fade)
+        Rect 0, 0, 1280, 720, 1
+        SetAlpha(1)
+    EndIf
+End Function
+
+; Three hearts, each in halves
+Function DrawHearts(x, y)
+    Global hearts : Global maxHearts
+    n = maxHearts / 2
+    For i = 0 To n - 1
+        v = hearts - i * 2
+        Heart(x + i * 38, y, v)
+    Next
+End Function
+
+; A pixel heart, 7 by 6. Full, half (left side), or empty.
+Function Heart(x, y, v)
+    shape$ = "011011011111111111111011111000111000001000"
+    sc = 4
+    For k = 0 To 41
+        cx = k Mod 7
+        cy = Int(k / 7)
+        If Mid$(shape, k + 1, 1) = "1" Then
+            filled = v >= 2 Or (v = 1 And cx < 4)
+            Color 40, 8, 10
+            Rect x + cx * sc + 2, y + cy * sc + 2, sc, sc, 1
+            If filled Then Color 228, 38, 50 Else Color 70, 30, 30
+            Rect x + cx * sc, y + cy * sc, sc, sc, 1
+        EndIf
+    Next
+    If v >= 1 Then
+        Color 255, 160, 160
+        Rect x + sc, y + sc, sc, sc, 1
+    EndIf
+End Function
+
+Function DrawTally()
+    Global whiteOut
+    x = 1000
+    y = 26
+    Color 6, 14, 8
+    SetAlpha(0.55)
+    Rect x - 14, y - 10, 280, 96, 1
+    SetAlpha(1)
+    Say("THE HUNT", x, y, 2, 214, 196, 120)
+    Row(x, y + 24, "HARE", 1)
+    Row(x, y + 44, "DEER", 2)
+    Row(x, y + 64, "BOAR", 3)
+    If whiteOut Then BigText("FIND THE WHITE STAG", 640, 56, 2, 248, 246, 236, 20, 30, 18)
+End Function
+
+Function Row(x, y, name$, s)
+    r = 226 : g = 236 : b = 210
+    If got(s) >= quota(s) Then
+        r = 140 : g = 226 : b = 120
+    EndIf
+    Say(name, x, y, 2, r, g, b)
+    Say(Str(Min(got(s), quota(s))) + " / " + Str(quota(s)), x + 150, y, 2, r, g, b)
+End Function
+
+Function DrawQuiver()
+    Global arrows
+    x = 1104
+    y = 628
+    Color 6, 14, 8
+    SetAlpha(0.6)
+    Rect x, y, 150, 62, 1
+    SetAlpha(1)
+    Color 214, 196, 120
+    Rect x, y, 150, 62, 0
+    ; An arrow drawn across the box
+    Color 196, 172, 132
+    Rect x + 16, y + 30, 54, 3, 1
+    Color 160, 166, 176
+    Rect x + 70, y + 28, 8, 7, 1
+    Color 196, 54, 44
+    Rect x + 12, y + 26, 10, 3, 1
+    Rect x + 12, y + 34, 10, 3, 1
+    a$ = Str(arrows)
+    If arrows < 10 Then a = "0" + a
+    c = 248
+    If arrows = 0 Then c = 120
+    Say(a, x + 92, y + 18, 4, c, c - 8, c - 34)
+    Say("LMB", x + 16, y + 44, 1, 186, 200, 170)
+End Function
+
+; A strip across the top: which way you face, the camp, and the white stag once it is out.
+Function DrawCompass()
+    Global camYaw : Global px : Global pz : Global whiteOut : Global whiteI
+    cx = 640
+    y = 18
+    w = 360
+    Color 6, 14, 8
+    SetAlpha(0.45)
+    Rect cx - w / 2, y, w, 18, 1
+    SetAlpha(1)
+    For k = 0 To 3
+        d# = AngleDiff(camYaw, k * 90)
+        If Math.Abs(d) < 80 Then
+            l$ = Mid$("NESW", k + 1, 1)
+            Say(l, cx + d * 2.2 - 5, y + 2, 2, 226, 236, 210)
+        EndIf
+    Next
+    d = AngleDiff(camYaw, Math.ATan2(18 - px, 202 - pz))
+    If Math.Abs(d) < 80 Then
+        Color 255, 150, 60
+        Rect cx + d * 2.2 - 4, y + 20, 8, 8, 1
+    EndIf
+    If whiteOut And whiteI > 0 Then
+        If aState(whiteI) < 6 Then
+            d = AngleDiff(camYaw, Math.ATan2(aX(whiteI) - px, aZ(whiteI) - pz))
+            If Math.Abs(d) < 80 Then
+                Color 255, 255, 255
+                Rect cx + d * 2.2 - 4, y + 20, 8, 8, 1
+            EndIf
+        EndIf
+    EndIf
+End Function
+
+Function StoryBox()
+    Global storyI : Global gameT
+    Color 6, 14, 8
+    SetAlpha(0.78)
+    Rect 190, 520, 900, 140, 1
+    SetAlpha(1)
+    Color 214, 196, 120
+    Rect 190, 520, 900, 140, 0
+    a$ = ""
+    b$ = ""
+    c$ = ""
+    Select storyI
+        Case 1
+            a = "THE WINTER WILL BE LONG. THE VILLAGE NEEDS MEAT AND HIDES."
+            b = "TAKE YOUR BOW INTO GREENWOOD: FOUR HARES, THREE DEER,"
+            c = "AND TWO BOAR. COME BACK TO THE FIRE TO REST."
+        Case 2
+            a = "HOLD THE RIGHT MOUSE BUTTON TO LOCK ON. HOLD THE LEFT"
+            b = "TO DRAW, LET GO TO SHOOT. A FULL DRAW FLIES FASTER."
+            c = "WITHOUT A LOCK, AIM WITH THE MOUSE THROUGH THE CROSS."
+        Case 3
+            a = "DEER HEAR YOU RUN. PRESS C TO SNEAK. BOAR DO NOT RUN"
+            b = "FROM YOU: ROLL AWAY WITH SPACE. WALK OVER YOUR ARROWS"
+            c = "TO TAKE THEM BACK, AND PRESS E TO TAKE WHAT YOU HUNT."
+    End Select
+    Say(a, 220, 544, 2, 236, 232, 214)
+    Say(b, 220, 574, 2, 236, 232, 214)
+    Say(c, 220, 604, 2, 236, 232, 214)
+    If Int(gameT * 3) Mod 2 = 0 Then
+        Color 214, 196, 120
+        Rect 1056, 636, 14, 10, 1
+    EndIf
+End Function
+
+; Left-aligned block text
+Function Say(s$, x, y, sc, r, g, b)
+    u$ = Upper$(s)
+    Color r, g, b
+    For i = 1 To Len(u)
+        g2$ = Glyph$(Mid$(u, i, 1))
+        If Len(g2) = 35 Then
+            ox = x + (i - 1) * 6 * sc
+            For k = 0 To 34
+                If Mid$(g2, k + 1, 1) = "1" Then Rect ox + (k Mod 5) * sc, y + Int(k / 5) * sc, sc, sc, 1
+            Next
+        EndIf
+    Next
+End Function
+
+; Centered block text with a drop shadow
+Function BigText(s$, cx, y, sc, r, g, b, sr, sg, sb)
+    total = Len(s) * 6 * sc
+    x0 = cx - total / 2
+    If sr + sg + sb > 0 Then Say(s, x0 + sc / 2 + 1, y + sc / 2 + 1, sc, sr, sg, sb)
+    Say(s, x0, y, sc, r, g, b)
+End Function
+
+Function Glyph$(c$)
+    Select c
+        Case "A" : Return "01110100011000111111100011000110001"
+        Case "B" : Return "11110100011000111110100011000111110"
+        Case "C" : Return "01110100011000010000100001000101110"
+        Case "D" : Return "11110100011000110001100011000111110"
+        Case "E" : Return "11111100001000011110100001000011111"
+        Case "F" : Return "11111100001000011110100001000010000"
+        Case "G" : Return "01110100011000010111100011000101110"
+        Case "H" : Return "10001100011000111111100011000110001"
+        Case "I" : Return "01110001000010000100001000010001110"
+        Case "J" : Return "00111000100001000010000101001001100"
+        Case "K" : Return "10001100101010011000101001001010001"
+        Case "L" : Return "10000100001000010000100001000011111"
+        Case "M" : Return "10001110111010110101100011000110001"
+        Case "N" : Return "10001110011010110011100011000110001"
+        Case "O" : Return "01110100011000110001100011000101110"
+        Case "P" : Return "11110100011000111110100001000010000"
+        Case "Q" : Return "01110100011000110001101011001001101"
+        Case "R" : Return "11110100011000111110101001001010001"
+        Case "S" : Return "01111100001000001110000010000111110"
+        Case "T" : Return "11111001000010000100001000010000100"
+        Case "U" : Return "10001100011000110001100011000101110"
+        Case "V" : Return "10001100011000110001100010101000100"
+        Case "W" : Return "10001100011000110101101011101110001"
+        Case "X" : Return "10001100010101000100010101000110001"
+        Case "Y" : Return "10001100010101000100001000010000100"
+        Case "Z" : Return "11111000010001000100010001000011111"
+        Case "0" : Return "01110100011001110101110011000101110"
+        Case "1" : Return "00100011000010000100001000010001110"
+        Case "2" : Return "01110100010000100110010001000011111"
+        Case "3" : Return "11110000010000101110000010000111110"
+        Case "4" : Return "00010001100101010010111110001000010"
+        Case "5" : Return "11111100001111000001000011000101110"
+        Case "6" : Return "01110100001000011110100011000101110"
+        Case "7" : Return "11111000010001000100010000100001000"
+        Case "8" : Return "01110100011000101110100011000101110"
+        Case "9" : Return "01110100011000101111000010000101110"
+        Case "." : Return "00000000000000000000000000110001100"
+        Case "," : Return "00000000000000000000001100010001000"
+        Case "!" : Return "00100001000010000100001000000000100"
+        Case "?" : Return "01110100010000100110001000000000100"
+        Case "'" : Return "00100001000100000000000000000000000"
+        Case ":" : Return "00000011000110000000011000110000000"
+        Case "-" : Return "00000000000000011111000000000000000"
+        Case "/" : Return "00001000100001000100010001000010000"
+        Case "[" : Return "01110010000100001000010000100001110"
+        Case "]" : Return "01110000100001000010000100001001110"
+    End Select
+    Return ""
+End Function

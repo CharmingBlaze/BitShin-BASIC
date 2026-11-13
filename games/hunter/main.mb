@@ -1,0 +1,1512 @@
+; GREENWOOD - a hunting game in the style of the old 3D adventures.
+; WASD move, mouse look, Shift run, C sneak, Space roll.
+; Hold the right mouse button (or Q) to lock on, hold the left button (or F) to draw the bow, let go to shoot.
+; E takes what you hunted. Esc quits.
+
+SetWindowTitle("Greenwood")
+Graphics3D(1280, 720)
+HidePointer()
+MoveMouse(640, 360)
+SeedRnd(64)
+Include "chars.mb"
+Include "hud.mb"
+
+; ---------- tables ----------
+Const MAXA = 32
+Dim aE(MAXA)
+Dim aKind(MAXA)       ; 1 hare, 2 doe, 3 stag, 4 boar, 5 the white stag
+Dim aX(MAXA)
+Dim aY(MAXA)
+Dim aZ(MAXA)
+Dim aYaw(MAXA)
+Dim aSpd(MAXA)
+Dim aState(MAXA)      ; 0 graze, 1 wander, 2 alert, 3 flee, 4 charge, 5 down, 6 taken
+Dim aT(MAXA)
+Dim aHP(MAXA)
+Dim aGX(MAXA)
+Dim aGZ(MAXA)
+Dim aGait(MAXA)
+Dim aHeadP(MAXA)
+Dim aFall(MAXA)
+Dim aHerd(MAXA)
+Dim aFlash(MAXA)
+Dim aWatch(MAXA)
+Dim dLegA(MAXA)
+Dim dLegB(MAXA)
+Dim dHead(MAXA)
+nA = 0
+
+Const MAXR = 40
+Dim arE(MAXR)
+Dim arX(MAXR)
+Dim arY(MAXR)
+Dim arZ(MAXR)
+Dim arVX(MAXR)
+Dim arVY(MAXR)
+Dim arVZ(MAXR)
+Dim arState(MAXR)      ; 0 free, 1 flying, 2 stuck in the world, 3 stuck in an animal
+Dim arT(MAXR)
+Dim arA(MAXR)
+Dim arOX(MAXR)
+Dim arOY(MAXR)
+Dim arOZ(MAXR)
+Dim arP(MAXR)         ; how far it was drawn
+
+Dim quota(5)
+Dim got(5)
+quota(1) = 4
+quota(2) = 3
+quota(3) = 2
+
+; ---------- state ----------
+gs = 0                ; 0 title, 1 play, 2 story text, 3 fainted, 4 the end
+hearts = 6            ; in halves
+maxHearts = 6
+arrows = 20
+sea# = 48
+px# = 22
+pz# = 206
+py# = 60
+yaw# = 200
+camYaw# = 200
+camPitch# = 14
+camX# = 0
+camY# = 70
+camZ# = 0
+aimPitch# = 0
+walkT# = 0
+rollT# = -1
+rollDX# = 0
+rollDZ# = 0
+kbX# = 0
+kbZ# = 0
+invuln# = 0
+crouch = 0
+drawT# = -1
+drawSnd = 0
+target = 0
+targeting = 0
+barH# = 0
+shake# = 0
+noise# = 1
+msg$ = ""
+msgT# = 0
+msgBig = 0
+gameT# = 0
+titleT# = 0
+endT# = 0
+fade# = 1
+fadeTarget# = 0
+whiteOut = 0
+whiteI = 0
+storyI = 0
+frame = 0
+outX# = 0
+outZ# = 0
+moving = 0
+heroSpd# = 0
+autoplay = FileType("autoplay.flag") = 1
+closeKind = 0
+deafTest = FileType("deaf.flag") = 1
+If deafTest Then autoplay = 1
+For k = 1 To 7
+    If FileType("closeup" + Str(k) + ".flag") = 1 Then
+        closeKind = k
+        autoplay = 1
+    EndIf
+Next
+autoT# = 0
+autoT2# = 0
+autoA = 0
+healT# = 0
+sfxOn = 0
+
+inFwd# = 0
+inSide# = 0
+btnRun = 0
+btnRoll = 0
+btnTake = 0
+btnDraw = 0
+btnLock = 0
+
+; ---------- the world ----------
+cam = CreateCamera()
+SetCameraRange(cam, 0.1, 1800)
+sun = CreateDirectionalLight()
+SetLightDirection(sun, 26, 52, 0)
+SetLightColor(sun, 255, 226, 182)
+SetLook "modern"
+SetShadowDistance(320)
+SetBloom 0.14
+SetLightShafts(True, 1.15)
+SetSkyGradient(104, 156, 214, 232, 214, 190)
+SetFog(208, 206, 196, 160, 1150)
+SetClouds(0.3, 0.7, 0.12)
+
+hm = GenerateHeightmapPreset("mountain-island", 256, 256, 2026)
+HydraulicErodeHeightmap(hm, 3200, 24)
+ground = CreateTerrainFromHeightmap(hm, 800, 800, 160)
+ApplyTerrainSplat(ground)
+BakeTerrain(ground)
+SetTerrainGrassCoverage(ground, 0.24)
+SetTerrainWaterHeight(ground, sea + 0.8)
+SetTerrainBlend(ground, 1.2)
+SetTerrainRockColor(ground, 138, 120, 98)
+SetTerrainSnow(True, 132)
+SetTerrainStreamRadius(ground, 5)
+
+water = CreateWater(4096, 4096, 96)
+SetWaterLevel(sea)
+SetWaterStyle("ocean")
+SetWaterColor(30, 54, 96)
+SetWaterShallow(30, 178, 178, 12)
+SetWaterClarity(3)
+SetWaterWaves(0)
+; Reflections cost about 2 ms; in the woods the sea is scenery, and the sky colour does
+EnableWaterReflection(False)
+EnableWaterRefraction(True)
+
+; The hunters' track, from the landing up through the woods; trees stay off it.
+PaintTerrainPath(ground, 40, 262, 20, 196, 4)
+PaintTerrainPath(ground, 20, 196, -40, 110, 3.5)
+PaintTerrainPath(ground, -40, 110, -60, 20, 3)
+PaintTerrainPath(ground, -60, 20, -40, -90, 3)
+; A clearing for the camp
+PaintTerrainPath(ground, 8, 200, 28, 204, 9)
+PaintTerrainPath(ground, 18, 192, 18, 212, 9)
+SetTerrainClearings(ground, 1)
+TerrainTrees(ground, CreateTree("pine", 1), 0.17)
+TerrainTrees(ground, CreateTree("pine", 2, 24), 0.14)
+TerrainTrees(ground, CreateTree("oak", 3), 0.07)
+TerrainTrees(ground, CreateTree("oak", 4, 17), 0.06)
+SetTerrainGrass(ground, 1)
+BakeSkyVolume(ground)
+
+BuildCamp(18, 202)
+
+hero = BuildHunter()
+SetBowPull(0)
+py = TerrainHeight(ground, px, pz)
+
+marker = CreatePyramid(0.32)
+SetRotation(marker, 180, 0, 0)
+EntityColor(marker, 255, 220, 90)
+SetEmissive(marker, 600, 480, 160)
+HideEntity(marker)
+
+; Arrows: a shaft, a steel head, red and white fletching, all along +Z
+For i = 1 To MAXR
+    e = CreatePivot()
+    Bit(e, 0, 0, 0, 0.007, 0.007, 0.42, 196, 172, 132)
+    Bit(e, 0, 0, 0.43, 0.013, 0.013, 0.035, 150, 156, 166)
+    Bit(e, 0, 0, -0.36, 0.002, 0.026, 0.055, 236, 236, 228)
+    Bit(e, 0, 0, -0.36, 0.026, 0.002, 0.055, 196, 54, 44)
+    HideEntity(e)
+    arE(i) = e
+Next
+
+; Light: motes in the sun around the hunter, leaves coming down, a puff where an arrow lands
+motes = CreateGPUEmitter(3000)
+EmitterShape(motes, "box", 14, 5, 14)
+EmitterRate(motes, 220)
+EmitterLife(motes, 5, 9)
+EmitterSpeed(motes, 0.15, 0.6)
+EmitterSize(motes, 0.035, 0.02)
+EmitterColor(motes, 255, 236, 190, 0.55, 255, 220, 160, 0)
+EmitterGravity(motes, 0, 0.02, 0)
+EmitterTurbulence(motes, 0.35, 0.4, 0.2)
+EmitterBlend(motes, "add")
+
+leaves = CreateGPUEmitter(1500)
+EmitterShape(leaves, "box", 18, 2, 18)
+EmitterShape(leaves, "flake")
+EmitterRate(leaves, 26)
+EmitterLife(leaves, 7, 10)
+EmitterSpeed(leaves, 0.3, 0.5)
+EmitterSize(leaves, 0.09, 0.08)
+EmitterColor(leaves, 196, 150, 60, 1, 120, 104, 40, 1)
+EmitterGravity(leaves, 0, -0.55, 0)
+EmitterTurbulence(leaves, 0.8, 0.3, 0.3)
+EmitterSizeVar(leaves, 0.4)
+
+puff = CreateGPUEmitter(2000)
+EmitterShape(puff, "sphere", 0.12)
+EmitterRate(puff, 0)
+EmitterLife(puff, 0.4, 0.9)
+EmitterSpeed(puff, 1.6, 0.5)
+EmitterCone(puff, 180)
+EmitterSize(puff, 0.07, 0.02)
+EmitterColor(puff, 226, 210, 180, 0.9, 160, 140, 110, 0)
+EmitterGravity(puff, 0, -2, 0)
+
+sparkle = CreateGPUEmitter(2000)
+EmitterPreset(sparkle, "magic")
+EmitterRate(sparkle, 0)
+
+SpawnAnimals()
+Sounds()
+If FileType("endtest.flag") = 1 Then
+    For s = 1 To 3
+        got(s) = quota(s)
+    Next
+    CheckQuota()
+EndIf
+
+; ---------- main loop ----------
+While 1
+    frame = frame + 1
+    If frame > 8 And Input.KeyHit(KEY_ESCAPE) Then Exit
+    dt# = Time.Delta()
+    If dt <= 0 Then dt = 0.016
+    If dt > 0.05 Then dt = 0.05
+    gameT = gameT + dt
+
+    ReadInput()
+    If autoplay Then AutoPlay()
+
+    Select gs
+        Case 0
+            titleT = titleT + dt
+            a# = 160 + titleT * 2.5
+            PositionEntity(cam, 18 + Math.Sin(a) * 70, TerrainHeight(ground, 18, 202) + 34, 202 + Math.Cos(a) * 70)
+            CameraLookAt(cam, 18 - Math.Sin(a) * 40, TerrainHeight(ground, 18, 202) + 14, 202 - Math.Cos(a) * 40)
+            PositionEntity(hero, px, py, pz)
+            SetRotation(hero, 0, yaw, 0)
+            If btnTake Or btnDraw Or btnRoll Then
+                gs = 2
+                storyI = 1
+                camX = EntityX(cam)
+                camY = EntityY(cam)
+                camZ = EntityZ(cam)
+            EndIf
+        Case 1
+            UpdateHero(dt)
+            UpdateArrows(dt)
+            UpdateAnimals(dt)
+            UpdateCamera(dt)
+        Case 2
+            UpdateCamera(dt)
+            UpdateAnimals(dt)
+            If btnTake Or btnDraw Or btnRoll Then
+                storyI = storyI + 1
+                If storyI > 3 Then gs = 1
+            EndIf
+        Case 3
+            endT = endT + dt
+            fadeTarget = 0.85
+            UpdateCamera(dt)
+            If endT > 1.4 And (btnTake Or btnDraw) Then
+                hearts = maxHearts
+                px = 22
+                pz = 206
+                py = TerrainHeight(ground, px, pz)
+                yaw = 200
+                camYaw = 200
+                invuln = 2
+                endT = 0
+                fadeTarget = 0
+                gs = 1
+            EndIf
+        Case 4
+            endT = endT + dt
+            camYaw = camYaw + 6 * dt
+            UpdateAnimals(dt)
+            UpdateArrows(dt)
+            UpdateCamera(dt)
+    End Select
+
+    ; Close-up test mode: look at the animal from its side
+    If closeKind = 6 And gs = 1 Then
+        sa = yaw + 75
+        PositionEntity(cam, px + Math.Sin(sa) * 3.2, py + 1.6, pz + Math.Cos(sa) * 3.2)
+        CameraLookAt(cam, px, py + 1.2, pz)
+    EndIf
+    If closeKind > 0 And closeKind < 6 And autoA > 0 And gs = 1 Then
+        sa# = aYaw(autoA) + 90
+        cd# = 3.2
+        If aKind(autoA) = 1 Then cd = 1.6
+        PositionEntity(cam, aX(autoA) + Math.Sin(sa) * cd, aY(autoA) + BodyHeight(aKind(autoA)) + 0.5, aZ(autoA) + Math.Cos(sa) * cd)
+        CameraLookAt(cam, aX(autoA), aY(autoA) + BodyHeight(aKind(autoA)) * 0.8, aZ(autoA))
+    EndIf
+
+    ; The air near the hunter
+    PositionEntity(motes, px, py + 3, pz)
+    PositionEntity(leaves, px, py + 13, pz)
+    fade = Approach(fade, fadeTarget, 1.4 * dt)
+
+    UpdateWorld
+    RenderWorld
+    DrawHud()
+    Flip
+Wend
+End
+
+; ---------- input ----------
+Function ReadInput()
+    Global inFwd : Global inSide : Global btnRun : Global btnRoll : Global btnTake : Global btnDraw : Global btnLock
+    Global camYaw : Global camPitch : Global aimPitch : Global gs : Global crouch : Global drawT : Global targeting
+    inFwd = GetAxis(KEY_S, KEY_W)
+    inSide = GetAxis(KEY_A, KEY_D)
+    btnRun = Input.KeyDown(KEY_LEFT_SHIFT)
+    btnRoll = Input.KeyHit(KEY_SPACE)
+    btnTake = Input.KeyHit(KEY_E) Or Input.KeyHit(KEY_ENTER)
+    btnDraw = Input.MouseDown(1) Or Input.KeyDown(KEY_F)
+    btnLock = Input.MouseDown(2) Or Input.KeyDown(KEY_Q)
+    If Input.KeyHit(KEY_C) Or Input.KeyHit(KEY_LEFT_CONTROL) Then crouch = 1 - crouch
+    If gs > 0 Then
+        mx# = MouseDeltaX()
+        my# = MouseDeltaY()
+        MoveMouse(640, 360)
+        If drawT >= 0 And targeting = 0 Then
+            camYaw = camYaw + mx * 0.1
+            aimPitch = Clamp(aimPitch + my * 0.08, -40, 50)
+        Else
+            camYaw = camYaw + mx * 0.15
+            camPitch = Clamp(camPitch + my * 0.1, -8, 60)
+        EndIf
+    EndIf
+    camYaw = camYaw + GetAxis(KEY_LEFT, KEY_RIGHT) * 110 * DeltaTime()
+End Function
+
+; ---------- the hunter ----------
+Function UpdateHero(dt#)
+    Global px : Global pz : Global py : Global yaw : Global walkT : Global rollT : Global rollDX : Global rollDZ
+    Global invuln : Global kbX : Global kbZ : Global crouch : Global drawT : Global drawSnd : Global target : Global targeting
+    Global camYaw : Global aimPitch : Global hero : Global heroBody : Global legL : Global legR : Global kneeL : Global kneeR
+    Global armL : Global armR : Global elbL : Global elbR : Global bowP : Global nockArrow : Global cloak : Global heroHead
+    Global inFwd : Global inSide : Global btnRun : Global btnRoll : Global btnTake : Global btnDraw : Global btnLock
+    Global gameT : Global outX : Global outZ : Global ground : Global sea : Global noise : Global arrows : Global moving
+    Global heroSpd : Global sndDraw
+    invuln = Max(0, invuln - dt)
+
+    ; Lock-on is held, as in the old games: the nearest thing in front of you
+    If btnLock Then
+        If targeting = 0 Then
+            target = FindTarget()
+            targeting = 1
+        ElseIf target > 0 Then
+            If aState(target) >= 5 Or Distance2D(px, pz, aX(target), aZ(target)) > 60 Then target = 0
+        EndIf
+    Else
+        targeting = 0
+        target = 0
+    EndIf
+    locked = targeting And target > 0
+
+    ; Which way the sticks push, from the camera or around the target
+    mx# = 0
+    mz# = 0
+    If locked Then
+        want# = Math.ATan2(aX(target) - px, aZ(target) - pz)
+        yaw = LerpAngle(yaw, want, Min(1, 14 * dt))
+        camYaw = LerpAngle(camYaw, want, Min(1, 6 * dt))
+        mx = Math.Sin(yaw) * inFwd + Math.Sin(yaw + 90) * inSide
+        mz = Math.Cos(yaw) * inFwd + Math.Cos(yaw + 90) * inSide
+    Else
+        mx = Math.Sin(camYaw) * inFwd + Math.Sin(camYaw + 90) * inSide
+        mz = Math.Cos(camYaw) * inFwd + Math.Cos(camYaw + 90) * inSide
+    EndIf
+    ml# = Math.Sqr(mx * mx + mz * mz)
+    If ml > 1 Then
+        mx = mx / ml
+        mz = mz / ml
+        ml = 1
+    EndIf
+
+    ; E takes a fallen animal when one is near
+    If btnTake Then TryTake()
+
+    ; Roll
+    If btnRoll And rollT < 0 And drawT < 0 And ml > 0.1 Then
+        rollT = 0
+        rollDX = mx
+        rollDZ = mz
+        crouch = 0
+    EndIf
+
+    ; The bow: hold to draw, let go to loose
+    If btnDraw And rollT < 0 Then
+        If drawT < 0 Then
+            If arrows > 0 Then
+                drawT = 0
+                If locked = 0 Then
+                    camYaw = yaw
+                    aimPitch = 0
+                EndIf
+                PlaySfx(1)
+            EndIf
+        Else
+            drawT = drawT + dt
+        EndIf
+    ElseIf drawT >= 0 Then
+        Loose(Min(1, drawT / 0.65), locked)
+        drawT = -1
+    EndIf
+    drawing = drawT >= 0
+
+    spd# = 5.2
+    If btnRun And crouch = 0 Then spd = 8.6
+    If crouch Then spd = 2.5
+    If locked Then spd = Min(spd, 4.4)
+    If drawing Then spd = 1.9
+    vx# = mx * spd
+    vz# = mz * spd
+    If rollT >= 0 Then
+        rollT = rollT + dt
+        vx = rollDX * 11
+        vz = rollDZ * 11
+        yaw = Math.ATan2(rollDX, rollDZ)
+        If rollT > 0.45 Then rollT = -1
+    ElseIf drawing And locked = 0 Then
+        yaw = camYaw
+    ElseIf ml > 0.05 And locked = 0 Then
+        yaw = LerpAngle(yaw, Math.ATan2(mx, mz), Min(1, 12 * dt))
+    EndIf
+
+    ; Footfall noise: what the animals hear
+    noise = 1
+    If ml < 0.05 Then noise = 0.55
+    If btnRun And ml > 0.05 Then noise = 1.9
+    If crouch Then noise = 0.4
+    If rollT >= 0 Then noise = 1.6
+
+    kbX = Approach(kbX, 0, 30 * dt)
+    kbZ = Approach(kbZ, 0, 30 * dt)
+    nx# = px + (vx + kbX) * dt
+    nz# = pz + (vz + kbZ) * dt
+    ; Not into the sea, not up a cliff, not through a trunk
+    h0# = TerrainHeight(ground, px, pz)
+    h1# = TerrainHeight(ground, nx, nz)
+    st# = Math.Sqr((nx - px) * (nx - px) + (nz - pz) * (nz - pz))
+    If h1 < sea - 0.7 Or (st > 0.0001 And (h1 - h0) / st > 1.25) Then
+        nx = px
+        nz = pz
+    EndIf
+    If TreePush(nx, nz, 0.36) Then
+        nx = TreePushX()
+        nz = TreePushZ()
+    EndIf
+    heroSpd = Distance2D(px, pz, nx, nz) / dt
+    px = nx
+    pz = nz
+    py = Approach(py, TerrainHeight(ground, px, pz), Max(4, heroSpd * 2) * dt)
+    py = Max(py, TerrainHeight(ground, px, pz) - 0.05)
+    PositionEntity(hero, px, py, pz)
+    SetRotation(hero, 0, yaw, 0)
+
+    ; Limbs
+    moving = heroSpd > 0.3
+    If moving Then walkT = walkT + dt * heroSpd * 95 Else walkT = walkT * 0.85
+    swing# = Math.Sin(walkT) * Min(40, 12 + heroSpd * 4)
+    If moving = 0 Then swing = 0
+    SetRotation(legL, swing, 0, 0)
+    SetRotation(legR, -swing, 0, 0)
+    SetRotation(kneeL, -Max(0, -swing) * 0.9 - 4, 0, 0)
+    SetRotation(kneeR, -Max(0, swing) * 0.9 - 4, 0, 0)
+    breathe# = Math.Sin(gameT * 120) * 1.5
+    bob# = Math.Abs(Math.Sin(walkT)) * 0.05 * Min(1, heroSpd / 4)
+    lean# = Min(14, heroSpd * 1.4)
+    If crouch Then
+        PositionEntity(heroBody, 0, -0.3 + bob, 0)
+        SetRotation(heroBody, -16, 0, 0)
+        SetRotation(legL, swing * 0.6 + 50, 0, 0)
+        SetRotation(legR, -swing * 0.6 + 50, 0, 0)
+        SetRotation(kneeL, -85, 0, 0)
+        SetRotation(kneeR, -85, 0, 0)
+    ElseIf rollT >= 0 Then
+        SetRotation(heroBody, rollT / 0.45 * 360, 0, 0)
+        PositionEntity(heroBody, 0, 0.9 - Math.Sin(rollT / 0.45 * 180) * 0.55, 0)
+    Else
+        SetRotation(heroBody, -lean * 0.4, 0, 0)
+        PositionEntity(heroBody, 0, bob, 0)
+    EndIf
+    SetRotation(cloak, -lean * 1.6 - Math.Abs(Math.Sin(walkT)) * 6 * Min(1, heroSpd / 5), 0, 0)
+
+    If drawing Then
+        p# = Min(1, drawT / 0.65)
+        ap# = aimPitch
+        If locked Then ap = 0
+        ; Left arm out straight with the bow, right hand pulling the string to the cheek
+        SetRotation(armL, 90 - ap, -14, 0)
+        SetRotation(elbL, 0, 0, 0)
+        SetRotation(bowP, -90, 0, 0)
+        SetRotation(armR, 90 - ap, 22, 0)
+        SetRotation(elbR, 60 + p * 90, 0, 0)
+        SetRotation(heroHead, -ap * 0.5, 0, 0)
+        SetBowPull(0.06 + p * 0.5)
+        ShowEntity(nockArrow)
+        ; Full draw trembles a little
+        If p >= 1 Then TurnEntity(bowP, Math.Sin(gameT * 1400) * 0.3, 0, 0)
+    Else
+        SetRotation(armL, -swing * 0.7 + breathe, 0, -6)
+        SetRotation(elbL, 12, 0, 0)
+        SetRotation(bowP, 0, 0, 0)
+        SetRotation(armR, swing * 0.7 - breathe, 0, 6)
+        SetRotation(elbR, 14, 0, 0)
+        SetRotation(heroHead, 0, 0, 0)
+        SetBowPull(0)
+        HideEntity(nockArrow)
+    EndIf
+
+    ; Blink while hurt
+    If invuln > 0 And Int(gameT * 16) Mod 2 = 0 Then HideEntity(heroBody) Else ShowEntity(heroBody)
+
+    ; Rest by the fire to heal
+    If Distance2D(px, pz, 18, 202) < 5 Then Heal(dt)
+End Function
+
+Function Heal(dt#)
+    Global hearts : Global maxHearts : Global healT
+    healT = healT + dt
+    If healT > 0.6 And hearts < maxHearts Then
+        hearts = hearts + 1
+        healT = 0
+        PlaySfx(11)
+    EndIf
+End Function
+
+Function HurtHero(amount, fromYaw#)
+    Global hearts : Global invuln : Global kbX : Global kbZ : Global shake : Global gs : Global endT : Global rollT
+    Global drawT
+    If invuln > 0 Or rollT >= 0 Or gs <> 1 Then Return
+    hearts = hearts - amount
+    invuln = 1.2
+    kbX = Math.Sin(fromYaw) * 12
+    kbZ = Math.Cos(fromYaw) * 12
+    shake = 0.8
+    drawT = -1
+    PlaySfx(8)
+    If hearts <= 0 Then
+        hearts = 0
+        gs = 3
+        endT = 0
+    EndIf
+End Function
+
+; ---------- the bow ----------
+; Let go: power is how far it was drawn. Locked on, the arrow leads the target and allows
+; for the drop; free, it flies where the crosshair is.
+Function Loose(power#, locked)
+    Global px : Global py : Global pz : Global yaw : Global camYaw : Global aimPitch : Global target : Global arrows
+    Global noise : Global cam
+    If power < 0.12 Then Return
+    i = 0
+    For k = 1 To MAXR
+        If arState(k) = 0 Then
+            i = k
+            Exit
+        EndIf
+    Next
+    If i = 0 Then
+        ; Recycle the oldest stuck arrow
+        best# = -1
+        For k = 1 To MAXR
+            If arState(k) = 2 And arT(k) > best Then
+                best = arT(k)
+                i = k
+            EndIf
+        Next
+        If i = 0 Then Return
+    EndIf
+    arrows = arrows - 1
+    speed# = 24 + power * 38
+    ox# = px + Math.Sin(yaw) * 0.5 + Math.Sin(yaw - 90) * 0.12
+    oz# = pz + Math.Cos(yaw) * 0.5 + Math.Cos(yaw - 90) * 0.12
+    oy# = py + 1.55
+    If locked Then
+        tx# = aX(target)
+        tz# = aZ(target)
+        ty# = aY(target) + BodyHeight(aKind(target))
+        d# = Math.Sqr((tx - ox) * (tx - ox) + (ty - oy) * (ty - oy) + (tz - oz) * (tz - oz))
+        ft# = d / speed
+        tx = tx + Math.Sin(aYaw(target)) * aSpd(target) * ft
+        tz = tz + Math.Cos(aYaw(target)) * aSpd(target) * ft
+        ty = ty + 0.5 * 9 * ft * ft
+        dx# = tx - ox
+        dy# = ty - oy
+        dz# = tz - oz
+    Else
+        ; Through the crosshair: from the camera, out to 70 m, then from the bow to there
+        cx# = EntityX(cam)
+        cy# = EntityY(cam)
+        cz# = EntityZ(cam)
+        cp# = Math.Cos(aimPitch)
+        fx# = cx + Math.Sin(camYaw) * cp * 70
+        fy# = cy - Math.Sin(aimPitch) * 70
+        fz# = cz + Math.Cos(camYaw) * cp * 70
+        dx = fx - ox
+        dy = fy - oy
+        dz = fz - oz
+    EndIf
+    l# = Math.Sqr(dx * dx + dy * dy + dz * dz)
+    arX(i) = ox
+    arY(i) = oy
+    arZ(i) = oz
+    arVX(i) = dx / l * speed
+    arVY(i) = dy / l * speed
+    arVZ(i) = dz / l * speed
+    arState(i) = 1
+    arT(i) = 0
+    arP(i) = power
+    ShowEntity(arE(i))
+    PlaySfx(2)
+    noise = 1.3
+End Function
+
+Function UpdateArrows(dt#)
+    Global ground : Global sea : Global px : Global pz : Global py : Global arrows : Global puff
+    For i = 1 To MAXR
+        s = arState(i)
+        If s = 1 Then
+            arT(i) = arT(i) + dt
+            ; Three short steps a frame, so a fast arrow cannot skip a hare
+            For sub = 1 To 3
+                h# = dt / 3
+                arVY(i) = arVY(i) - 9 * h
+                arX(i) = arX(i) + arVX(i) * h
+                arY(i) = arY(i) + arVY(i) * h
+                arZ(i) = arZ(i) + arVZ(i) * h
+                hitA = ArrowHitsAnimal(i)
+                If hitA > 0 Then
+                    arState(i) = 3
+                    arA(i) = hitA
+                    ; Remember where in the animal it went, to ride along with it
+                    arOX(i) = arX(i) - aX(hitA)
+                    arOY(i) = arY(i) - aY(hitA)
+                    arOZ(i) = arZ(i) - aZ(hitA)
+                    Exit
+                EndIf
+                gy# = TerrainHeight(ground, arX(i), arZ(i))
+                If arY(i) < gy Then
+                    arY(i) = gy + 0.05
+                    StickArrow(i)
+                    Exit
+                EndIf
+                If arY(i) < gy + 9 Then
+                    If TreeHit(arX(i), arZ(i), 0.02) Then
+                        StickArrow(i)
+                        Exit
+                    EndIf
+                EndIf
+            Next
+            If arState(i) = 1 Then
+                yawA# = Math.ATan2(arVX(i), arVZ(i))
+                pit# = Math.ATan2(arVY(i), Math.Sqr(arVX(i) * arVX(i) + arVZ(i) * arVZ(i)))
+                PositionEntity(arE(i), arX(i), arY(i), arZ(i))
+                SetRotation(arE(i), pit, yawA, 0)
+                If arT(i) > 6 Or arY(i) < sea - 2 Then
+                    arState(i) = 0
+                    HideEntity(arE(i))
+                EndIf
+            EndIf
+        ElseIf s = 2 Then
+            arT(i) = arT(i) + dt
+            ; Walk over a stuck arrow to take it back
+            If Distance2D(px, pz, arX(i), arZ(i)) < 1.3 And Math.Abs(py - arY(i)) < 2.5 Then
+                arState(i) = 0
+                HideEntity(arE(i))
+                arrows = arrows + 1
+                PlaySfx(10)
+            EndIf
+        ElseIf s = 3 Then
+            a = arA(i)
+            If aState(a) = 6 Then
+                arState(i) = 0
+                HideEntity(arE(i))
+            Else
+                c# = Math.Cos(aYaw(a))
+                sn# = Math.Sin(aYaw(a))
+                PositionEntity(arE(i), aX(a) + arOX(i), aY(a) + arOY(i), aZ(a) + arOZ(i))
+            EndIf
+        EndIf
+    Next
+End Function
+
+Function StickArrow(i)
+    Global puff : Global sndThunk
+    arState(i) = 2
+    arT(i) = 0
+    PositionEntity(arE(i), arX(i), arY(i), arZ(i))
+    PositionEntity(puff, arX(i), arY(i), arZ(i))
+    EmitterBurst(puff, 14)
+    Snd3D(sndThunk, arX(i), arY(i), arZ(i))
+    AlarmNear(arX(i), arZ(i), 10)
+End Function
+
+; Which animal the arrow is inside, if any. Bodies are two spheres, front and back.
+Function ArrowHitsAnimal(i)
+    For a = 1 To nA
+        If aState(a) < 5 Then
+            k = aKind(a)
+            rad# = BodyRadius(k)
+            cy# = aY(a) + BodyHeight(k)
+            off# = BodyLength(k)
+            For s = -1 To 1 Step 2
+                cx# = aX(a) + Math.Sin(aYaw(a)) * off * s
+                cz# = aZ(a) + Math.Cos(aYaw(a)) * off * s
+                dx# = arX(i) - cx
+                dy# = arY(i) - cy
+                dz# = arZ(i) - cz
+                If dx * dx + dy * dy + dz * dz < rad * rad Then
+                    HurtAnimal(a, i)
+                    Return a
+                EndIf
+            Next
+        EndIf
+    Next
+    Return 0
+End Function
+
+Function BodyRadius#(k)
+    Select k
+        Case 1 : Return 0.36
+        Case 4 : Return 0.5
+    End Select
+    Return 0.5
+End Function
+
+Function BodyHeight#(k)
+    Select k
+        Case 1 : Return 0.3
+        Case 4 : Return 0.62
+    End Select
+    Return 1.12
+End Function
+
+Function BodyLength#(k)
+    Select k
+        Case 1 : Return 0.08
+        Case 4 : Return 0.32
+    End Select
+    Return 0.38
+End Function
+
+; ---------- the animals ----------
+Function SpawnAnimals()
+    Global nA
+    ; Two herds of deer, a lone stag, hares in the meadows, boar in the deep wood
+    SpawnGroup(2, 3, 1)
+    SpawnGroup(2, 3, 2)
+    SpawnGroup(3, 1, 0)
+    SpawnGroup(3, 1, 0)
+    For k = 1 To 9
+        SpawnGroup(1, 1, 0)
+    Next
+    For k = 1 To 4
+        SpawnGroup(4, 1, 0)
+    Next
+End Function
+
+; A herd starts together: one place, then each member a few metres off it.
+Function SpawnGroup(kind, count, herd)
+    Global ground : Global outX : Global outZ
+    If FindSpot(kind) = 0 Then Return
+    cx# = outX
+    cz# = outZ
+    For n = 1 To count
+        x# = cx + Rnd(-7, 7)
+        z# = cz + Rnd(-7, 7)
+        If n = 1 Then
+            x = cx
+            z = cz
+        EndIf
+        k = kind
+        If herd > 0 And n = 1 Then k = 3
+        AddAnimal(k, x, z, herd)
+    Next
+End Function
+
+Function FindSpot(kind)
+    Global ground : Global sea : Global outX : Global outZ : Global px : Global pz
+    For tries = 1 To 1500
+        x# = Rnd(-330, 330)
+        z# = Rnd(-330, 330)
+        h# = TerrainHeight(ground, x, z)
+        If h > sea + 4 And h < sea + 70 And Distance2D(x, z, 18, 202) > 45 Then
+            sl# = Math.Abs(TerrainHeight(ground, x + 2, z) - h) + Math.Abs(TerrainHeight(ground, x, z + 2) - h)
+            clear# = 1.2
+            If kind = 5 Then clear = 9
+            If sl < 1.4 And TreeHit(x, z, clear) = 0 And (kind <> 5 Or Distance2D(x, z, px, pz) > 80) Then
+                outX = x
+                outZ = z
+                Return 1
+            EndIf
+        EndIf
+    Next
+    Return 0
+End Function
+
+Function AddAnimal(kind, x#, z#, herd)
+    Global nA : Global ground
+    If nA >= MAXA Then Return 0
+    nA = nA + 1
+    i = nA
+    aKind(i) = kind
+    Select kind
+        Case 1
+            aE(i) = BuildRabbit(i)
+            aHP(i) = 1
+        Case 2
+            aE(i) = BuildDeer(i, 0, 0)
+            aHP(i) = 2
+        Case 3
+            aE(i) = BuildDeer(i, 1, 0)
+            aHP(i) = 3
+        Case 4
+            aE(i) = BuildBoar(i)
+            aHP(i) = 3
+        Case 5
+            aE(i) = BuildDeer(i, 1, 1)
+            aHP(i) = 3
+    End Select
+    aX(i) = x
+    aZ(i) = z
+    aY(i) = TerrainHeight(ground, x, z)
+    aYaw(i) = Rnd(0, 360)
+    aState(i) = 0
+    aT(i) = Rnd(1, 6)
+    aHerd(i) = herd
+    aHeadP(i) = 0
+    PositionEntity(aE(i), x, aY(i), z)
+    Return i
+End Function
+
+Function UpdateAnimals(dt#)
+    For i = 1 To nA
+        If aState(i) < 6 Then UpdateAnimal(i, dt)
+    Next
+End Function
+
+Function HearRange#(k)
+    Select k
+        Case 1 : Return 11
+        Case 4 : Return 13
+        Case 5 : Return 22
+    End Select
+    Return 19
+End Function
+
+Function RunSpeed#(k)
+    Select k
+        Case 1 : Return 9.5
+        Case 4 : Return 7.5
+        Case 5 : Return 12
+    End Select
+    Return 10.5
+End Function
+
+Function UpdateAnimal(i, dt#)
+    Global px : Global pz : Global noise : Global ground : Global gs : Global gameT : Global closeKind : Global deafTest
+    k = aKind(i)
+    dx# = px - aX(i)
+    dz# = pz - aZ(i)
+    d# = Math.Sqr(dx * dx + dz * dz)
+    toHunter# = Math.ATan2(dx, dz)
+    aT(i) = aT(i) - dt
+    aFlash(i) = Max(0, aFlash(i) - dt)
+    st = aState(i)
+
+    If st = 5 Then
+        ; Down: tip over once, then lie still
+        aFall(i) = Min(1, aFall(i) + dt * 2.6)
+        f# = aFall(i)
+        PositionEntity(aE(i), aX(i), aY(i) + BodyHeight(k) * 0.1 * (1 - f), aZ(i))
+        SetRotation(aE(i), 0, aYaw(i), f * 84)
+        Return
+    EndIf
+
+    ; Hearing: you are louder running, quieter sneaking
+    heard = gs = 1 And d < HearRange(k) * noise And closeKind = 0 And deafTest = 0
+    spd# = 0
+    wantYaw# = aYaw(i)
+    If st <= 1 Then
+        If heard Then
+            aState(i) = 2
+            aT(i) = Rnd(0.45, 1.1)
+            If k = 4 Then aT(i) = 0.5
+            AnimalCall(i)
+        ElseIf st = 0 Then
+            If aT(i) <= 0 Then
+                aState(i) = 1
+                aT(i) = Rnd(4, 9)
+                a# = Rnd(0, 360)
+                rr# = Rnd(5, 16)
+                aGX(i) = aX(i) + Math.Sin(a) * rr
+                aGZ(i) = aZ(i) + Math.Cos(a) * rr
+            EndIf
+        Else
+            wantYaw = Math.ATan2(aGX(i) - aX(i), aGZ(i) - aZ(i))
+            spd = 1.3
+            If k = 1 Then spd = 2.2
+            If Distance2D(aX(i), aZ(i), aGX(i), aGZ(i)) < 1 Or aT(i) <= 0 Then
+                aState(i) = 0
+                aT(i) = Rnd(3, 8)
+            EndIf
+        EndIf
+    ElseIf st = 2 And aWatch(i) Then
+        ; The white stag, watching from where it stopped, till you come near again
+        wantYaw = toHunter
+        If d < HearRange(k) * noise Or aT(i) <= 0 Then
+            aWatch(i) = 0
+            If aT(i) > 0 Then Flee(i) Else aState(i) = 0
+        EndIf
+    ElseIf st = 2 Then
+        ; Head up, watching you
+        wantYaw = toHunter
+        If aT(i) <= 0 Then
+            If d < HearRange(k) * Max(noise, 0.7) * 1.25 Then
+                If k = 4 And d < 16 Then
+                    aState(i) = 4
+                    aT(i) = 5
+                Else
+                    Flee(i)
+                EndIf
+            Else
+                aState(i) = 0
+                aT(i) = Rnd(2, 5)
+            EndIf
+        EndIf
+    ElseIf st = 3 Then
+        wantYaw = toHunter + 180 + Math.Sin(gameT * 40 + i * 70) * 25
+        spd = RunSpeed(k)
+        If k = 5 And aT(i) <= 0 Then
+            aState(i) = 2
+            aWatch(i) = 1
+            aT(i) = 7
+        ElseIf aT(i) <= 0 And d > 55 Then
+            aState(i) = 1
+            aT(i) = Rnd(3, 6)
+            aGX(i) = aX(i) + Math.Sin(aYaw(i)) * 10
+            aGZ(i) = aZ(i) + Math.Cos(aYaw(i)) * 10
+        EndIf
+    ElseIf st = 4 Then
+        ; A boar does not run. It comes for you.
+        wantYaw = toHunter
+        spd = 8.4
+        If d < 1.6 Then
+            HurtHero(2, toHunter + 180)
+            aState(i) = 3
+            aT(i) = 2.2
+            Grunt(i)
+        ElseIf aT(i) <= 0 Or d > 30 Then
+            aState(i) = 3
+            aT(i) = 2
+        EndIf
+    EndIf
+
+    MoveAnimal(i, wantYaw, spd, dt)
+    PoseAnimal(i, spd, dt)
+End Function
+
+; Turn toward a heading at the animal's own pace, then step, steering round trunks and the sea.
+Function MoveAnimal(i, wantYaw#, spd#, dt#)
+    Global ground : Global sea
+    turn# = 220
+    If spd > 5 Then turn = 340
+    aYaw(i) = aYaw(i) + Clamp(AngleDiff(aYaw(i), wantYaw), -turn * dt, turn * dt)
+    aSpd(i) = Approach(aSpd(i), spd, 18 * dt)
+    If aSpd(i) < 0.01 Then Return
+    stp# = aSpd(i) * dt
+    For tryN = 0 To 6
+        off# = 0
+        Select tryN
+            Case 1 : off = 35
+            Case 2 : off = -35
+            Case 3 : off = 70
+            Case 4 : off = -70
+            Case 5 : off = 110
+            Case 6 : off = -110
+        End Select
+        y# = aYaw(i) + off
+        nx# = aX(i) + Math.Sin(y) * stp
+        nz# = aZ(i) + Math.Cos(y) * stp
+        probeX# = aX(i) + Math.Sin(y) * 1.2
+        probeZ# = aZ(i) + Math.Cos(y) * 1.2
+        h# = TerrainHeight(ground, probeX, probeZ)
+        If h > sea + 0.6 And h < sea + 95 And TreeHit(probeX, probeZ, 0.35) = 0 And Math.Abs(probeX) < 380 And Math.Abs(probeZ) < 380 Then
+            aX(i) = nx
+            aZ(i) = nz
+            If off <> 0 Then aYaw(i) = aYaw(i) + off * 0.25
+            Return
+        EndIf
+    Next
+    ; Boxed in: turn about
+    aYaw(i) = aYaw(i) + 90 * dt * 4
+End Function
+
+Function PoseAnimal(i, spd#, dt#)
+    Global ground : Global gameT
+    k = aKind(i)
+    gy# = TerrainHeight(ground, aX(i), aZ(i))
+    aY(i) = gy
+    ; Lean with the slope
+    fh# = TerrainHeight(ground, aX(i) + Math.Sin(aYaw(i)) * 0.7, aZ(i) + Math.Cos(aYaw(i)) * 0.7)
+    bh# = TerrainHeight(ground, aX(i) - Math.Sin(aYaw(i)) * 0.7, aZ(i) - Math.Cos(aYaw(i)) * 0.7)
+    pit# = -Math.ATan2(fh - bh, 1.4)
+    s# = aSpd(i)
+    rate# = 120 + s * 70
+    If k = 1 Then rate = 260 + s * 60
+    If s > 0.1 Then aGait(i) = aGait(i) + dt * rate
+    g# = aGait(i)
+    hop# = 0
+    If k = 1 Then
+        ; Hares bound
+        If s > 0.3 Then hop = Math.Abs(Math.Sin(g)) * Min(0.35, s * 0.05)
+        SetRotation(dLegA(i), -70 + Math.Sin(g) * Min(20, s * 4), 0, 0)
+    Else
+        amp# = Min(38, s * 6 + 4)
+        If s < 0.1 Then amp = 0
+        SetRotation(dLegA(i), Math.Sin(g) * amp, 0, 0)
+        SetRotation(dLegB(i), -Math.Sin(g) * amp, 0, 0)
+        If s > 6 Then hop = Math.Abs(Math.Sin(g)) * 0.12
+    EndIf
+    PositionEntity(aE(i), aX(i), gy + hop, aZ(i))
+    SetRotation(aE(i), pit, aYaw(i), 0)
+    ; Head: down to graze, up when alert, forward running
+    st = aState(i)
+    want# = 0
+    If st = 0 Then want = 1
+    If st = 2 Then want = -0.5
+    aHeadP(i) = Approach(aHeadP(i), want, dt * 2)
+    hp# = aHeadP(i)
+    Select k
+        Case 1 : SetRotation(dHead(i), -hp * 30, 0, 0)
+        Case 4 : SetRotation(dHead(i), -104 - hp * 22, 0, 0)
+        Default : SetRotation(dHead(i), -30 - hp * 82, 0, 0)
+    End Select
+End Function
+
+Function Flee(i)
+    Global gameT
+    aState(i) = 3
+    aT(i) = Rnd(3, 5)
+    ; The white stag only bounds off a little way, then stops and looks back at you
+    If aKind(i) = 5 Then aT(i) = 1.7
+    AnimalCall(i)
+    ; The herd goes with it
+    For j = 1 To nA
+        If j <> i And aState(j) <= 2 And aKind(j) <> 4 Then
+            If Distance2D(aX(i), aZ(i), aX(j), aZ(j)) < 22 Then
+                aState(j) = 3
+                aT(j) = Rnd(2.5, 4.5)
+            EndIf
+        EndIf
+    Next
+End Function
+
+; An arrow landing, or a shout: animals near it look up
+Function AlarmNear(x#, z#, r#)
+    For j = 1 To nA
+        If aState(j) <= 1 Then
+            If Distance2D(x, z, aX(j), aZ(j)) < r Then
+                aState(j) = 2
+                aT(j) = Rnd(0.3, 0.8)
+            EndIf
+        EndIf
+    Next
+End Function
+
+Function HurtAnimal(a, arrow)
+    Global puff : Global sparkle : Global target : Global sndHit
+    ; A full draw hits twice as hard
+    dmg = 1
+    If arP(arrow) >= 0.95 Then dmg = 2
+    aHP(a) = aHP(a) - dmg
+    aFlash(a) = 0.15
+    PositionEntity(puff, arX(arrow), arY(arrow), arZ(arrow))
+    EmitterBurst(puff, 22)
+    Snd3D(sndHit, aX(a), aY(a), aZ(a))
+    k = aKind(a)
+    If aHP(a) <= 0 Then
+        If k = 5 Then
+            WhiteStagEnds(a)
+            Return
+        EndIf
+        aState(a) = 5
+        aFall(a) = 0
+        aSpd(a) = 0
+        AnimalCall(a)
+        If target = a Then target = 0
+    ElseIf k = 4 Then
+        aState(a) = 4
+        aT(a) = 5
+        Grunt(a)
+    Else
+        Flee(a)
+    EndIf
+End Function
+
+Function AnimalCall(i)
+    Global sndSqueak : Global sndDeer
+    k = aKind(i)
+    If k = 1 Then
+        Snd3D(sndSqueak, aX(i), aY(i), aZ(i))
+    ElseIf k = 4 Then
+        Grunt(i)
+    Else
+        Snd3D(sndDeer, aX(i), aY(i), aZ(i))
+    EndIf
+End Function
+
+Function Grunt(i)
+    Global sndBoar
+    Snd3D(sndBoar, aX(i), aY(i), aZ(i))
+End Function
+
+; The best thing to lock onto: near, and close to where the camera looks
+Function FindTarget()
+    Global px : Global pz : Global camYaw
+    best = 0
+    bestS# = 99999
+    For i = 1 To nA
+        If aState(i) < 5 Then
+            d# = Distance2D(px, pz, aX(i), aZ(i))
+            ad# = Math.Abs(AngleDiff(camYaw, Math.ATan2(aX(i) - px, aZ(i) - pz)))
+            If d < 45 And ad < 75 Then
+                s# = d + ad * 0.35
+                If s < bestS Then
+                    bestS = s
+                    best = i
+                EndIf
+            EndIf
+        EndIf
+    Next
+    Return best
+End Function
+
+; The fallen animal in reach, or 0
+Function TakeableNear()
+    Global px : Global pz
+    For i = 1 To nA
+        If aState(i) = 5 Then
+            If Distance2D(px, pz, aX(i), aZ(i)) < 2.6 Then Return i
+        EndIf
+    Next
+    Return 0
+End Function
+
+Function TryTake()
+    Global sparkle : Global arrows : Global hearts : Global maxHearts
+    i = TakeableNear()
+    If i = 0 Then Return
+    aState(i) = 6
+    HideEntity(aE(i))
+    PositionEntity(sparkle, aX(i), aY(i) + 0.6, aZ(i))
+    EmitterBurst(sparkle, 60)
+    ; The arrows in it come back
+    For rr = 1 To MAXR
+        If arState(rr) = 3 And arA(rr) = i Then
+            arState(rr) = 0
+            HideEntity(arE(rr))
+            arrows = arrows + 1
+        EndIf
+    Next
+    k = aKind(i)
+    slot = 1
+    nm$ = "HARE"
+    If k = 2 Then
+        slot = 2
+        nm = "DEER"
+    ElseIf k = 3 Then
+        slot = 2
+        nm = "STAG"
+    ElseIf k = 4 Then
+        slot = 3
+        nm = "BOAR"
+    EndIf
+    got(slot) = got(slot) + 1
+    If hearts < maxHearts Then hearts = hearts + 1
+    PlaySfx(9)
+    ShowMsg("YOU GOT A " + nm + "!", 1)
+    CheckQuota()
+End Function
+
+; Every hunt done: the white stag comes out on the high ground.
+Function CheckQuota()
+    Global whiteOut : Global whiteI : Global ground : Global outX : Global outZ
+    If whiteOut Then Return
+    For s = 1 To 3
+        If got(s) < quota(s) Then Return
+    Next
+    whiteOut = 1
+    x# = -60
+    z# = 20
+    If FindSpot(5) Then
+        x = outX
+        z = outZ
+    EndIf
+    whiteI = AddAnimal(5, x, z, 0)
+    PlaySfx(12)
+    ShowMsg("A WHITE STAG WALKS THE HIGH WOOD...", 1)
+End Function
+
+Function WhiteStagEnds(a)
+    Global gs : Global endT : Global sparkle : Global target
+    aState(a) = 6
+    HideEntity(aE(a))
+    PositionEntity(sparkle, aX(a), aY(a) + 1, aZ(a))
+    EmitterBurst(sparkle, 400)
+    target = 0
+    PlaySfx(12)
+    gs = 4
+    endT = 0
+End Function
+
+; ---------- camera ----------
+Function UpdateCamera(dt#)
+    Global cam : Global px : Global py : Global pz : Global yaw : Global camYaw : Global camPitch : Global aimPitch
+    Global camX : Global camY : Global camZ : Global shake : Global gameT : Global targeting : Global target
+    Global marker : Global barH : Global drawT : Global gs : Global ground : Global endT
+    locked = targeting And target > 0
+    aiming = drawT >= 0 And locked = 0 And gs = 1
+    If aiming Then
+        ; Over the right shoulder, looking where the arrow will go
+        cp# = Math.Cos(aimPitch)
+        wx# = px - Math.Sin(camYaw) * 3.1 + Math.Sin(camYaw + 90) * 0.95
+        wz# = pz - Math.Cos(camYaw) * 3.1 + Math.Cos(camYaw + 90) * 0.95
+        wy# = py + 1.85 + Math.Sin(aimPitch) * 0.9
+        k# = Min(1, 14 * dt)
+        camX = camX + (wx - camX) * k
+        camY = camY + (wy - camY) * k
+        camZ = camZ + (wz - camZ) * k
+        PositionEntity(cam, camX, camY, camZ)
+        lx# = camX + Math.Sin(camYaw) * cp * 50
+        ly# = camY - Math.Sin(aimPitch) * 50
+        lz# = camZ + Math.Cos(camYaw) * cp * 50
+        CameraLookAt(cam, lx, ly, lz)
+    Else
+        ; Orbit the hunter; look at the hunter, or between the hunter and the target
+        d# = 6.4
+        pit# = camPitch
+        fy# = py + 1.6
+        fx# = px
+        fz# = pz
+        If locked Then
+            d = 6.0
+            pit = 13
+            fx = px + (aX(target) - px) * 0.35
+            fz = pz + (aZ(target) - pz) * 0.35
+            fy = py + 1.4 + (aY(target) + BodyHeight(aKind(target)) - py - 1.4) * 0.35
+        EndIf
+        If gs = 2 Then
+            d = 9
+            pit = 18
+        EndIf
+        If gs = 4 Then
+            d = 11
+            pit = 12
+        EndIf
+        cp = Math.Cos(pit)
+        ; Pull in rather than sit behind a trunk
+        For s = 1 To 10
+            t# = d * s / 10
+            If TreeHit(px - Math.Sin(camYaw) * cp * t, pz - Math.Cos(camYaw) * cp * t, 0.3) Then
+                d = Max(1.8, t - 0.5)
+                Exit
+            EndIf
+        Next
+        wx = px - Math.Sin(camYaw) * cp * d
+        wz = pz - Math.Cos(camYaw) * cp * d
+        wy = py + 1.7 + Math.Sin(pit) * d
+        ; Stay above the ground behind you
+        gy# = TerrainHeight(ground, wx, wz) + 1.1
+        If wy < gy Then wy = gy
+        k = Min(1, 7 * dt)
+        camX = camX + (wx - camX) * k
+        camY = camY + (wy - camY) * k
+        camZ = camZ + (wz - camZ) * k
+        sh# = shake * shake
+        PositionEntity(cam, camX + Rnd(-0.2, 0.2) * sh, camY + Rnd(-0.2, 0.2) * sh, camZ)
+        CameraLookAt(cam, fx, fy, fz)
+    EndIf
+    If locked Then
+        PositionEntity(marker, aX(target), aY(target) + BodyHeight(aKind(target)) * 2 + 0.7 + Math.Sin(gameT * 300) * 0.12, aZ(target))
+        SetRotation(marker, 180, gameT * 200, 0)
+        ShowEntity(marker)
+    Else
+        HideEntity(marker)
+    EndIf
+    shake = Max(0, shake - 2.6 * dt)
+    want# = 0
+    If locked Or gs = 2 Or gs = 4 Then want = 64
+    barH = Approach(barH, want, 260 * dt)
+End Function
+
+; ---------- the camp ----------
+Function BuildCamp(cx#, cz#)
+    Global ground : Global campFire : Global fireLight : Global fireFx : Global smokeFx
+    gy# = TerrainHeight(ground, cx, cz)
+    campFire = CreatePivot()
+    PositionEntity(campFire, cx, gy, cz)
+    ; A ring of stones and crossed logs
+    For k = 0 To 9
+        a# = k * 36
+        st = Bit(campFire, Math.Sin(a) * 0.75, 0.08, Math.Cos(a) * 0.75, 0.16, 0.11, 0.13, 116, 112, 104)
+        SetRotation(st, Rnd(-10, 10), a, Rnd(-10, 10))
+    Next
+    For k = 0 To 3
+        lg = Bit(campFire, 0, 0.14, 0, 0.06, 0.06, 0.48, 84, 58, 36)
+        SetRotation(lg, 24, k * 45, 0)
+    Next
+    em = Bit(campFire, 0, 0.1, 0, 0.3, 0.05, 0.3, 255, 120, 40)
+    SetEmissive(em, 900, 260, 60)
+    fireFx = CreateGPUEmitter(4000)
+    EmitterPreset(fireFx, "fire")
+    PositionEntity(fireFx, cx, gy + 0.2, cz)
+    EmitterSize(fireFx, 0.4, 0.06)
+    smokeFx = CreateGPUEmitter(3000)
+    EmitterPreset(smokeFx, "smoke")
+    PositionEntity(smokeFx, cx, gy + 1.2, cz)
+    EmitterRate(smokeFx, 30)
+    fireLight = CreatePointLight()
+    PositionEntity(fireLight, cx, gy + 1.1, cz)
+    SetLightColor(fireLight, 255, 150, 70)
+    LightRange(fireLight, 9)
+    SetLightIntensity(fireLight, 2.2)
+    ; A lean-to of canvas over two poles, logs to sit on
+    tn = CreatePivot()
+    PositionEntity(tn, cx - 3.2, TerrainHeight(ground, cx - 3.2, cz + 2.4), cz + 2.4)
+    SetRotation(tn, 0, 150, 0)
+    For s = -1 To 1 Step 2
+        pl = Bit(tn, s * 1.3, 0.9, 0.6, 0.04, 0.95, 0.04, 96, 70, 44)
+        side = Bit(tn, 0, 1.0, -0.2 + s * 0, 1.45, 0.02, 1.2, 214, 200, 168)
+        SetRotation(side, 40, 0, 0)
+    Next
+    For k = 0 To 1
+        lg = Bit(campFire, -1.8 + k * 3.6, 0.2, 1.4 - k * 2.6, 0.2, 0.18, 0.75, 104, 76, 50)
+        SetRotation(lg, 0, 60 + k * 50, 0)
+    Next
+    ; A drying rack with a hide on it
+    rk = CreatePivot()
+    PositionEntity(rk, cx + 3, TerrainHeight(ground, cx + 3, cz - 1.5), cz - 1.5)
+    SetRotation(rk, 0, -30, 0)
+    Bit(rk, -0.9, 0.9, 0, 0.04, 0.9, 0.04, 96, 70, 44)
+    Bit(rk, 0.9, 0.9, 0, 0.04, 0.9, 0.04, 96, 70, 44)
+    Bit(rk, 0, 1.75, 0, 0.98, 0.03, 0.03, 96, 70, 44)
+    hd = Bit(rk, 0, 1.15, 0.02, 0.7, 0.55, 0.01, 150, 108, 70)
+End Function
+
+; ---------- sound ----------
+Function Sounds()
+    Global sfxOn : Global sndDraw : Global sndTwang : Global sndThunk : Global sndHit : Global sndDeer : Global sndBoar
+    Global sndSqueak : Global sndHurt : Global sndChime : Global sndPickup : Global sndFanfare : Global sndForest
+    sfxOn = FileType("assets/twang.wav") = 1
+    If sfxOn = 0 Then Return
+    sndDraw = Sound.Load("assets/draw.wav")
+    sndTwang = Sound.Load("assets/twang.wav")
+    sndThunk = Sound.Load("assets/thunk.wav")
+    sndHit = Sound.Load("assets/hit.wav")
+    sndDeer = Sound.Load("assets/deer.wav")
+    sndBoar = Sound.Load("assets/boar.wav")
+    sndSqueak = Sound.Load("assets/squeak.wav")
+    sndHurt = Sound.Load("assets/hurt.wav")
+    sndChime = Sound.Load("assets/chime.wav")
+    sndPickup = Sound.Load("assets/pickup.wav")
+    sndFanfare = Sound.Load("assets/fanfare.wav")
+    sndForest = Sound.Load("assets/forest.wav")
+    SetSoundVolume(sndForest, 0.55)
+    LoopSound(sndForest)
+    Sound.Play(sndForest)
+End Function
+
+Function PlaySfx(n)
+    Global sfxOn : Global sndDraw : Global sndTwang : Global sndHurt : Global sndChime : Global sndPickup : Global sndFanfare
+    If sfxOn = 0 Then Return
+    Select n
+        Case 1 : Sound.Play(sndDraw)
+        Case 2 : Sound.Play(sndTwang)
+        Case 8 : Sound.Play(sndHurt)
+        Case 9 : Sound.Play(sndChime)
+        Case 10 : Sound.Play(sndPickup)
+        Case 11 : Sound.Play(sndPickup)
+        Case 12 : Sound.Play(sndFanfare)
+    End Select
+End Function
+
+Function Snd3D(snd, x#, y#, z#)
+    Global sfxOn
+    If sfxOn = 0 Or snd = 0 Then Return
+    EmitSound(snd, x, y, z)
+End Function
+
+Function ShowMsg(s$, big)
+    Global msg : Global msgT : Global msgBig
+    msg = s
+    msgT = 3.2
+    msgBig = big
+End Function
+
+; ---------- autoplay: walks to a herd, locks on and shoots, for checking the game runs ----------
+Function AutoPlay()
+    Global gs : Global btnTake : Global btnDraw : Global btnLock : Global inFwd : Global inSide : Global frame
+    Global px : Global pz : Global py : Global camYaw : Global autoT : Global autoA : Global ground : Global yaw
+    Global closeKind : Global crouch : Global autoT2 : Global deafTest
+    autoT = autoT + DeltaTime()
+    btnTake = 0
+    btnDraw = 0
+    btnLock = 0
+    inFwd = 0
+    inSide = 0
+    If gs = 0 And frame = 40 Then btnTake = 1
+    If gs = 2 And frame Mod 20 = 0 Then btnTake = 1
+    If gs <> 1 Then Return
+    ; Stand 14 m from the nearest deer, facing it (or 5 m from the close-up kind)
+    If autoA = 0 Then
+        best# = 99999
+        For i = 1 To nA
+            ok = aKind(i) = 2 Or aKind(i) = 3
+            If closeKind > 0 Then ok = aKind(i) = closeKind
+            If closeKind >= 6 Then ok = aKind(i) = 2
+            If deafTest Then ok = aKind(i) = 1
+            If FileType("endtest.flag") = 1 Then ok = aKind(i) = 5
+            If ok Then
+                d# = Distance2D(px, pz, aX(i), aZ(i))
+                If d < best Then
+                    best = d
+                    autoA = i
+                EndIf
+            EndIf
+        Next
+        ; A place with a clear line to it
+        a# = Rnd(0, 360)
+        For tryA = 1 To 24
+            clearLine = 1
+            For s = 1 To 12
+                If TreeHit(aX(autoA) + Math.Sin(a) * s, aZ(autoA) + Math.Cos(a) * s, 0.35) Then clearLine = 0
+            Next
+            If clearLine Then Exit
+            a = a + 15
+        Next
+        dd# = 14
+        If closeKind > 0 Then dd = 4.5
+        px = aX(autoA) + Math.Sin(a) * dd
+        pz = aZ(autoA) + Math.Cos(a) * dd
+        py = TerrainHeight(ground, px, pz)
+        yaw = Math.ATan2(aX(autoA) - px, aZ(autoA) - pz)
+        camYaw = yaw
+        autoT = 0
+    EndIf
+    If closeKind >= 6 Then
+        If autoT > 1 Then btnDraw = 1
+        Return
+    EndIf
+    If closeKind > 0 Then
+        btnLock = 1
+        Return
+    EndIf
+    ; Lock on, then draw and loose until it falls; then go and take it
+    If aState(autoA) = 5 Then
+        If autoT2 = 0 Then autoT2 = autoT
+        If autoT - autoT2 > 1 And autoT - autoT2 < 1.1 Then
+            px = aX(autoA) + 1.5
+            pz = aZ(autoA)
+            py = TerrainHeight(ground, px, pz)
+        EndIf
+        If autoT - autoT2 > 1.3 And autoT - autoT2 < 1.35 Then btnTake = 1
+        Return
+    EndIf
+    If aState(autoA) = 6 Then Return
+    If autoT > 1.5 Then btnLock = 1
+    c# = (autoT - 2) Mod 1.6
+    If autoT > 2 And c < 0.9 Then btnDraw = 1
+End Function

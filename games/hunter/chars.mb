@@ -1,0 +1,491 @@
+; Greenwood characters: sculpted from rings of vertices with vertex colour, jointed so
+; legs, arms, heads and the bow move. Nothing here loads a file.
+
+Dim rY(40)
+Dim rRX(40)
+Dim rRZ(40)
+Dim rOZ(40)
+Dim rCR(40)
+Dim rCG(40)
+Dim rCB(40)
+nR = 0
+
+; Queue one ring of a loft: height, half width, half depth, forward offset, colour
+Function R(y#, rx#, rz#, oz#, cr, cg, cb)
+    Global nR
+    nR = nR + 1
+    rY(nR) = y
+    rRX(nR) = rx
+    rRZ(nR) = rz
+    rOZ(nR) = oz
+    rCR(nR) = cr
+    rCG(nR) = cg
+    rCB(nR) = cb
+End Function
+
+; Skin the queued rings into one smooth closed mesh, then clear the queue
+Function Loft(parent, sides)
+    Global nR
+    m = CreateMesh(parent)
+    For j = 1 To nR
+        For i = 0 To sides
+            a# = i * 360 / sides
+            v = AddVertex(m, Math.Sin(a) * rRX(j), rY(j), Math.Cos(a) * rRZ(j) + rOZ(j), i / sides, j / nR)
+            VertexColor(m, v, Clamp(rCR(j), 0, 255), Clamp(rCG(j), 0, 255), Clamp(rCB(j), 0, 255))
+        Next
+    Next
+    row = sides + 1
+    For j = 0 To nR - 2
+        For i = 0 To sides - 1
+            a0 = j * row + i
+            AddTriangle(m, a0, a0 + 1, a0 + row)
+            AddTriangle(m, a0 + 1, a0 + row + 1, a0 + row)
+        Next
+    Next
+    b = AddVertex(m, 0, rY(1), rOZ(1), 0.5, 0)
+    VertexColor(m, b, Clamp(rCR(1), 0, 255), Clamp(rCG(1), 0, 255), Clamp(rCB(1), 0, 255))
+    t = AddVertex(m, 0, rY(nR), rOZ(nR), 0.5, 1)
+    VertexColor(m, t, Clamp(rCR(nR), 0, 255), Clamp(rCG(nR), 0, 255), Clamp(rCB(nR), 0, 255))
+    For i = 0 To sides - 1
+        AddTriangle(m, b, i + 1, i)
+        AddTriangle(m, t, (nR - 1) * row + i, (nR - 1) * row + i + 1)
+    Next
+    UpdateMesh(m)
+    nR = 0
+    Return m
+End Function
+
+Function Bit(parent, x#, y#, z#, hx#, hy#, hz#, cr, cg, cb)
+    e = CreateCube(parent)
+    ScaleEntity(e, hx, hy, hz)
+    PositionEntity(e, x, y, z)
+    EntityColor(e, cr, cg, cb)
+    SetRoughness(e, 0.8)
+    Return e
+End Function
+
+; A tapering tuft: hair, fur, a feather, a tine of antler
+Function Lock(parent, x#, y#, z#, pitch#, yawd#, roll#, len#, wid#, cr, cg, cb)
+    R(-len, 0.003, 0.003, 0, cr, cg, cb)
+    R(-len * 0.55, wid * 0.7, wid * 0.55, 0, cr, cg, cb)
+    R(0, wid, wid * 0.8, 0, cr + 8, cg + 8, cb + 10)
+    m = Loft(parent, 5)
+    PositionEntity(m, x, y, z)
+    SetRotation(m, pitch, yawd, roll)
+    Return m
+End Function
+
+; ---------- the hunter ----------
+
+Function BuildHead(parent, y#)
+    h = CreatePivot(parent)
+    PositionEntity(h, 0, y - 0.02, 0.01)
+    ScaleEntity(h, 1.5, 1.5, 1.5)
+    sr = 222 : sg = 176 : sb = 140
+    d# = 0.8
+    R(-0.1, 0.064, 0.068, -0.01, sr * d, sg * d, sb * d)
+    R(0.0, 0.07, 0.075, 0.0, sr * d, sg * d, sb * d)
+    R(0.02, 0.078, 0.088, 0.035, sr * 0.92, sg * 0.92, sb * 0.92)
+    R(0.075, 0.102, 0.11, 0.022, sr, sg, sb)
+    R(0.155, 0.114, 0.124, 0.01, sr, sg, sb)
+    R(0.235, 0.114, 0.126, 0.004, sr, sg, sb)
+    R(0.31, 0.094, 0.106, -0.004, sr * 0.96, sg * 0.96, sb * 0.96)
+    R(0.355, 0.045, 0.05, -0.008, sr * 0.9, sg * 0.9, sb * 0.9)
+    Loft(h, 10)
+    ; Nose, eyes, brows, mouth
+    R(0.11, 0.019, 0.012, 0.14, sr * 0.74, sg * 0.74, sb * 0.74)
+    R(0.14, 0.017, 0.017, 0.14, sr, sg, sb)
+    R(0.215, 0.011, 0.008, 0.126, sr, sg, sb)
+    Loft(h, 5)
+    For k = -1 To 1 Step 2
+        Bit(h, k * 0.051, 0.178, 0.113, 0.032, 0.028, 0.012, 246, 244, 236)
+        Bit(h, k * 0.047, 0.176, 0.124, 0.019, 0.025, 0.006, 52, 104, 74)
+        Bit(h, k * 0.047, 0.172, 0.129, 0.01, 0.015, 0.004, 10, 12, 10)
+        Bit(h, k * 0.055, 0.184, 0.133, 0.005, 0.005, 0.003, 255, 255, 255)
+        br = Bit(h, k * 0.055, 0.211, 0.115, 0.036, 0.01, 0.015, 120, 70, 34)
+        SetRotation(br, 0, 0, -k * 9)
+    Next
+    Bit(h, 0, 0.074, 0.123, 0.04, 0.007, 0.008, sr * 0.55, sg * 0.36, sb * 0.34)
+    ; Chestnut hair, tousled, with a fringe
+    hr = 132 : hg = 78 : hb = 38
+    R(0.17, 0.124, 0.13, -0.02, hr, hg, hb)
+    R(0.25, 0.128, 0.136, -0.012, hr + 6, hg + 4, hb + 2)
+    R(0.33, 0.11, 0.12, -0.008, hr + 12, hg + 8, hb + 4)
+    R(0.39, 0.05, 0.06, -0.01, hr + 18, hg + 12, hb + 6)
+    Loft(h, 10)
+    For i = 0 To 10
+        an# = 80 + i * 20
+        Lock(h, Math.Sin(an) * 0.108, 0.26 - (i Mod 3) * 0.035, Math.Cos(an) * 0.112 - 0.012, Math.Cos(an) * 16, 0, -Math.Sin(an) * 14, 0.17 + (i Mod 3) * 0.04, 0.045, hr, hg, hb)
+    Next
+    For i = -2 To 2
+        Lock(h, i * 0.04, 0.33, 0.085, 28 + (i Mod 2) * 7, 0, i * 10, 0.13 + Abs(i) * 0.01, 0.03, hr + 10, hg + 6, hb + 4)
+    Next
+    ; A green cap with a long tail and a pheasant feather
+    cr = 46 : cg = 104 : cb = 52
+    cp = CreatePivot(h)
+    PositionEntity(cp, 0, 0.3, -0.03)
+    SetRotation(cp, 34, 0, 0)
+    R(0.0, 0.132, 0.14, 0, cr * 0.8, cg * 0.8, cb * 0.8)
+    R(0.08, 0.11, 0.12, -0.02, cr, cg, cb)
+    R(0.22, 0.07, 0.075, -0.05, cr + 6, cg + 6, cb + 4)
+    R(0.38, 0.035, 0.04, -0.06, cr + 10, cg + 10, cb + 6)
+    R(0.5, 0.004, 0.004, -0.04, cr + 10, cg + 10, cb + 6)
+    Loft(cp, 9)
+    Lock(cp, 0.1, 0.06, -0.06, 200, 0, 160, 0.26, 0.022, 168, 96, 44)
+    Return h
+End Function
+
+Function BuildLeg(body, side#)
+    Global lastKnee
+    pr = 96 : pg = 70 : pb = 46
+    hip = CreatePivot(body)
+    PositionEntity(hip, side * 0.11, 1.0, 0)
+    R(-0.48, 0.07, 0.076, 0, pr * 0.82, pg * 0.82, pb * 0.82)
+    R(-0.33, 0.082, 0.09, 0.006, pr, pg, pb)
+    R(-0.15, 0.1, 0.11, 0.008, pr + 6, pg + 6, pb + 6)
+    R(0.03, 0.108, 0.118, 0, pr, pg, pb)
+    Loft(hip, 8)
+    knee = CreatePivot(hip)
+    PositionEntity(knee, 0, -0.48, 0)
+    ; Tall soft boots, turned down at the top
+    bc = 74 : bg = 48 : bb = 30
+    R(-0.47, 0.072, 0.142, 0.05, bc * 0.6, bg * 0.6, bb * 0.6)
+    R(-0.44, 0.078, 0.148, 0.054, bc * 0.85, bg * 0.85, bb * 0.85)
+    R(-0.4, 0.068, 0.12, 0.044, bc, bg, bb)
+    R(-0.32, 0.064, 0.074, 0.008, bc, bg, bb)
+    R(-0.08, 0.074, 0.082, 0, bc + 8, bg + 6, bb + 4)
+    R(0.0, 0.088, 0.094, 0, bc + 18, bg + 14, bb + 10)
+    R(0.03, 0.082, 0.088, 0, bc + 10, bg + 8, bb + 6)
+    Loft(knee, 8)
+    lastKnee = knee
+    Return hip
+End Function
+
+Function BuildArm(body, side#)
+    Global lastElbow
+    cr = 52 : cg = 116 : cb = 58
+    sh = CreatePivot(body)
+    PositionEntity(sh, side * 0.32, 1.64, -0.005)
+    R(-0.32, 0.054, 0.058, 0, cr * 0.8, cg * 0.8, cb * 0.8)
+    R(-0.17, 0.07, 0.074, 0, cr, cg, cb)
+    R(-0.03, 0.084, 0.09, 0, cr + 8, cg + 8, cb + 6)
+    R(0.055, 0.07, 0.08, 0, cr + 10, cg + 10, cb + 8)
+    R(0.085, 0.03, 0.04, 0, cr + 10, cg + 10, cb + 8)
+    Loft(sh, 8)
+    el = CreatePivot(sh)
+    PositionEntity(el, 0, -0.32, 0)
+    sr = 222 : sg = 176 : sb = 140
+    R(-0.24, 0.05, 0.052, 0, sr * 0.9, sg * 0.9, sb * 0.9)
+    R(-0.1, 0.056, 0.06, 0, sr, sg, sb)
+    R(0.02, 0.05, 0.052, 0, sr * 0.9, sg * 0.9, sb * 0.9)
+    Loft(el, 8)
+    ; Leather bracer and glove
+    gr = 104 : gg = 70 : gb = 42
+    R(-0.2, 0.062, 0.066, 0, gr, gg, gb)
+    R(-0.06, 0.066, 0.07, 0, gr + 10, gg + 8, gb + 6)
+    Loft(el, 8)
+    R(-0.4, 0.022, 0.04, 0.012, gr * 0.8, gg * 0.8, gb * 0.8)
+    R(-0.34, 0.044, 0.058, 0.012, gr, gg, gb)
+    R(-0.29, 0.052, 0.056, 0.004, gr + 6, gg + 6, gb + 6)
+    R(-0.25, 0.048, 0.05, 0, gr, gg, gb)
+    Loft(el, 7)
+    lastElbow = el
+    Return sh
+End Function
+
+; Returns the root. Joints are left in globals for the animation.
+Function BuildHunter()
+    Global heroBody : Global legL : Global legR : Global kneeL : Global kneeR : Global armL : Global armR
+    Global elbL : Global elbR : Global heroHead : Global bowP : Global strA : Global strB : Global nockArrow
+    Global cloak : Global lastKnee : Global lastElbow
+    root = CreatePivot()
+    heroBody = CreatePivot(root)
+
+    legL = BuildLeg(heroBody, -1)
+    kneeL = lastKnee
+    legR = BuildLeg(heroBody, 1)
+    kneeR = lastKnee
+
+    ; Tunic: forest green, belted, flaring into a skirt at the hips
+    cr = 52 : cg = 116 : cb = 58
+    R(0.66, 0.24, 0.2, 0.0, cr * 0.62, cg * 0.62, cb * 0.62)
+    R(0.8, 0.235, 0.19, 0.0, cr * 0.8, cg * 0.8, cb * 0.8)
+    R(1.0, 0.2, 0.15, 0.004, cr * 0.9, cg * 0.9, cb * 0.9)
+    R(1.12, 0.185, 0.13, 0.004, cr, cg, cb)
+    R(1.32, 0.205, 0.14, 0.004, cr + 4, cg + 4, cb + 2)
+    R(1.52, 0.27, 0.155, 0.006, cr + 10, cg + 10, cb + 6)
+    R(1.64, 0.305, 0.152, 0, cr + 14, cg + 14, cb + 8)
+    R(1.72, 0.27, 0.125, -0.006, cr + 16, cg + 16, cb + 10)
+    R(1.8, 0.1, 0.09, 0, 222 * 0.85, 176 * 0.85, 140 * 0.85)
+    Loft(heroBody, 10)
+    ; Undershirt at the collar, laces
+    Bit(heroBody, 0, 1.69, 0.12, 0.07, 0.045, 0.01, 226, 214, 186)
+    Bit(heroBody, 0, 1.6, 0.146, 0.006, 0.07, 0.006, 92, 60, 34)
+    ; Belt with a brass buckle, a pouch, a knife
+    Bit(heroBody, 0, 1.05, 0, 0.205, 0.04, 0.15, 86, 56, 32)
+    Bit(heroBody, 0, 1.05, 0.152, 0.04, 0.036, 0.01, 214, 178, 92)
+    Bit(heroBody, 0.21, 0.97, 0.05, 0.04, 0.07, 0.06, 108, 74, 44)
+    kn = Bit(heroBody, -0.2, 0.92, 0.08, 0.016, 0.12, 0.022, 64, 44, 28)
+    SetRotation(kn, 0, 0, 12)
+    ; Strap across the chest for the quiver
+    st = Bit(heroBody, 0, 1.38, 0.0, 0.022, 0.42, 0.162, 92, 62, 36)
+    SetRotation(st, 0, 0, -36)
+
+    ; Quiver on the back, arrows showing
+    q = CreatePivot(heroBody)
+    PositionEntity(q, 0.08, 1.42, -0.2)
+    SetRotation(q, 0, 0, -22)
+    R(-0.34, 0.07, 0.06, 0, 74, 48, 28)
+    R(-0.3, 0.085, 0.075, 0, 104, 70, 40)
+    R(0.2, 0.09, 0.08, 0, 120, 82, 48)
+    R(0.24, 0.085, 0.075, 0, 92, 62, 36)
+    Loft(q, 8)
+    For i = 0 To 4
+        qx# = (i Mod 3) * 0.03 - 0.03
+        qz# = Int(i / 3) * 0.03 - 0.015
+        Bit(q, qx, 0.32, qz, 0.006, 0.12, 0.006, 196, 172, 132)
+        Bit(q, qx, 0.42, qz, 0.002, 0.05, 0.022, 236, 236, 228)
+        Bit(q, qx, 0.42, qz, 0.022, 0.05, 0.002, 196, 54, 44)
+    Next
+
+    ; A short cloak over the shoulders
+    cloak = CreatePivot(heroBody)
+    PositionEntity(cloak, 0, 1.72, -0.06)
+    R(-0.62, 0.3, 0.06, -0.12, 30, 72, 40)
+    R(-0.4, 0.32, 0.1, -0.09, 38, 88, 48)
+    R(-0.15, 0.32, 0.14, -0.04, 44, 98, 54)
+    R(0.0, 0.26, 0.15, 0.0, 48, 104, 58)
+    R(0.04, 0.12, 0.1, 0.02, 48, 104, 58)
+    Loft(cloak, 10)
+
+    armL = BuildArm(heroBody, -1)
+    elbL = lastElbow
+    armR = BuildArm(heroBody, 1)
+    elbR = lastElbow
+
+    heroHead = BuildHead(heroBody, 1.9)
+
+    ; The longbow, in the left hand. Its local y is along the limbs, z the way it shoots.
+    bowP = CreatePivot(elbL)
+    PositionEntity(bowP, 0, -0.36, 0.03)
+    For k = -6 To 6
+        u# = k / 6.0
+        y# = u * 0.66
+        z# = (1 - u * u) * 0.11 - 0.11 + Abs(u) * Abs(u) * Abs(u) * 0.05
+        wd# = 0.02 - Abs(u) * 0.009
+        If k = 0 Then wd = 0.026
+        c = 120 - Abs(k) * 4
+        seg = Bit(bowP, 0, y, z, wd, 0.06, wd * 0.9, c, c * 0.66, c * 0.38)
+        SetRotation(seg, u * 26, 0, 0)
+    Next
+    Bit(bowP, 0, 0, 0.0, 0.03, 0.07, 0.03, 70, 40, 24)
+    ; String in two halves, from each tip to the nock point
+    strA = CreatePivot(bowP)
+    PositionEntity(strA, 0, 0.66, -0.06)
+    s = Bit(strA, 0, -0.33, 0, 0.003, 0.33, 0.003, 232, 226, 210)
+    SetUnlit(s)
+    strB = CreatePivot(bowP)
+    PositionEntity(strB, 0, -0.66, -0.06)
+    s = Bit(strB, 0, 0.33, 0, 0.003, 0.33, 0.003, 232, 226, 210)
+    SetUnlit(s)
+    ; The arrow on the string while drawing
+    nockArrow = CreatePivot(bowP)
+    Bit(nockArrow, 0, 0, 0.36, 0.006, 0.006, 0.4, 196, 172, 132)
+    Bit(nockArrow, 0, 0, 0.78, 0.012, 0.012, 0.03, 120, 126, 136)
+    Bit(nockArrow, 0, 0, 0.04, 0.002, 0.024, 0.05, 236, 236, 228)
+    Bit(nockArrow, 0, 0, 0.04, 0.024, 0.002, 0.05, 196, 54, 44)
+    HideEntity(nockArrow)
+    Return root
+End Function
+
+; Pull is 0 at rest to about 0.55 at full draw: the nock comes back, the halves angle in.
+Function SetBowPull(p#)
+    Global strA : Global strB : Global nockArrow
+    nz# = -0.06 - p
+    a# = Math.ATan2(nz + 0.06, 0.66)
+    l# = Math.Sqr(0.66 * 0.66 + (nz + 0.06) * (nz + 0.06))
+    SetRotation(strA, a, 0, 0)
+    ScaleEntity(strA, 1, l / 0.66, 1)
+    SetRotation(strB, -a, 0, 0)
+    ScaleEntity(strB, 1, l / 0.66, 1)
+    PositionEntity(nockArrow, 0, 0, nz)
+End Function
+
+; ---------- the animals ----------
+; Each is built along +Z with its feet at y = 0. Legs come back in legA/legB pairs
+; (front-left with back-right, and the other two), so a trot is two swings.
+
+Function QuadLegs(root, sign, c1, c2, c3, hipY#, halfW#, frontZ#, backZ#, len#, thick#)
+    p = CreatePivot(root)
+    PositionEntity(p, 0, hipY, 0)
+    For k = 0 To 1
+        side# = halfW
+        fz# = frontZ
+        If k = 1 Then
+            side = -halfW
+            fz = backZ
+        EndIf
+        If sign < 0 Then
+            side = -side
+        EndIf
+        leg = CreatePivot(p)
+        PositionEntity(leg, side, 0, fz)
+        back = k = 1
+        R(-len * 0.5, thick * 0.6, thick * 0.7, 0, c1 * 0.8, c2 * 0.8, c3 * 0.8)
+        R(-len * 0.25, thick * 0.8, thick, 0, c1, c2, c3)
+        tw# = thick * 1.2
+        If back Then tw = thick * 1.9
+        R(0.06, tw, tw * 1.25, 0, c1 + 6, c2 + 6, c3 + 6)
+        Loft(leg, 7)
+        lo = CreatePivot(leg)
+        PositionEntity(lo, 0, -len * 0.5, 0)
+        tilt# = -6
+        If back Then tilt = -22
+        SetRotation(lo, tilt, 0, 0)
+        R(-len * 0.5, thick * 0.55, thick * 0.65, 0.01, 30, 24, 20)
+        R(-len * 0.44, thick * 0.5, thick * 0.6, 0.0, c1 * 0.6, c2 * 0.6, c3 * 0.6)
+        R(-len * 0.2, thick * 0.5, thick * 0.55, 0, c1 * 0.85, c2 * 0.85, c3 * 0.85)
+        R(0.02, thick * 0.7, thick * 0.8, 0, c1, c2, c3)
+        Loft(lo, 6)
+    Next
+    Return p
+End Function
+
+; A red deer. Stags carry antlers; the white stag is pale and gleams.
+Function BuildDeer(i, stag, white)
+    c1 = 150 : c2 = 98 : c3 = 60
+    If white Then
+        c1 = 236 : c2 = 234 : c3 = 226
+    EndIf
+    root = CreatePivot()
+    spine = CreatePivot(root)
+    PositionEntity(spine, 0, 1.12, -0.62)
+    SetRotation(spine, -90, 0, 0)
+    R(-0.04, 0.1, 0.12, 0, c1 * 0.8, c2 * 0.8, c3 * 0.8)
+    R(0.2, 0.2, 0.24, 0.0, c1, c2, c3)
+    R(0.55, 0.19, 0.24, 0.02, c1 + 6, c2 + 6, c3 + 4)
+    R(0.9, 0.2, 0.27, 0.03, c1 + 8, c2 + 8, c3 + 6)
+    R(1.15, 0.19, 0.26, 0.04, c1 + 4, c2 + 4, c3 + 2)
+    R(1.32, 0.12, 0.16, 0.08, c1, c2, c3)
+    Loft(spine, 10)
+    ; Pale belly and rump
+    Bit(root, 0, 0.98, -0.1, 0.13, 0.04, 0.42, Min(255, c1 + 70), Min(255, c2 + 80), Min(255, c3 + 90))
+    Bit(root, 0, 1.18, -0.66, 0.11, 0.13, 0.04, Min(255, c1 + 90), Min(255, c2 + 100), Min(255, c3 + 110))
+    tl = Lock(root, 0, 1.24, -0.66, 200, 0, 180, 0.14, 0.04, Min(255, c1 + 80), Min(255, c2 + 90), Min(255, c3 + 100))
+    ; Neck rising forward, and the head on it
+    nk = CreatePivot(root)
+    PositionEntity(nk, 0, 1.28, 0.55)
+    SetRotation(nk, -30, 0, 0)
+    R(-0.05, 0.12, 0.17, 0.0, c1, c2, c3)
+    R(0.25, 0.09, 0.12, 0.0, c1 + 4, c2 + 4, c3 + 4)
+    R(0.5, 0.075, 0.09, 0.0, c1 + 6, c2 + 6, c3 + 6)
+    Loft(nk, 8)
+    hd = CreatePivot(nk)
+    PositionEntity(hd, 0, 0.52, 0)
+    SetRotation(hd, -80, 0, 0)
+    R(-0.05, 0.08, 0.1, 0.0, c1, c2, c3)
+    R(0.08, 0.09, 0.11, 0.0, c1 + 6, c2 + 6, c3 + 6)
+    R(0.22, 0.065, 0.075, -0.01, c1 + 4, c2 + 4, c3 + 4)
+    R(0.33, 0.045, 0.052, -0.015, c1 - 30, c2 - 30, c3 - 26)
+    R(0.36, 0.025, 0.03, -0.015, 34, 26, 22)
+    Loft(hd, 8)
+    For k = -1 To 1 Step 2
+        ey = Bit(hd, k * 0.08, 0.07, 0.02, 0.012, 0.016, 0.016, 16, 12, 10)
+        er = Lock(hd, k * 0.07, 0.0, -0.06, 120, 0, k * 70, 0.16, 0.045, c1, c2, c3)
+        If stag Then
+            ; Antlers: a beam sweeping up and back, with tines
+            an = CreatePivot(hd)
+            PositionEntity(an, k * 0.05, 0.02, -0.04)
+            SetRotation(an, 22, 0, k * 26)
+            ac = 212
+            If white = 0 Then ac = 196
+            R(0.0, 0.032, 0.032, 0, ac * 0.55, ac * 0.45, ac * 0.32)
+            R(0.25, 0.026, 0.026, 0.03, ac * 0.75, ac * 0.66, ac * 0.5)
+            R(0.5, 0.019, 0.019, 0.08, ac * 0.9, ac * 0.85, ac * 0.7)
+            R(0.66, 0.006, 0.006, 0.12, ac, ac * 0.95, ac * 0.85)
+            Loft(an, 5)
+            For tn = 0 To 2
+                Lock(an, 0, 0.14 + tn * 0.16, 0.01, 128 + tn * 8, 0, 0, 0.18 - tn * 0.02, 0.022, ac * 0.85, ac * 0.8, ac * 0.66)
+            Next
+        EndIf
+    Next
+    dLegA(i) = QuadLegs(root, 1, c1 - 10, c2 - 10, c3 - 8, 1.0, 0.13, 0.42, -0.5, 0.98, 0.05)
+    dLegB(i) = QuadLegs(root, -1, c1 - 10, c2 - 10, c3 - 8, 1.0, 0.13, 0.42, -0.5, 0.98, 0.05)
+    dHead(i) = nk
+    Return root
+End Function
+
+; A wild boar: low, heavy at the shoulder, bristled, with tusks.
+Function BuildBoar(i)
+    c1 = 70 : c2 = 54 : c3 = 44
+    root = CreatePivot()
+    spine = CreatePivot(root)
+    PositionEntity(spine, 0, 0.62, -0.62)
+    SetRotation(spine, -90, 0, 0)
+    R(-0.04, 0.12, 0.14, 0, c1 * 0.8, c2 * 0.8, c3 * 0.8)
+    R(0.2, 0.25, 0.28, 0.0, c1, c2, c3)
+    R(0.6, 0.27, 0.32, 0.03, c1 + 4, c2 + 4, c3 + 4)
+    R(0.95, 0.3, 0.38, 0.06, c1 + 6, c2 + 4, c3 + 2)
+    R(1.15, 0.26, 0.34, 0.06, c1 + 4, c2 + 2, c3)
+    R(1.3, 0.2, 0.26, 0.04, c1, c2, c3)
+    Loft(spine, 10)
+    ; Head down and forward: wedge snout, disc nose
+    hd = CreatePivot(root)
+    PositionEntity(hd, 0, 0.66, 0.66)
+    SetRotation(hd, -104, 0, 0)
+    R(-0.05, 0.17, 0.2, 0.0, c1, c2, c3)
+    R(0.15, 0.13, 0.15, -0.02, c1 + 4, c2 + 4, c3 + 4)
+    R(0.32, 0.08, 0.08, -0.03, c1 - 6, c2 - 6, c3 - 6)
+    R(0.4, 0.066, 0.06, -0.03, 120, 84, 80)
+    R(0.42, 0.05, 0.045, -0.03, 92, 60, 58)
+    Loft(hd, 8)
+    For k = -1 To 1 Step 2
+        Bit(hd, k * 0.1, 0.12, 0.08, 0.014, 0.014, 0.014, 16, 10, 8)
+        Lock(hd, k * 0.12, 0.02, -0.06, 150, 0, k * 40, 0.13, 0.05, c1 - 6, c2 - 6, c3 - 6)
+        Lock(hd, k * 0.07, 0.33, 0.07, -80, 0, k * 26, 0.12, 0.016, 236, 230, 210)
+    Next
+    ; A crest of bristles down the spine
+    For k = 0 To 11
+        z# = -0.5 + k * 0.1
+        Lock(root, 0, 0.92 + Math.Sin(k * 15) * 0.06, z, 180 - 25, 0, 180, 0.13, 0.04, c1 - 24, c2 - 22, c3 - 20)
+    Next
+    Lock(root, 0, 0.66, -0.68, 220, 0, 180, 0.18, 0.02, c1 - 10, c2 - 10, c3 - 10)
+    dLegA(i) = QuadLegs(root, 1, c1 - 18, c2 - 16, c3 - 14, 0.48, 0.17, 0.4, -0.42, 0.48, 0.06)
+    dLegB(i) = QuadLegs(root, -1, c1 - 18, c2 - 16, c3 - 14, 0.48, 0.17, 0.4, -0.42, 0.48, 0.06)
+    dHead(i) = hd
+    Return root
+End Function
+
+; A brown hare: long ears, big back feet, a white scut.
+Function BuildRabbit(i)
+    c1 = 146 : c2 = 116 : c3 = 84
+    root = CreatePivot()
+    ScaleEntity(root, 1.3, 1.3, 1.3)
+    bd = CreatePivot(root)
+    PositionEntity(bd, 0, 0.2, -0.16)
+    SetRotation(bd, -70, 0, 0)
+    R(-0.02, 0.06, 0.07, 0, c1 * 0.8, c2 * 0.8, c3 * 0.8)
+    R(0.08, 0.12, 0.13, 0.0, c1, c2, c3)
+    R(0.22, 0.11, 0.12, 0.01, c1 + 6, c2 + 6, c3 + 6)
+    R(0.34, 0.08, 0.085, 0.0, c1 + 4, c2 + 4, c3 + 4)
+    R(0.4, 0.05, 0.05, 0.0, c1, c2, c3)
+    Loft(bd, 8)
+    hd = CreatePivot(root)
+    PositionEntity(hd, 0, 0.34, 0.06)
+    R(-0.06, 0.05, 0.06, 0.0, c1, c2, c3)
+    R(0.0, 0.065, 0.075, 0.02, c1 + 6, c2 + 6, c3 + 6)
+    R(0.07, 0.05, 0.06, 0.035, c1 + 4, c2 + 4, c3 + 4)
+    R(0.1, 0.02, 0.02, 0.04, c1, c2, c3)
+    Loft(hd, 8)
+    For k = -1 To 1 Step 2
+        Bit(hd, k * 0.045, 0.02, 0.06, 0.01, 0.012, 0.012, 14, 10, 8)
+        e = Lock(hd, k * 0.025, 0.06, -0.01, 180 + 14, 0, 180 - k * 12, 0.2, 0.03, c1, c2, c3)
+        Bit(root, k * 0.08, 0.05, -0.14, 0.035, 0.05, 0.11, c1 - 10, c2 - 10, c3 - 8)
+        Bit(root, k * 0.05, 0.08, 0.06, 0.018, 0.08, 0.02, c1 - 6, c2 - 6, c3 - 4)
+    Next
+    tl = Bit(root, 0, 0.18, -0.25, 0.04, 0.04, 0.03, 240, 238, 232)
+    dLegA(i) = bd
+    dLegB(i) = 0
+    dHead(i) = hd
+    Return root
+End Function
